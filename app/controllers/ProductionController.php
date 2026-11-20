@@ -5041,22 +5041,24 @@ class ProductionController extends Controller {
     protected function inwardVariantToStock(int $variantId, float $qty, int $cid, int $qcId, string $qcNo, string $batchNo, string $location = 'Main Store', ?int $programId = null, ?int $stitchingBatchId = null, string $inspectorName = 'System Administrator'): void {
         if ($qty <= 0) return;
 
-        // 1. Credit stocks table
+        $location = $location ?: 'Main Store';
+
+        // 1. Credit stocks table (stocks table primary key is (concern_id, variant_id, location))
         $existing = DB::fetch(
-            "SELECT id, qty FROM stocks WHERE variant_id = ?" . ($cid ? " AND concern_id = ?" : ""),
-            $cid ? [$variantId, $cid] : [$variantId]
+            "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ?",
+            [$cid, $variantId, $location]
         );
 
         if ($existing) {
             DB::query(
-                "UPDATE stocks SET qty = qty + ?, updated_at = NOW() WHERE id = ?",
-                [$qty, $existing['id']]
+                "UPDATE stocks SET qty = qty + ?, updated_at = NOW() WHERE concern_id = ? AND variant_id = ? AND location = ?",
+                [$qty, $cid, $variantId, $location]
             );
         } else {
             DB::query(
-                "INSERT INTO stocks (concern_id, variant_id, qty, stock_source, created_at, updated_at)
-                 VALUES (?, ?, ?, 'own', NOW(), NOW())",
-                [$cid, $variantId, $qty]
+                "INSERT INTO stocks (concern_id, variant_id, location, qty, updated_at)
+                 VALUES (?, ?, ?, ?, NOW())",
+                [$cid, $variantId, $location, $qty]
             );
         }
 
@@ -5288,9 +5290,11 @@ class ProductionController extends Controller {
 
         // Inspectors list
         $inspectors = DB::fetchAll("
-            SELECT id, name, role, email FROM users
-            WHERE status = 'active'" . ($cid ? " AND (concern_id = ? OR concern_id IS NULL)" : "") . "
-            ORDER BY name ASC
+            SELECT u.id, u.name, r.name AS role, u.email 
+            FROM users u
+            LEFT JOIN roles r ON u.role_id = r.id
+            WHERE u.status = 'active'" . ($cid ? " AND (u.concern_id = ? OR u.concern_id IS NULL)" : "") . "
+            ORDER BY u.name ASC
         ", $cid ? [$cid] : []);
 
         $warehouses = [
