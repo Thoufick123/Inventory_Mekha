@@ -14,6 +14,10 @@ use Exception;
 class StaffController extends Controller {
     private static bool $schemaEnsured = false;
 
+    public function __construct() {
+        $this->ensureSchema();
+    }
+
     protected function ensureSchema(): void {
         if (self::$schemaEnsured) {
             return;

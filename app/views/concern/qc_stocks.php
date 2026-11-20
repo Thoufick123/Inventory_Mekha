@@ -105,10 +105,15 @@
                                 </td>
                                 <td class="py-3">
                                     <span class="fw-semibold text-primary font-monospace"><?= htmlspecialchars($qc['program_no'] ?? '-') ?></span>
+                                    <?php if (!empty($qc['stitching_batch_no'])): ?>
+                                        <div class="small text-muted font-monospace" style="font-size:0.7rem;"><?= htmlspecialchars($qc['stitching_batch_no']) ?></div>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="py-3">
-                                    <div class="fw-bold text-dark"><?= htmlspecialchars($qc['variant_name'] ?? 'Production Piece') ?></div>
-                                    <?php if (!empty($qc['sku_code'])): ?>
+                                    <div class="fw-bold text-dark"><?= htmlspecialchars($qc['product_name'] ?? ($qc['variant_name'] ?? 'Production Garment')) ?></div>
+                                    <?php if (!empty($qc['variant_count']) && $qc['variant_count'] > 1): ?>
+                                        <span class="badge bg-light text-secondary border" style="font-size:0.7rem;"><?= (int)$qc['variant_count'] ?> variants in batch</span>
+                                    <?php elseif (!empty($qc['sku_code'])): ?>
                                         <small class="text-muted font-monospace" style="font-size: 0.72rem;"><?= htmlspecialchars($qc['sku_code']) ?></small>
                                     <?php endif; ?>
                                 </td>
@@ -134,20 +139,20 @@
                                 </td>
                                 <td class="py-3 text-center">
                                     <div class="d-inline-flex align-items-center gap-1 justify-content-center">
-                                        <!-- 1. View details icon (cyan outline) -->
-                                        <button type="button" class="btn btn-sm btn-outline-info rounded-2 p-1" style="width: 30px; height: 30px; border-color: #67e8f9; color: #0891b2; display:inline-flex; align-items:center; justify-content:center;" onclick='openViewQcModal(<?= json_encode($qc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Inspection Details">
+                                        <!-- 1. View details link (cyan outline, opens /production/qc/details) -->
+                                        <a href="<?= \App\Core\Controller::url('/production/qc/details?id=' . $qc['id']) ?>" class="btn btn-sm btn-outline-info rounded-2 p-1" style="width: 30px; height: 30px; border-color: #67e8f9; color: #0891b2; display:inline-flex; align-items:center; justify-content:center;" title="View Inspection Details (Record Details & Variant Table)">
                                             <i class="bi bi-eye"></i>
-                                        </button>
+                                        </a>
 
-                                        <!-- 2. Re-inspect / Cycle icon (orange outline) -->
+                                        <!-- 2. Inspect / 2D Scanner icon -->
+                                        <a href="<?= \App\Core\Controller::url('/production/qc/inspect?id=' . $qc['id']) ?>" class="btn btn-sm btn-outline-primary rounded-2 p-1" style="width: 30px; height: 30px; border-color: #bfdbfe; color: #2563eb; display:inline-flex; align-items:center; justify-content:center;" title="Open 2D QR Piece Scanner">
+                                            <i class="bi bi-qr-code-scan"></i>
+                                        </a>
+
+                                        <!-- 3. Re-inspect / Cycle icon (orange outline) -->
                                         <button type="button" class="btn btn-sm btn-outline-warning rounded-2 p-1" style="width: 30px; height: 30px; border-color: #fed7aa; color: #f97316; display:inline-flex; align-items:center; justify-content:center;" onclick='openReinspectModal(<?= json_encode($qc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Re-inspect / Cycle Rework Garments">
                                             <i class="bi bi-arrow-repeat"></i>
                                         </button>
-
-                                        <!-- 3. Pack Finished Production Batch icon (green outline, links to Image 1) -->
-                                        <a href="<?= \App\Core\Controller::url('/production/batches/create?qc_batch_id=' . $qc['id']) ?>" class="btn btn-sm btn-outline-success rounded-2 p-1" style="width: 30px; height: 30px; border-color: #a7f3d0; color: #059669; display:inline-flex; align-items:center; justify-content:center;" title="Pack Finished Production Batch">
-                                            <i class="bi bi-box-seam"></i>
-                                        </a>
 
                                         <!-- 4. Delete QC record icon (red outline) -->
                                         <form action="<?= \App\Core\Controller::url('/production/qc/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete QC inspection <?= htmlspecialchars($qc['qc_no']) ?>?');">

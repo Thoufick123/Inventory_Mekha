@@ -245,11 +245,14 @@ class BatchController extends Controller {
 
         // Fetch real QR tags or generate dynamic piece tags for this concern
         $limitNum = max(50, (int)($totalPassed + 100));
-        $existingJobTags = DB::fetchAll("
-            SELECT qr_payload FROM label_jobs 
-            WHERE variant_id = ? AND (concern_id = ? OR concern_id IS NULL)
-            ORDER BY id ASC LIMIT {$limitNum}
-        ", [$selectedQc['variant_id'], $cid]);
+        $existingJobTags = [];
+        if (!empty($selectedQc['variant_id'])) {
+            $existingJobTags = DB::fetchAll("
+                SELECT qr_payload FROM label_jobs 
+                WHERE variant_id = ? AND (concern_id = ? OR concern_id IS NULL)
+                ORDER BY id ASC LIMIT {$limitNum}
+            ", [$selectedQc['variant_id'], $cid]);
+        }
         $allJobCodes = array_filter(array_column($existingJobTags, 'qr_payload'));
 
         $packedBatches = DB::fetchAll("SELECT qr_codes FROM batches WHERE qc_batch_id = ?", [$selectedQc['id']]);
