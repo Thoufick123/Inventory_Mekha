@@ -4865,6 +4865,91 @@ class ProductionController extends Controller {
         ]);
     }
 
+    public function createQc(): void {
+        $cid = Auth::concernId() ?: 1;
+
+        // Auto-heal schema if needed
+        try {
+            $cols = array_column(DB::fetchAll("DESCRIBE `qc_inspections`"), 'Field');
+            if (!in_array('program_id', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `program_id` INT NULL AFTER `variant_id`");
+            }
+            if (!in_array('rework_notes', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_notes` TEXT NULL AFTER `defect_notes`");
+            }
+        } catch (\Throwable $e) {}
+
+        // Fetch active programs for the active concern
+        $programs = DB::fetchAll("SELECT p.id, p.program_no, p.program_name, p.target_variant_id, p.planned_qty,
+                                  v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp
+                                  FROM production_programs p
+                                  LEFT JOIN variants v ON p.target_variant_id = v.id
+                                  WHERE (p.concern_id = ? OR p.concern_id IS NULL)
+                                  ORDER BY p.id DESC", [$cid]);
+
+        // Fetch active variants
+        $variants = DB::fetchAll("SELECT id, sku_code, name, size, price, mrp
+                                  FROM variants
+                                  WHERE status = 'active'" . ($cid ? " AND (concern_id = ? OR concern_id IS NULL)" : "") . "
+                                  ORDER BY name ASC", $cid ? [$cid] : []);
+
+        // Warehouses list
+        $warehouses = [
+            ['id' => 1, 'name' => 'wareouse (WH-01)', 'code' => 'WH-01'],
+            ['id' => 2, 'name' => 'Main Distribution Central', 'code' => 'WH-02'],
+        ];
+
+        // Pre-selected program ID (from GET query or first program)
+        $selectedProgramId = (int)($_GET['program_id'] ?? ($programs[0]['id'] ?? 0));
+        $selectedProgram = null;
+        foreach ($programs as $p) {
+            if ($p['id'] == $selectedProgramId) {
+                $selectedProgram = $p;
+                break;
+            }
+        }
+        if (!$selectedProgram && !empty($programs)) {
+            $selectedProgram = $programs[0];
+            $selectedProgramId = (int)$selectedProgram['id'];
+        }
+
+        // Program inspection history & stats
+        $inspectedCount = 0;
+        $passedCount    = 0;
+        $reworkCount    = 0;
+        $rejectedCount  = 0;
+        if ($selectedProgram) {
+            $stats = DB::fetch("SELECT COALESCE(SUM(inspected_qty), 0) AS total_inspected,
+                                       COALESCE(SUM(passed_qty), 0) AS total_passed,
+                                       COALESCE(SUM(rework_qty), 0) AS total_rework,
+                                       COALESCE(SUM(rejected_qty), 0) AS total_rejected
+                                FROM qc_inspections
+                                WHERE (program_id = ? OR variant_id = ?) AND (concern_id = ? OR concern_id IS NULL)",
+                                [$selectedProgram['id'], $selectedProgram['target_variant_id'], $cid]);
+            if ($stats) {
+                $inspectedCount = (float)$stats['total_inspected'];
+                $passedCount    = (float)$stats['total_passed'];
+                $reworkCount    = (float)$stats['total_rework'];
+                $rejectedCount  = (float)$stats['total_rejected'];
+            }
+        }
+
+        $this->render('concern/qc_create', [
+            'pageTitle'          => 'New Quality Control (QC) Inspection',
+            'currentModule'      => 'qc_stocks',
+            'programs'           => $programs,
+            'variants'           => $variants,
+            'warehouses'         => $warehouses,
+            'selectedProgram'    => $selectedProgram,
+            'selectedProgramId'  => $selectedProgramId,
+            'inspectedCount'     => $inspectedCount,
+            'passedCount'        => $passedCount,
+            'reworkCount'        => $reworkCount,
+            'rejectedCount'      => $rejectedCount,
+            'csrfToken'          => Auth::csrfToken(),
+        ]);
+    }
+
     public function storeQc(): void {
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 1);
@@ -4902,6 +4987,7 @@ class ProductionController extends Controller {
         $qcCount = (int)DB::fetchValue("SELECT COUNT(*) FROM qc_inspections WHERE (concern_id = ? OR concern_id IS NULL)", [$cid]);
         $qcNo = 'QC #' . ($qcCount + 1);
 
+        $newQcId = 0;
         DB::beginTransaction();
         try {
             DB::query(
@@ -4910,8 +4996,15 @@ class ProductionController extends Controller {
                 [$cid, $qcNo, $variantId, $programId, $inspectedQty, $passedQty, $reworkQty, $rejectedQty, $location, $defectNotes, $status, Auth::id()]
             );
 
+            $newQcId = (int)DB::lastInsertId();
             DB::commit();
             $this->flash('success', "Quality Control record {$qcNo} created successfully! ({$passedQty} passed, {$reworkQty} rework, {$rejectedQty} rejected)");
+
+            $submitAction = trim($_POST['submit_action'] ?? 'save');
+            if ($submitAction === 'save_and_pack' && $newQcId > 0) {
+                $this->redirect("/production/batches/create?qc_batch_id={$newQcId}");
+                return;
+            }
         } catch (\Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Failed to save QC inspection: ' . $e->getMessage());

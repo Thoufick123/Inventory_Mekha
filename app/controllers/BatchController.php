@@ -244,11 +244,12 @@ class BatchController extends Controller {
         ];
 
         // Fetch real QR tags or generate dynamic piece tags for this concern
+        $limitNum = max(50, (int)($totalPassed + 100));
         $existingJobTags = DB::fetchAll("
             SELECT qr_payload FROM label_jobs 
             WHERE variant_id = ? AND (concern_id = ? OR concern_id IS NULL)
-            ORDER BY id ASC LIMIT ?
-        ", [$selectedQc['variant_id'], $cid, $totalPassed + 100]);
+            ORDER BY id ASC LIMIT {$limitNum}
+        ", [$selectedQc['variant_id'], $cid]);
         $allJobCodes = array_filter(array_column($existingJobTags, 'qr_payload'));
 
         $packedBatches = DB::fetchAll("SELECT qr_codes FROM batches WHERE qc_batch_id = ?", [$selectedQc['id']]);
@@ -290,6 +291,18 @@ class BatchController extends Controller {
             ];
         }
 
+        // Dynamically synthesize rework tags if rework > 0
+        $reworkTags = [];
+        if ($rework > 0) {
+            for ($j = 1; $j <= $rework; $j++) {
+                $reworkTags[] = [
+                    'tag'      => $prefix . 'R' . str_pad((string)$j, 2, '0', STR_PAD_LEFT),
+                    'status'   => 'rework',
+                    'selected' => false,
+                ];
+            }
+        }
+
         // Dynamic Warehouses for this concern
         $warehouses = DB::fetchAll("SELECT id, name, code FROM production_units WHERE (concern_id = ? OR concern_id IS NULL) AND is_active = 1", [$cid]);
         if (empty($warehouses)) {
@@ -310,6 +323,7 @@ class BatchController extends Controller {
             'programStats'    => $programStats,
             'variant'         => $variant,
             'approvedQrTags'  => $approvedQrTags,
+            'reworkTags'      => $reworkTags,
             'warehouses'      => $warehouses,
         ]);
     }

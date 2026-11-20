@@ -23,9 +23,9 @@
             </h4>
             <p class="text-secondary small mb-0">Multi-checkpoint inspection (stitching, fabric, color, size, trims) & finished goods approval</p>
         </div>
-        <button class="btn btn-primary px-3 py-2 fw-semibold shadow-sm rounded-3" style="background:#4f46e5; border-color:#4f46e5;" data-bs-toggle="modal" data-bs-target="#modalAddQc">
+        <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>" class="btn btn-primary px-3 py-2 fw-semibold shadow-sm rounded-3" style="background:#4f46e5; border-color:#4f46e5;">
             <i class="bi bi-plus-circle me-1"></i> New QC Batch
-        </button>
+        </a>
     </div>
 
     <!-- Filter Card -->
@@ -87,11 +87,11 @@
                             $st = strtoupper(trim($qc['status'] ?? ''));
                             $statusBg = '#f1f5f9'; $statusColor = '#475569';
                             if ($st === 'REWORK') {
-                                $statusBg = '#fef3c7'; $statusColor = '#b45309';
+                                $statusBg = '#eab308'; $statusColor = '#ffffff';
                             } elseif ($st === 'PASSED' || $st === 'COMPLETED') {
-                                $statusBg = '#dcfce7'; $statusColor = '#15803d';
+                                $statusBg = '#10b981'; $statusColor = '#ffffff';
                             } elseif ($st === 'REJECTED') {
-                                $statusBg = '#fee2e2'; $statusColor = '#b91c1c';
+                                $statusBg = '#ef4444'; $statusColor = '#ffffff';
                             }
                             $reworkQty = (float)($qc['rework_qty'] ?? 0);
                             $rejectedQty = (float)($qc['rejected_qty'] ?? 0);
@@ -128,32 +128,32 @@
                                     <span class="fw-bold" style="color: #f59e0b;"><?= number_format($reworkQty) ?> pcs</span>
                                 </td>
                                 <td class="py-3">
-                                    <span class="badge rounded-pill text-uppercase px-2.5 py-1" style="background: <?= $statusBg ?>; color: <?= $statusColor ?>; font-weight: 600; font-size: 0.72rem; letter-spacing: 0.04em;">
+                                    <span class="badge text-uppercase" style="background: <?= $statusBg ?>; color: <?= $statusColor ?>; font-weight: 700; border-radius: 4px; padding: 4px 8px; font-size: 0.72rem; letter-spacing: 0.04em;">
                                         <?= htmlspecialchars($st ?: 'PENDING') ?>
                                     </span>
                                 </td>
                                 <td class="py-3 text-center">
                                     <div class="d-inline-flex align-items-center gap-1 justify-content-center">
-                                        <!-- 1. View details icon -->
-                                        <button type="button" class="btn btn-sm btn-outline-info rounded-2 p-1" style="width: 28px; height: 28px; display:inline-flex; align-items:center; justify-content:center;" onclick='openViewQcModal(<?= json_encode($qc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Inspection Details">
+                                        <!-- 1. View details icon (cyan outline) -->
+                                        <button type="button" class="btn btn-sm btn-outline-info rounded-2 p-1" style="width: 30px; height: 30px; border-color: #67e8f9; color: #0891b2; display:inline-flex; align-items:center; justify-content:center;" onclick='openViewQcModal(<?= json_encode($qc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Inspection Details">
                                             <i class="bi bi-eye"></i>
                                         </button>
 
-                                        <!-- 2. Re-inspect / Cycle icon -->
-                                        <button type="button" class="btn btn-sm btn-outline-warning rounded-2 p-1" style="width: 28px; height: 28px; display:inline-flex; align-items:center; justify-content:center;" onclick='openReinspectModal(<?= json_encode($qc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Re-inspect / Cycle Rework Garments">
+                                        <!-- 2. Re-inspect / Cycle icon (orange outline) -->
+                                        <button type="button" class="btn btn-sm btn-outline-warning rounded-2 p-1" style="width: 30px; height: 30px; border-color: #fed7aa; color: #f97316; display:inline-flex; align-items:center; justify-content:center;" onclick='openReinspectModal(<?= json_encode($qc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Re-inspect / Cycle Rework Garments">
                                             <i class="bi bi-arrow-repeat"></i>
                                         </button>
 
-                                        <!-- 3. Pack Finished Production Batch icon (Links to Image 2) -->
-                                        <a href="<?= \App\Core\Controller::url('/production/batches/create?qc_batch_id=' . $qc['id']) ?>" class="btn btn-sm btn-outline-success rounded-2 p-1" style="width: 28px; height: 28px; display:inline-flex; align-items:center; justify-content:center;" title="Pack Finished Production Batch">
+                                        <!-- 3. Pack Finished Production Batch icon (green outline, links to Image 1) -->
+                                        <a href="<?= \App\Core\Controller::url('/production/batches/create?qc_batch_id=' . $qc['id']) ?>" class="btn btn-sm btn-outline-success rounded-2 p-1" style="width: 30px; height: 30px; border-color: #a7f3d0; color: #059669; display:inline-flex; align-items:center; justify-content:center;" title="Pack Finished Production Batch">
                                             <i class="bi bi-box-seam"></i>
                                         </a>
 
-                                        <!-- 4. Delete QC record icon -->
+                                        <!-- 4. Delete QC record icon (red outline) -->
                                         <form action="<?= \App\Core\Controller::url('/production/qc/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete QC inspection <?= htmlspecialchars($qc['qc_no']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                                             <input type="hidden" name="id" value="<?= $qc['id'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-2 p-1" style="width: 28px; height: 28px; display:inline-flex; align-items:center; justify-content:center;" title="Delete QC Inspection">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-2 p-1" style="width: 30px; height: 30px; border-color: #fecaca; color: #dc2626; display:inline-flex; align-items:center; justify-content:center;" title="Delete QC Inspection">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
