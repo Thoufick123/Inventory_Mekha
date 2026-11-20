@@ -164,6 +164,7 @@ $router->post('/m/request/delete', [SalesController::class, 'deleteRequest'], 'r
 $router->get('/m/batch', [SalesController::class, 'batch'], 'batch', 'view');
 $router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'view');
 $router->post('/m/batch/store', [SalesController::class, 'storeBatch'], 'batch', 'add');
+$router->post('/m/batch/approve', [SalesController::class, 'approveBatch'], 'batch', 'edit');
 $router->post('/m/batch/update', [SalesController::class, 'updateBatch'], 'batch', 'edit');
 $router->post('/m/batch/delete', [SalesController::class, 'deleteBatch'], 'batch', 'delete');
 $router->get('/m/billing', [SalesController::class, 'billing'], 'billing', 'view');
@@ -177,6 +178,8 @@ $router->get('/api/pos/customer-lookup', [SalesController::class, 'customerLooku
 $router->get('/m/outward', [SalesController::class, 'outward'], 'outward', 'view');
 $router->get('/m/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'view');
 $router->post('/m/outward/store', [SalesController::class, 'storeOutward'], 'outward', 'add');
+$router->post('/m/outward/dispatch', [SalesController::class, 'dispatchOutward'], 'outward', 'edit');
+$router->post('/m/outward/receive', [SalesController::class, 'receiveOutward'], 'outward', 'edit');
 $router->post('/m/outward/update', [SalesController::class, 'updateOutward'], 'outward', 'edit');
 $router->post('/m/outward/delete', [SalesController::class, 'deleteOutward'], 'outward', 'delete');
 $router->get('/m/dispatch', [SalesController::class, 'dispatch'], 'dispatch', 'view');

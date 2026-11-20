@@ -87,15 +87,15 @@
             <table class="table table-hover align-middle mb-0 table-custom">
                 <thead>
                     <tr>
-                        <th>Inward No</th>
+                        <th>Inward No & GRN</th>
                         <?php if ($isSuperAdmin && empty($selectedCid)): ?>
                             <th>Concern</th>
                         <?php endif; ?>
-                        <th>Source / Supplier</th>
+                        <th>Source / Unit</th>
                         <th>Inward Date</th>
                         <th>Warehouse Bay</th>
                         <th>Items Received</th>
-                        <th>Total Inward Qty</th>
+                        <th>Accepted / Rejected</th>
                         <th>Received By</th>
                         <th class="text-end pe-3">Actions</th>
                     </tr>
@@ -106,7 +106,15 @@
                     <?php else: ?>
                         <?php foreach ($inwards as $inw): ?>
                             <tr>
-                                <td><span class="badge bg-dark font-monospace"><?= htmlspecialchars($inw['inward_no']) ?></span></td>
+                                <td>
+                                    <span class="badge bg-dark font-monospace"><?= htmlspecialchars($inw['inward_no']) ?></span>
+                                    <?php if (!empty($inw['grn_number'])): ?>
+                                        <div class="mt-1"><span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 font-monospace"><i class="bi bi-receipt me-1"></i><?= htmlspecialchars($inw['grn_number']) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($inw['vehicle_number'])): ?>
+                                        <small class="text-muted d-block mt-0.5"><i class="bi bi-truck me-1"></i><?= htmlspecialchars($inw['vehicle_number']) ?></small>
+                                    <?php endif; ?>
+                                </td>
                                 <?php if ($isSuperAdmin && empty($selectedCid)): ?>
                                     <td>
                                         <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
@@ -123,19 +131,31 @@
                                         <small class="text-muted font-monospace">Pass #<?= htmlspecialchars($inw['outward_no'] ?? '') ?></small>
                                     <?php else: ?>
                                         <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 mb-1 d-inline-block">
-                                            <i class="bi bi-cart me-1"></i> Supplier
+                                            <i class="bi bi-cart me-1"></i> Supplier / Purchase
                                         </span>
                                         <div class="fw-bold text-dark"><?= htmlspecialchars($inw['supplier_name'] ?? 'Direct Receipt') ?></div>
                                         <small class="text-muted"><?= htmlspecialchars($inw['remarks'] ?: '-') ?></small>
+                                    <?php endif; ?>
+                                    <?php if (!empty($inw['production_unit_name'])): ?>
+                                        <div class="small text-muted mt-1"><i class="bi bi-gear-wide-connected me-1"></i><?= htmlspecialchars($inw['production_unit_name']) ?></div>
                                     <?php endif; ?>
                                 </td>
                                 <td><?= date('d M Y', strtotime($inw['inward_date'])) ?></td>
                                 <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($inw['location']) ?></span></td>
                                 <td><?= (int)$inw['items_count'] ?> Line Items</td>
                                 <td>
+                                    <?php 
+                                        $accQty = (float)($inw['total_accepted_qty'] ?? $inw['total_qty']);
+                                        $rejQty = (float)($inw['total_rejected_qty'] ?? 0);
+                                    ?>
                                     <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 fs-6 px-2 py-1">
-                                        +<?= number_format($inw['total_qty'], 2) ?>
+                                        +<?= number_format($accQty, 2) ?>
                                     </span>
+                                    <?php if ($rejQty > 0): ?>
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-1">
+                                            <?= number_format($rejQty, 2) ?> Rej
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="small text-muted"><?= htmlspecialchars($inw['user_name'] ?? 'Staff') ?></td>
                                 <td class="text-end pe-3">
@@ -265,23 +285,54 @@
                     </div>
                 </div>
 
-                <div class="row g-2 mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Received Quantity *</label>
-                        <input type="number" step="0.01" name="qty" id="inward_qty" class="form-control" placeholder="0.00" required>
+                <?php if (!empty($productionUnits)): ?>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Target Production Unit / Plant</label>
+                        <select name="production_unit_id" id="inward_production_unit_id" class="form-select">
+                            <option value="">-- Main Facility / General --</option>
+                            <?php foreach ($productionUnits as $pu): ?>
+                                <option value="<?= $pu['id'] ?>"><?= htmlspecialchars($pu['name']) ?> (<?= htmlspecialchars($pu['code']) ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                    <div class="col-md-6">
+                <?php endif; ?>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Total Received Qty *</label>
+                        <input type="number" step="0.01" name="qty" id="inward_qty" class="form-control" placeholder="0.00" required oninput="calcAcceptedInward()">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold text-success">Accepted Qty *</label>
+                        <input type="number" step="0.01" name="accepted_qty" id="inward_accepted_qty" class="form-control border-success" placeholder="0.00" oninput="calcRejectedInward()">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold text-danger">Rejected / Damaged</label>
+                        <input type="number" step="0.01" name="rejected_qty" id="inward_rejected_qty" class="form-control border-danger" placeholder="0.00" readonly>
+                    </div>
+                </div>
+                <div class="mb-3 d-none" id="div_rejection_reason">
+                    <label class="form-label small fw-semibold text-danger">Reason for Rejection</label>
+                    <input type="text" name="rejection_reason" id="inward_rejection_reason" class="form-control form-control-sm" placeholder="e.g. Broken seams, torn packaging, wrong shade">
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
                         <label class="form-label small fw-semibold">Unit Cost Rate (₹)</label>
                         <input type="number" step="0.01" name="unit_cost" id="inward_unit_cost" class="form-control" placeholder="0.00">
                     </div>
-                </div>
-                <div class="row g-2 mb-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label small fw-semibold">Inward Date</label>
                         <input type="date" name="inward_date" id="inward_date" class="form-control" value="<?= date('Y-m-d') ?>">
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Location / Godown</label>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Vehicle / Truck No</label>
+                        <input type="text" name="vehicle_number" id="inward_vehicle_number" class="form-control" placeholder="TN-01-AB-1234">
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label small fw-semibold">Location / Godown Bay</label>
                         <input type="text" name="location" id="inward_location" class="form-control" value="Main Store">
                     </div>
                 </div>
@@ -491,6 +542,31 @@ function openEditInwardModal(inw) {
     if (modalEl) {
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
+    }
+}
+
+function calcAcceptedInward() {
+    const total = parseFloat(document.getElementById('inward_qty').value) || 0;
+    const acceptedInput = document.getElementById('inward_accepted_qty');
+    if (!acceptedInput.value || parseFloat(acceptedInput.value) > total) {
+        acceptedInput.value = total > 0 ? total : '';
+    }
+    calcRejectedInward();
+}
+
+function calcRejectedInward() {
+    const total = parseFloat(document.getElementById('inward_qty').value) || 0;
+    const accepted = parseFloat(document.getElementById('inward_accepted_qty').value) || 0;
+    const rejected = Math.max(0, total - accepted);
+    document.getElementById('inward_rejected_qty').value = rejected.toFixed(2);
+    
+    const reasonDiv = document.getElementById('div_rejection_reason');
+    if (reasonDiv) {
+        if (rejected > 0) {
+            reasonDiv.classList.remove('d-none');
+        } else {
+            reasonDiv.classList.add('d-none');
+        }
     }
 }
 </script>

@@ -505,10 +505,14 @@ class SalesController extends Controller {
         $cid = Auth::concernId();
 
         $sql = "SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.weight_unit,
-                       con.name AS concern_name, con.code AS concern_code
+                       con.name AS concern_name, con.code AS concern_code,
+                       pu.name AS production_unit_name, pu.code AS production_unit_code,
+                       u.name AS approver_name
                 FROM batches b
                 JOIN variants v ON b.variant_id = v.id
-                LEFT JOIN concerns con ON b.concern_id = con.id";
+                LEFT JOIN concerns con ON b.concern_id = con.id
+                LEFT JOIN production_units pu ON b.production_unit_id = pu.id
+                LEFT JOIN users u ON b.approved_by = u.id";
         $params = [];
         if ($cid) {
             $sql .= " WHERE b.concern_id = ?";
@@ -519,16 +523,22 @@ class SalesController extends Controller {
 
         if ($cid) {
             $variants = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
+            $productionUnits = DB::fetchAll("SELECT id, name, code FROM production_units WHERE concern_id = ? AND is_active = 1", [$cid]);
+            $qcInspections = DB::fetchAll("SELECT id, qc_no, variant_id, passed_qty FROM qc_inspections WHERE concern_id = ? AND passed_qty > 0 ORDER BY id DESC LIMIT 50", [$cid]);
         } else {
             $variants = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE status = 'active'");
+            $productionUnits = DB::fetchAll("SELECT id, name, code FROM production_units WHERE is_active = 1");
+            $qcInspections = DB::fetchAll("SELECT id, qc_no, variant_id, passed_qty FROM qc_inspections WHERE passed_qty > 0 ORDER BY id DESC LIMIT 50");
         }
 
         $this->render('concern/batch', [
-            'pageTitle'     => 'Batch Allocation & Lot Tracking',
-            'currentModule' => 'batch',
-            'batches'       => $batches,
-            'variants'      => $variants,
-            'selectedCid'   => $cid,
+            'pageTitle'       => 'Packaging & Production Batches (PB-XXXXX)',
+            'currentModule'   => 'batch',
+            'batches'         => $batches,
+            'variants'        => $variants,
+            'productionUnits' => $productionUnits,
+            'qcInspections'   => $qcInspections,
+            'selectedCid'     => $cid,
         ]);
     }
 
@@ -545,21 +555,39 @@ class SalesController extends Controller {
         $qty       = (float)($_POST['batch_qty'] ?? 0);
         $mfgDate   = $_POST['mfg_date'] ?: date('Y-m-d');
         $expDate   = !empty($_POST['exp_date']) ? $_POST['exp_date'] : null;
+        $productionUnitId = !empty($_POST['production_unit_id']) ? (int)$_POST['production_unit_id'] : null;
+        $qcBatchId = !empty($_POST['qc_batch_id']) ? (int)$_POST['qc_batch_id'] : null;
+        $totalBoxes = !empty($_POST['total_boxes']) ? (int)$_POST['total_boxes'] : 0;
 
         if (!$variantId || $qty <= 0) {
             $this->flash('error', 'Variant and Batch Quantity are required.');
             $this->redirect('/m/batch');
         }
 
-        $batchNo = NumberSeries::getNext($cid, 'BATCH');
+        $batchNo = \App\Models\Batch::generateBatchNo($cid);
 
         DB::query(
-            "INSERT INTO batches (concern_id, batch_no, variant_id, batch_qty, mfg_date, exp_date, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())",
-            [$cid, $batchNo, $variantId, $qty, $mfgDate, $expDate]
+            "INSERT INTO batches (concern_id, production_unit_id, qc_batch_id, batch_no, variant_id, batch_qty, total_boxes, mfg_date, exp_date, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', NOW())",
+            [$cid, $productionUnitId, $qcBatchId, $batchNo, $variantId, $qty, $totalBoxes, $mfgDate, $expDate]
         );
 
-        $this->flash('success', "Batch lot '{$batchNo}' initialized.");
+        $this->flash('success', "Packaging Batch '{$batchNo}' created in DRAFT status ({$totalBoxes} boxes). Supervisor approval required to credit available stock.");
+        $this->redirect('/m/batch');
+    }
+
+    /**
+     * Supervisor Verification Gate: Approve batch and register stock
+     */
+    public function approveBatch(): void {
+        $this->validateCsrf();
+        $batchId = (int)($_POST['id'] ?? 0);
+        try {
+            \App\Models\Batch::approveBatch($batchId, Auth::id());
+            $this->flash('success', "Batch #{$batchId} APPROVED! Finished goods credited to Available Stock ledger.");
+        } catch (\Throwable $e) {
+            $this->flash('error', "Batch approval failed: " . $e->getMessage());
+        }
         $this->redirect('/m/batch');
     }
 
@@ -1001,15 +1029,28 @@ class SalesController extends Controller {
             );
         }
 
+        $batchSql = "SELECT b.*, v.name AS variant_name, v.sku_code, v.size 
+                     FROM batches b 
+                     JOIN variants v ON b.variant_id = v.id 
+                     WHERE b.status = 'APPROVED'";
+        $batchParams = [];
+        if ($cid) {
+            $batchSql .= " AND b.concern_id = ?";
+            $batchParams[] = $cid;
+        }
+        $batchSql .= " ORDER BY b.id DESC";
+        $approvedBatches = DB::fetchAll($batchSql, $batchParams);
+
         $this->render('concern/outward', [
-            'pageTitle'     => 'Outward Gate Pass & Packing',
-            'currentModule' => 'outward',
-            'outwards'      => $outwards,
-            'customers'     => $customers,
-            'invoices'      => $invoices,
-            'variants'      => $variants,
-            'allConcerns'   => $allConcerns,
-            'selectedCid'   => $cid,
+            'pageTitle'       => 'Outward Manifest & Dispatch Gate Pass',
+            'currentModule'   => 'outward',
+            'outwards'        => $outwards,
+            'customers'       => $customers,
+            'invoices'        => $invoices,
+            'variants'        => $variants,
+            'approvedBatches' => $approvedBatches,
+            'allConcerns'     => $allConcerns,
+            'selectedCid'     => $cid,
         ]);
     }
 
@@ -1037,68 +1078,104 @@ class SalesController extends Controller {
             }
         } else {
             $transferType = 'customer';
-            if (!$customerId) {
+            if (!$customerId && empty($_POST['selected_batches'])) {
                 $this->flash('error', 'Customer, Variant and valid Quantity are required.');
                 $this->redirect('/m/outward');
             }
         }
 
-        $invoiceId  = !empty($_POST['sales_invoice_id']) ? (int)$_POST['sales_invoice_id'] : null;
-        $outwDate   = $_POST['outward_date'] ?: date('Y-m-d');
-        $location   = trim($_POST['location'] ?? 'Main Store');
-        $variantId  = (int)($_POST['variant_id'] ?? 0);
-        $qty        = (float)($_POST['qty'] ?? 0);
+        $invoiceId        = !empty($_POST['sales_invoice_id']) ? (int)$_POST['sales_invoice_id'] : null;
+        $outwDate         = $_POST['outward_date'] ?: date('Y-m-d');
+        $location         = trim($_POST['location'] ?? 'Main Store');
+        $variantId        = (int)($_POST['variant_id'] ?? 0);
+        $qty              = (float)($_POST['qty'] ?? 0);
+        $vehicleNumber    = trim($_POST['vehicle_number'] ?? '');
+        $driverName       = trim($_POST['driver_name'] ?? '');
+        $driverContact    = trim($_POST['driver_contact'] ?? '');
+        $transporterName  = trim($_POST['transporter_name'] ?? '');
+        $lrNumber         = trim($_POST['lr_number'] ?? '');
+        $selectedBatches  = $_POST['selected_batches'] ?? [];
 
-        if (!$variantId || $qty <= 0) {
-            $this->flash('error', 'Variant and valid Quantity greater than zero are required.');
+        if (empty($selectedBatches) && (!$variantId || $qty <= 0)) {
+            $this->flash('error', 'Please either select at least one Approved Batch or specify a variant & quantity.');
             $this->redirect('/m/outward');
         }
 
         DB::beginTransaction();
         try {
             $outwardNo = NumberSeries::getNext($cid, 'OUTWARD');
-            $status = ($transferType === 'concern') ? 'dispatched' : 'prepared';
+            $gatePassNo = \App\Models\Outward::generateGatePassNo($cid);
+            $status = 'DRAFT';
 
             DB::query(
-                "INSERT INTO outwards (concern_id, outward_no, sales_invoice_id, customer_id, transfer_type, destination_concern_id, outward_date, location, status, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                [$cid, $outwardNo, $invoiceId, $customerId, $transferType, $destConcernId, $outwDate, $location, $status, Auth::id()]
+                "INSERT INTO outwards (concern_id, outward_no, gate_pass_no, sales_invoice_id, customer_id, transfer_type, destination_concern_id, outward_date, location, vehicle_number, driver_name, driver_contact, transporter_name, lr_number, status, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                [$cid, $outwardNo, $gatePassNo, $invoiceId, $customerId, $transferType, $destConcernId, $outwDate, $location, $vehicleNumber, $driverName, $driverContact, $transporterName, $lrNumber, $status, Auth::id()]
             );
             $outwardId = (int)DB::lastInsertId();
 
-            DB::query(
-                "INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (?, ?, ?, ?)",
-                [$cid, $outwardId, $variantId, $qty]
-            );
-
-            // Single stock gateway: Outward deducts stock!
-            $logMsg = ($transferType === 'concern') 
-                ? "Inter-unit outward transfer [{$outwardNo}] to destination concern #{$destConcernId}"
-                : "Outward dispatch gate-pass {$outwardNo}";
-
-            StockService::move(
-                $cid,
-                $variantId,
-                $location,
-                0.00,
-                $qty,
-                'Outward',
-                $outwardId,
-                $logMsg,
-                Auth::id()
-            );
+            // Link selected production batches
+            if (!empty($selectedBatches) && is_array($selectedBatches)) {
+                foreach ($selectedBatches as $bId) {
+                    $bId = (int)$bId;
+                    $bInfo = DB::fetch("SELECT * FROM batches WHERE id = ?", [$bId]);
+                    if ($bInfo) {
+                        DB::query(
+                            "INSERT INTO production_outward_batches (concern_id, outward_id, batch_id, cartons_count, pieces_count) VALUES (?, ?, ?, ?, ?)",
+                            [$cid, $outwardId, $bId, (int)$bInfo['total_boxes'], (float)$bInfo['batch_qty']]
+                        );
+                        DB::query(
+                            "INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (?, ?, ?, ?)",
+                            [$cid, $outwardId, (int)$bInfo['variant_id'], (float)$bInfo['batch_qty']]
+                        );
+                    }
+                }
+            } elseif ($variantId && $qty > 0) {
+                DB::query(
+                    "INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (?, ?, ?, ?)",
+                    [$cid, $outwardId, $variantId, $qty]
+                );
+            }
 
             DB::commit();
 
-            $successMsg = ($transferType === 'concern')
-                ? "Inter-unit transfer '{$outwardNo}' issued. {$qty} units deducted and sent to destination concern for inwarding."
-                : "Outward consignment '{$outwardNo}' created and {$qty} units deducted from live stock.";
-            $this->flash('success', $successMsg);
-        } catch (Exception $e) {
+            $this->flash('success', "Outward Manifest '{$outwardNo}' (Gate Pass '{$gatePassNo}') created in DRAFT status! Click 'Dispatch' to shift into transit.");
+            $this->redirect('/m/outward');
+        } catch (\Throwable $e) {
             DB::rollBack();
-            $this->flash('error', 'Failed to generate outward: ' . $e->getMessage());
+            $this->flash('error', "Outward creation failed: " . $e->getMessage());
+            $this->redirect('/m/outward');
         }
+    }
 
+    /**
+     * Dispatch Outward Action
+     */
+    public function dispatchOutward(): void {
+        $this->validateCsrf();
+        $id = (int)($_POST['id'] ?? 0);
+        try {
+            \App\Models\Outward::dispatch($id, Auth::id());
+            $this->flash('success', "Outward #{$id} DISPATCHED! Stock transferred to carrier in IN_TRANSIT status.");
+        } catch (\Throwable $e) {
+            $this->flash('error', "Dispatch failed: " . $e->getMessage());
+        }
+        $this->redirect('/m/outward');
+    }
+
+    /**
+     * Receive / Reconcile Outward Action
+     */
+    public function receiveOutward(): void {
+        $this->validateCsrf();
+        $id = (int)($_POST['id'] ?? 0);
+        $damagedQty = (float)($_POST['damaged_qty'] ?? 0);
+        try {
+            \App\Models\Outward::receive($id, Auth::id(), $damagedQty);
+            $this->flash('success', "Outward #{$id} RECEIVED & Reconciled! Stock capitalized into Available warehouse inventory.");
+        } catch (\Throwable $e) {
+            $this->flash('error', "Receiving failed: " . $e->getMessage());
+        }
         $this->redirect('/m/outward');
     }
 

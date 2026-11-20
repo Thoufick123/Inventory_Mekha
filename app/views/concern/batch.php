@@ -50,9 +50,33 @@
                                 <td><span class="fw-bold text-primary"><?= number_format($b['batch_qty'], 2) ?> <?= htmlspecialchars($b['weight_unit']) ?></span></td>
                                 <td><?= date('d M Y', strtotime($b['mfg_date'])) ?></td>
                                 <td><?= $b['exp_date'] ? date('d M Y', strtotime($b['exp_date'])) : '<span class="text-muted">None</span>' ?></td>
-                                <td><span class="badge bg-success"><?= ucfirst($b['status']) ?></span></td>
+                                <td>
+                                    <?php 
+                                        $st = strtoupper($b['status'] ?? 'ACTIVE');
+                                        if ($st === 'DRAFT'): ?>
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Draft</span>
+                                    <?php elseif ($st === 'APPROVED'): ?>
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Approved</span>
+                                    <?php elseif ($st === 'DISPATCHED'): ?>
+                                        <span class="badge bg-info text-dark"><i class="bi bi-truck me-1"></i>Dispatched</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary"><?= ucfirst(strtolower($st)) ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($b['total_boxes'])): ?>
+                                        <small class="d-block text-muted mt-0.5"><?= (int)$b['total_boxes'] ?> Boxes</small>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="text-end">
                                     <div class="d-inline-flex align-items-center gap-1">
+                                        <?php if (strtoupper($b['status'] ?? '') === 'DRAFT'): ?>
+                                            <form action="<?= \App\Core\Controller::url('/m/batch/approve') ?>" method="POST" class="d-inline" onsubmit="return confirm('Supervisor Approval: Approve batch <?= htmlspecialchars($b['batch_no']) ?> and credit live inventory?');">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                <input type="hidden" name="id" value="<?= $b['id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-success shadow-sm" title="Supervisor Approve Batch">
+                                                    <i class="bi bi-check2-circle me-1"></i> Approve
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                         <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewBatchModal(<?= json_encode($b, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Batch Details">
                                             <i class="bi bi-eye"></i>
                                         </button>
@@ -82,12 +106,36 @@
         <form action="<?= \App\Core\Controller::url('/m/batch/store') ?>" method="POST" class="modal-content">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold">Initialize New Batch</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-box-seam me-1 text-primary"></i> Create Packaging Batch (PB-XXXXX)</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <?php if (!empty($productionUnits)): ?>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Target Production Unit</label>
+                        <select name="production_unit_id" class="form-select form-select-sm">
+                            <option value="">-- Main Facility Unit --</option>
+                            <?php foreach ($productionUnits as $pu): ?>
+                                <option value="<?= $pu['id'] ?>"><?= htmlspecialchars($pu['name']) ?> (<?= htmlspecialchars($pu['code']) ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($qcInspections)): ?>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Link Passed QC Inspection Batch (Optional)</label>
+                        <select name="qc_batch_id" class="form-select form-select-sm">
+                            <option value="">-- Manual Packaging (No QC Reference) --</option>
+                            <?php foreach ($qcInspections as $qc): ?>
+                                <option value="<?= $qc['id'] ?>">QC #<?= htmlspecialchars($qc['qc_no']) ?> &bull; Passed: <?= number_format($qc['passed_qty'], 2) ?> pcs</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
+
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Variant *</label>
+                    <label class="form-label small fw-semibold">Product Variant *</label>
                     <select name="variant_id" class="form-select" required>
                         <option value="">Select Variant</option>
                         <?php foreach ($variants as $v): ?>
@@ -95,9 +143,15 @@
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Batch Planned Qty *</label>
-                    <input type="number" step="0.01" name="batch_qty" class="form-control" required placeholder="0.00">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Packaged Garment Qty (Pcs) *</label>
+                        <input type="number" step="0.01" name="batch_qty" class="form-control" required placeholder="0.00">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Master Cartons / Boxes</label>
+                        <input type="number" name="total_boxes" class="form-control" placeholder="e.g. 5">
+                    </div>
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-md-6">
@@ -109,10 +163,13 @@
                         <input type="date" name="exp_date" class="form-control">
                     </div>
                 </div>
+                <div class="p-2 bg-light border rounded small text-muted">
+                    <i class="bi bi-info-circle text-primary me-1"></i> Batches are initialized as <strong>DRAFT</strong>. Once packed, a supervisor approves the batch to capitalize finished goods into Available Stock.
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Batch</button>
+                <button type="submit" class="btn btn-primary">Create Packaging Batch</button>
             </div>
         </form>
     </div>

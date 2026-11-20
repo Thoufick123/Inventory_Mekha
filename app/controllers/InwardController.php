@@ -50,12 +50,16 @@ class InwardController extends Controller {
         $sql = "SELECT i.*, s.name AS supplier_name, pb.bill_no, u.name AS user_name,
                        con.name AS concern_name, con.code AS concern_code,
                        fc.name AS from_concern_name, fc.code AS from_concern_code,
+                       pu.name AS production_unit_name, pu.code AS production_unit_code,
                        o.outward_no,
                        (SELECT COUNT(*) FROM inward_items ii WHERE ii.inward_id = i.id) AS items_count,
-                       (SELECT COALESCE(SUM(qty), 0) FROM inward_items ii WHERE ii.inward_id = i.id) AS total_qty
+                       (SELECT COALESCE(SUM(qty), 0) FROM inward_items ii WHERE ii.inward_id = i.id) AS total_qty,
+                       (SELECT COALESCE(SUM(accepted_qty), 0) FROM inward_items ii WHERE ii.inward_id = i.id) AS total_accepted_qty,
+                       (SELECT COALESCE(SUM(rejected_qty), 0) FROM inward_items ii WHERE ii.inward_id = i.id) AS total_rejected_qty
                 FROM inwards i
                 LEFT JOIN concerns con ON i.concern_id = con.id
                 LEFT JOIN concerns fc ON i.from_concern_id = fc.id
+                LEFT JOIN production_units pu ON i.production_unit_id = pu.id
                 LEFT JOIN outwards o ON i.outward_id = o.id
                 LEFT JOIN suppliers s ON i.supplier_id = s.id
                 LEFT JOIN purchase_bills pb ON i.purchase_bill_id = pb.id
@@ -89,6 +93,15 @@ class InwardController extends Controller {
 
         $allConcerns = DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY name ASC");
 
+        $unitSql = "SELECT id, name, code FROM production_units WHERE is_active = 1";
+        $unitParams = [];
+        if ($cid) {
+            $unitSql .= " AND concern_id = ?";
+            $unitParams[] = $cid;
+        }
+        $unitSql .= " ORDER BY name ASC";
+        $productionUnits = DB::fetchAll($unitSql, $unitParams);
+
         if ($cid) {
             $suppliers = DB::fetchAll("SELECT id, name FROM suppliers WHERE concern_id = ? AND status = 'active'", [$cid]);
             $variants  = DB::fetchAll("SELECT id, sku_code, name, size, weight_unit FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
@@ -98,13 +111,14 @@ class InwardController extends Controller {
         }
 
         $this->render('concern/inward', [
-            'pageTitle'        => 'Inward Stock Consignments',
+            'pageTitle'        => 'Inward Stock Consignments & GRN',
             'currentModule'    => 'inward',
             'inwards'          => $inwards,
             'pendingTransfers' => $pendingTransfers,
             'suppliers'        => $suppliers,
             'variants'         => $variants,
             'allConcerns'      => $allConcerns,
+            'productionUnits'  => $productionUnits,
             'selectedCid'      => $cid,
         ]);
     }
@@ -223,31 +237,45 @@ class InwardController extends Controller {
             }
 
             $inwardNo = NumberSeries::getNext($cid, 'INWARD');
+            $grnNumber = !empty($_POST['grn_number']) ? trim($_POST['grn_number']) : Inward::generateGrnNumber($cid);
+            $productionUnitId = !empty($_POST['production_unit_id']) ? (int)$_POST['production_unit_id'] : null;
+            $warehouseId = !empty($_POST['warehouse_id']) ? (int)$_POST['warehouse_id'] : null;
+            $vehicleNumber = !empty($_POST['vehicle_number']) ? trim($_POST['vehicle_number']) : null;
+            $poId = !empty($_POST['po_id']) ? (int)$_POST['po_id'] : null;
+
+            $acceptedQty = isset($_POST['accepted_qty']) ? (float)$_POST['accepted_qty'] : $qty;
+            if ($acceptedQty > $qty) {
+                $acceptedQty = $qty;
+            }
+            $rejectedQty = isset($_POST['rejected_qty']) ? (float)$_POST['rejected_qty'] : max(0.00, $qty - $acceptedQty);
+            $rejectionReason = !empty($_POST['rejection_reason']) ? trim($_POST['rejection_reason']) : null;
 
             DB::query(
-                "INSERT INTO inwards (concern_id, inward_no, outward_id, from_concern_id, inward_type, supplier_id, inward_date, location, remarks, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                [$cid, $inwardNo, $outwardId, $fromConcernId, $inwardType, $supplierId, $inwardDate, $location, $remarks, Auth::id()]
+                "INSERT INTO inwards (concern_id, production_unit_id, inward_no, grn_number, po_id, outward_id, from_concern_id, inward_type, supplier_id, inward_date, location, warehouse_id, vehicle_number, received_by, status, remarks, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'VERIFIED', ?, ?, NOW())",
+                [$cid, $productionUnitId, $inwardNo, $grnNumber, $poId, $outwardId, $fromConcernId, $inwardType, $supplierId, $inwardDate, $location, $warehouseId, $vehicleNumber, Auth::id(), $remarks, Auth::id()]
             );
             $inwardId = (int)DB::lastInsertId();
 
             DB::query(
-                "INSERT INTO inward_items (concern_id, inward_id, variant_id, qty, unit_cost) VALUES (?, ?, ?, ?, ?)",
-                [$cid, $inwardId, $variantId, $qty, $unitCost]
+                "INSERT INTO inward_items (concern_id, inward_id, variant_id, qty, accepted_qty, rejected_qty, rejection_reason, unit_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [$cid, $inwardId, $variantId, $qty, $acceptedQty, $rejectedQty, $rejectionReason, $unitCost]
             );
 
-            // Single stock gateway: Inward adds quantity strictly to this concern!
-            StockService::move(
-                $cid,
-                $variantId,
-                $location,
-                $qty,
-                0.00,
-                'Inward',
-                $inwardId,
-                "Inward consignment {$inwardNo}" . ($remarks ? ": {$remarks}" : ""),
-                Auth::id()
-            );
+            // Single stock gateway: Double-entry credit for accepted items strictly to this concern
+            if ($acceptedQty > 0) {
+                StockService::move(
+                    $cid,
+                    $variantId,
+                    $location,
+                    $acceptedQty,
+                    0.00,
+                    'PURCHASE_INWARD',
+                    $inwardId,
+                    "GRN Inward receipt #{$grnNumber} (Inward {$inwardNo})" . ($remarks ? ": {$remarks}" : ""),
+                    Auth::id()
+                );
+            }
 
             // If this was from an outward, update outward status to 'received'
             if ($outwardId) {

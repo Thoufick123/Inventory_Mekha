@@ -88,6 +88,34 @@ class Auth {
         return !empty($_SESSION['super_admin_concern_id']) ? (int)$_SESSION['super_admin_concern_id'] : null;
     }
 
+    /**
+     * Get active scoped production unit ID
+     */
+    public static function productionUnitId(): ?int {
+        $u = self::user();
+        if (!$u) {
+            return null;
+        }
+        if (self::isSuperAdmin() || in_array($u['role'] ?? '', ['admin', 'owner'])) {
+            return !empty($_SESSION['active_unit_id']) 
+                ? (int)$_SESSION['active_unit_id'] 
+                : (!empty($u['production_unit_id']) ? (int)$u['production_unit_id'] : null);
+        }
+        return !empty($u['production_unit_id']) ? (int)$u['production_unit_id'] : null;
+    }
+
+    /**
+     * Switch active production unit in session
+     */
+    public static function switchProductionUnit(?int $unitId): void {
+        self::startSession();
+        if ($unitId && $unitId > 0) {
+            $_SESSION['active_unit_id'] = (int)$unitId;
+        } else {
+            unset($_SESSION['active_unit_id']);
+        }
+    }
+
     public static function switchConcern(?int $concernId): void {
         self::startSession();
         if (!self::isSuperAdmin()) {
