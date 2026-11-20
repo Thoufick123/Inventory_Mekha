@@ -1608,6 +1608,56 @@ class ProductionController extends Controller {
             $this->redirect('/production/programs/create');
         }
 
+        // Group and validate total requested allocated quantities per roll item across all cards
+        $rollAllocationsByItem = [];
+        foreach ($rolls as $idx => $r) {
+            $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
+            $allocatedQty = (float)($r['allocated_qty'] ?? 0);
+            if ($rollItemId > 0) {
+                if (!isset($rollAllocationsByItem[$rollItemId])) {
+                    $rollAllocationsByItem[$rollItemId] = [
+                        'total_requested' => 0.0,
+                        'card_numbers'    => [],
+                    ];
+                }
+                $rollAllocationsByItem[$rollItemId]['total_requested'] += $allocatedQty;
+                $rollAllocationsByItem[$rollItemId]['card_numbers'][] = ($idx + 1);
+            }
+        }
+
+        foreach ($rollAllocationsByItem as $rollItemId => $allocData) {
+            $rollSql = "SELECT pbi.*, 
+                               COALESCE((
+                                   SELECT SUM(pr.allocated_qty) 
+                                   FROM program_rolls pr 
+                                   JOIN production_programs pp ON pr.program_id = pp.id 
+                                   WHERE pr.purchase_bill_item_id = pbi.id 
+                                     AND pp.status != 'cancelled'
+                               ), 0.00) AS used_qty
+                        FROM purchase_bill_items pbi 
+                        JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
+                        WHERE pbi.id = ?
+                          AND (pbi.inward_status = 'completed' OR (pbi.inward_status IS NULL AND pb.inward_status = 'completed'))" . ($cid ? " AND pbi.concern_id = ?" : "");
+            $rollItem = DB::fetch($rollSql, $cid ? [$rollItemId, $cid] : [$rollItemId]);
+
+            if (!$rollItem) {
+                $this->flash('error', "Invalid purchased roll (Item #{$rollItemId}) or roll has not been added to stock yet.");
+                $this->redirect('/production/programs/create');
+            }
+
+            $totalRollQty = (float)$rollItem['qty'];
+            $usedQty = (float)$rollItem['used_qty'];
+            $availableQty = max(0.00, $totalRollQty - $usedQty);
+
+            if ($allocData['total_requested'] > ($availableQty + 0.001)) {
+                $tag = $rollItem['item_code'] ?: ('Item #' . $rollItem['id']);
+                $cardsStr = implode(', ', array_map(fn($num) => "Roll #{$num}", $allocData['card_numbers']));
+                $unit = $rollItem['unit'] ?: 'kg';
+                $this->flash('error', "Total allocated quantity ({$allocData['total_requested']} {$unit}) across {$cardsStr} for [{$tag}] exceeds available stock balance ({$availableQty} {$unit} out of {$totalRollQty} {$unit}).");
+                $this->redirect('/production/programs/create');
+            }
+        }
+
         $validatedRolls = [];
         $totalPlannedQty = 0.00;
         $catalogScopeSql = $cid ? " AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)" : "";
@@ -2131,6 +2181,59 @@ class ProductionController extends Controller {
         if (!is_array($rolls) || empty($rolls)) {
             $this->flash('error', 'Please assign at least one raw material fabric roll.');
             $this->redirect('/production/programs/edit?id=' . $id);
+        }
+
+        // Group and validate total requested allocated quantities per roll item across all cards
+        $rollAllocationsByItem = [];
+        foreach ($rolls as $idx => $r) {
+            $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
+            $allocatedQty = (float)($r['allocated_qty'] ?? 0);
+            if ($rollItemId > 0) {
+                if (!isset($rollAllocationsByItem[$rollItemId])) {
+                    $rollAllocationsByItem[$rollItemId] = [
+                        'total_requested' => 0.0,
+                        'card_numbers'    => [],
+                    ];
+                }
+                $rollAllocationsByItem[$rollItemId]['total_requested'] += $allocatedQty;
+                $rollAllocationsByItem[$rollItemId]['card_numbers'][] = ($idx + 1);
+            }
+        }
+
+        foreach ($rollAllocationsByItem as $rollItemId => $allocData) {
+            $rollItem = DB::fetch(
+                "SELECT pbi.*, 
+                        COALESCE((
+                            SELECT SUM(pr.allocated_qty) 
+                            FROM program_rolls pr 
+                            JOIN production_programs pp ON pr.program_id = pp.id 
+                            WHERE pr.purchase_bill_item_id = pbi.id 
+                              AND pp.status != 'cancelled'
+                              AND pp.id != ?
+                        ), 0.00) AS used_qty_other
+                 FROM purchase_bill_items pbi 
+                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
+                 WHERE pbi.id = ?
+                   AND (pbi.inward_status = 'completed' OR (pbi.inward_status IS NULL AND pb.inward_status = 'completed'))" . ($cid ? " AND pbi.concern_id = ?" : ""),
+                $cid ? [$id, $rollItemId, $cid] : [$id, $rollItemId]
+            );
+
+            if (!$rollItem) {
+                $this->flash('error', "Invalid purchased roll (Item #{$rollItemId}) or roll has not been added to stock yet.");
+                $this->redirect('/production/programs/edit?id=' . $id);
+            }
+
+            $totalRollQty = (float)$rollItem['qty'];
+            $usedQtyOther = (float)$rollItem['used_qty_other'];
+            $availableQty = max(0.00, $totalRollQty - $usedQtyOther);
+
+            if ($allocData['total_requested'] > ($availableQty + 0.001)) {
+                $tag = $rollItem['item_code'] ?: ('Item #' . $rollItem['id']);
+                $cardsStr = implode(', ', array_map(fn($num) => "Roll #{$num}", $allocData['card_numbers']));
+                $unit = $rollItem['unit'] ?: 'kg';
+                $this->flash('error', "Total allocated quantity ({$allocData['total_requested']} {$unit}) across {$cardsStr} for [{$tag}] exceeds available stock balance ({$availableQty} {$unit} out of {$totalRollQty} {$unit}).");
+                $this->redirect('/production/programs/edit?id=' . $id);
+            }
         }
 
         // Keep existing allocation IDs stable so cutting/stitching links and
@@ -4102,12 +4205,17 @@ class ProductionController extends Controller {
         $notes         = trim($_POST['notes'] ?? '');
 
         if (empty($stitchingName)) {
-            $this->flash('error', 'Stitching Name is required.');
+            $this->flash('error', 'Stitching Name is required. Please fill the empty input field.');
             $this->redirect('/production/stitching/create');
         }
 
         if (!$cuttingId) {
             $this->flash('error', 'Please choose a valid Source Cutting Batch.');
+            $this->redirect('/production/stitching/create');
+        }
+
+        if (empty($tailorId)) {
+            $this->flash('error', 'Tailor / Stitching Master is required. Please select a Tailor.');
             $this->redirect('/production/stitching/create');
         }
 
@@ -4154,6 +4262,29 @@ class ProductionController extends Controller {
 
         // Process submitted items breakdown
         $submittedItems = $_POST['items'] ?? [];
+        if (empty($submittedItems) || !is_array($submittedItems)) {
+            $this->flash('error', 'Please select a cutting batch with valid items.');
+            $this->redirect('/production/stitching/create');
+        }
+
+        // Validate that no item input fields are empty
+        foreach ($submittedItems as $it) {
+            $stitchQStr = trim((string)($it['stitching_qty'] ?? ''));
+            $perWtStr   = trim((string)($it['per_pc_weight'] ?? ''));
+            $totWtStr   = trim((string)($it['total_weight'] ?? ''));
+            $basePrStr  = trim((string)($it['base_price'] ?? ''));
+            $discPrStr  = trim((string)($it['discount_price'] ?? ''));
+
+            if ($stitchQStr === '' || !is_numeric($stitchQStr) || (int)$stitchQStr < 0 ||
+                $perWtStr === '' || !is_numeric($perWtStr) || (float)$perWtStr <= 0 ||
+                $totWtStr === '' || !is_numeric($totWtStr) || (float)$totWtStr <= 0 ||
+                $basePrStr === '' || !is_numeric($basePrStr) || (float)$basePrStr < 0 ||
+                $discPrStr === '' || !is_numeric($discPrStr) || (float)$discPrStr < 0) {
+                $this->flash('error', 'Please fill all empty input fields (Quantity, Weights, and Prices) for all variant items.');
+                $this->redirect('/production/stitching/create');
+            }
+        }
+
         $validatedItems = [];
         $totalCutQty = 0;
         $totalStitchedQty = 0;
@@ -4417,10 +4548,44 @@ class ProductionController extends Controller {
             $this->redirect('/production/stitching');
         }
 
-        $stitchingName = trim($_POST['stitching_name'] ?? $batch['stitching_name']);
+        $stitchingName = trim($_POST['stitching_name'] ?? '');
         $tailorId      = !empty($_POST['tailor_id']) ? (int)$_POST['tailor_id'] : null;
         $status        = in_array($_POST['status'] ?? '', ['in_progress', 'planned', 'completed']) ? $_POST['status'] : $batch['status'];
         $notes         = trim($_POST['notes'] ?? '');
+
+        if (empty($stitchingName)) {
+            $this->flash('error', 'Stitching Name is required. Please fill the empty input field.');
+            $this->redirect('/production/stitching/edit?id=' . $id);
+        }
+
+        if (empty($tailorId)) {
+            $this->flash('error', 'Tailor / Stitching Master is required. Please select a Tailor.');
+            $this->redirect('/production/stitching/edit?id=' . $id);
+        }
+
+        $submittedItems = $_POST['items'] ?? [];
+        if (empty($submittedItems) || !is_array($submittedItems)) {
+            $this->flash('error', 'No variant items found in batch.');
+            $this->redirect('/production/stitching/edit?id=' . $id);
+        }
+
+        // Validate that no item input fields are empty
+        foreach ($submittedItems as $itemId => $it) {
+            $stitchQStr = trim((string)($it['stitching_qty'] ?? ''));
+            $perWtStr   = trim((string)($it['per_pc_weight'] ?? ''));
+            $totWtStr   = trim((string)($it['total_weight'] ?? ''));
+            $basePrStr  = trim((string)($it['base_price'] ?? ''));
+            $discPrStr  = trim((string)($it['discount_price'] ?? ''));
+
+            if ($stitchQStr === '' || !is_numeric($stitchQStr) || (int)$stitchQStr < 0 ||
+                $perWtStr === '' || !is_numeric($perWtStr) || (float)$perWtStr <= 0 ||
+                $totWtStr === '' || !is_numeric($totWtStr) || (float)$totWtStr <= 0 ||
+                $basePrStr === '' || !is_numeric($basePrStr) || (float)$basePrStr < 0 ||
+                $discPrStr === '' || !is_numeric($discPrStr) || (float)$discPrStr < 0) {
+                $this->flash('error', 'Please fill all empty input fields (Quantity, Weights, and Prices) for all variant items.');
+                $this->redirect('/production/stitching/edit?id=' . $id);
+            }
+        }
 
         $tailorName = null;
         if ($tailorId) {
