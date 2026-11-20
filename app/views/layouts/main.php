@@ -276,10 +276,15 @@
                     if ($m['code'] === 'catalog_mapping') $href = \App\Core\Controller::url('/production/catalog-mapping');
                     if ($m['code'] === 'cutting_wastage') $href = \App\Core\Controller::url('/production/cutting');
                     if ($m['code'] === 'stitching_wastage') $href = \App\Core\Controller::url('/production/stitching');
+<<<<<<< HEAD
                     if ($m['code'] === 'warehouse_damage') $href = \App\Core\Controller::url('/warehouse/damages');
                     if ($m['code'] === 'shop_damage') $href = \App\Core\Controller::url('/shop/damages');
                     if ($m['code'] === 'return_exchange') $href = \App\Core\Controller::url('/production/returns');
                     if ($m['code'] === 'request') $href = \App\Core\Controller::url('/production/stock-requests');
+=======
+                    if ($m['code'] === 'batch') $href = \App\Core\Controller::url('/production/batches');
+                    if ($m['code'] === 'outward') $href = \App\Core\Controller::url('/production/outward');
+>>>>>>> 418a24748cb35259c6bb006cdbdbde939e385795
 
                     if ($m['code'] === 'cash_flow') {
                         $isActive = (isset($currentModule) && in_array($currentModule, ['cash_flow', 'cash'])) || 

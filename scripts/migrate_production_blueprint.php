@@ -96,6 +96,16 @@ $batchColumns = [
     'qc_batch_id'             => "INT NULL AFTER `stitching_batch_id`",
     'additional_qc_batch_ids' => "TEXT NULL AFTER `qc_batch_id`",
     'total_boxes'             => "INT DEFAULT 0 AFTER `batch_qty`",
+    'warehouse_id'            => "INT NULL AFTER `total_boxes`",
+    'warehouse_name'          => "VARCHAR(150) NULL AFTER `warehouse_id`",
+    'packed_by_name'          => "VARCHAR(150) DEFAULT 'System Administrator' AFTER `warehouse_name`",
+    'rework_included'         => "TINYINT(1) DEFAULT 0 AFTER `packed_by_name`",
+    'qr_codes'                => "LONGTEXT NULL AFTER `rework_included`",
+    'taxable_value'           => "DECIMAL(12,2) DEFAULT 0.00 AFTER `qr_codes`",
+    'gst_amount'              => "DECIMAL(12,2) DEFAULT 0.00 AFTER `taxable_value`",
+    'total_amount'            => "DECIMAL(12,2) DEFAULT 0.00 AFTER `gst_amount`",
+    'bill_no'                 => "VARCHAR(100) NULL AFTER `total_amount`",
+    'fabric_details'          => "VARCHAR(255) DEFAULT 'GREEN / BIRDS' AFTER `bill_no`",
     'approved_by'             => "INT NULL AFTER `status`",
     'approved_at'             => "DATETIME NULL AFTER `approved_by`"
 ];

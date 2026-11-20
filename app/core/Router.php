@@ -59,7 +59,7 @@ class Router {
         }
 
         $uri = '/' . trim($uri, '/');
-        if ($uri === '//') {
+        if ($uri === '//' || $uri === '/index.php') {
             $uri = '/';
         }
 

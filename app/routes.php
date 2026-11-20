@@ -22,22 +22,14 @@ use App\Controllers\ProductionReturnController;
 use App\Controllers\ProductionStockRequestController;
 use App\Controllers\WarehouseDamageController;
 use App\Controllers\ShopDamageController;
+use App\Controllers\BatchController;
+use App\Controllers\OutwardController;
 
 /** @var Router $router */
 
-// Home redirection
-$router->get('/', function() {
-    if (!Auth::check()) {
-        header('Location: ' . \App\Core\Controller::url('/login'));
-        exit;
-    }
-    if (Auth::isSuperAdmin()) {
-        header('Location: ' . \App\Core\Controller::url('/admin/dashboard'));
-    } else {
-        header('Location: ' . \App\Core\Controller::url('/dashboard'));
-    }
-    exit;
-});
+// Home / Landing Page - directly shows login if guest, or redirects to dashboard if authenticated
+$router->get('/', [AuthController::class, 'showLogin']);
+$router->post('/', [AuthController::class, 'login']);
 
 // Authentication
 $router->get('/login', [AuthController::class, 'showLogin']);
@@ -209,12 +201,24 @@ $router->get('/m/request/export', [SalesController::class, 'exportRequests'], 'r
 $router->post('/m/request/store', [SalesController::class, 'storeRequest'], 'request', 'add');
 $router->post('/m/request/update', [SalesController::class, 'updateRequest'], 'request', 'edit');
 $router->post('/m/request/delete', [SalesController::class, 'deleteRequest'], 'request', 'delete');
-$router->get('/m/batch', [SalesController::class, 'batch'], 'batch', 'view');
+// Finished Production Batches & Carton Packaging (Image 1, 2, 3)
+$router->get('/m/batch', [BatchController::class, 'index'], 'batch', 'view');
+$router->get('/production/batches', [BatchController::class, 'index'], 'batch', 'view');
+$router->get('/m/batch/create', [BatchController::class, 'create'], 'batch', 'add');
+$router->get('/production/batches/create', [BatchController::class, 'create'], 'batch', 'add');
+$router->post('/m/batch/store', [BatchController::class, 'store'], 'batch', 'add');
+$router->post('/production/batches/store', [BatchController::class, 'store'], 'batch', 'add');
+$router->get('/m/batch/label/{id}', [BatchController::class, 'label'], 'batch', 'view');
+$router->get('/production/batches/label/{id}', [BatchController::class, 'label'], 'batch', 'view');
+$router->get('/m/batch/pieces/{id}', [BatchController::class, 'pieces'], 'batch', 'view');
+$router->get('/production/batches/pieces/{id}', [BatchController::class, 'pieces'], 'batch', 'view');
+$router->post('/m/batch/approve', [BatchController::class, 'approve'], 'batch', 'edit');
+$router->post('/production/batches/approve', [BatchController::class, 'approve'], 'batch', 'edit');
+$router->post('/m/batch/update', [BatchController::class, 'update'], 'batch', 'edit');
+$router->post('/production/batches/update', [BatchController::class, 'update'], 'batch', 'edit');
+$router->post('/m/batch/delete', [BatchController::class, 'delete'], 'batch', 'delete');
+$router->post('/production/batches/delete', [BatchController::class, 'delete'], 'batch', 'delete');
 $router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'view');
-$router->post('/m/batch/store', [SalesController::class, 'storeBatch'], 'batch', 'add');
-$router->post('/m/batch/approve', [SalesController::class, 'approveBatch'], 'batch', 'edit');
-$router->post('/m/batch/update', [SalesController::class, 'updateBatch'], 'batch', 'edit');
-$router->post('/m/batch/delete', [SalesController::class, 'deleteBatch'], 'batch', 'delete');
 $router->get('/m/billing', [SalesController::class, 'billing'], 'billing', 'view');
 $router->get('/m/billing/export', [SalesController::class, 'exportBilling'], 'billing', 'view');
 $router->post('/m/billing/store', [SalesController::class, 'storeInvoice'], 'billing', 'add');
@@ -223,13 +227,21 @@ $router->post('/shop/pos/complete', [SalesController::class, 'completePosSale'],
 $router->post('/m/billing/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->get('/api/pos/variant-lookup', [SalesController::class, 'variantLookup'], 'billing', 'view');
 $router->get('/api/pos/customer-lookup', [SalesController::class, 'customerLookup'], 'billing', 'view');
-$router->get('/m/outward', [SalesController::class, 'outward'], 'outward', 'view');
+// Production Outward & Dispatch (Image 1)
+$router->get('/m/outward', [OutwardController::class, 'index'], 'outward', 'view');
+$router->get('/production/outward', [OutwardController::class, 'index'], 'outward', 'view');
+$router->post('/m/outward/store', [OutwardController::class, 'store'], 'outward', 'add');
+$router->post('/production/outward/store', [OutwardController::class, 'store'], 'outward', 'add');
+$router->post('/m/outward/update', [OutwardController::class, 'update'], 'outward', 'edit');
+$router->post('/production/outward/update', [OutwardController::class, 'update'], 'outward', 'edit');
+$router->post('/m/outward/delete', [OutwardController::class, 'delete'], 'outward', 'delete');
+$router->post('/production/outward/delete', [OutwardController::class, 'delete'], 'outward', 'delete');
+$router->post('/m/outward/dispatch', [OutwardController::class, 'dispatch'], 'outward', 'edit');
+$router->post('/production/outward/dispatch', [OutwardController::class, 'dispatch'], 'outward', 'edit');
+$router->get('/m/outward/traceability/{id}', [OutwardController::class, 'traceability'], 'outward', 'view');
+$router->get('/production/outward/traceability/{id}', [OutwardController::class, 'traceability'], 'outward', 'view');
 $router->get('/m/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'view');
-$router->post('/m/outward/store', [SalesController::class, 'storeOutward'], 'outward', 'add');
-$router->post('/m/outward/dispatch', [SalesController::class, 'dispatchOutward'], 'outward', 'edit');
-$router->post('/m/outward/receive', [SalesController::class, 'receiveOutward'], 'outward', 'edit');
-$router->post('/m/outward/update', [SalesController::class, 'updateOutward'], 'outward', 'edit');
-$router->post('/m/outward/delete', [SalesController::class, 'deleteOutward'], 'outward', 'delete');
+$router->get('/production/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'view');
 $router->get('/m/dispatch', [SalesController::class, 'dispatch'], 'dispatch', 'view');
 $router->get('/m/dispatch/export', [SalesController::class, 'exportDispatch'], 'dispatch', 'view');
 $router->post('/m/dispatch/store', [SalesController::class, 'storeDispatch'], 'dispatch', 'add');

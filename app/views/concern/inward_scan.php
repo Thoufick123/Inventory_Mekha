@@ -113,8 +113,8 @@
                     <i class="bi bi-qr-code me-1 text-primary"></i> Batch Carton QR Code
                 </div>
                 <div class="d-flex justify-content-center py-2">
-                    <div id="batchCartonQrContainer" class="p-2 border rounded-2 bg-light">
-                        <canvas id="batchQrCanvas" width="160" height="160"></canvas>
+                    <div id="batchCartonQrContainer" class="p-2 border rounded-2 bg-light d-flex align-items-center justify-content-center" style="min-width: 160px; min-height: 160px;">
+                        <div id="batchQrCanvas" style="width: 160px; height: 160px;"></div>
                     </div>
                 </div>
                 <div class="fw-bold font-monospace text-primary fs-6 mt-1"><?= htmlspecialchars($outward['batch_no']) ?></div>
@@ -278,7 +278,7 @@
 
             <!-- Bottom CTA Button / Form Submission -->
             <form action="<?= \App\Core\Controller::url('/m/inward/credit') ?>" method="POST" id="formCreditStock" onsubmit="return validateCreditSubmission(event)">
-                <?= \App\Core\Csrf::field() ?>
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                 <input type="hidden" name="outward_id" value="<?= (int)$outward['id'] ?>">
                 <input type="hidden" name="variant_id" id="submitVariantId" value="<?= (int)($items[0]['variant_id'] ?? 0) ?>">
                 <input type="hidden" name="verified_qty" id="submitVerifiedQty" value="0">
@@ -319,7 +319,7 @@
                     <!-- Top Left: QR Preview -->
                     <div class="col-12 col-md-4 text-center border-end">
                         <div class="d-inline-block p-2 border rounded-2 bg-light shadow-sm">
-                            <canvas id="modalPieceQrCanvas" width="140" height="140"></canvas>
+                            <div id="modalPieceQrCanvas" class="d-flex align-items-center justify-content-center" style="width: 140px; height: 140px;"></div>
                         </div>
                         <div class="fw-bold font-monospace fs-5 text-primary mt-1" id="modalCurrentPieceTag">KBD1126104</div>
                     </div>
@@ -423,21 +423,57 @@ function playSound(type) {
     }
 }
 
-// Generate Canvas QR Code
-function renderQrToCanvas(canvasId, text) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+// Generate QR Code (Supports both container div with qrcode.js and canvas fallback)
+function renderQrToCanvas(targetId, text, width, height) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
 
-    if (typeof QRCode !== 'undefined') {
-        // Use qrcode.js to draw
-        QRCode.toCanvas(canvas, text, { width: canvas.width, margin: 1 }, function (error) {
-            if (error) renderFallbackQr(ctx, canvas.width, canvas.height, text);
-        });
-    } else {
-        renderFallbackQr(ctx, canvas.width, canvas.height, text);
+    const w = width || (el.width ? el.width : 140);
+    const h = height || (el.height ? el.height : 140);
+
+    // If it's a div/container element (preferred for qrcode.js)
+    if (el.tagName.toLowerCase() !== 'canvas') {
+        el.innerHTML = '';
+        if (typeof QRCode !== 'undefined') {
+            try {
+                new QRCode(el, {
+                    text: text,
+                    width: w,
+                    height: h,
+                    colorDark: "#0f172a",
+                    colorLight: "#ffffff",
+                    correctLevel: (QRCode.CorrectLevel && QRCode.CorrectLevel.M) ? QRCode.CorrectLevel.M : 0
+                });
+                return;
+            } catch (e) {
+                console.warn("QRCode constructor error:", e);
+            }
+        }
+        // Fallback canvas inside div
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        el.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+        renderFallbackQr(ctx, w, h, text);
+        return;
     }
+
+    // If element is a canvas:
+    if (typeof QRCode !== 'undefined' && typeof QRCode.toCanvas === 'function') {
+        try {
+            QRCode.toCanvas(el, text, { width: w, margin: 1 }, function (error) {
+                if (error) renderFallbackQr(el.getContext('2d'), w, h, text);
+            });
+            return;
+        } catch (e) {
+            console.warn("QRCode.toCanvas error:", e);
+        }
+    }
+
+    const ctx = el.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    renderFallbackQr(ctx, w, h, text);
 }
 
 function renderFallbackQr(ctx, w, h, text) {
@@ -620,23 +656,35 @@ function openPieceModal(outwardId, variantId) {
     grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div><div class="small text-muted mt-2">Loading individual piece barcodes...</div></div>';
 
     fetch(`<?= \App\Core\Controller::url('/m/inward/pieces/') ?>${outwardId}?variant_id=${variantId}`)
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
-                pieceData = data.pieces;
-                document.getElementById('modalTotalPiecesText').textContent = data.total_pieces;
+                pieceData = Array.isArray(data.pieces) ? data.pieces : [];
+                const totEl = document.getElementById('modalTotalPiecesText');
+                if (totEl) totEl.textContent = data.total_pieces;
+
                 renderPieceCards('all');
                 updateModalCounters();
+
                 if (data.next_tag) {
-                    document.getElementById('modalCurrentPieceTag').textContent = data.next_tag;
-                    renderQrToCanvas('modalPieceQrCanvas', data.next_tag);
+                    const tagEl = document.getElementById('modalCurrentPieceTag');
+                    if (tagEl) tagEl.textContent = data.next_tag;
+                    try {
+                        renderQrToCanvas('modalPieceQrCanvas', data.next_tag, 140, 140);
+                    } catch (e) {
+                        console.warn("QR render notice:", e);
+                    }
                 }
             } else {
                 grid.innerHTML = `<div class="col-12 text-danger text-center py-4">${data.error || 'Failed to load pieces'}</div>`;
             }
         })
         .catch(err => {
-            grid.innerHTML = '<div class="col-12 text-danger text-center py-4">Error loading pieces data.</div>';
+            console.error("Piece fetch error:", err);
+            grid.innerHTML = `<div class="col-12 text-danger text-center py-4">Error loading pieces data. (${err.message || 'Network / parsing issue'})</div>`;
         });
 }
 
@@ -661,7 +709,15 @@ function setScanMode(mode) {
 
 function renderPieceCards(filter) {
     const grid = document.getElementById('modalPieceCardGrid');
+    if (!grid) return;
     grid.innerHTML = '';
+
+    if (!Array.isArray(pieceData) || pieceData.length === 0) {
+        grid.innerHTML = '<div class="col-12 text-muted text-center py-4">No individual piece barcodes found.</div>';
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
 
     pieceData.forEach(p => {
         if (filter === 'mismatched' && p.status !== 'unverified') return;
@@ -674,7 +730,7 @@ function renderPieceCards(filter) {
             <div class="card border rounded-3 p-2 bg-white shadow-sm h-100">
                 <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
                     <span class="badge bg-dark font-monospace" style="font-size: 0.72rem;">${p.tag_code}</span>
-                    <span class="small fw-bold text-muted font-monospace">Disc: ₹${parseFloat(p.discount_price).toFixed(2)}</span>
+                    <span class="small fw-bold text-muted font-monospace">Disc: ₹${parseFloat(p.discount_price || 0).toFixed(2)}</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <div class="border rounded-2 p-1 bg-light text-center" style="width: 55px; height: 55px; min-width: 55px;">
@@ -683,8 +739,8 @@ function renderPieceCards(filter) {
                     <div class="flex-grow-1" style="line-height: 1.2;">
                         <div class="fw-bold text-dark small text-truncate" style="max-width: 170px;">${p.product_name}</div>
                         <div class="small text-muted font-monospace" style="font-size: 0.72rem;">${p.size}-${p.color}</div>
-                        <div class="small text-muted" style="font-size: 0.7rem;">MRP: ₹${parseFloat(p.mrp).toFixed(2)}</div>
-                        <div class="small text-dark fw-bold font-monospace" style="font-size: 0.72rem;">Disc: ₹${parseFloat(p.discount_price).toFixed(2)}</div>
+                        <div class="small text-muted" style="font-size: 0.7rem;">MRP: ₹${parseFloat(p.mrp || 0).toFixed(2)}</div>
+                        <div class="small text-dark fw-bold font-monospace" style="font-size: 0.72rem;">Disc: ₹${parseFloat(p.discount_price || 0).toFixed(2)}</div>
                     </div>
                     <div class="d-flex gap-1">
                         <button type="button" class="btn btn-sm ${p.status === 'verified' ? 'btn-success' : 'btn-outline-success'} p-1 px-2" onclick="togglePiece(${p.index}, 'verified')" title="Mark Verified">
@@ -697,8 +753,10 @@ function renderPieceCards(filter) {
                 </div>
             </div>
         `;
-        grid.appendChild(col);
+        fragment.appendChild(col);
     });
+
+    grid.appendChild(fragment);
 }
 
 function filterModalPieces(tab) {
@@ -757,15 +815,21 @@ function inwardNextPiece() {
 }
 
 function updateModalCounters() {
+    if (!Array.isArray(pieceData)) return;
     const total = pieceData.length;
     const verified = pieceData.filter(p => p.status === 'verified').length;
     const damaged = pieceData.filter(p => p.status === 'damaged').length;
     const mismatched = total - verified;
 
-    document.getElementById('modalCountAll').textContent = total;
-    document.getElementById('modalCountVerified').textContent = verified;
-    document.getElementById('modalCountDamaged').textContent = damaged;
-    document.getElementById('modalCountMismatched').textContent = Math.max(0, mismatched);
+    const elAll = document.getElementById('modalCountAll');
+    const elVer = document.getElementById('modalCountVerified');
+    const elDam = document.getElementById('modalCountDamaged');
+    const elMis = document.getElementById('modalCountMismatched');
+
+    if (elAll) elAll.textContent = total;
+    if (elVer) elVer.textContent = verified;
+    if (elDam) elDam.textContent = damaged;
+    if (elMis) elMis.textContent = Math.max(0, mismatched);
 }
 
 function syncModalToReconcileTable() {

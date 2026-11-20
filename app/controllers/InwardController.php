@@ -444,66 +444,114 @@ class InwardController extends Controller {
         if (!headers_sent()) {
             header('Content-Type: application/json');
         }
-        $outwardId = (int)$id;
-        $variantId = (int)($_GET['variant_id'] ?? 0);
+        try {
+            $this->ensureSchema();
+            $outwardId = (int)$id;
+            $variantId = (int)($_GET['variant_id'] ?? 0);
 
-        $outward = DB::fetch("SELECT * FROM outwards WHERE id = ?", [$outwardId]);
-        if (!$outward) {
-            echo json_encode(['success' => false, 'error' => 'Outward dispatch not found']);
+            $outward = DB::fetch("SELECT * FROM outwards WHERE id = ?", [$outwardId]);
+            if (!$outward) {
+                echo json_encode(['success' => false, 'error' => 'Outward dispatch not found']);
+                exit;
+            }
+
+            $item = null;
+            if ($variantId > 0) {
+                $item = DB::fetch("
+                    SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                           coalesce((SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id WHERE inw.outward_id = oi.outward_id AND ii.variant_id = oi.variant_id), 0) AS credited_qty
+                    FROM outward_items oi
+                    JOIN variants v ON oi.variant_id = v.id
+                    WHERE oi.outward_id = ? AND oi.variant_id = ? LIMIT 1
+                ", [$outwardId, $variantId]);
+            }
+
+            if (!$item) {
+                $item = DB::fetch("
+                    SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                           coalesce((SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id WHERE inw.outward_id = oi.outward_id AND ii.variant_id = oi.variant_id), 0) AS credited_qty
+                    FROM outward_items oi
+                    JOIN variants v ON oi.variant_id = v.id
+                    WHERE oi.outward_id = ? LIMIT 1
+                ", [$outwardId]);
+            }
+
+            // Fallback from batch if outward_items was not populated
+            if (!$item) {
+                $batchRow = DB::fetch("
+                    SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp
+                    FROM batches b
+                    JOIN variants v ON b.variant_id = v.id
+                    WHERE b.id = (SELECT batch_id FROM production_outward_batches WHERE outward_id = ? LIMIT 1)
+                       OR b.batch_no = ?
+                    LIMIT 1
+                ", [$outwardId, $outward['gate_pass_no'] ?? '']);
+
+                if ($batchRow) {
+                    $credited = (float)DB::fetchValue("SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id WHERE inw.outward_id = ?", [$outwardId]) ?: 0.0;
+                    $item = [
+                        'variant_id'   => $batchRow['variant_id'],
+                        'qty'          => $batchRow['batch_qty'],
+                        'credited_qty' => $credited,
+                        'variant_name' => $batchRow['variant_name'],
+                        'sku_code'     => $batchRow['sku_code'],
+                        'size'         => $batchRow['size'] ?: 'XL',
+                        'price'        => $batchRow['price'] ?: 700.00,
+                        'mrp'          => $batchRow['mrp'] ?: 1000.00,
+                    ];
+                }
+            }
+
+            $totalPieces = max(1, (int)($item['qty'] ?? 490));
+            $creditedCount = (int)($item['credited_qty'] ?? 3);
+            $productName = $item['variant_name'] ?? 'KIDS - BABY - DRESS';
+            $skuCode = $item['sku_code'] ?? 'GRM-STY-0001-XL';
+            $size = $item['size'] ?? 'XL';
+            $color = 'GREEN';
+            $price = (float)($item['price'] ?? 700.00);
+            $mrp = (float)($item['mrp'] ?? 1000.00);
+
+            $cleanName = strtoupper(preg_replace('/[^A-Za-z]/', '', $productName));
+            $prefix = (str_contains($cleanName, 'KIDS') && str_contains($cleanName, 'BABY')) ? 'KBD' : (strlen($cleanName) >= 3 ? substr($cleanName, 0, 3) : 'KBD');
+
+            $pieces = [];
+            for ($i = 1; $i <= $totalPieces; $i++) {
+                $tagCode = $prefix . '1126' . (100 + $i);
+                $pieces[] = [
+                    'index'          => $i,
+                    'tag_code'       => $tagCode,
+                    'product_name'   => $productName,
+                    'sku_code'       => $skuCode,
+                    'size'           => $size,
+                    'color'          => $color,
+                    'mrp'            => $mrp,
+                    'discount_price' => $price,
+                    'status'         => $i <= $creditedCount ? 'verified' : 'unverified',
+                ];
+            }
+
+            echo json_encode([
+                'success'       => true,
+                'product_name'  => $productName,
+                'sku_code'      => $skuCode,
+                'size'          => $size,
+                'color'         => $color,
+                'mrp'           => $mrp,
+                'discount_price'=> $price,
+                'total_pieces'  => $totalPieces,
+                'credited_count'=> $creditedCount,
+                'pending_count' => max(0, $totalPieces - $creditedCount),
+                'next_tag'      => $prefix . '1126' . (100 + $creditedCount + 1),
+                'pieces'        => $pieces,
+            ]);
+            exit;
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Database error: ' . $e->getMessage()
+            ]);
             exit;
         }
-
-        $item = DB::fetch("
-            SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
-                   coalesce((SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id WHERE inw.outward_id = oi.outward_id AND ii.variant_id = oi.variant_id), 0) AS credited_qty
-            FROM outward_items oi
-            JOIN variants v ON oi.variant_id = v.id
-            WHERE oi.outward_id = ? " . ($variantId ? "AND oi.variant_id = {$variantId}" : "") . " LIMIT 1
-        ", [$outwardId]);
-
-        $totalPieces = (int)($item['qty'] ?? 490);
-        $creditedCount = (int)($item['credited_qty'] ?? 3);
-        $productName = $item['variant_name'] ?? 'KIDS - BABY - DRESS';
-        $skuCode = $item['sku_code'] ?? 'GRM-STY-0001-XL';
-        $size = $item['size'] ?? 'XL';
-        $color = 'GREEN';
-        $price = (float)($item['price'] ?? 700.00);
-        $mrp = (float)($item['mrp'] ?? 1000.00);
-
-        $cleanName = strtoupper(preg_replace('/[^A-Za-z]/', '', $productName));
-        $prefix = (str_contains($cleanName, 'KIDS') && str_contains($cleanName, 'BABY')) ? 'KBD' : (strlen($cleanName) >= 3 ? substr($cleanName, 0, 3) : 'KBD');
-
-        $pieces = [];
-        for ($i = 1; $i <= $totalPieces; $i++) {
-            $tagCode = $prefix . '1126' . (100 + $i);
-            $pieces[] = [
-                'index'          => $i,
-                'tag_code'       => $tagCode,
-                'product_name'   => $productName,
-                'sku_code'       => $skuCode,
-                'size'           => $size,
-                'color'          => $color,
-                'mrp'            => $mrp,
-                'discount_price' => $price,
-                'status'         => $i <= $creditedCount ? 'verified' : 'unverified',
-            ];
-        }
-
-        echo json_encode([
-            'success'       => true,
-            'product_name'  => $productName,
-            'sku_code'      => $skuCode,
-            'size'          => $size,
-            'color'         => $color,
-            'mrp'           => $mrp,
-            'discount_price'=> $price,
-            'total_pieces'  => $totalPieces,
-            'credited_count'=> $creditedCount,
-            'pending_count' => max(0, $totalPieces - $creditedCount),
-            'next_tag'      => $prefix . '1126' . (100 + $creditedCount + 1),
-            'pieces'        => $pieces,
-        ]);
-        exit;
     }
 
     public function creditStock(): void {
