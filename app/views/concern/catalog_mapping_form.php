@@ -1,6 +1,40 @@
 <?php
 // app/views/concern/catalog_mapping_form.php - Map Finished Good Item to 3-Tier Hierarchy & Attributes (All Details in Table Format)
 ?>
+<style>
+    #cardCategoryHierarchy .card-header,
+    #cardProductAttributes .card-header {
+        padding: .55rem 1rem !important;
+    }
+
+    #cardCategoryHierarchy .card-body,
+    #cardProductAttributes .card-body {
+        padding: .75rem !important;
+    }
+
+    #cardCategoryHierarchy .table th,
+    #cardCategoryHierarchy .table td,
+    #cardProductAttributes .table th,
+    #cardProductAttributes .table td {
+        padding: .35rem .5rem;
+        font-size: .84rem;
+    }
+
+    #cardCategoryHierarchy .table-responsive.mb-4 {
+        margin-bottom: .75rem !important;
+    }
+
+    #cardProductAttributes .d-flex.justify-content-between.align-items-center.mb-2,
+    #cardProductAttributes .d-flex.flex-wrap.gap-2.mb-3 {
+        margin-bottom: .5rem !important;
+    }
+
+    #cardProductAttributes .color-pill-label,
+    #cardProductAttributes .size-pill-label,
+    #cardProductAttributes .custom-attr-pill-label {
+        padding: .3rem .45rem !important;
+    }
+</style>
 <div class="container-fluid px-0">
     <!-- Breadcrumbs -->
     <nav aria-label="breadcrumb" class="mb-2">
@@ -202,7 +236,7 @@
         <!-- ================================================================= -->
         <!-- 2. CATEGORY HIERARCHY (3-TIER) & HSN CLASSIFICATION (TABLE FORMAT)-->
         <!-- ================================================================= -->
-        <div class="card border-0 shadow-sm rounded-3 mb-4" id="cardCategoryHierarchy">
+        <div class="card border-0 shadow-sm rounded-3 mb-3" id="cardCategoryHierarchy">
             <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-diagram-3-fill text-primary fs-5"></i>
@@ -210,59 +244,19 @@
                 </div>
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">Required</span>
             </div>
-            <div class="card-body p-4">
+            <div class="card-body p-2 p-md-3">
                 
-                <!-- Mapping Mode Selector (Create New vs Link Existing) -->
-                <div class="mb-4">
-                    <label class="form-label small fw-semibold text-dark mb-2 text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Select Mapping Action:</label>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="form-check p-3 border rounded-3 bg-light cursor-pointer h-100">
-                                <input class="form-check-input" type="radio" name="mapping_mode" id="modeNewStyle" value="new_style" checked onchange="toggleMappingMode('new_style')">
-                                <label class="form-check-label fw-bold text-dark d-block cursor-pointer" for="modeNewStyle">
-                                    <i class="bi bi-plus-circle text-primary me-1"></i> Create New Catalog Style
-                                    <small class="text-secondary fw-normal d-block mt-1">Configure fresh 3-tier hierarchy, style code, and size variants.</small>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check p-3 border rounded-3 bg-light cursor-pointer h-100">
-                                <input class="form-check-input" type="radio" name="mapping_mode" id="modeExistingStyle" value="existing_style" onchange="toggleMappingMode('existing_style')">
-                                <label class="form-check-label fw-bold text-dark d-block cursor-pointer" for="modeExistingStyle">
-                                    <i class="bi bi-link-45deg text-success me-1"></i> Link to Existing Catalog Style
-                                    <small class="text-secondary fw-normal d-block mt-1">Attach to an already created style in the production catalog.</small>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Existing Style Dropdown (Hidden by default) -->
-                    <div id="containerExistingStyle" class="mt-3 p-3 bg-light border rounded-3 d-none">
-                        <label class="form-label small fw-semibold text-dark mb-1">Select Existing Catalog Style <span class="text-danger">*</span></label>
-                        <select name="existing_catalog_id" id="selectExistingCatalog" class="form-select">
-                            <option value="">-- Choose Existing Style --</option>
-                            <?php foreach ($catalogs as $c): ?>
-                                <option value="<?= $c['id'] ?>">
-                                    [<?= htmlspecialchars($c['style_code']) ?>] <?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['hierarchy_path'] ?: 'General') ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="small text-muted mt-1">When linked, this finished good will adopt the existing style's 3-tier hierarchy and attributes.</div>
-                    </div>
-                </div>
-
-                <!-- 3-Tier Hierarchy Content (Table Format for New Style) -->
+                <!-- 3-Tier Hierarchy -->
                 <div id="cardCategoryHierarchyContent">
                     
                     <!-- Table 2.1: 3-Tier Category Hierarchy Matrix Table -->
-                    <div class="table-responsive mb-4">
+                    <div class="table-responsive mb-2">
                         <table class="table table-bordered table-sm align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 22%;"><i class="bi bi-diagram-3 text-primary me-1"></i> Hierarchy Tier</th>
-                                    <th style="width: 44%;"><i class="bi bi-check2-square text-primary me-1"></i> Category Selection</th>
-                                    <th style="width: 14%;"><i class="bi bi-qr-code text-primary me-1"></i> Short Code</th>
-                                    <th style="width: 20%;"><i class="bi bi-link text-primary me-1"></i> Level Purpose</th>
+                                    <th style="width: 54%;"><i class="bi bi-check2-square text-primary me-1"></i> Category Selection</th>
+                                    <th style="width: 24%;"><i class="bi bi-qr-code text-primary me-1"></i> Short Code</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -290,7 +284,6 @@
                                     <td>
                                         <input type="text" name="main_category_code" id="inputMainCatCode" class="form-control form-control-sm font-monospace text-uppercase" placeholder="E.G. W" oninput="updateWholeCode()">
                                     </td>
-                                    <td><small class="text-muted">Primary division (e.g. Menswear, Women, Kids)</small></td>
                                 </tr>
 
                                 <!-- Tier 2: Sub Category -->
@@ -312,7 +305,6 @@
                                     <td>
                                         <input type="text" name="sub_category_code" id="inputSubCatCode" class="form-control form-control-sm font-monospace text-uppercase" placeholder="E.G. M" oninput="updateWholeCode()">
                                     </td>
-                                    <td><small class="text-muted">Garment classification (e.g. Shirts, Trousers)</small></td>
                                 </tr>
 
                                 <!-- Tier 3: Sub-Sub Category -->
@@ -334,13 +326,12 @@
                                     <td>
                                         <input type="text" name="sub_sub_category_code" id="inputSubSubCatCode" class="form-control form-control-sm font-monospace text-uppercase" placeholder="E.G. F" oninput="updateWholeCode()">
                                     </td>
-                                    <td><small class="text-muted">Styling variation (e.g. Formal, Casual, Party)</small></td>
                                 </tr>
 
                                 <!-- Hierarchy Summary Row -->
                                 <tr class="table-light">
                                     <td class="fw-bold text-dark"><i class="bi bi-folder2-open text-primary me-1"></i> Full Hierarchy Path</td>
-                                    <td colspan="2">
+                                    <td>
                                         <div class="fw-bold text-primary font-monospace" id="hierarchyPathText">Select a category above...</div>
                                     </td>
                                     <td>
@@ -367,7 +358,7 @@
         <!-- ================================================================= -->
         <!-- 3. PRODUCT ATTRIBUTES & VARIATIONS (TABLE FORMAT)                 -->
         <!-- ================================================================= -->
-        <div class="card border-0 shadow-sm rounded-3 mb-4" id="cardProductAttributes">
+        <div class="card border-0 shadow-sm rounded-3 mb-3" id="cardProductAttributes">
             <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-tags-fill text-primary fs-5"></i>
@@ -375,15 +366,14 @@
                 </div>
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">Required</span>
             </div>
-            <div class="card-body p-4">
+            <div class="card-body p-2 p-md-3">
                 
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th style="width: 26%;"><i class="bi bi-tag text-primary me-1"></i> Attribute Name</th>
-                                <th style="width: 48%;"><i class="bi bi-input-cursor-text text-primary me-1"></i> Configured Value / Selection Input</th>
-                                <th style="width: 26%;"><i class="bi bi-info-circle text-primary me-1"></i> Attribute Description & Usage</th>
+                                <th style="width: 30%;"><i class="bi bi-tag text-primary me-1"></i> Attribute Name</th>
+                                <th style="width: 70%;"><i class="bi bi-input-cursor-text text-primary me-1"></i> Configured Value / Selection Input</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -396,9 +386,6 @@
                                 <td>
                                     <input type="text" name="style_code" id="inputStyleCode" class="form-control font-monospace fw-bold" value="<?= htmlspecialchars($suggestedStyleCode) ?>" required oninput="renderVariantsTable();">
                                 </td>
-                                <td>
-                                    <small class="text-muted">Master style reference code used for barcode generation and variant SKUs.</small>
-                                </td>
                             </tr>
 
                             <!-- Row 2: Product Style Name -->
@@ -409,9 +396,6 @@
                                 </td>
                                 <td>
                                     <input type="text" name="style_name" id="inputStyleName" class="form-control fw-semibold" value="<?= htmlspecialchars($item['item_name']) ?>" required oninput="renderVariantsTable();">
-                                </td>
-                                <td>
-                                    <small class="text-muted">Pre-filled from bill product name. Editable for catalog display.</small>
                                 </td>
                             </tr>
 
@@ -430,10 +414,8 @@
                                         </div>
                                     </div>
                                     <div class="d-flex flex-wrap gap-2 mb-3" id="colorsContainer">
-                                        <?php 
-                                            $defaultColorList = !empty($colorAttributes) ? $colorAttributes : ['Standard'];
-                                            foreach ($defaultColorList as $ca): 
-                                                $isColorChecked = (!empty($resolvedColor) && strtolower($ca) === strtolower($resolvedColor));
+                                        <?php foreach ($colorAttributes as $ca):
+                                                $isColorChecked = isset($resolvedColors[strtolower($ca)]);
                                         ?>
                                             <label class="color-pill-label border rounded-3 p-2 d-inline-flex align-items-center gap-2 cursor-pointer <?= $isColorChecked ? 'border-primary bg-primary-subtle' : 'bg-light' ?>">
                                                 <input type="checkbox" name="colors[]" value="<?= htmlspecialchars($ca) ?>" class="form-check-input color-checkbox mt-0" onchange="handleColorCheckboxChange(this)" <?= $isColorChecked ? 'checked' : '' ?>>
@@ -450,13 +432,6 @@
                                         </button>
                                     </div>
                                     <input type="hidden" name="color" id="inputColor" value="<?= htmlspecialchars($resolvedColor ?? '') ?>">
-                                </td>
-                                <td>
-                                    <div class="p-2.5 rounded-3 bg-light border">
-                                        <div class="small fw-bold text-primary mb-1"><i class="bi bi-palette me-1"></i>Color Attribute Matrix:</div>
-                                        <small class="text-muted d-block mb-1">Check one or more colors above to apply to catalog variants.</small>
-                                        <span class="badge bg-secondary-subtle text-secondary border font-monospace" id="attrColorCountBadge">0 Colors Active</span>
-                                    </div>
                                 </td>
                             </tr>
 
@@ -489,13 +464,6 @@
                                         <button type="button" class="btn btn-outline-primary fw-semibold" onclick="addCustomSizePill()">
                                             <i class="bi bi-plus-lg me-1"></i> Add Size
                                         </button>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="p-2.5 rounded-3 bg-light border">
-                                        <div class="small fw-bold text-primary mb-1"><i class="bi bi-cpu me-1"></i>Auto SKU Generation:</div>
-                                        <small class="text-muted d-block mb-1">Check one or more sizes above to generate editable variant rows in the table below.</small>
-                                        <span class="badge bg-secondary-subtle text-secondary border font-monospace" id="attrSizeCountBadge">0 Sizes Active</span>
                                     </div>
                                 </td>
                             </tr>
@@ -531,13 +499,6 @@
                                                 <button type="button" class="btn btn-outline-primary fw-semibold" onclick="addCustomAttrPill('<?= htmlspecialchars($attrType) ?>')">
                                                     <i class="bi bi-plus-lg me-1"></i> Add <?= htmlspecialchars(ucfirst($attrType)) ?>
                                                 </button>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="p-2.5 rounded-3 bg-light border">
-                                                <div class="small fw-bold text-primary mb-1"><i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars(ucfirst($attrType)) ?> Options:</div>
-                                                <small class="text-muted d-block mb-1">Dynamically reflected from Product Attributes Master.</small>
-                                                <span class="badge bg-secondary-subtle text-secondary border font-monospace" id="selectedAttrCount_<?= htmlspecialchars($attrType) ?>">0 Selected</span>
                                             </div>
                                         </td>
                                     </tr>
@@ -686,6 +647,7 @@
         <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/quick-category') ?>" method="POST" id="formAddCategory" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="tier" value="category">
+            <input type="hidden" name="purchase_bill_item_id" value="<?= (int)$item['id'] ?>">
             <input type="hidden" name="return_url" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '') ?>">
             <div class="modal-header bg-light">
                 <h6 class="modal-title fw-bold text-dark"><i class="bi bi-folder-plus text-primary me-1.5"></i> Add Main Category</h6>
@@ -704,11 +666,11 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold">Default HSN</label>
-                        <input type="text" name="default_hsn" class="form-control font-monospace" placeholder="Search HSN" data-hsn-autocomplete data-hsn-type="HSN" autocomplete="off">
+                        <input type="text" name="default_hsn" id="mappingCategoryDefaultHsn" class="form-control font-monospace" placeholder="Search HSN" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#mappingCategoryDefaultGstRate" autocomplete="off">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold">GST Rate (%)</label>
-                        <input type="number" step="0.01" min="0" max="100" name="default_gst_rate" class="form-control font-monospace" placeholder="Optional">
+                        <input type="number" step="0.01" min="0" max="100" name="default_gst_rate" id="mappingCategoryDefaultGstRate" class="form-control font-monospace" placeholder="Optional">
                     </div>
                 </div>
             </div>
@@ -726,6 +688,7 @@
         <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/quick-category') ?>" method="POST" id="formAddSubcategory" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="tier" value="subcategory">
+            <input type="hidden" name="purchase_bill_item_id" value="<?= (int)$item['id'] ?>">
             <input type="hidden" name="return_url" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '') ?>">
             <div class="modal-header bg-light">
                 <h6 class="modal-title fw-bold text-dark"><i class="bi bi-diagram-2 text-info me-1.5"></i> Add Subcategory</h6>
@@ -765,6 +728,7 @@
         <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/quick-category') ?>" method="POST" id="formAddSubSubcategory" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="tier" value="subsubcategory">
+            <input type="hidden" name="purchase_bill_item_id" value="<?= (int)$item['id'] ?>">
             <input type="hidden" name="return_url" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '') ?>">
             <div class="modal-header bg-light">
                 <h6 class="modal-title fw-bold text-dark"><i class="bi bi-diagram-3 text-success me-1.5"></i> Add Sub-Subcategory</h6>
@@ -818,22 +782,6 @@ function escapeHtml(text) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
-}
-
-function toggleMappingMode(mode) {
-    const contExisting = document.getElementById('containerExistingStyle');
-    const contentCat = document.getElementById('cardCategoryHierarchyContent');
-    const selectCat = document.getElementById('selectExistingCatalog');
-
-    if (mode === 'existing_style') {
-        contExisting.classList.remove('d-none');
-        contentCat.classList.add('d-none');
-        selectCat.setAttribute('required', 'required');
-    } else {
-        contExisting.classList.add('d-none');
-        contentCat.classList.remove('d-none');
-        selectCat.removeAttribute('required');
-    }
 }
 
 function handleMainCategoryChange(catId, preselectSubId = null, preselectSubSubId = null) {
@@ -1057,27 +1005,36 @@ function updateSelectedSizesCount() {
 
 function addCustomSizePill() {
     const input = document.getElementById('inputCustomSize');
-    const val = input.value.trim().toUpperCase();
-    if (!val) return;
+    const values = (input.value || '').split(/[,;|]+/).map(value => value.trim().toUpperCase()).filter(Boolean);
+    if (values.length === 0) return;
 
-    let exists = false;
-    document.querySelectorAll('.size-checkbox').forEach(cb => {
-        if (cb.value.toUpperCase() === val) exists = true;
+    const existing = new Set();
+    document.querySelectorAll('.size-checkbox').forEach(cb => existing.add(cb.value.trim().toUpperCase()));
+    const valuesToAdd = [];
+    const duplicates = [];
+    values.forEach(value => {
+        if (existing.has(value)) {
+            duplicates.push(value);
+        } else {
+            existing.add(value);
+            valuesToAdd.push(value);
+        }
     });
-
-    if (exists) {
-        alert(`Size "${val}" is already present.`);
+    if (duplicates.length > 0) {
+        alert(`Already present: ${duplicates.join(', ')}`);
+    }
+    if (valuesToAdd.length === 0) {
         input.value = '';
         return;
     }
 
     const container = document.getElementById('sizesContainer');
-    const html = `
+    const html = valuesToAdd.map(value => `
         <label class="size-pill-label border border-primary bg-primary-subtle rounded-3 p-2 d-inline-flex align-items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="sizes[]" value="${val}" class="form-check-input size-checkbox mt-0" checked onchange="handleSizeCheckboxChange(this)">
-            <span class="fw-bold font-monospace size-text text-dark">${val}</span>
+            <input type="checkbox" name="sizes[]" value="${escapeHtml(value)}" class="form-check-input size-checkbox mt-0" checked onchange="handleSizeCheckboxChange(this)">
+            <span class="fw-bold font-monospace size-text text-dark">${escapeHtml(value)}</span>
         </label>
-    `;
+    `).join('');
     container.insertAdjacentHTML('beforeend', html);
     input.value = '';
     updateSelectedSizesCount();
@@ -1141,27 +1098,37 @@ function updateSelectedColorsCount() {
 
 function addCustomColorPill() {
     const input = document.getElementById('inputCustomColor');
-    const val = (input?.value || '').trim();
-    if (!val) return;
+    const values = (input?.value || '').split(/[,;|]+/).map(value => value.trim()).filter(Boolean);
+    if (values.length === 0) return;
 
-    let exists = false;
-    document.querySelectorAll('.color-checkbox').forEach(cb => {
-        if (cb.value.toLowerCase() === val.toLowerCase()) exists = true;
+    const existing = new Set();
+    document.querySelectorAll('.color-checkbox').forEach(cb => existing.add(cb.value.trim().toLowerCase()));
+    const valuesToAdd = [];
+    const duplicates = [];
+    values.forEach(value => {
+        const key = value.toLowerCase();
+        if (existing.has(key)) {
+            duplicates.push(value);
+        } else {
+            existing.add(key);
+            valuesToAdd.push(value);
+        }
     });
-
-    if (exists) {
-        alert(`Color "${val}" is already present.`);
+    if (duplicates.length > 0) {
+        alert(`Already present: ${duplicates.join(', ')}`);
+    }
+    if (valuesToAdd.length === 0) {
         input.value = '';
         return;
     }
 
     const container = document.getElementById('colorsContainer');
-    const html = `
+    const html = valuesToAdd.map(value => `
         <label class="color-pill-label border border-primary bg-primary-subtle rounded-3 p-2 d-inline-flex align-items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="colors[]" value="${escapeHtml(val)}" class="form-check-input color-checkbox mt-0" checked onchange="handleColorCheckboxChange(this)">
-            <span class="fw-bold font-monospace color-text text-dark">${escapeHtml(val)}</span>
+            <input type="checkbox" name="colors[]" value="${escapeHtml(value)}" class="form-check-input color-checkbox mt-0" checked onchange="handleColorCheckboxChange(this)">
+            <span class="fw-bold font-monospace color-text text-dark">${escapeHtml(value)}</span>
         </label>
-    `;
+    `).join('');
     container.insertAdjacentHTML('beforeend', html);
     input.value = '';
     updateSelectedColorsCount();
@@ -1340,7 +1307,7 @@ function renderVariantsTable() {
     let checkedColors = checkedColorBoxes.map(cb => cb.value.trim()).filter(Boolean);
     if (checkedColors.length === 0) {
         const fallbackColor = (document.getElementById('inputColor')?.value || '').trim();
-        checkedColors = [fallbackColor || 'Standard'];
+        checkedColors = [fallbackColor];
     }
 
     if (checkedSizes.length === 0) {
@@ -1369,10 +1336,10 @@ function renderVariantsTable() {
         checkedSizes.forEach(size => {
             const key = hasMultipleColors ? `${size}_${color.replace(/[^a-zA-Z0-9]/g, '_')}` : size;
             const cleanColorCode = color.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 4);
-            const sku = hasMultipleColors && cleanColorCode !== 'STANDARD' 
+            const sku = hasMultipleColors && cleanColorCode
                 ? `${styleCode}-${cleanColorCode}-${size}` 
                 : `${styleCode}-${size}`;
-            const name = hasMultipleColors && color !== 'Standard' 
+            const name = hasMultipleColors
                 ? `${styleName} - ${color} - ${size}` 
                 : `${styleName} - ${size}`;
 
@@ -1905,91 +1872,80 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainForm = document.getElementById('formCatalogMapping');
     if (mainForm) {
         mainForm.addEventListener('submit', function (e) {
-            const mode = document.querySelector('input[name="mapping_mode"]:checked')?.value || 'new_style';
-            if (mode === 'new_style') {
-                const cat = document.getElementById('selectMainCategory');
-                if (!cat || !cat.value) {
+            const cat = document.getElementById('selectMainCategory');
+            if (!cat || !cat.value) {
+                e.preventDefault();
+                alert('Please select a Main Category.');
+                cat.focus();
+                return false;
+            }
+            const styleCode = document.getElementById('inputStyleCode');
+            if (!styleCode || !styleCode.value.trim()) {
+                e.preventDefault();
+                alert('Product Style Code is required.');
+                styleCode.focus();
+                return false;
+            }
+            const styleName = document.getElementById('inputStyleName');
+            if (!styleName || !styleName.value.trim()) {
+                e.preventDefault();
+                alert('Product Style Name is required.');
+                styleName.focus();
+                return false;
+            }
+            const checkedSizes = document.querySelectorAll('.size-checkbox:checked');
+            if (checkedSizes.length === 0) {
+                e.preventDefault();
+                alert('Please select or add at least one Size Attribute.');
+                return false;
+            }
+
+            // Strict Validation 1: Sum of variant quantities must equal purchased total qty
+            let totalAlloc = 0;
+            document.querySelectorAll('.variant-qty-input').forEach(inp => {
+                totalAlloc += parseInt(inp.value) || 0;
+            });
+
+            if (Math.abs(totalAlloc - purchasedBatchQty) > 0.001) {
+                e.preventDefault();
+                const diff = totalAlloc - purchasedBatchQty;
+                const diffMsg = diff > 0 ? `exceeded by ${diff} pieces` : `short by ${Math.abs(diff)} pieces`;
+                alert(`Quantity Validation Error:\n\nSum of all variant quantities (${totalAlloc} pcs) must exactly equal total purchased quantity (${purchasedBatchQty} pcs).\nCurrently ${diffMsg}.\nVariant quantities cannot be less than or greater than the purchased total.`);
+                const firstQty = document.querySelector('.variant-qty-input');
+                if (firstQty) {
+                    firstQty.focus();
+                    firstQty.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                return false;
+            }
+
+            // Strict Validation 2: Pricing Hierarchy Validation (Supplier Cost < Selling Price < MRP)
+            const variantRows = document.querySelectorAll('#variantsTableBody tr');
+            for (const row of variantRows) {
+                const spInput = row.querySelector('.variant-sp-input');
+                const mrpInput = row.querySelector('.variant-mrp-input');
+                const nameInput = row.querySelector('.variant-name-input');
+                const rowName = nameInput ? nameInput.value : 'Variant';
+                if (!spInput || !mrpInput) continue;
+
+                const sp = parseFloat(spInput.value || 0);
+                const mrp = parseFloat(mrpInput.value || 0);
+
+                if (sp <= supplierUnitCost) {
                     e.preventDefault();
-                    alert('Please select a Main Category.');
-                    cat.focus();
+                    alert(`Pricing Validation Error for "${rowName}":\n\nSelling Price (₹${sp.toFixed(2)}) must be strictly greater than Supplier Unit Cost (₹${supplierUnitCost.toFixed(2)}).\n\nRequired Rule: Supplier Cost < Selling Price < MRP`);
+                    spInput.classList.add('is-invalid');
+                    spInput.focus();
+                    spInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     return false;
                 }
-                const styleCode = document.getElementById('inputStyleCode');
-                if (!styleCode || !styleCode.value.trim()) {
+
+                if (mrp <= sp) {
                     e.preventDefault();
-                    alert('Product Style Code is required.');
-                    styleCode.focus();
-                    return false;
-                }
-                const styleName = document.getElementById('inputStyleName');
-                if (!styleName || !styleName.value.trim()) {
-                    e.preventDefault();
-                    alert('Product Style Name is required.');
-                    styleName.focus();
-                    return false;
-                }
-                const checkedSizes = document.querySelectorAll('.size-checkbox:checked');
-                if (checkedSizes.length === 0) {
-                    e.preventDefault();
-                    alert('Please select at least one Size Attribute.');
-                    return false;
-                }
-
-                // Strict Validation 1: Sum of variant quantities must equal purchased total qty
-                let totalAlloc = 0;
-                document.querySelectorAll('.variant-qty-input').forEach(inp => {
-                    totalAlloc += parseInt(inp.value) || 0;
-                });
-
-                if (Math.abs(totalAlloc - purchasedBatchQty) > 0.001) {
-                    e.preventDefault();
-                    const diff = totalAlloc - purchasedBatchQty;
-                    const diffMsg = diff > 0 ? `exceeded by ${diff} pieces` : `short by ${Math.abs(diff)} pieces`;
-                    alert(`Quantity Validation Error:\n\nSum of all variant quantities (${totalAlloc} pcs) must exactly equal total purchased quantity (${purchasedBatchQty} pcs).\nCurrently ${diffMsg}.\nVariant quantities cannot be less than or greater than the purchased total.`);
-                    const firstQty = document.querySelector('.variant-qty-input');
-                    if (firstQty) {
-                        firstQty.focus();
-                        firstQty.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                    return false;
-                }
-
-                // Strict Validation 2: Pricing Hierarchy Validation (Supplier Cost < Selling Price < MRP)
-                const variantRows = document.querySelectorAll('#variantsTableBody tr');
-                for (const row of variantRows) {
-                    const spInput = row.querySelector('.variant-sp-input');
-                    const mrpInput = row.querySelector('.variant-mrp-input');
-                    const nameInput = row.querySelector('.variant-name-input');
-                    const rowName = nameInput ? nameInput.value : 'Variant';
-                    if (!spInput || !mrpInput) continue;
-
-                    const sp = parseFloat(spInput.value || 0);
-                    const mrp = parseFloat(mrpInput.value || 0);
-
-                    if (sp <= supplierUnitCost) {
-                        e.preventDefault();
-                        alert(`Pricing Validation Error for "${rowName}":\n\nSelling Price (₹${sp.toFixed(2)}) must be strictly greater than Supplier Unit Cost (₹${supplierUnitCost.toFixed(2)}).\n\nRequired Rule: Supplier Cost < Selling Price < MRP`);
-                        spInput.classList.add('is-invalid');
-                        spInput.focus();
-                        spInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        return false;
-                    }
-
-                    if (mrp <= sp) {
-                        e.preventDefault();
-                        alert(`Pricing Validation Error for "${rowName}":\n\nMRP (₹${mrp.toFixed(2)}) must be strictly greater than Selling Price (₹${sp.toFixed(2)}).\n\nRequired Rule: Supplier Cost < Selling Price < MRP`);
-                        mrpInput.classList.add('is-invalid');
-                        mrpInput.focus();
-                        mrpInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        return false;
-                    }
-                }
-            } else {
-                const existCat = document.getElementById('selectExistingCatalog');
-                if (!existCat || !existCat.value) {
-                    e.preventDefault();
-                    alert('Please select an existing catalog style to link.');
-                    existCat.focus();
+                    alert(`Pricing Validation Error for "${rowName}":\n\nMRP (₹${mrp.toFixed(2)}) must be strictly greater than Selling Price (₹${sp.toFixed(2)}).\n\nRequired Rule: Supplier Cost < Selling Price < MRP`);
+                    mrpInput.classList.add('is-invalid');
+                    mrpInput.focus();
+                    mrpInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     return false;
                 }
             }

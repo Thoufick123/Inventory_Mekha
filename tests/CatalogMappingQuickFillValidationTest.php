@@ -86,7 +86,6 @@ if (!$item) {
     $_POST = [
         'csrf_token' => $csrfToken,
         'purchase_bill_item_id' => $item['id'],
-        'mapping_mode' => 'new_style',
         'category_id' => 1,
         'style_code' => 'TEST-STY-VAL1',
         'style_name' => 'Test Style Val 1',

@@ -1063,6 +1063,34 @@ class ProductionController extends Controller {
 
     public function searchHsnAjax(): void {
         header('Content-Type: application/json');
+        if (!Auth::check()) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'message' => 'Please sign in to search HSN codes.']);
+            exit;
+        }
+
+        $allowedModules = ['catalog_program', 'catalog_mapping', 'purchase_billing', 'purchase_stocks'];
+        $canSearchHsn = Auth::isSuperAdmin();
+        foreach ($allowedModules as $moduleCode) {
+            if ($canSearchHsn) {
+                break;
+            }
+            if (!Auth::hasModule($moduleCode)) {
+                continue;
+            }
+            foreach (['view', 'add', 'edit'] as $permission) {
+                if (Auth::can($moduleCode, $permission)) {
+                    $canSearchHsn = true;
+                    break 2;
+                }
+            }
+        }
+        if (!$canSearchHsn) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'You do not have permission to search HSN codes.']);
+            exit;
+        }
+
         $cid = Auth::concernId();
         $q = trim($_GET['q'] ?? '');
         $codeType = strtoupper(trim($_GET['type'] ?? 'HSN'));

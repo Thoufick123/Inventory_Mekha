@@ -167,8 +167,8 @@ function hsnGstMasterRows(): array
             $code,
             'Garments',
             $description,
-            null,
-            'GST treatment can depend on garment type, transaction value and current rate notifications. Verify the applicable rate; do not assume one rate for this heading.'
+            5.00,
+            'Standard garment rate 5% (12% if piece value > ₹1000).'
         );
     }
 
@@ -180,7 +180,7 @@ function hsnGstMasterRows(): array
         ['6305', 'Sacks and bags used for packing goods, of textile materials'],
         ['6307', 'Other made-up textile articles, including certain labels and textile accessories'],
     ] as [$code, $description]) {
-        $add('HSN', $code, 'Home and made-up textiles', $description, null, 'Rate may vary by exact product description and applicable notification; verify before billing.');
+        $add('HSN', $code, 'Home and made-up textiles', $description, 5.00, 'Standard rate 5% for made-up textile articles.');
     }
 
     foreach ([
@@ -190,20 +190,30 @@ function hsnGstMasterRows(): array
         ['5807', 'Woven labels, badges and similar textile articles'],
         ['5808', 'Braids in the piece; ornamental trimmings in the piece'],
         ['5810', 'Embroidery in the piece, in strips or in motifs'],
+    ] as [$code, $description]) {
+        $add('HSN', $code, 'Garment accessories and manufacturing materials', $description, 5.00, 'Standard textile accessories rate 5%.');
+    }
+
+    foreach ([
         ['9606', 'Buttons, press-fasteners, snap-fasteners and parts thereof'],
         ['9607', 'Slide fasteners (zippers) and parts thereof'],
     ] as [$code, $description]) {
-        $add('HSN', $code, 'Garment accessories and manufacturing materials', $description, null, 'GST rate depends on the precise product classification and material; verify the applicable notification.');
+        $add('HSN', $code, 'Garment accessories and manufacturing materials', $description, 12.00, 'Standard rate 12% for buttons and slide fasteners.');
     }
 
     foreach ([
         ['3923', 'Articles for the conveyance or packing of goods, of plastics'],
         ['3919', 'Self-adhesive plates, sheets, film, foil, tape and other flat shapes, of plastics'],
+    ] as [$code, $description]) {
+        $add('HSN', $code, 'Packaging materials', $description, 18.00, 'Standard rate 18% for plastic packaging materials.');
+    }
+
+    foreach ([
         ['4819', 'Cartons, boxes, cases, bags and other packing containers of paper or paperboard'],
         ['4820', 'Registers, notebooks, folders, labels and similar articles of paper or paperboard'],
         ['4821', 'Paper or paperboard labels of all kinds, printed or not'],
     ] as [$code, $description]) {
-        $add('HSN', $code, 'Packaging materials', $description, null, 'Rate depends on the exact packaging product and material; verify the applicable notification.');
+        $add('HSN', $code, 'Packaging materials', $description, 12.00, 'Standard rate 12% for paper boxes and labels.');
     }
 
     foreach ([

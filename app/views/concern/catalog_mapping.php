@@ -426,7 +426,7 @@
                             <?php if (empty($groupedAttrs)): ?>
                                 <div class="text-center text-muted py-4">
                                     <i class="bi bi-tag fs-2 text-secondary d-block mb-2"></i>
-                                    <p class="small mb-0">No custom attributes created yet. Click <strong>Add Attribute</strong> above to add size, color, or other attributes.</p>
+                                    <p class="small mb-0">No attributes created yet. Add them here or save size, color, and other values from a catalog mapping to add them to this master.</p>
                                 </div>
                             <?php else: ?>
                                 <?php foreach ($groupedAttrs as $type => $typeAttrs): ?>
@@ -541,7 +541,7 @@
         <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/quick-category') ?>" method="POST" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="tier" value="category">
-            <input type="hidden" name="return_url" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '/production/catalog-mapping?tab=hierarchy') ?>">
+            <input type="hidden" name="return_url" value="/production/catalog-mapping?tab=hierarchy">
             <div class="modal-header bg-light">
                 <h6 class="modal-title fw-bold text-dark"><i class="bi bi-folder-plus text-primary me-1.5"></i> Add Tier-1 Main Category</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -558,11 +558,11 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold">Default HSN</label>
-                        <input type="text" name="default_hsn" class="form-control font-monospace" placeholder="Search HSN" data-hsn-autocomplete data-hsn-type="HSN" autocomplete="off">
+                        <input type="text" name="default_hsn" id="categoryDefaultHsn" class="form-control font-monospace" placeholder="Search HSN" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#categoryDefaultGstRate" autocomplete="off">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold">GST Rate (%)</label>
-                        <input type="number" step="0.01" min="0" max="100" name="default_gst_rate" class="form-control font-monospace" placeholder="Optional">
+                        <input type="number" step="0.01" min="0" max="100" name="default_gst_rate" id="categoryDefaultGstRate" class="form-control font-monospace" placeholder="Optional">
                     </div>
                 </div>
             </div>
@@ -580,7 +580,7 @@
         <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/quick-category') ?>" method="POST" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="tier" value="subcategory">
-            <input type="hidden" name="return_url" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '/production/catalog-mapping?tab=hierarchy') ?>">
+            <input type="hidden" name="return_url" value="/production/catalog-mapping?tab=hierarchy">
             <div class="modal-header bg-light">
                 <h6 class="modal-title fw-bold text-dark"><i class="bi bi-diagram-2 text-info me-1.5"></i> Add Tier-2 Subcategory</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -618,7 +618,7 @@
         <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/quick-category') ?>" method="POST" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="tier" value="subsubcategory">
-            <input type="hidden" name="return_url" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '/production/catalog-mapping?tab=hierarchy') ?>">
+            <input type="hidden" name="return_url" value="/production/catalog-mapping?tab=hierarchy">
             <div class="modal-header bg-light">
                 <h6 class="modal-title fw-bold text-dark"><i class="bi bi-diagram-3 text-success me-1.5"></i> Add Tier-3 Sub-Subcategory</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -634,8 +634,8 @@
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Parent Subcategory (Optional)</label>
-                    <select name="subcategory_id" id="modalTier3SubcatSelect" class="form-select">
+                    <label class="form-label small fw-semibold">Parent Subcategory <span class="text-danger">*</span></label>
+                    <select name="subcategory_id" id="modalTier3SubcatSelect" class="form-select" required>
                         <option value="">-- Select Subcategory First --</option>
                     </select>
                 </div>
@@ -661,17 +661,31 @@
     <div class="modal-dialog modal-dialog-centered">
         <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/quick-attribute') ?>" method="POST" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-            <input type="hidden" name="return_url" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '/production/catalog-mapping?tab=hierarchy') ?>">
+            <input type="hidden" name="return_url" value="/production/catalog-mapping?tab=hierarchy">
             <div class="modal-header bg-light">
-                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-tag-fill text-warning me-1.5"></i> Add Product Attribute (Size / Color)</h6>
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-tag-fill text-warning me-1.5"></i> Add Product Attribute</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
+                <?php if (\App\Core\Auth::isSuperAdmin() && empty($selectedCid)): ?>
+                    <div class="mb-3">
+                        <label for="attributeConcernId" class="form-label small fw-semibold">Concern <span class="text-danger">*</span></label>
+                        <select name="concern_id" id="attributeConcernId" class="form-select" required>
+                            <option value="">-- Choose Concern --</option>
+                            <?php foreach (($allConcerns ?? []) as $concern): ?>
+                                <option value="<?= (int) $concern['id'] ?>">
+                                    <?= htmlspecialchars($concern['name']) ?> (<?= htmlspecialchars($concern['code']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="form-text text-muted">Choose which concern will own this attribute.</small>
+                    </div>
+                <?php endif; ?>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Attribute Type <span class="text-danger">*</span></label>
                     <select name="attribute_type" id="selectAttributeType" class="form-select" required onchange="handleAttributeTypeChange(this.value)">
                         <option value="">-- Choose Attribute Type --</option>
-                        <?php foreach (($attributeTypes ?? ['size', 'color']) as $at): ?>
+                        <?php foreach (($attributeTypes ?? []) as $at): ?>
                             <option value="<?= htmlspecialchars($at) ?>"><?= htmlspecialchars(ucfirst($at)) ?></option>
                         <?php endforeach; ?>
                         <option value="__create_new__" class="fw-bold text-primary">+ Create New Attribute Type...</option>
@@ -728,7 +742,7 @@
             <input type="hidden" name="type" id="deleteHierarchyType" value="">
             <input type="hidden" name="id" id="deleteHierarchyId" value="">
             <input type="hidden" name="value" id="deleteHierarchyValue" value="">
-            <input type="hidden" name="return_url" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '/production/catalog-mapping?tab=hierarchy') ?>">
+            <input type="hidden" name="return_url" value="/production/catalog-mapping?tab=hierarchy">
             <div class="modal-header bg-danger text-white">
                 <h6 class="modal-title fw-bold" id="deleteHierarchyModalTitle"><i class="bi bi-trash-fill me-2"></i> Confirm Deletion</h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>

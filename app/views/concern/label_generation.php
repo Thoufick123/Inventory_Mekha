@@ -91,7 +91,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
         </div>
     <?php endif; ?>
 
-    <!-- 4-Section Navigation Tabs -->
+    <!-- 3-Section Navigation Tabs -->
     <ul class="nav nav-pills nav-fill bg-white p-2 rounded-3 shadow-sm mb-4 border" id="labelSectionTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link <?= ($curTab === 'purchase_raw') ? 'active' : '' ?> fw-semibold d-flex align-items-center justify-content-center gap-2 py-2" id="tab-purchase-raw-btn" data-bs-toggle="pill" data-bs-target="#tab-purchase-raw" type="button" role="tab">
@@ -112,13 +112,6 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                 <i class="bi bi-scissors fs-5 text-warning"></i>
                 <span>3. Production Label</span>
                 <span class="badge bg-warning-subtle text-warning border border-warning ms-1"><?= count($productionItems) ?></span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= ($curTab === 'return') ? 'active' : '' ?> fw-semibold d-flex align-items-center justify-content-center gap-2 py-2" id="tab-return-btn" data-bs-toggle="pill" data-bs-target="#tab-return" type="button" role="tab">
-                <i class="bi bi-arrow-left-right fs-5 text-danger"></i>
-                <span>4. Return Label</span>
-                <span class="badge bg-danger-subtle text-danger border border-danger ms-1"><?= count($returnItems) ?></span>
             </button>
         </li>
     </ul>
@@ -282,16 +275,10 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         </div>
                                     </div>
 
-                                    <div class="d-flex gap-2 mt-auto align-items-center">
-                                        <button type="submit" class="btn btn-primary flex-grow-1 py-2 fw-semibold shadow-sm">
+                                    <div class="mt-auto">
+                                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                         </button>
-                                        <button type="button" class="btn btn-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="roll_add_stock_btn" onclick="submitRollToStock()" title="Inward selected roll directly into Purchase Stocks">
-                                            <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
-                                        </button>
-                                        <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=rolls') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="roll_in_stock_badge" title="Already in Stock - View in Purchase Stocks">
-                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
-                                        </a>
                                     </div>
                                 </form>
                             </div>
@@ -495,16 +482,10 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         </div>
                                     </div>
 
-                                    <div class="d-flex gap-2 mt-auto align-items-center">
-                                        <button type="submit" class="btn btn-info text-white flex-grow-1 py-2 fw-semibold shadow-sm">
+                                    <div class="mt-auto">
+                                        <button type="submit" class="btn btn-info text-white w-100 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                         </button>
-                                        <button type="button" class="btn btn-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="other_add_stock_btn" onclick="submitOtherToStock()" title="Inward selected trim directly into Purchase Stocks">
-                                            <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
-                                        </button>
-                                        <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=garment_other') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="other_in_stock_badge" title="Already in Stock - View in Purchase Stocks">
-                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
-                                        </a>
                                     </div>
                                 </form>
                             </div>
@@ -785,16 +766,10 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                 </div>
                             </div>
 
-                            <div class="d-flex gap-2 mt-auto align-items-center">
-                                <button type="submit" class="btn btn-success flex-grow-1 py-2 fw-semibold shadow-sm">
+                            <div class="mt-auto">
+                                <button type="submit" class="btn btn-success w-100 py-2 fw-semibold shadow-sm">
                                     <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                 </button>
-                                <button type="button" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="fg_add_stock_btn" onclick="submitFgToStock()" title="Inward selected finished goods directly into Purchase Stocks">
-                                    <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
-                                </button>
-                                <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=finished_goods') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="fg_in_stock_badge" title="Already in Stock - View in Purchase Stocks">
-                                    <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
-                                </a>
                             </div>
                         </form>
                     </div>
@@ -1103,16 +1078,10 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         </div>
                                     </div>
 
-                                    <div class="d-flex gap-2 mt-auto align-items-center">
-                                        <button type="submit" class="btn btn-warning text-dark flex-grow-1 py-2 fw-semibold shadow-sm">
+                                    <div class="mt-auto">
+                                        <button type="submit" class="btn btn-warning text-dark w-100 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet (N Labels)
                                         </button>
-                                        <button type="button" class="btn btn-success py-2 px-3 fw-semibold shadow-sm text-nowrap" id="prod_add_stock_btn" onclick="submitProdToStock()">
-                                            <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
-                                        </button>
-                                        <a href="<?= \App\Core\Controller::url('/m/stocks?tab=live_stock') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="prod_in_stock_badge">
-                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
-                                        </a>
                                     </div>
                                 </form>
                             </div><!-- /prod_variant_ui -->
@@ -1301,205 +1270,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
             </div>
         </div>
 
-        <!-- ======================================================== -->
-        <!-- TAB 4: RETURN LABEL (Returns & Exchanges)                -->
-        <!-- ======================================================== -->
-        <div class="tab-pane fade <?= ($curTab === 'return') ? 'show active' : '' ?>" id="tab-return" role="tabpanel">
-            <div class="row g-4">
-                <!-- Generator Config Card -->
-                <div class="col-lg-5">
-                    <div class="card border-0 shadow-sm rounded-3 h-100">
-                        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
-                            <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
-                                <i class="bi bi-arrow-left-right text-danger fs-5"></i>
-                                <span>Return & Exchange Label Configuration</span>
-                            </h6>
-                            <span class="badge bg-danger-subtle text-danger border border-danger">Restock Tag</span>
-                        </div>
-                        <form action="<?= \App\Core\Controller::url('/m/label_generation/generate') ?>" method="POST" target="_blank" class="card-body p-4 d-flex flex-column">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                            <input type="hidden" name="label_type" value="return">
-
-                            <div class="mb-3">
-                                <label class="form-label small fw-semibold">Select Return / Exchange Record <span class="text-danger">*</span></label>
-                                <select name="item_id" id="ret_item_select" class="form-select" required onchange="updateRetPreview()">
-                                    <option value="">-- Choose Return Record --</option>
-                                    <?php foreach ($returnItems as $ret): 
-                                        $retTag = QrService::generateTagCode(
-                                            $ret['ret_variant_name'],
-                                            '',
-                                            'RET',
-                                            (string)$ret['returned_variant_id']
-                                        );
-                                        $hasExchange = !empty($ret['exchange_variant_id']);
-                                        $excTag = $hasExchange ? QrService::generateTagCode(
-                                            $ret['exc_variant_name'] ?? 'Exchange',
-                                            '',
-                                            'EXC',
-                                            (string)$ret['exchange_variant_id']
-                                        ) : '';
-                                    ?>
-                                        <option value="<?= $ret['id'] ?>"
-                                                data-return-no="<?= htmlspecialchars($ret['return_no']) ?>"
-                                                data-type="<?= htmlspecialchars($ret['type']) ?>"
-                                                data-customer="<?= htmlspecialchars($ret['customer_name'] ?: 'Retail Customer') ?>"
-                                                data-invoice="<?= htmlspecialchars($ret['invoice_no'] ?: 'Direct Return') ?>"
-                                                data-ret-name="<?= htmlspecialchars($ret['ret_variant_name']) ?>"
-                                                data-ret-sku="<?= htmlspecialchars($ret['ret_sku']) ?>"
-                                                data-ret-tag="<?= htmlspecialchars($retTag) ?>"
-                                                data-ret-size="<?= htmlspecialchars($ret['ret_size'] ?: 'Free') ?>"
-                                                data-ret-mrp="<?= htmlspecialchars($ret['ret_mrp']) ?>"
-                                                data-ret-qty="<?= htmlspecialchars($ret['returned_qty']) ?>"
-                                                data-ret-qr="<?= htmlspecialchars($retTag) ?>"
-                                                data-has-exchange="<?= $hasExchange ? '1' : '0' ?>"
-                                                data-exc-name="<?= htmlspecialchars($ret['exc_variant_name'] ?? '') ?>"
-                                                data-exc-sku="<?= htmlspecialchars($ret['exc_sku'] ?? '') ?>"
-                                                data-exc-tag="<?= htmlspecialchars($excTag) ?>"
-                                                data-exc-size="<?= htmlspecialchars($ret['exc_size'] ?? '') ?>"
-                                                data-exc-mrp="<?= htmlspecialchars($ret['exc_mrp'] ?? 0) ?>"
-                                                data-exc-qty="<?= htmlspecialchars($ret['exchange_qty'] ?? 1) ?>"
-                                                data-exc-qr="<?= htmlspecialchars($excTag) ?>">
-                                            Return #<?= htmlspecialchars($ret['return_no']) ?> &bull; <?= htmlspecialchars($ret['customer_name'] ?: 'Customer') ?> &bull; <?= htmlspecialchars($ret['ret_variant_name']) ?> (<?= htmlspecialchars($retTag) ?>) &bull; <?= number_format((float)$ret['returned_qty'], 0) ?> pcs
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <!-- Target Item Radio: Return item vs Exchange item -->
-                            <div class="mb-3" id="ret_target_wrapper" style="display: none;">
-                                <label class="form-label small fw-semibold">Target Tag to Print</label>
-                                <div class="d-flex gap-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="item_target" id="target_returned" value="returned" checked onchange="updateRetPreview()">
-                                        <label class="form-check-label small fw-semibold text-danger" for="target_returned">
-                                            <i class="bi bi-arrow-return-left"></i> Returned Item (Restock)
-                                        </label>
-                                    </div>
-                                    <div class="form-check" id="target_exchange_check" style="display: none;">
-                                        <input class="form-check-input" type="radio" name="item_target" id="target_exchange" value="exchange" onchange="updateRetPreview()">
-                                        <label class="form-check-label small fw-semibold text-primary" for="target_exchange">
-                                            <i class="bi bi-arrow-repeat"></i> Exchange Replacement Item
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <label class="form-label small fw-semibold mb-0">Number of Label Copies (N Prints) <span class="text-danger">*</span></label>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <button type="button" class="btn btn-outline-danger py-0 px-2" onclick="matchRetQty()">Match Returned Qty</button>
-                                    </div>
-                                </div>
-                                <div class="input-group">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="adjustCopies('ret_qty', -1)" aria-label="Decrease label quantity"><i class="bi bi-dash-lg"></i></button>
-                                    <input type="number" name="qty" id="ret_qty" class="form-control text-center" min="1" max="500" value="1" required>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="adjustCopies('ret_qty', 1)" aria-label="Increase label quantity"><i class="bi bi-plus-lg"></i></button>
-                                    <span class="input-group-text bg-light">Stickers</span>
-                                </div>
-                            </div>
-
-                            <!-- Live Sticker Preview (Image 2 Reference Layout) -->
-                            <div class="p-3 border rounded-3 bg-light mb-4">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-bold text-dark small"><i class="bi bi-eye text-danger me-1"></i> Restock Label Preview</span>
-                                    <span class="badge bg-danger-subtle text-danger border border-danger font-monospace" id="ret_preview_badge">RESTOCK ITEM</span>
-                                </div>
-                                <div class="border rounded-3 p-3 bg-white shadow-sm" style="border: 1.5px solid #0f172a !important;">
-                                    <!-- Top Header: Concern Name Dynamically & Reference Badge -->
-                                    <div class="d-flex align-items-center justify-content-between pb-2 border-bottom border-secondary-subtle" style="border-style: dashed !important;">
-                                        <div class="d-flex align-items-center">
-                                            <span style="background-color: #0d6efd; color: #ffffff; width: 17px; height: 17px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; margin-right: 6px;">
-                                                <i class="bi bi-check-lg"></i>
-                                            </span>
-                                            <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.04em;" id="ret_preview_concern"><?= htmlspecialchars($concernName) ?></span>
-                                        </div>
-                                        <span class="badge font-monospace px-2 py-1" style="background-color: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; font-size: 0.70rem;" id="ret_preview_ref">RET-REF</span>
-                                    </div>
-
-                                    <!-- Body: Left QR, Right Details Stack -->
-                                    <div class="d-flex align-items-center gap-3 pt-2">
-                                        <div class="d-flex align-items-center justify-content-center bg-white flex-shrink-0" style="width: 76px; height: 76px;" id="ret_qr_box"></div>
-                                        <div class="flex-grow-1 overflow-hidden" style="line-height: 1.35; font-size: 0.76rem;">
-                                            <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" style="font-size: 0.86rem;" id="ret_preview_title">Returned Product</div>
-                                            <div class="text-truncate"><span class="text-secondary">Customer:</span> <strong class="text-dark" id="ret_preview_customer">Retail</strong></div>
-                                            <div class="text-truncate"><span class="text-secondary">Color:</span> <strong class="text-dark text-uppercase" id="ret_preview_color">STANDARD</strong></div>
-                                            <div class="text-truncate"><span class="text-secondary">Design:</span> <strong class="text-dark text-uppercase" id="ret_preview_design">RESTOCK</strong></div>
-                                            <div class="text-truncate"><span class="text-secondary">Price:</span> <strong class="text-success fw-bold" id="ret_preview_price">₹0.00</strong></div>
-                                            <div class="text-truncate"><span class="text-secondary">Code:</span> <strong class="font-monospace text-primary fw-bold" id="ret_preview_code_tag">RET-C-01</strong></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button type="submit" class="btn btn-danger w-100 py-2 fw-semibold shadow-sm mt-auto">
-                                <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet (N Labels)
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Returns & Exchange Items Directory Table -->
-                <div class="col-lg-7">
-                    <div class="card border-0 shadow-sm rounded-3 h-100">
-                        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
-                                <i class="bi bi-list-check text-danger"></i>
-                                <span>Customer Returns & Exchanges Directory</span>
-                            </h6>
-                            <input type="text" id="search_ret_table" class="form-control form-control-sm" style="width: 220px;" placeholder="Search returns...">
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0 table-custom" id="tableRetItems">
-                                <thead class="table-light text-muted small">
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Return No & Customer</th>
-                                        <th>Returned Garment</th>
-                                        <th>Type & Qty</th>
-                                        <th class="text-end pe-3">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (empty($returnItems)): ?>
-                                        <tr><td colspan="5" class="text-center py-4 text-muted">No return or exchange records found.</td></tr>
-                                    <?php else: ?>
-                                        <?php $idx = 1; foreach ($returnItems as $r): ?>
-                                            <tr class="ret-row" data-search="<?= strtolower(htmlspecialchars($r['return_no'] . ' ' . $r['customer_name'] . ' ' . $r['ret_variant_name'])) ?>">
-                                                <td class="text-muted small"><?= $idx++ ?></td>
-                                                <td>
-                                                    <span class="badge bg-dark font-monospace"><?= htmlspecialchars($r['return_no']) ?></span>
-                                                    <div class="small fw-semibold text-dark mt-1"><?= htmlspecialchars($r['customer_name'] ?: 'Retail Customer') ?></div>
-                                                </td>
-                                                <td>
-                                                    <div class="fw-bold text-dark"><?= htmlspecialchars($r['ret_variant_name']) ?></div>
-                                                    <div class="small text-muted d-flex align-items-center gap-1 mt-1">
-                                                        <span class="badge bg-light text-dark border font-monospace"><?= htmlspecialchars($r['ret_sku']) ?></span>
-                                                        <span class="badge bg-secondary" style="font-size: 0.7rem;"><?= htmlspecialchars($r['ret_size'] ?: 'Free') ?></span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <span class="badge <?= $r['type'] === 'exchange' ? 'bg-primary-subtle text-primary border' : 'bg-danger-subtle text-danger border' ?>" style="font-size: 0.7rem;">
-                                                        <?= strtoupper($r['type']) ?>
-                                                    </span>
-                                                    <div class="small fw-bold text-dark mt-1"><?= number_format((float)$r['returned_qty'], 0) ?> pcs</div>
-                                                </td>
-                                                <td class="text-end pe-3">
-                                                    <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2 fw-semibold" onclick="selectRetItem(<?= (int)$r['id'] ?>)">
-                                                        <i class="bi bi-printer me-1"></i> Print
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
+        
     </div>
 
     <!-- ======================================================== -->
@@ -1624,26 +1395,9 @@ function updateRollPreview() {
         titleEl.textContent = '';
     }
 
-    const addStockBtn = document.getElementById('roll_add_stock_btn');
-    const inStockBadge = document.getElementById('roll_in_stock_badge');
-
     const opt = sel.options[sel.selectedIndex];
     if (opt && opt.value) {
         const isInStock = (opt.dataset && opt.dataset.inward === 'completed');
-        if (addStockBtn) {
-            if (isInStock) {
-                addStockBtn.classList.add('d-none');
-            } else {
-                addStockBtn.classList.remove('d-none');
-            }
-        }
-        if (inStockBadge) {
-            if (isInStock) {
-                inStockBadge.classList.remove('d-none');
-            } else {
-                inStockBadge.classList.add('d-none');
-            }
-        }
 
         const fabric = opt.dataset.fabric || opt.dataset.name || opt.dataset.code || 'Fabric Material';
         const tag = opt.dataset.tag || opt.dataset.qr || makeTagCode(fabric, opt.dataset.color, opt.dataset.pattern || opt.dataset.spec, opt.value);
@@ -1754,26 +1508,10 @@ function submitRollToStock() {
 function updateOtherPreview() {
     const sel = document.getElementById('other_item_select');
     if (!sel) return;
-    const addStockBtn = document.getElementById('other_add_stock_btn');
-    const inStockBadge = document.getElementById('other_in_stock_badge');
 
     const opt = sel.options[sel.selectedIndex];
     if (opt && opt.value) {
         const isInStock = (opt.dataset && opt.dataset.inward === 'completed');
-        if (addStockBtn) {
-            if (isInStock) {
-                addStockBtn.classList.add('d-none');
-            } else {
-                addStockBtn.classList.remove('d-none');
-            }
-        }
-        if (inStockBadge) {
-            if (isInStock) {
-                inStockBadge.classList.remove('d-none');
-            } else {
-                inStockBadge.classList.add('d-none');
-            }
-        }
 
         const tag = opt.dataset.tag || makeTagCode(opt.dataset.name, opt.dataset.color, opt.dataset.pattern || opt.dataset.spec, opt.value);
         const ref = opt.dataset.bill ? ('BILL #' + opt.dataset.bill) : 'TRIM-REF';
@@ -1878,8 +1616,6 @@ function submitRawToStock() {
 function updateFgPreview() {
     const sel = document.getElementById('fg_item_select');
     if (!sel) return;
-    const addStockBtn = document.getElementById('fg_add_stock_btn');
-    const inStockBadge = document.getElementById('fg_in_stock_badge');
 
     const opt = sel.options[sel.selectedIndex];
     const mappingCard = document.getElementById('fg_mapping_card');
@@ -1888,20 +1624,6 @@ function updateFgPreview() {
 
     if (opt && opt.value) {
         const isInStock = (opt.dataset && (opt.dataset.inward === 'completed' || opt.dataset.inStock === '1'));
-        if (addStockBtn) {
-            if (isInStock) {
-                addStockBtn.classList.add('d-none');
-            } else {
-                addStockBtn.classList.remove('d-none');
-            }
-        }
-        if (inStockBadge) {
-            if (isInStock) {
-                inStockBadge.classList.remove('d-none');
-            } else {
-                inStockBadge.classList.add('d-none');
-            }
-        }
 
         const tag = opt.dataset.tag || makeTagCode(opt.dataset.name, opt.dataset.color, opt.dataset.pattern, opt.value);
         const ref = opt.dataset.bill ? ('BILL #' + opt.dataset.bill) : (opt.dataset.sku || 'PO-FG');
@@ -2022,18 +1744,10 @@ function doMapVariant() {
 function updateProdPreview() {
     const sel = document.getElementById('prod_item_select');
     if (!sel) return;
-    const addStockBtn = document.getElementById('prod_add_stock_btn');
-    const inStockBadge = document.getElementById('prod_in_stock_badge');
 
     const opt = sel.options[sel.selectedIndex];
     if (opt && opt.value) {
         const isInStock = (opt.dataset && (opt.dataset.inStock === '1' || opt.dataset.inward === 'completed'));
-        if (addStockBtn) {
-            isInStock ? addStockBtn.classList.add('d-none') : addStockBtn.classList.remove('d-none');
-        }
-        if (inStockBadge) {
-            isInStock ? inStockBadge.classList.remove('d-none') : inStockBadge.classList.add('d-none');
-        }
 
         const tag    = opt.dataset.tag || makeTagCode(opt.dataset.name, opt.dataset.color, opt.dataset.program, opt.value);
         const ref    = opt.dataset.program || opt.dataset.log || 'PP-REF';
@@ -2298,89 +2012,6 @@ function toggleBatchRows(rowClass) {
 }
 
 
-// Tab 4: Return Preview Handler
-function updateRetPreview() {
-    const sel = document.getElementById('ret_item_select');
-    const opt = sel.options[sel.selectedIndex];
-    const targetWrapper = document.getElementById('ret_target_wrapper');
-    const excCheck = document.getElementById('target_exchange_check');
-    const isExchangeTarget = document.getElementById('target_exchange') && document.getElementById('target_exchange').checked;
-
-    if (opt && opt.value) {
-        targetWrapper.style.display = 'block';
-        if (opt.dataset.hasExchange === '1') {
-            excCheck.style.display = 'block';
-        } else {
-            excCheck.style.display = 'none';
-            document.getElementById('target_returned').checked = true;
-        }
-
-        if (isExchangeTarget && opt.dataset.hasExchange === '1') {
-            const tag = opt.dataset.excTag || makeTagCode(opt.dataset.excName, '', 'EXC', opt.value);
-            const ref = 'EXC #' + (opt.dataset.returnNo || '00');
-            const color = 'STANDARD';
-            const design = (opt.dataset.excSize || 'EXCHANGE').toUpperCase();
-            const price = parseFloat(opt.dataset.excMrp || 0);
-
-            document.getElementById('ret_preview_ref').textContent = ref;
-            document.getElementById('ret_preview_title').textContent = opt.dataset.excName || 'Exchange Replacement';
-            document.getElementById('ret_preview_customer').textContent = opt.dataset.customer || 'Retail Customer';
-            document.getElementById('ret_preview_color').textContent = color;
-            document.getElementById('ret_preview_design').textContent = design;
-            document.getElementById('ret_preview_price').textContent = '₹' + price.toFixed(2);
-            document.getElementById('ret_preview_code_tag').textContent = tag;
-            document.getElementById('ret_preview_badge').textContent = 'EXCHANGE DISPATCH';
-
-            renderQr('ret_qr_box', tag);
-        } else {
-            const tag = opt.dataset.retTag || makeTagCode(opt.dataset.retName, '', 'RET', opt.value);
-            const ref = 'RET #' + (opt.dataset.returnNo || '00');
-            const color = 'STANDARD';
-            const design = (opt.dataset.retSize || 'RESTOCK').toUpperCase();
-            const price = parseFloat(opt.dataset.retMrp || 0);
-
-            document.getElementById('ret_preview_ref').textContent = ref;
-            document.getElementById('ret_preview_title').textContent = opt.dataset.retName || 'Returned Product';
-            document.getElementById('ret_preview_customer').textContent = opt.dataset.customer || 'Retail Customer';
-            document.getElementById('ret_preview_color').textContent = color;
-            document.getElementById('ret_preview_design').textContent = design;
-            document.getElementById('ret_preview_price').textContent = '₹' + price.toFixed(2);
-            document.getElementById('ret_preview_code_tag').textContent = tag;
-            document.getElementById('ret_preview_badge').textContent = 'RESTOCK ITEM';
-
-            renderQr('ret_qr_box', tag);
-        }
-    } else {
-        targetWrapper.style.display = 'none';
-        document.getElementById('ret_preview_ref').textContent = 'RET-00';
-        document.getElementById('ret_preview_title').textContent = 'Select Return Item';
-        document.getElementById('ret_preview_customer').textContent = 'Retail Customer';
-        document.getElementById('ret_preview_color').textContent = 'STANDARD';
-        document.getElementById('ret_preview_design').textContent = 'RESTOCK';
-        document.getElementById('ret_preview_price').textContent = '₹0.00';
-        document.getElementById('ret_preview_code_tag').textContent = 'RET-S-01';
-        document.getElementById('ret_preview_badge').textContent = 'RESTOCK ITEM';
-        renderQr('ret_qr_box', 'RET-S-01');
-    }
-}
-
-function selectRetItem(id) {
-    const sel = document.getElementById('ret_item_select');
-    sel.value = id;
-    updateRetPreview();
-    matchRetQty();
-    sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
-function matchRetQty() {
-    const sel = document.getElementById('ret_item_select');
-    const opt = sel.options[sel.selectedIndex];
-    if (opt && opt.value) {
-        const qty = parseInt(opt.dataset.retQty || 1, 10);
-        document.getElementById('ret_qty').value = qty > 0 ? qty : 1;
-    }
-}
-
 function adjustCopies(inputId, delta) {
     const input = document.getElementById(inputId);
     if (!input) return;
@@ -2440,7 +2071,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupTableSearch('search_raw_table', 'raw-row');
     setupTableSearch('search_fg_table', 'fg-row');
     setupTableSearch('search_prod_table', 'prod-row');
-    setupTableSearch('search_ret_table', 'ret-row');
+
 
     // Auto-select and attach listeners for fabric roll select
     const rollSel = document.getElementById('roll_item_select');
@@ -2466,6 +2097,6 @@ document.addEventListener('DOMContentLoaded', function() {
     updateOtherPreview();
     updateFgPreview();
     updateProdPreview();
-    updateRetPreview();
+
 });
 </script>

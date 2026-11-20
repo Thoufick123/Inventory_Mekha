@@ -316,11 +316,11 @@ if (!$isEdit) {
                 <div class="row g-2">
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Default HSN</label>
-                        <input type="text" name="default_hsn" class="form-control font-monospace" placeholder="Search HSN" data-hsn-autocomplete data-hsn-type="HSN" autocomplete="off">
+                        <input type="text" name="default_hsn" id="catalogCategoryDefaultHsn" class="form-control font-monospace" placeholder="Search HSN" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#catalogCategoryDefaultGstRate" autocomplete="off">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Default GST (%)</label>
-                        <input type="number" step="0.01" min="0" max="100" name="default_gst_rate" class="form-control" placeholder="Optional">
+                        <input type="number" step="0.01" min="0" max="100" name="default_gst_rate" id="catalogCategoryDefaultGstRate" class="form-control" placeholder="Optional">
                     </div>
                 </div>
             </div>
@@ -405,7 +405,7 @@ if (!$isEdit) {
             <div class="modal-body p-3">
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">HSN Code *</label>
-                    <input type="text" name="hsn_code" class="form-control font-monospace" placeholder="e.g. 6109" data-hsn-autocomplete data-hsn-type="HSN" autocomplete="off" required>
+                    <input type="text" name="hsn_code" class="form-control font-monospace" placeholder="e.g. 6109" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#catalogHsnMasterGstRate" autocomplete="off" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Commodity Description</label>
@@ -413,7 +413,7 @@ if (!$isEdit) {
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">GST Rate (%) (Optional)</label>
-                    <input type="number" step="0.01" min="0" max="100" name="gst_rate" class="form-control" placeholder="Leave blank if conditional">
+                    <input type="number" step="0.01" min="0" max="100" name="gst_rate" id="catalogHsnMasterGstRate" class="form-control" placeholder="Leave blank if conditional">
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">GST Rate Conditions / Notes</label>

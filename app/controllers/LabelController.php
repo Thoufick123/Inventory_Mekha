@@ -88,7 +88,7 @@ class LabelController extends Controller {
     }
 
     /**
-     * Display the 4-Section Label Generation Hub
+     * Display the 3-Section Label Generation Hub
      */
     public function index(): void {
         PurchaseStockItemOverrideService::initTable();
@@ -98,7 +98,7 @@ class LabelController extends Controller {
 
         $activeBillId = (int)($_GET['bill_id'] ?? 0);
         $activeTab    = trim($_GET['tab'] ?? 'purchase_raw');
-        if (!in_array($activeTab, ['purchase_raw', 'purchase_fg', 'production', 'return'], true)) {
+        if (!in_array($activeTab, ['purchase_raw', 'purchase_fg', 'production'], true)) {
             $activeTab = 'purchase_raw';
         }
 
@@ -336,34 +336,7 @@ class LabelController extends Controller {
             $productionBatches[$bId]['items'][] = $pItem;
         }
 
-        // 4. Return Labels (Customer Returns & Exchanges)
-        $retSql = "SELECT re.*, 
-                          cust.name AS customer_name, cust.phone AS customer_phone,
-                          si.invoice_no,
-                          rv.sku_code AS ret_sku, rv.name AS ret_variant_name, rv.size AS ret_size, 
-                          rv.mrp AS ret_mrp, rv.price AS ret_price,
-                          rv.category_id AS ret_cat_id, rv.subcategory_id AS ret_subcat_id,
-                          rc.name AS ret_cat_name,
-                          ev.sku_code AS exc_sku, ev.name AS exc_variant_name, ev.size AS exc_size, 
-                          ev.mrp AS exc_mrp, ev.price AS exc_price,
-                          ev.category_id AS exc_cat_id, ev.subcategory_id AS exc_subcat_id,
-                          ec.name AS exc_cat_name
-                   FROM returns_exchanges re
-                   LEFT JOIN customers cust ON re.customer_id = cust.id
-                   LEFT JOIN sales_invoices si ON re.sales_invoice_id = si.id
-                   LEFT JOIN variants rv ON re.returned_variant_id = rv.id
-                   LEFT JOIN categories rc ON rv.category_id = rc.id
-                   LEFT JOIN variants ev ON re.exchange_variant_id = ev.id
-                   LEFT JOIN categories ec ON ev.category_id = ec.id";
-        $retParams = [];
-        if ($cid) {
-            $retSql .= " WHERE re.concern_id = ?";
-            $retParams[] = $cid;
-        }
-        $retSql .= " ORDER BY re.id DESC LIMIT 100";
-        $returnItems = DB::fetchAll($retSql, $retParams);
-
-        // 5. Recent Label Jobs (Audit Trail)
+        // 4. Recent Label Jobs (Audit Trail)
         $jobSql = "SELECT lj.*, u.name AS user_name, con.name AS concern_name, con.code AS concern_code,
                           v.name AS variant_name, v.sku_code, v.category_id, v.subcategory_id
                    FROM label_jobs lj
@@ -387,7 +360,6 @@ class LabelController extends Controller {
             'purchaseFgItems'    => $purchaseFgItems,
             'productionItems'    => $productionItems,
             'productionBatches'  => array_values($productionBatches),
-            'returnItems'        => $returnItems,
             'allVariants'        => $allVariants,
             'recentJobs'         => $recentJobs,
             'selectedCid'        => $cid,
@@ -445,7 +417,7 @@ class LabelController extends Controller {
     }
 
     /**
-     * Generate & render printable label sheet for any of the 4 sections
+     * Generate & render printable label sheet for any of the 3 sections
      */
     public function generate(): void {
         $this->validateCsrf();
@@ -461,7 +433,6 @@ class LabelController extends Controller {
             $itemId = (int)$rawItemId;
         }
         $variantId  = !empty($_POST['variant_id']) ? (int)$_POST['variant_id'] : null;
-        $itemTarget = trim($_POST['item_target'] ?? 'returned'); // for return label: returned or exchange
         $cid        = Auth::concernId();
 
         $concern = Auth::concern();
@@ -1092,115 +1063,7 @@ class LabelController extends Controller {
         }
 
         // ----------------------------------------------------
-        // 4. RETURN LABELS (Customer Returns & Exchanges)
-        // ----------------------------------------------------
-        elseif ($labelType === 'return') {
-            $item = DB::fetch(
-                "SELECT re.*, 
-                        cust.name AS customer_name, cust.phone AS customer_phone,
-                        si.invoice_no,
-                        rv.id AS ret_var_id, rv.sku_code AS ret_sku, rv.name AS ret_variant_name, rv.size AS ret_size, 
-                        rv.mrp AS ret_mrp, rv.category_id AS ret_cat_id, rv.subcategory_id AS ret_subcat_id,
-                        rc.name AS ret_cat_name, rb.name AS ret_brand_name,
-                        ev.id AS exc_var_id, ev.sku_code AS exc_sku, ev.name AS exc_variant_name, ev.size AS exc_size, 
-                        ev.mrp AS exc_mrp, ev.category_id AS exc_cat_id, ev.subcategory_id AS exc_subcat_id,
-                        ec.name AS exc_cat_name, eb.name AS exc_brand_name
-                 FROM returns_exchanges re
-                 LEFT JOIN customers cust ON re.customer_id = cust.id
-                 LEFT JOIN sales_invoices si ON re.sales_invoice_id = si.id
-                 LEFT JOIN variants rv ON re.returned_variant_id = rv.id
-                 LEFT JOIN categories rc ON rv.category_id = rc.id
-                 LEFT JOIN brands rb ON rv.brand_id = rb.id
-                 LEFT JOIN variants ev ON re.exchange_variant_id = ev.id
-                 LEFT JOIN categories ec ON ev.category_id = ec.id
-                 LEFT JOIN brands eb ON ev.brand_id = eb.id
-                 WHERE re.id = ?" . ($cid ? " AND re.concern_id = ?" : ""),
-                $cid ? [$itemId, $cid] : [$itemId]
-            );
-
-            if (!$item) {
-                $this->flash('error', 'Return / Exchange record not found.');
-                $this->redirect('/m/label_generation');
-                return;
-            }
-
-            $cid = $cid ?: (int)$item['concern_id'];
-
-            // Choose whether user wanted the Returned Item tag or the Exchange Item tag
-            $isExchange = ($itemTarget === 'exchange' && !empty($item['exc_var_id']));
-            if ($isExchange) {
-                $variantId = (int)$item['exc_var_id'];
-                $varName   = $item['exc_variant_name'];
-                $sku       = $item['exc_sku'];
-                $size      = $item['exc_size'];
-                $mrp       = (float)$item['exc_mrp'];
-                $catName   = $item['exc_cat_name'];
-                $brand     = $item['exc_brand_name'];
-                $catId     = (int)$item['exc_cat_id'];
-                $subcatId  = (int)$item['exc_subcat_id'];
-                $badge     = 'EXCHANGE DISPATCH';
-            } else {
-                $variantId = (int)$item['ret_var_id'];
-                $varName   = $item['ret_variant_name'];
-                $sku       = $item['ret_sku'];
-                $size      = $item['ret_size'];
-                $mrp       = (float)$item['ret_mrp'];
-                $catName   = $item['ret_cat_name'];
-                $brand     = $item['ret_brand_name'];
-                $catId     = (int)$item['ret_cat_id'];
-                $subcatId  = (int)$item['ret_subcat_id'];
-                $badge     = 'RESTOCK / RETURN';
-            }
-
-            $prodName = $varName ?: 'Returned Product';
-            $tagCode = QrService::generateTagCode(
-                $prodName,
-                '',
-                'RET',
-                (string)$variantId
-            );
-            $qrText = $tagCode;
-
-            $designVal = trim($item['pattern'] ?? 'RESTOCK');
-            $priceVal = (float)($mrp ?: 0);
-
-            $labelData = [
-                'concern_name'   => $concernName,
-                'ref_no'         => $item['return_no'] ?: 'RET-0001',
-                'header_title'   => $prodName,
-                'label_1_name'   => 'Customer',
-                'label_1_val'    => $item['customer_name'] ?: 'Retail Customer',
-                'label_2_name'   => 'Color',
-                'label_2_val'    => 'STANDARD',
-                'label_3_name'   => 'Design',
-                'label_3_val'    => $designVal,
-                'design'         => $designVal,
-                'label_4_name'   => 'Price',
-                'label_4_val'    => '₹' . number_format($priceVal, 2),
-                'price'          => $priceVal,
-                'price_mrp'      => $priceVal,
-                'tag_code'       => $tagCode,
-                'qr_payload'     => $qrText,
-                'section_title'  => 'RETURN / RESTOCK LABEL',
-                'section_badge'  => $badge,
-                'item_title'     => $prodName,
-                'item_code'      => $tagCode,
-                'brand_name'     => $concernName,
-                'category_name'  => $catName ?: 'Apparel',
-                'cost_or_ref'    => 'Return #' . $item['return_no'],
-                'extra_details'  => [
-                    'Design'     => $designVal,
-                    'Price'      => '₹' . number_format($priceVal, 2),
-                    'Return No'  => $item['return_no'],
-                    'Invoice No' => $item['invoice_no'] ?: 'Direct Return',
-                    'Date'       => date('d-m-Y', strtotime($item['return_date'] ?: date('Y-m-d'))),
-                    'Customer'   => $item['customer_name']
-                ]
-            ];
-        }
-
-        // ----------------------------------------------------
-        // 5. DIRECT VARIANT FALLBACK
+        // 4. DIRECT VARIANT FALLBACK
         // ----------------------------------------------------
         else {
             $variantId = (int)($_POST['variant_id'] ?? 0);

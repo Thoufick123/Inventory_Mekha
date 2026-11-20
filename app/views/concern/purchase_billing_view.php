@@ -259,10 +259,10 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                                 <td class="fw-semibold"><?= $qtyRq ?></td>
                                 <td class="fw-semibold">₹<?= number_format($baseVal, 2) ?></td>
                                 <td>
-                                    <?php if ($gstRate == 0 || $gstType === 'Exempted'): ?>
+                                    <?php if ($gstType === 'Exempted' || ($gstRate == 0 && $taxVal <= 0)): ?>
                                         <span class="badge bg-light text-dark border">EXEMPTED</span>
                                     <?php else: ?>
-                                        <span class="badge bg-primary-subtle text-primary border"><?= htmlspecialchars($gstType) ?> (<?= $gstRate ?>%)</span>
+                                        <span class="badge bg-primary-subtle text-primary border"><?= htmlspecialchars($gstType) ?><?= $gstRate > 0 ? ' (' . number_format($gstRate, 2) . '%)' : '' ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -319,6 +319,7 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                             $gstRate = (float)($o['gst_rate'] ?? 0);
                             $taxVal = (float)($o['tax_amount'] ?? 0);
                             $totalVal = (float)($o['total_price'] ?? 0) + $taxVal;
+                            $gstType = $o['gst_type'] ?? ($gstRate == 0 && $taxVal <= 0 ? 'Exempted' : 'GST');
                             ?>
                             <tr>
                                 <td><?= $idx++ ?></td>
@@ -330,10 +331,10 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                                 <td>₹<?= number_format($o['unit_price'], 2) ?></td>
                                 <td>₹<?= number_format($o['total_price'], 2) ?></td>
                                 <td>
-                                    <?php if ($gstRate == 0): ?>
+                                    <?php if ($gstType === 'Exempted' || ($gstRate == 0 && $taxVal <= 0)): ?>
                                         <span class="badge bg-light text-dark border">EXEMPTED</span>
                                     <?php else: ?>
-                                        <span class="badge bg-success-subtle text-success border"><?= $gstRate ?>%</span>
+                                        <span class="badge bg-success-subtle text-success border"><?= htmlspecialchars($gstType) ?><?= $gstRate > 0 ? ' (' . number_format($gstRate, 2) . '%)' : '' ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -387,6 +388,7 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                             $gstRate = (float)($f['gst_rate'] ?? 0);
                             $taxVal = (float)($f['tax_amount'] ?? 0);
                             $totalVal = (float)($f['total_price'] ?? 0) + $taxVal;
+                            $gstType = $f['gst_type'] ?? ($gstRate == 0 && $taxVal <= 0 ? 'Exempted' : 'GST');
                             ?>
                             <tr>
                                 <td><?= $idx++ ?></td>
@@ -395,10 +397,10 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                                 <td class="fw-bold"><?= (int)$f['qty'] ?></td>
                                 <td>₹<?= number_format($f['unit_price'], 2) ?></td>
                                 <td>
-                                    <?php if ($gstRate == 0): ?>
+                                    <?php if ($gstType === 'Exempted' || ($gstRate == 0 && $taxVal <= 0)): ?>
                                         <span class="badge bg-light text-dark border">EXEMPTED</span>
                                     <?php else: ?>
-                                        <span class="badge bg-purple-subtle text-purple border" style="background:#ede9fe; color:#6d28d9;"><?= $gstRate ?>%</span>
+                                        <span class="badge bg-purple-subtle text-purple border" style="background:#ede9fe; color:#6d28d9;"><?= htmlspecialchars($gstType) ?><?= $gstRate > 0 ? ' (' . number_format($gstRate, 2) . '%)' : '' ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -497,19 +499,23 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     </div>
                 </div>
 
-                <!-- Consolidated Items Table (Print-Optimized 8 Columns) -->
+                <!-- Consolidated Items Table -->
                 <div class="table-responsive mb-3 print-table-container">
                     <table class="table table-bordered table-sm align-middle small mb-0 print-items-table">
                         <thead class="table-light">
                             <tr class="fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
-                                <th class="text-center" style="width: 3%; white-space: nowrap;">#</th>
-                                <th class="text-start" style="width: 13%; white-space: nowrap;">Item / Ref</th>
-                                <th class="text-start" style="width: 27%;">Description & Specification</th>
-                                <th class="text-center" style="width: 8%; white-space: nowrap;">HSN</th>
-                                <th class="text-center" style="width: 11%; white-space: nowrap;">Qty / Weight</th>
-                                <th class="text-end" style="width: 12%; white-space: nowrap;">Rate / Taxable</th>
-                                <th class="text-center" style="width: 12%; white-space: nowrap;">GST Tax</th>
-                                <th class="text-end" style="width: 14%; white-space: nowrap;">Total (₹)</th>
+                                <th rowspan="2" class="text-center" style="width: 3%;">#</th>
+                                <th rowspan="2" class="text-start" style="width: 10%;">Item / Ref</th>
+                                <th rowspan="2" class="text-start" style="width: 21%;">Description & Specification</th>
+                                <th rowspan="2" class="text-center" style="width: 7%;">HSN</th>
+                                <th rowspan="2" class="text-center" style="width: 9%;">Qty / Weight</th>
+                                <th rowspan="2" class="text-end" style="width: 12%;">Rate / Taxable</th>
+                                <th colspan="2" class="text-center" style="width: 24%;">GST</th>
+                                <th rowspan="2" class="text-end" style="width: 14%;">Total (₹)</th>
+                            </tr>
+                            <tr class="fw-bold text-uppercase">
+                                <th class="text-center">CGST</th>
+                                <th class="text-center">SGST</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -520,6 +526,9 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                             $printNetTotal = 0.0;
                             $printQtyTotal = 0.0;
                             $printWtTotal = 0.0;
+                            $printCgstTotal = 0.0;
+                            $printSgstTotal = 0.0;
+                            $printIgstTotal = 0.0;
 
                             foreach ($items as $it):
                                 $secType = $it['section_type'] ?? '';
@@ -536,12 +545,40 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                                 $tax = (float)($it['tax_amount'] ?? 0);
                                 $lineTotal = $base + $tax;
                                 $gstRate = (float)($it['gst_rate'] ?? 0);
+                                $gstType = trim((string)($it['gst_type'] ?? ''));
+                                if ($gstType === '') {
+                                    $gstType = ($gstRate == 0 && $tax <= 0) ? 'Exempted' : 'GST';
+                                }
+                                $cgstRate = 0.0;
+                                $sgstRate = 0.0;
+                                $igstRate = 0.0;
+                                $cgstTax = 0.0;
+                                $sgstTax = 0.0;
+                                $igstTax = 0.0;
+                                if ($gstType === 'Both (CGST and SGST)') {
+                                    $cgstRate = round($gstRate / 2, 2);
+                                    $sgstRate = $gstRate - $cgstRate;
+                                    $cgstTax = round($tax / 2, 2);
+                                    $sgstTax = $tax - $cgstTax;
+                                } elseif ($gstType === 'CGST') {
+                                    $cgstRate = $gstRate;
+                                    $cgstTax = $tax;
+                                } elseif ($gstType === 'SGST') {
+                                    $sgstRate = $gstRate;
+                                    $sgstTax = $tax;
+                                } elseif ($gstType !== 'Exempted') {
+                                    $igstRate = $gstRate;
+                                    $igstTax = $tax;
+                                }
 
                                 $printBaseTotal += $base;
                                 $printTaxTotal += $tax;
                                 $printNetTotal += $lineTotal;
                                 $printQtyTotal += $qty;
                                 $printWtTotal += $wt;
+                                $printCgstTotal += $cgstTax;
+                                $printSgstTotal += $sgstTax;
+                                $printIgstTotal += $igstTax;
 
                                 // Item Code display
                                 $rawCode = trim($it['item_code'] ?? '');
@@ -615,28 +652,29 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                                             <div class="text-muted small nowrap-num" style="font-size: 0.68rem;">Base: ₹<?= number_format($base, 2) ?></div>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="text-center">
-                                        <?php if ($gstRate == 0 || ($it['gst_type'] ?? '') === 'Exempted'): ?>
-                                            <span class="badge bg-light text-muted border" style="font-size: 0.65rem;">EXEMPT</span>
-                                        <?php else: ?>
-                                            <?php 
-                                            $gstLabel = htmlspecialchars($it['gst_type'] ?: 'GST');
-                                            $gstSub = '';
-                                            if (stripos($gstLabel, 'Both') !== false) {
-                                                $halfRate = $gstRate / 2;
-                                                $gstLabel = "CGST+SGST {$gstRate}%";
-                                                $gstSub = "({$halfRate}% + {$halfRate}%)";
-                                            } else {
-                                                $gstLabel = "{$gstLabel} {$gstRate}%";
-                                            }
-                                            ?>
-                                            <div class="fw-semibold text-dark small nowrap-num" style="font-size: 0.72rem;"><?= $gstLabel ?></div>
-                                            <?php if ($gstSub): ?>
-                                                <div class="text-muted" style="font-size: 0.62rem;"><?= $gstSub ?></div>
+                                    <?php if ($igstRate > 0 || $igstTax > 0): ?>
+                                        <td colspan="2" class="text-center tax-component">
+                                            <div class="tax-component-rate"><?= $igstRate > 0 ? 'IGST ' . number_format($igstRate, 2) . '%' : '' ?></div>
+                                            <div class="tax-component-amount"><?= $igstTax > 0 ? '₹' . number_format($igstTax, 2) : '-' ?></div>
+                                        </td>
+                                    <?php else: ?>
+                                        <td class="text-center tax-component">
+                                            <?php if ($cgstRate > 0 || $cgstTax > 0): ?>
+                                                <?php if ($cgstRate > 0): ?><div class="tax-component-rate"><?= number_format($cgstRate, 2) ?>%</div><?php endif; ?>
+                                                <div class="tax-component-amount"><?= $cgstTax > 0 ? '₹' . number_format($cgstTax, 2) : '₹0.00' ?></div>
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
                                             <?php endif; ?>
-                                            <div class="text-secondary small fw-semibold nowrap-num" style="font-size: 0.70rem;">₹<?= number_format($tax, 2) ?></div>
-                                        <?php endif; ?>
-                                    </td>
+                                        </td>
+                                        <td class="text-center tax-component">
+                                            <?php if ($sgstRate > 0 || $sgstTax > 0): ?>
+                                                <?php if ($sgstRate > 0): ?><div class="tax-component-rate"><?= number_format($sgstRate, 2) ?>%</div><?php endif; ?>
+                                                <div class="tax-component-amount"><?= $sgstTax > 0 ? '₹' . number_format($sgstTax, 2) : '₹0.00' ?></div>
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endif; ?>
                                     <td class="text-end fw-bold text-dark nowrap-num">₹<?= number_format($lineTotal, 2) ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -655,11 +693,20 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                                     <div class="text-muted fw-normal" style="font-size: 0.65rem;">(Taxable Base)</div>
                                 </td>
                                 <td class="text-center nowrap-num">
-                                    <div>₹<?= number_format($printTaxTotal, 2) ?></div>
-                                    <div class="text-muted fw-normal" style="font-size: 0.65rem;">(Total Tax)</div>
+                                    <div>₹<?= number_format($printCgstTotal, 2) ?></div>
+                                </td>
+                                <td class="text-center nowrap-num">
+                                    <div>₹<?= number_format($printSgstTotal, 2) ?></div>
                                 </td>
                                 <td class="text-end text-success fs-6 nowrap-num">₹<?= number_format($printNetTotal, 2) ?></td>
                             </tr>
+                            <?php if ($printIgstTotal > 0): ?>
+                                <tr>
+                                    <td colspan="6" class="text-end text-uppercase" style="font-size: 0.72rem;">IGST Total:</td>
+                                    <td colspan="2" class="text-center nowrap-num">₹<?= number_format($printIgstTotal, 2) ?></td>
+                                    <td></td>
+                                </tr>
+                            <?php endif; ?>
                         </tfoot>
                     </table>
                 </div>
@@ -734,16 +781,31 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
 /* Screen & Common Styles for Invoice Preview */
 .print-items-table {
     border-collapse: collapse !important;
+    table-layout: fixed;
+    width: 100%;
 }
 .print-items-table thead th {
-    white-space: nowrap !important;
+    white-space: normal !important;
     padding: 6px 5px !important;
     font-size: 0.72rem !important;
     letter-spacing: 0.02em;
+    line-height: 1.15;
 }
 .print-items-table td {
     padding: 6px 5px !important;
     vertical-align: middle !important;
+}
+.tax-component {
+    font-size: 0.72rem;
+    line-height: 1.2;
+}
+.tax-component-rate {
+    color: #64748b;
+    white-space: nowrap;
+}
+.tax-component-amount {
+    font-weight: 600;
+    white-space: nowrap;
 }
 .nowrap-num {
     white-space: nowrap !important;
@@ -825,20 +887,43 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
     .print-items-table td {
         border: 1px solid #475569 !important;
         color: #000000 !important;
-        padding: 4px 5px !important;
-        font-size: 8.5pt !important;
+        padding: 3px 4px !important;
+        font-size: 7.5pt !important;
         vertical-align: middle !important;
         word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
+        overflow-wrap: anywhere !important;
     }
 
     .print-items-table thead th {
         background-color: #f1f5f9 !important;
         color: #0f172a !important;
         font-weight: 700 !important;
-        white-space: nowrap !important;
+        white-space: normal !important;
+        line-height: 1.15 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+    }
+
+    .print-items-table thead {
+        display: table-header-group;
+    }
+
+    .print-items-table tbody tr,
+    .print-items-table tfoot tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .tax-component {
+        font-size: 7pt !important;
+    }
+
+    .tax-component-rate {
+        white-space: nowrap !important;
+    }
+
+    .tax-component-amount {
+        white-space: nowrap !important;
     }
 
     .print-items-table tfoot td {
