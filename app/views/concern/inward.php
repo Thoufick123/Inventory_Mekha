@@ -20,9 +20,6 @@
             <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Dashboard
             </a>
-            <button class="btn btn-primary btn-sm px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddInward">
-                <i class="bi bi-plus-lg me-1"></i> Receive Inward Consignment
-            </button>
         </div>
     </div>
 
