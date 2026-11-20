@@ -27,9 +27,9 @@
             <table class="table table-hover align-middle mb-0 table-custom">
                 <thead>
                     <tr>
-                        <th>Outward No</th>
+                        <th>Outward & Gate Pass</th>
                         <th>Recipient / Destination</th>
-                        <th>Invoice Ref</th>
+                        <th>Logistics / Vehicle</th>
                         <th>Outward Date</th>
                         <th>Location</th>
                         <th>Quantity Deducted</th>
@@ -43,7 +43,12 @@
                     <?php else: ?>
                         <?php foreach ($outwards as $o): ?>
                             <tr>
-                                <td><span class="badge bg-dark font-monospace"><?= htmlspecialchars($o['outward_no']) ?></span></td>
+                                <td>
+                                    <span class="badge bg-dark font-monospace"><?= htmlspecialchars($o['outward_no']) ?></span>
+                                    <?php if (!empty($o['gate_pass_no'])): ?>
+                                        <div class="mt-1"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 font-monospace"><?= htmlspecialchars($o['gate_pass_no']) ?></span></div>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <?php if (($o['transfer_type'] ?? '') === 'concern' || !empty($o['destination_concern_id'])): ?>
                                         <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 mb-1 d-inline-block">
@@ -58,7 +63,17 @@
                                         <div class="fw-bold text-dark"><?= htmlspecialchars($o['customer_name'] ?? 'General Customer') ?></div>
                                     <?php endif; ?>
                                 </td>
-                                <td><?= htmlspecialchars($o['invoice_no'] ?: '-') ?></td>
+                                <td>
+                                    <?php if (!empty($o['vehicle_number']) || !empty($o['transporter_name'])): ?>
+                                        <div class="fw-semibold text-dark"><i class="bi bi-truck me-1 text-primary"></i><?= htmlspecialchars($o['vehicle_number'] ?: 'Carrier') ?></div>
+                                        <small class="text-muted"><?= htmlspecialchars($o['transporter_name'] ?: ($o['driver_name'] ?? '')) ?></small>
+                                        <?php if (!empty($o['lr_number'])): ?>
+                                            <div class="small font-monospace text-secondary">LR: <?= htmlspecialchars($o['lr_number']) ?></div>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="text-muted small">Standard Transport</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= date('d M Y', strtotime($o['outward_date'])) ?></td>
                                 <td><?= htmlspecialchars($o['location']) ?></td>
                                 <td>
@@ -67,18 +82,37 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <?php if (($o['status'] ?? '') === 'received'): ?>
-                                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25">
-                                            <i class="bi bi-check-all me-1"></i> Inwarded / Received
+                                    <?php 
+                                        $ost = strtoupper($o['status'] ?? 'PREPARED');
+                                        if ($ost === 'RECEIVED'): ?>
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">
+                                            <i class="bi bi-check-circle me-1"></i> Received
                                         </span>
-                                    <?php elseif (($o['status'] ?? '') === 'dispatched'): ?>
-                                        <span class="badge bg-success">Dispatched</span>
+                                    <?php elseif ($ost === 'DISPATCHED'): ?>
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-truck me-1"></i>In Transit</span>
                                     <?php else: ?>
-                                        <span class="badge bg-warning text-dark"><?= ucfirst($o['status'] ?? 'prepared') ?></span>
+                                        <span class="badge bg-secondary"><?= ucfirst(strtolower($ost)) ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end">
                                     <div class="d-inline-flex align-items-center gap-1">
+                                        <?php if (in_array(strtoupper($o['status'] ?? ''), ['DRAFT', 'PREPARED'])): ?>
+                                            <form action="<?= \App\Core\Controller::url('/m/outward/dispatch') ?>" method="POST" class="d-inline" onsubmit="return confirm('Confirm vehicle departure & dispatch Outward <?= htmlspecialchars($o['outward_no']) ?>? Stock will transition into IN_TRANSIT.');">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                <input type="hidden" name="id" value="<?= $o['id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-primary shadow-sm" title="Dispatch Outward Gate Pass">
+                                                    <i class="bi bi-send me-1"></i> Dispatch
+                                                </button>
+                                            </form>
+                                        <?php elseif (strtoupper($o['status'] ?? '') === 'DISPATCHED'): ?>
+                                            <form action="<?= \App\Core\Controller::url('/m/outward/receive') ?>" method="POST" class="d-inline" onsubmit="return confirm('Reconcile destination arrival for Outward <?= htmlspecialchars($o['outward_no']) ?>? Stock will transition from IN_TRANSIT to AVAILABLE.');">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                <input type="hidden" name="id" value="<?= $o['id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-success shadow-sm" title="Reconcile Goods Receipt">
+                                                    <i class="bi bi-check2-all me-1"></i> Receive
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                         <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewOutwardModal(<?= json_encode($o, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Consignment Details">
                                             <i class="bi bi-eye"></i>
                                         </button>
@@ -174,10 +208,41 @@
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <!-- Approved Production Batches Consolidation (Multi-Batch Outward Manifest) -->
+                <?php if (!empty($approvedBatches)): ?>
+                    <div class="mb-3 p-2 bg-light border rounded">
+                        <label class="form-label small fw-bold text-success text-uppercase mb-1">
+                            <i class="bi bi-boxes me-1"></i> Consolidate Approved Production Batches (Optional)
+                        </label>
+                        <div class="table-responsive bg-white rounded border" style="max-height: 140px; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0 small">
+                                <tbody>
+                                    <?php foreach ($approvedBatches as $ab): ?>
+                                        <tr>
+                                            <td style="width: 30px;" class="ps-2">
+                                                <input class="form-check-input" type="checkbox" name="selected_batches[]" value="<?= $ab['id'] ?>">
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-dark font-monospace"><?= htmlspecialchars($ab['batch_no']) ?></span>
+                                                <div class="fw-semibold text-dark"><?= htmlspecialchars($ab['variant_name']) ?></div>
+                                            </td>
+                                            <td class="text-end pe-2">
+                                                <span class="fw-bold text-primary"><?= number_format($ab['batch_qty'], 2) ?> pcs</span>
+                                                <small class="d-block text-muted"><?= (int)$ab['total_boxes'] ?> boxes</small>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted d-block mt-1">Check one or more approved batches to load onto this truck / gate pass.</small>
+                    </div>
+                <?php endif; ?>
+
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Product Variant *</label>
-                    <select name="variant_id" class="form-select" required>
-                        <option value="">Select Variant to Outward</option>
+                    <label class="form-label small fw-semibold">Product Variant (Direct/Sample)</label>
+                    <select name="variant_id" class="form-select">
+                        <option value="">Select Variant (or use batches above)</option>
                         <?php foreach ($variants as $v): ?>
                             <option value="<?= $v['id'] ?>">
                                 <?= htmlspecialchars($v['sku_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?> (On Hand: <?= $v['stock_qty'] ?>)
@@ -187,14 +252,46 @@
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Quantity to Outward *</label>
-                        <input type="number" step="0.01" name="qty" class="form-control" required placeholder="0.00">
+                        <label class="form-label small fw-semibold">Quantity to Outward</label>
+                        <input type="number" step="0.01" name="qty" class="form-control" placeholder="0.00">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Warehouse Bay / Location</label>
                         <input type="text" name="location" class="form-control" value="Main Store">
                     </div>
                 </div>
+
+                <!-- Logistics & Carrier Details -->
+                <div class="p-2.5 bg-light rounded border mb-3">
+                    <h6 class="small fw-bold text-secondary text-uppercase mb-2"><i class="bi bi-truck me-1"></i> Logistics & Gate Pass Details</h6>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Vehicle / Truck No</label>
+                            <input type="text" name="vehicle_number" class="form-control form-control-sm" placeholder="TN-01-AB-1234">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Transporter / Logistics</label>
+                            <input type="text" name="transporter_name" class="form-control form-control-sm" placeholder="VRL / SafeExpress / Self">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Driver Name</label>
+                            <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="Driver full name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Driver Contact</label>
+                            <input type="text" name="driver_contact" class="form-control form-control-sm" placeholder="+91 9876543210">
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-12">
+                            <label class="form-label small fw-semibold">Lorry Receipt (LR / Bilty) Number</label>
+                            <input type="text" name="lr_number" class="form-control form-control-sm" placeholder="LR-XXXXXX tracking code">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Outward Date</label>
                     <input type="date" name="outward_date" class="form-control" value="<?= date('Y-m-d') ?>">

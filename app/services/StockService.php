@@ -110,6 +110,78 @@ class StockService {
     }
 
     /**
+     * Increase stock (credit) in multi-location double-entry ledger.
+     */
+    public static function increase(
+        int $variantId,
+        string $locationType,
+        $locationTarget,
+        float $qty,
+        string $refModule,
+        ?int $refId = null,
+        ?string $note = null,
+        ?int $concernId = null,
+        string $stockState = 'AVAILABLE'
+    ): float {
+        $cid = $concernId ?: Auth::concernId() ?: 1;
+        $loc = self::formatLocation($locationType, $locationTarget, $stockState);
+        return self::move($cid, $variantId, $loc, $qty, 0.00, $refModule, $refId, $note);
+    }
+
+    /**
+     * Decrease stock (debit) with zero-negative protection.
+     */
+    public static function decrease(
+        int $variantId,
+        string $locationType,
+        $locationTarget,
+        float $qty,
+        string $refModule,
+        ?int $refId = null,
+        ?string $note = null,
+        ?int $concernId = null,
+        string $stockState = 'AVAILABLE'
+    ): float {
+        $cid = $concernId ?: Auth::concernId() ?: 1;
+        $loc = self::formatLocation($locationType, $locationTarget, $stockState);
+        return self::move($cid, $variantId, $loc, 0.00, $qty, $refModule, $refId, $note);
+    }
+
+    /**
+     * Get balance for a variant at a scoped location & state.
+     */
+    public static function getBalance(
+        int $variantId,
+        string $locationType,
+        $locationTarget,
+        string $stockState = 'AVAILABLE',
+        ?int $concernId = null
+    ): float {
+        $cid = $concernId ?: Auth::concernId() ?: 1;
+        $loc = self::formatLocation($locationType, $locationTarget, $stockState);
+        return self::getQty($cid, $variantId, $loc);
+    }
+
+    /**
+     * Helper to format consistent location keys (e.g. "Main Store", "PRODUCTION_UNIT:2", "WAREHOUSE:1:IN_TRANSIT")
+     */
+    private static function formatLocation(string $locationType, $locationTarget, string $stockState = 'AVAILABLE'): string {
+        $type = strtoupper(trim($locationType));
+        $target = $locationTarget !== null ? trim((string)$locationTarget) : '';
+
+        if ($type === '' || $type === 'WAREHOUSE' || $type === 'STORE') {
+            $base = $target ?: 'Main Store';
+        } else {
+            $base = $target !== '' ? "{$type}:{$target}" : $type;
+        }
+
+        if (strtoupper($stockState) !== 'AVAILABLE') {
+            $base .= ':' . strtoupper(trim($stockState));
+        }
+        return $base;
+    }
+
+    /**
      * Get live stock for a variant
      */
     public static function getQty(int $concernId, int $variantId, string $location = 'Main Store'): float {

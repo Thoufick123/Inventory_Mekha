@@ -1,10 +1,9 @@
 -- ========================================================
 -- INVENTO: Multi-Concern Inventory Management System Schema
+-- Compatible with Local (XAMPP) & Live Hosting (Hostinger/cPanel)
 -- ========================================================
 
-CREATE DATABASE IF NOT EXISTS `invento_db` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `invento_db`;
-
+-- Disable foreign key checks for clean creation
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- 1. CONCERNS
@@ -20,6 +19,22 @@ CREATE TABLE IF NOT EXISTS `concerns` (
     `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.1 PRODUCTION UNITS (Workshops & Manufacturing Plants)
+CREATE TABLE IF NOT EXISTS `production_units` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `concern_id` INT NOT NULL DEFAULT 1,
+    `code` VARCHAR(50) UNIQUE NOT NULL,
+    `name` VARCHAR(150) NOT NULL,
+    `location` VARCHAR(255) NULL,
+    `manager_id` INT NULL,
+    `manager_name` VARCHAR(150) NULL,
+    `capacity_per_day` INT DEFAULT 0,
+    `is_active` TINYINT(1) DEFAULT 1,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_pu_concern` (`concern_id`),
+    CONSTRAINT `fk_pu_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 2. MODULES REGISTRY
@@ -431,7 +446,10 @@ CREATE TABLE IF NOT EXISTS `fabric_roll_spec_overrides` (
 CREATE TABLE IF NOT EXISTS `inwards` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
+    `production_unit_id` INT NULL,
     `inward_no` VARCHAR(50) NOT NULL,
+    `grn_number` VARCHAR(50) NULL,
+    `po_id` INT NULL,
     `purchase_bill_id` INT NULL,
     `outward_id` INT NULL,
     `from_concern_id` INT NULL,
@@ -439,6 +457,10 @@ CREATE TABLE IF NOT EXISTS `inwards` (
     `supplier_id` INT NULL,
     `inward_date` DATE NOT NULL,
     `location` VARCHAR(50) NOT NULL DEFAULT 'Main Store',
+    `warehouse_id` INT NULL,
+    `vehicle_number` VARCHAR(50) NULL,
+    `received_by` INT NULL,
+    `status` VARCHAR(50) NOT NULL DEFAULT 'VERIFIED',
     `remarks` TEXT NULL,
     `created_by` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -454,6 +476,9 @@ CREATE TABLE IF NOT EXISTS `inward_items` (
     `inward_id` INT NOT NULL,
     `variant_id` INT NOT NULL,
     `qty` DECIMAL(12,2) NOT NULL,
+    `accepted_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `rejection_reason` VARCHAR(255) NULL,
     `unit_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     INDEX `idx_ini_concern` (`concern_id`),
     CONSTRAINT `fk_ini_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE,
@@ -715,12 +740,18 @@ CREATE TABLE IF NOT EXISTS `qc_inspections` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
     `qc_no` VARCHAR(50) NOT NULL,
+    `batch_no` VARCHAR(50) NULL,
     `variant_id` INT NOT NULL,
+    `cutting_batch_id` INT NULL,
+    `stitching_batch_id` INT NULL,
     `inspected_qty` DECIMAL(12,2) NOT NULL,
     `passed_qty` DECIMAL(12,2) NOT NULL,
+    `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     `rejected_qty` DECIMAL(12,2) NOT NULL,
     `location` VARCHAR(50) NOT NULL DEFAULT 'Main Store',
     `defect_notes` TEXT NULL,
+    `rework_notes` TEXT NULL,
+    `status` VARCHAR(50) NOT NULL DEFAULT 'COMPLETED',
     `inspector_id` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_qc_concern` (`concern_id`),
@@ -746,16 +777,25 @@ CREATE TABLE IF NOT EXISTS `customer_requests` (
     CONSTRAINT `fk_cr_var` FOREIGN KEY (`variant_id`) REFERENCES `variants`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 25. BATCH
+-- 25. BATCH (Production & Packaging Batches PB-YYYYMMDD-XXX)
 CREATE TABLE IF NOT EXISTS `batches` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
+    `production_unit_id` INT NULL,
     `batch_no` VARCHAR(50) NOT NULL,
     `variant_id` INT NOT NULL,
+    `program_id` INT NULL,
+    `cutting_batch_id` INT NULL,
+    `stitching_batch_id` INT NULL,
+    `qc_batch_id` INT NULL,
+    `additional_qc_batch_ids` TEXT NULL,
     `batch_qty` DECIMAL(12,2) NOT NULL,
+    `total_boxes` INT DEFAULT 0,
     `mfg_date` DATE NULL,
     `exp_date` DATE NULL,
-    `status` ENUM('active', 'completed', 'closed') NOT NULL DEFAULT 'active',
+    `status` VARCHAR(50) NOT NULL DEFAULT 'active',
+    `approved_by` INT NULL,
+    `approved_at` DATETIME NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_bt_concern` (`concern_id`),
     CONSTRAINT `fk_bt_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE,
@@ -801,6 +841,7 @@ CREATE TABLE IF NOT EXISTS `sales_invoice_items` (
 CREATE TABLE IF NOT EXISTS `outwards` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
+    `production_unit_id` INT NULL,
     `outward_no` VARCHAR(50) NOT NULL,
     `sales_invoice_id` INT NULL,
     `customer_id` INT NULL,
@@ -808,7 +849,16 @@ CREATE TABLE IF NOT EXISTS `outwards` (
     `destination_concern_id` INT NULL,
     `outward_date` DATE NOT NULL,
     `location` VARCHAR(50) NOT NULL DEFAULT 'Main Store',
+    `warehouse_id` INT NULL,
+    `vehicle_number` VARCHAR(100) NULL,
+    `driver_name` VARCHAR(150) NULL,
+    `driver_contact` VARCHAR(50) NULL,
+    `transporter_name` VARCHAR(150) NULL,
+    `lr_number` VARCHAR(100) NULL,
+    `gate_pass_no` VARCHAR(50) NULL,
     `status` VARCHAR(50) NOT NULL DEFAULT 'prepared',
+    `dispatched_at` DATETIME NULL,
+    `received_at` DATETIME NULL,
     `created_by` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_outw_concern` (`concern_id`),
@@ -827,6 +877,20 @@ CREATE TABLE IF NOT EXISTS `outward_items` (
     CONSTRAINT `fk_owi_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_owi_outw` FOREIGN KEY (`outward_id`) REFERENCES `outwards`(`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_owi_var` FOREIGN KEY (`variant_id`) REFERENCES `variants`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 27.1 PRODUCTION OUTWARD BATCHES (Multi-batch consolidation mapping)
+CREATE TABLE IF NOT EXISTS `production_outward_batches` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `concern_id` INT NOT NULL DEFAULT 1,
+    `outward_id` INT NOT NULL,
+    `batch_id` INT NOT NULL,
+    `cartons_count` INT DEFAULT 0,
+    `pieces_count` DECIMAL(12,2) DEFAULT 0.00,
+    `notes` VARCHAR(255) NULL,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_pob_outward` (`outward_id`),
+    INDEX `idx_pob_batch` (`batch_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 28. DISPATCH

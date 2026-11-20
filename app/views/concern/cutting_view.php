@@ -33,9 +33,6 @@
             <a href="<?= \App\Core\Controller::url('/production/cutting') ?>" class="btn btn-light border shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left me-1"></i> Back to Batches
             </a>
-            <a href="<?= \App\Core\Controller::url('/production/cutting/edit?id=' . (int)$batch['id']) ?>" class="btn btn-outline-primary shadow-sm fw-semibold">
-                <i class="bi bi-pencil me-1"></i> Edit Batch
-            </a>
             <?php 
                 $availScrap = max(0.00, (float)$batch['wastage_qty'] - (float)$batch['sold_wastage_qty']);
                 if ($availScrap > 0.01): 

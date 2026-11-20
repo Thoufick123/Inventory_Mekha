@@ -99,8 +99,15 @@ $router->get('/m/stocks/export', [StockController::class, 'exportStocks'], 'stoc
 $router->get('/m/stock_ledger', [StockController::class, 'ledger'], 'stocks', 'view');
 $router->get('/m/stock_ledger/export', [StockController::class, 'exportLedger'], 'stocks', 'view');
 
-// Inward
+// Inward & Warehouse Inward Operations
 $router->get('/m/inward', [InwardController::class, 'index'], 'inward', 'view');
+$router->get('/warehouse/inward', [InwardController::class, 'index'], 'inward', 'view');
+$router->get('/m/inward/scan/{id}', [InwardController::class, 'scanView'], 'inward', 'view');
+$router->get('/warehouse/inward/view/{id}', [InwardController::class, 'scanView'], 'inward', 'view');
+$router->post('/m/inward/credit', [InwardController::class, 'creditStock'], 'inward', 'add');
+$router->post('/warehouse/inward/credit', [InwardController::class, 'creditStock'], 'inward', 'add');
+$router->get('/m/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');
+$router->get('/warehouse/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');
 $router->get('/m/inward/export', [InwardController::class, 'exportInward'], 'inward', 'view');
 $router->post('/m/inward/store', [InwardController::class, 'store'], 'inward', 'add');
 $router->post('/m/inward/update', [InwardController::class, 'update'], 'inward', 'edit');
@@ -164,6 +171,7 @@ $router->post('/m/request/delete', [SalesController::class, 'deleteRequest'], 'r
 $router->get('/m/batch', [SalesController::class, 'batch'], 'batch', 'view');
 $router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'view');
 $router->post('/m/batch/store', [SalesController::class, 'storeBatch'], 'batch', 'add');
+$router->post('/m/batch/approve', [SalesController::class, 'approveBatch'], 'batch', 'edit');
 $router->post('/m/batch/update', [SalesController::class, 'updateBatch'], 'batch', 'edit');
 $router->post('/m/batch/delete', [SalesController::class, 'deleteBatch'], 'batch', 'delete');
 $router->get('/m/billing', [SalesController::class, 'billing'], 'billing', 'view');
@@ -177,6 +185,8 @@ $router->get('/api/pos/customer-lookup', [SalesController::class, 'customerLooku
 $router->get('/m/outward', [SalesController::class, 'outward'], 'outward', 'view');
 $router->get('/m/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'view');
 $router->post('/m/outward/store', [SalesController::class, 'storeOutward'], 'outward', 'add');
+$router->post('/m/outward/dispatch', [SalesController::class, 'dispatchOutward'], 'outward', 'edit');
+$router->post('/m/outward/receive', [SalesController::class, 'receiveOutward'], 'outward', 'edit');
 $router->post('/m/outward/update', [SalesController::class, 'updateOutward'], 'outward', 'edit');
 $router->post('/m/outward/delete', [SalesController::class, 'deleteOutward'], 'outward', 'delete');
 $router->get('/m/dispatch', [SalesController::class, 'dispatch'], 'dispatch', 'view');
@@ -259,8 +269,6 @@ $router->get('/m/cutting_wastage', [ProductionController::class, 'cuttingIndex']
 $router->get('/production/cutting/create', [ProductionController::class, 'createCutting'], 'cutting_wastage', 'add');
 $router->post('/production/cutting/store', [ProductionController::class, 'storeCuttingBatch'], 'cutting_wastage', 'add');
 $router->get('/production/cutting/view', [ProductionController::class, 'viewCuttingBatch'], 'cutting_wastage', 'view');
-$router->get('/production/cutting/edit', [ProductionController::class, 'editCuttingBatch'], 'cutting_wastage', 'edit');
-$router->post('/production/cutting/update', [ProductionController::class, 'updateCuttingBatch'], 'cutting_wastage', 'edit');
 $router->post('/production/cutting/delete', [ProductionController::class, 'deleteCuttingBatch'], 'cutting_wastage', 'delete');
 
 // Cutting API Endpoints

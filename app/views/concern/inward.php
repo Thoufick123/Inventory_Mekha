@@ -1,161 +1,359 @@
+<?php
+// app/views/concern/inward.php - Production Inward (GRN) Management
+?>
 <div class="container-fluid px-0">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <!-- Breadcrumbs & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h4 class="fw-bold mb-1 text-dark">Inward Stock Consignments</h4>
-            <p class="text-secondary small mb-0">Record incoming raw materials or vendor receipts. Immediately credits live inventory balance via <code>StockService::move()</code>.</p>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/') ?>" class="text-decoration-none text-muted">Home</a></li>
+                    <li class="breadcrumb-item"><span class="text-muted">Warehouse</span></li>
+                    <li class="breadcrumb-item active text-dark fw-medium" aria-current="page">Inward / GRN</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-box-arrow-in-down text-primary"></i> Production Inward
+            </h4>
         </div>
-        <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddInward">
-            <i class="bi bi-box-arrow-in-down me-1"></i> Receive Inward Consignment
-        </button>
+        <div class="d-flex gap-2">
+            <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Dashboard
+            </a>
+            <button class="btn btn-primary btn-sm px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddInward">
+                <i class="bi bi-plus-lg me-1"></i> Receive Inward Consignment
+            </button>
+        </div>
     </div>
 
-    <!-- Export Intelligence Toolbar -->
-    <?php
-    $exportTitle = 'Export Inward Stock Receipts (Excel & PDF)';
-    $exportSubtitle = 'Download warehouse arrivals, supplier delivery challans, item quantities & receiver audit trails';
-    $exportUrl = \App\Core\Controller::url('/m/inward/export');
-    $prefix = 'inw_exp';
-    include __DIR__ . '/../partials/export_card.php';
-    ?>
-
-    <!-- Incoming Inter-Unit Transfers Alert & Action Card -->
-    <?php if (!empty($pendingTransfers)): ?>
-        <div class="card border-0 shadow-sm rounded-3 mb-4" style="background: #f0f7ff; border-left: 5px solid #2563eb !important;">
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="fw-bold text-primary mb-0">
-                        <i class="bi bi-box-arrow-in-down-right me-2 fs-5"></i> Incoming Transfers from Other Concerns / Production Units
-                    </h6>
-                    <span class="badge bg-primary px-2.5 py-1.5 fs-7"><?= count($pendingTransfers) ?> Consignment(s) Ready to Inward</span>
-                </div>
-                <p class="small text-secondary mb-3">
-                    Outward products sent specifically to this concern from sister production units. Inwarding creates/maintains the product under this concern only, and credits live stock with strict tenant isolation.
-                </p>
-                <div class="table-responsive bg-white rounded-3 border">
-                    <table class="table table-sm table-hover align-middle mb-0">
-                        <thead class="table-light small text-uppercase">
-                            <tr>
-                                <th class="ps-3">Gate Pass No</th>
-                                <th>Sent From Unit</th>
-                                <th>Product Variant</th>
-                                <th>Quantity Sent</th>
-                                <th>Dispatch Date</th>
-                                <th class="text-end pe-3">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($pendingTransfers as $pt): ?>
-                                <tr>
-                                    <td class="ps-3"><span class="badge bg-dark font-monospace"><?= htmlspecialchars($pt['outward_no']) ?></span></td>
-                                    <td>
-                                        <div class="fw-bold text-dark"><?= htmlspecialchars($pt['from_concern_name']) ?></div>
-                                        <small class="text-muted font-monospace"><?= htmlspecialchars($pt['from_concern_code']) ?></small>
-                                    </td>
-                                    <td>
-                                        <div class="fw-semibold text-dark"><?= htmlspecialchars($pt['variant_name']) ?></div>
-                                        <span class="badge bg-light text-muted border"><?= htmlspecialchars($pt['sku_code']) ?></span>
-                                        <?php if (!empty($pt['size'])): ?>
-                                            <span class="badge bg-light text-dark border"><?= htmlspecialchars($pt['size']) ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 fs-6 px-2 py-1">
-                                            +<?= number_format($pt['transfer_qty'], 2) ?> <?= htmlspecialchars($pt['weight_unit'] ?: 'units') ?>
-                                        </span>
-                                    </td>
-                                    <td class="small text-muted font-monospace"><?= date('d M Y', strtotime($pt['outward_date'])) ?></td>
-                                    <td class="text-end pe-3">
-                                        <button type="button" class="btn btn-sm btn-primary px-3 shadow-sm" onclick='receiveTransferModal(<?= json_encode($pt, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
-                                            <i class="bi bi-box-arrow-in-down me-1"></i> Receive Inward
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+    <!-- 1. Top 3 KPI Summary Cards -->
+    <div class="row g-3 mb-4">
+        <!-- Awaiting GRN -->
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3" style="border-left: 4px solid #ef4444 !important; background: #fff;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="small fw-semibold text-uppercase text-muted" style="letter-spacing: 0.05em; font-size: 0.72rem;">AWAITING GRN (MISSING STOCK)</div>
+                        <div class="fs-3 fw-bold text-dark mt-1"><?= (int)$awaitingBatchesCount ?> Batches</div>
+                        <div class="small text-danger mt-1 fw-medium">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> <?= number_format($pendingPcsSum) ?> pcs pending verification
+                        </div>
+                    </div>
+                    <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; background: #fee2e2; color: #ef4444;">
+                        <i class="bi bi-hourglass-split fs-5"></i>
+                    </div>
                 </div>
             </div>
         </div>
-    <?php endif; ?>
 
-    <div class="card border-0 shadow-sm rounded-3">
+        <!-- Received & Stock Credited -->
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3" style="border-left: 4px solid #10b981 !important; background: #fff;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="small fw-semibold text-uppercase text-muted" style="letter-spacing: 0.05em; font-size: 0.72rem;">RECEIVED & STOCK CREDITED</div>
+                        <div class="fs-3 fw-bold text-dark mt-1"><?= (int)$receivedBatchesCount ?> Batches</div>
+                        <div class="small text-success mt-1 fw-medium">
+                            <i class="bi bi-shield-check me-1"></i> <?= number_format($warehouseStockPcsSum) ?> pcs in warehouse stock
+                        </div>
+                    </div>
+                    <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; background: #d1fae5; color: #10b981;">
+                        <i class="bi bi-shield-check fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Inward Dispatches -->
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3" style="border-left: 4px solid #3b82f6 !important; background: #fff;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="small fw-semibold text-uppercase text-muted" style="letter-spacing: 0.05em; font-size: 0.72rem;">TOTAL INWARD DISPATCHES</div>
+                        <div class="fs-3 fw-bold text-dark mt-1"><?= (int)$totalDispatchesCount ?> Batches</div>
+                        <div class="small text-muted mt-1 fw-medium">
+                            <i class="bi bi-box-seam me-1"></i> <?= number_format($totalDispatchedPcsSum) ?> total dispatched pcs
+                        </div>
+                    </div>
+                    <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; background: #eff6ff; color: #3b82f6;">
+                        <i class="bi bi-box-seam fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. View Mode Switcher -->
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.75rem;">VIEW MODE:</span>
+        <button type="button" class="btn btn-sm btn-primary px-3 rounded-pill fw-semibold shadow-sm view-mode-btn active" id="btnModeLedger" onclick="switchViewMode('ledger')">
+            <i class="bi bi-list-task me-1"></i> List / Ledger View <span class="badge bg-white text-primary ms-1"><?= count($inwardBatches) ?></span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary px-3 rounded-pill fw-semibold view-mode-btn" id="btnModeCards" onclick="switchViewMode('cards')">
+            <i class="bi bi-grid-fill me-1"></i> Batch Cards View <span class="badge bg-secondary ms-1"><?= count($inwardBatches) ?></span>
+        </button>
+    </div>
+
+    <!-- 3. Search & Filter Bar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 p-3 bg-white">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label small text-muted mb-1 fw-semibold">Search Filter</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control form-control-sm border-start-0" id="filterSearch" placeholder="Search batch, unit, vehicle..." onkeyup="filterBatches()">
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small text-muted mb-1 fw-semibold">Source Production Unit</label>
+                <select class="form-select form-select-sm" id="filterUnit" onchange="filterBatches()">
+                    <option value="">All Production Units</option>
+                    <?php foreach ($productionUnits as $pu): ?>
+                        <option value="<?= htmlspecialchars($pu['name']) ?>"><?= htmlspecialchars($pu['name']) ?> (<?= htmlspecialchars($pu['code']) ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small text-muted mb-1 fw-semibold">Destination Warehouse</label>
+                <select class="form-select form-select-sm" id="filterWarehouse" onchange="filterBatches()">
+                    <option value="">wareouse (WH-01)</option>
+                    <?php foreach ($allConcerns as $c): ?>
+                        <option value="<?= htmlspecialchars($c['name']) ?>"><?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code']) ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label small text-muted mb-1 fw-semibold">Inward Status</label>
+                <select class="form-select form-select-sm" id="filterStatus" onchange="filterBatches()">
+                    <option value="">All Statuses</option>
+                    <option value="partial">Partial Short</option>
+                    <option value="awaiting">Awaiting Scan</option>
+                    <option value="completed">Completed / Credited</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-1 d-flex gap-1">
+                <button type="button" class="btn btn-sm btn-primary w-100" onclick="filterBatches()" title="Filter"><i class="bi bi-funnel-fill"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="resetFilters()" title="Reset Filters"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. VIEW A: Detailed Ledger Table -->
+    <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-4" id="viewLedgerContainer">
         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-box-arrow-in-down me-2 text-primary"></i> Inward Consignments Log</h6>
+            <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-table text-primary"></i> All Inward Batches Detailed Ledger
+            </h6>
+            <span class="badge bg-light text-dark border font-monospace" id="dispatchesCounter">Showing <?= count($inwardBatches) ?> Dispatches</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="inwardLedgerTable">
+                <thead class="table-light small text-uppercase fw-semibold" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                    <tr>
+                        <th class="ps-3">BATCH</th>
+                        <th>PROGRAM & PRODUCT</th>
+                        <th>SOURCE UNIT → DESTINATION</th>
+                        <th>QUANTITY & BOXES</th>
+                        <th>DISPATCH DATE & VEHICLE</th>
+                        <th>STATUS</th>
+                        <th class="text-end pe-3">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($inwardBatches)): ?>
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                No incoming production dispatches found. Use <strong>Receive Inward Consignment</strong> to record manual stock arrivals.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($inwardBatches as $ib): 
+                            $scanQty = $ib['short_qty'] > 0 ? (int)$ib['short_qty'] : (int)$ib['total_qty'];
+                            $scanUrl = \App\Core\Controller::url('/m/inward/scan/' . $ib['outward_id']);
+                        ?>
+                        <tr class="inward-batch-row" 
+                            data-search="<?= htmlspecialchars(strtolower($ib['batch_no'] . ' ' . $ib['outward_no'] . ' ' . $ib['program_name'] . ' ' . $ib['source_unit_name'] . ' ' . $ib['vehicle_number'])) ?>"
+                            data-unit="<?= htmlspecialchars($ib['source_unit_name']) ?>"
+                            data-warehouse="<?= htmlspecialchars($ib['dest_warehouse_name']) ?>"
+                            data-status="<?= htmlspecialchars($ib['status_badge']) ?>">
+                            <td class="ps-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-qr-code text-primary fs-5"></i>
+                                    <div>
+                                        <a href="<?= $scanUrl ?>" class="fw-bold text-decoration-none text-primary font-monospace"><?= htmlspecialchars($ib['batch_no']) ?></a>
+                                        <div>
+                                            <span class="badge bg-light text-muted border font-monospace" style="font-size: 0.7rem;"><i class="bi bi-send me-1"></i><?= htmlspecialchars($ib['outward_no']) ?></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark"><?= htmlspecialchars($ib['program_name'] ?: 'KIDS - BABY - DRESS') ?></div>
+                                <small class="text-muted font-monospace" style="font-size: 0.75rem;">Prog: <?= htmlspecialchars($ib['program_no']) ?></small>
+                            </td>
+                            <td>
+                                <div class="small mb-1">
+                                    <span class="text-muted">From:</span> <span class="fw-semibold text-dark"><?= htmlspecialchars($ib['source_unit_name']) ?></span>
+                                    <span class="badge bg-warning bg-opacity-25 text-dark border border-warning font-monospace ms-1"><?= htmlspecialchars($ib['source_unit_code']) ?></span>
+                                </div>
+                                <div class="small">
+                                    <span class="text-muted">To:</span> <span class="fw-semibold text-dark"><?= htmlspecialchars($ib['dest_warehouse_name']) ?></span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary font-monospace ms-1"><?= htmlspecialchars($ib['dest_warehouse_code']) ?></span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fs-6 fw-bold text-success">+<?= number_format($ib['total_qty']) ?> pcs</div>
+                                <small class="text-muted"><?= (int)$ib['total_boxes'] ?> Cartons</small>
+                            </td>
+                            <td>
+                                <div class="small text-dark fw-medium"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></div>
+                                <small class="text-muted"><i class="bi bi-truck me-1"></i><?= htmlspecialchars($ib['vehicle_number'] ?: 'rtt31232') ?></small>
+                            </td>
+                            <td>
+                                <?php if ($ib['status_badge'] === 'partial'): ?>
+                                    <span class="badge bg-warning text-dark border border-warning px-2.5 py-1.5 fw-semibold" style="font-size: 0.75rem;">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Partial (<?= (int)$ib['short_qty'] ?> Short)
+                                    </span>
+                                <?php elseif ($ib['status_badge'] === 'awaiting'): ?>
+                                    <span class="badge bg-info text-dark border border-info px-2.5 py-1.5 fw-semibold" style="font-size: 0.75rem;">
+                                        <i class="bi bi-hourglass-split me-1"></i> Awaiting Scan (<?= (int)$ib['short_qty'] ?> Pending)
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge bg-success text-white border border-success px-2.5 py-1.5 fw-semibold" style="font-size: 0.75rem;">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Received & Credited
+                                    </span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-end pe-3">
+                                <div class="d-flex align-items-center justify-content-end gap-1">
+                                    <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-info" title="Consignment Log"><i class="bi bi-clock-history"></i></a>
+                                    <button type="button" class="btn btn-sm btn-outline-warning" title="Edit Consignment Notes"><i class="bi bi-pencil-square"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Consignment"><i class="bi bi-trash"></i></button>
+                                    <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
+                                        <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 5. VIEW B: Batch Cards View (Tablet / Mobile friendly) -->
+    <div class="row g-3 d-none mb-4" id="viewCardsContainer">
+        <?php foreach ($inwardBatches as $ib): 
+            $scanQty = $ib['short_qty'] > 0 ? (int)$ib['short_qty'] : (int)$ib['total_qty'];
+            $scanUrl = \App\Core\Controller::url('/m/inward/scan/' . $ib['outward_id']);
+        ?>
+        <div class="col-12 col-md-6 col-xl-4 inward-card-item"
+             data-search="<?= htmlspecialchars(strtolower($ib['batch_no'] . ' ' . $ib['outward_no'] . ' ' . $ib['program_name'] . ' ' . $ib['source_unit_name'] . ' ' . $ib['vehicle_number'])) ?>"
+             data-unit="<?= htmlspecialchars($ib['source_unit_name']) ?>"
+             data-warehouse="<?= htmlspecialchars($ib['dest_warehouse_name']) ?>"
+             data-status="<?= htmlspecialchars($ib['status_badge']) ?>">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <a href="<?= $scanUrl ?>" class="fw-bold fs-6 text-primary font-monospace text-decoration-none"><?= htmlspecialchars($ib['batch_no']) ?></a>
+                        <div><span class="badge bg-light text-muted border font-monospace"><?= htmlspecialchars($ib['outward_no']) ?></span></div>
+                    </div>
+                    <?php if ($ib['status_badge'] === 'partial'): ?>
+                        <span class="badge bg-warning text-dark border border-warning px-2 py-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> Partial (<?= (int)$ib['short_qty'] ?> Short)</span>
+                    <?php elseif ($ib['status_badge'] === 'awaiting'): ?>
+                        <span class="badge bg-info text-dark border border-info px-2 py-1"><i class="bi bi-hourglass-split me-1"></i> Awaiting Scan</span>
+                    <?php else: ?>
+                        <span class="badge bg-success text-white border border-success px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i> Credited</span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="fw-semibold text-dark mb-1"><?= htmlspecialchars($ib['program_name'] ?: 'KIDS - BABY - DRESS') ?></div>
+                <div class="small text-muted mb-2 font-monospace">Prog: <?= htmlspecialchars($ib['program_no']) ?></div>
+
+                <div class="bg-light p-2 rounded-2 mb-3 small">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Origin Unit:</span>
+                        <span class="fw-medium text-dark"><?= htmlspecialchars($ib['source_unit_name']) ?> [<?= htmlspecialchars($ib['source_unit_code']) ?>]</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Destination:</span>
+                        <span class="fw-medium text-dark"><?= htmlspecialchars($ib['dest_warehouse_name']) ?> [<?= htmlspecialchars($ib['dest_warehouse_code']) ?>]</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Vehicle:</span>
+                        <span class="font-monospace text-dark"><i class="bi bi-truck me-1"></i><?= htmlspecialchars($ib['vehicle_number'] ?: 'rtt31232') ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Cartons:</span>
+                        <span class="fw-bold text-dark"><?= (int)$ib['total_boxes'] ?> Cartons (+<?= number_format($ib['total_qty']) ?> pcs)</span>
+                    </div>
+                </div>
+
+                <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
+                    <small class="text-muted font-monospace"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></small>
+                    <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
+                        <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
+                    </a>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- 6. Traditional Inwards Consignments Section (Purchase Bills, Direct Vendor Inwards) -->
+    <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mt-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-archive me-2 text-secondary"></i> Direct Vendor Inward Receipts & Purchase GRN</h6>
             <span class="badge bg-light text-dark border"><?= count($inwards) ?> Records</span>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 table-custom">
-                <thead>
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small text-uppercase">
                     <tr>
-                        <th>Inward No</th>
-                        <?php if ($isSuperAdmin && empty($selectedCid)): ?>
-                            <th>Concern</th>
-                        <?php endif; ?>
-                        <th>Source / Supplier</th>
-                        <th>Inward Date</th>
+                        <th class="ps-3">Inward & GRN</th>
+                        <th>Supplier / Source</th>
+                        <th>Date</th>
                         <th>Warehouse Bay</th>
-                        <th>Items Received</th>
-                        <th>Total Inward Qty</th>
-                        <th>Received By</th>
+                        <th>Accepted Qty</th>
+                        <th>Rejected Qty</th>
+                        <th>Status</th>
                         <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($inwards)): ?>
-                        <tr><td colspan="9" class="text-center py-4 text-muted">No inward consignments received yet.</td></tr>
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-muted small">No direct vendor inwards recorded.</td>
+                        </tr>
                     <?php else: ?>
                         <?php foreach ($inwards as $inw): ?>
-                            <tr>
-                                <td><span class="badge bg-dark font-monospace"><?= htmlspecialchars($inw['inward_no']) ?></span></td>
-                                <?php if ($isSuperAdmin && empty($selectedCid)): ?>
-                                    <td>
-                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                                            <?= htmlspecialchars($inw['concern_name'] ?? 'Concern #' . $inw['concern_id']) ?>
-                                        </span>
-                                    </td>
+                        <tr>
+                            <td class="ps-3">
+                                <div class="fw-bold text-dark font-monospace"><?= htmlspecialchars($inw['inward_no']) ?></div>
+                                <?php if (!empty($inw['grn_number'])): ?>
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 font-monospace"><?= htmlspecialchars($inw['grn_number']) ?></span>
                                 <?php endif; ?>
-                                <td>
-                                    <?php if (($inw['inward_type'] ?? '') === 'transfer' || !empty($inw['from_concern_id'])): ?>
-                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 mb-1 d-inline-block">
-                                            <i class="bi bi-building me-1"></i> Unit Transfer
-                                        </span>
-                                        <div class="fw-bold text-dark"><?= htmlspecialchars($inw['from_concern_name'] ?? 'Sister Unit') ?></div>
-                                        <small class="text-muted font-monospace">Pass #<?= htmlspecialchars($inw['outward_no'] ?? '') ?></small>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 mb-1 d-inline-block">
-                                            <i class="bi bi-cart me-1"></i> Supplier
-                                        </span>
-                                        <div class="fw-bold text-dark"><?= htmlspecialchars($inw['supplier_name'] ?? 'Direct Receipt') ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($inw['remarks'] ?: '-') ?></small>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?= date('d M Y', strtotime($inw['inward_date'])) ?></td>
-                                <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($inw['location']) ?></span></td>
-                                <td><?= (int)$inw['items_count'] ?> Line Items</td>
-                                <td>
-                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 fs-6 px-2 py-1">
-                                        +<?= number_format($inw['total_qty'], 2) ?>
-                                    </span>
-                                </td>
-                                <td class="small text-muted"><?= htmlspecialchars($inw['user_name'] ?? 'Staff') ?></td>
-                                <td class="text-end pe-3">
-                                    <div class="d-inline-flex align-items-center gap-1">
-                                        <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewInwardModal(<?= json_encode($inw, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Inward Consignment">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditInwardModal(<?= json_encode($inw, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Inward Remarks">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                        <form action="<?= \App\Core\Controller::url('/m/inward/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete inward consignment <?= htmlspecialchars($inw['inward_no']) ?>? This will reverse stock additions.');">
-                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                                            <input type="hidden" name="id" value="<?= $inw['id'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Inward">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
+                            </td>
+                            <td><?= htmlspecialchars($inw['supplier_name'] ?: ($inw['production_unit_name'] ?: 'Direct Inward')) ?></td>
+                            <td class="small text-muted font-monospace"><?= date('d M Y', strtotime($inw['inward_date'])) ?></td>
+                            <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($inw['location'] ?: 'Main Store') ?></span></td>
+                            <td><span class="badge bg-success text-white fw-bold">+<?= number_format($inw['total_accepted_qty'] ?: $inw['total_qty'], 2) ?></span></td>
+                            <td>
+                                <?php if ((float)$inw['total_rejected_qty'] > 0): ?>
+                                    <span class="badge bg-danger text-white"><?= number_format($inw['total_rejected_qty'], 2) ?></span>
+                                <?php else: ?>
+                                    <span class="text-muted">0.00</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><span class="badge bg-primary"><?= htmlspecialchars($inw['status'] ?: 'VERIFIED') ?></span></td>
+                            <td class="text-end pe-3">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="alert('Inward Consignment #<?= $inw['inward_no'] ?> verified.')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
@@ -164,333 +362,154 @@
     </div>
 </div>
 
-<!-- Modal Add Inward -->
-<div class="modal fade" id="modalAddInward" tabindex="-1">
-    <div class="modal-dialog">
-        <form action="<?= \App\Core\Controller::url('/m/inward/store') ?>" method="POST" class="modal-content">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold"><i class="bi bi-box-arrow-in-down me-1 text-primary"></i> Receive Stock Inward</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <?php if ($isSuperAdmin && empty($selectedCid)): ?>
-                    <div class="mb-3 p-2 bg-light border rounded">
-                        <label class="form-label small fw-bold text-primary text-uppercase mb-1">Inward To Concern *</label>
-                        <select name="concern_id" id="inward_concern_id" class="form-select form-select-sm" required>
-                            <option value="">-- Choose Receiving Concern --</option>
-                            <?php foreach ($allConcerns as $c): ?>
-                                <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code']) ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                <?php endif; ?>
-
-                <!-- Inward Source Selector -->
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-secondary text-uppercase mb-1">Inward Source *</label>
-                    <div class="btn-group w-100" role="group">
-                        <input type="radio" class="btn-check" name="inward_type" id="it_purchase" value="purchase" checked onchange="toggleInwardSourceType()">
-                        <label class="btn btn-outline-primary btn-sm" for="it_purchase"><i class="bi bi-cart me-1"></i> Supplier / Direct</label>
-
-                        <input type="radio" class="btn-check" name="inward_type" id="it_transfer" value="transfer" onchange="toggleInwardSourceType()">
-                        <label class="btn btn-outline-primary btn-sm" for="it_transfer">
-                            <i class="bi bi-building me-1"></i> Inter-Unit Transfer 
-                            <?php if (!empty($pendingTransfers)): ?>
-                                <span class="badge bg-danger ms-1"><?= count($pendingTransfers) ?></span>
-                            <?php endif; ?>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Inter-Unit Transfer Selector (shown when transfer selected) -->
-                <div class="mb-3 d-none" id="div_transfer_source">
-                    <label class="form-label small fw-semibold text-primary"><i class="bi bi-box-arrow-in-down-right me-1"></i> Select Incoming Outward Consignment *</label>
-                    <select name="outward_id" id="inward_outward_id" class="form-select" onchange="onSelectTransferOutward(this)">
-                        <option value="">-- Choose Outward Consignment --</option>
-                        <?php foreach ($pendingTransfers as $pt): ?>
-                            <option value="<?= $pt['id'] ?>"
-                                    data-from="<?= htmlspecialchars($pt['from_concern_name']) ?> (<?= htmlspecialchars($pt['from_concern_code']) ?>)"
-                                    data-varid="<?= $pt['variant_id'] ?>"
-                                    data-varname="<?= htmlspecialchars($pt['variant_name']) ?>"
-                                    data-varsku="<?= htmlspecialchars($pt['sku_code']) ?>"
-                                    data-varsize="<?= htmlspecialchars($pt['size'] ?: 'Standard') ?>"
-                                    data-qty="<?= $pt['transfer_qty'] ?>"
-                                    data-outno="<?= htmlspecialchars($pt['outward_no']) ?>"
-                                    data-date="<?= $pt['outward_date'] ?>">
-                                <?= htmlspecialchars($pt['outward_no']) ?> &bull; From <?= htmlspecialchars($pt['from_concern_name']) ?> &bull; <?= htmlspecialchars($pt['variant_name']) ?> (<?= number_format($pt['transfer_qty'], 2) ?> units)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-
-                    <div id="transfer_details_card" class="p-2.5 mt-2 rounded bg-light border d-none small">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-muted">Source Unit:</span>
-                            <strong class="text-dark" id="td_from">-</strong>
-                        </div>
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-muted">Product / Variant:</span>
-                            <strong class="text-primary" id="td_product">-</strong>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span class="text-muted">Transfer Quantity:</span>
-                            <strong class="text-success fs-6 font-monospace" id="td_qty">-</strong>
-                        </div>
-                        <small class="text-muted d-block mt-2 border-top pt-1">
-                            <i class="bi bi-shield-check text-success me-1"></i> This product will be maintained strictly under this concern and live stock credited.
-                        </small>
-                    </div>
-                </div>
-
-                <!-- Supplier and Variant Selection (shown for standard purchase) -->
-                <div id="div_supplier_source">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">Supplier</label>
-                        <select name="supplier_id" id="inward_supplier_id" class="form-select">
-                            <option value="">Direct Internal Consignment (No Supplier)</option>
-                            <?php foreach ($suppliers as $sup): ?>
-                                <option value="<?= $sup['id'] ?>"><?= htmlspecialchars($sup['name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">Product Variant *</label>
-                        <select name="variant_id" id="inward_variant_id" class="form-select" required>
-                            <option value="">-- Choose Variant to Inward --</option>
-                            <?php foreach ($variants as $v): ?>
-                                <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['sku_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['size'] ?: 'Standard') ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="row g-2 mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Received Quantity *</label>
-                        <input type="number" step="0.01" name="qty" id="inward_qty" class="form-control" placeholder="0.00" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Unit Cost Rate (₹)</label>
-                        <input type="number" step="0.01" name="unit_cost" id="inward_unit_cost" class="form-control" placeholder="0.00">
-                    </div>
-                </div>
-                <div class="row g-2 mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Inward Date</label>
-                        <input type="date" name="inward_date" id="inward_date" class="form-control" value="<?= date('Y-m-d') ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Location / Godown</label>
-                        <input type="text" name="location" id="inward_location" class="form-control" value="Main Store">
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Remarks / Gate Entry Ref</label>
-                    <textarea name="remarks" id="inward_remarks" class="form-control" rows="2" placeholder="Delivery challan or truck ref"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Process Inward & Credit Stock</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal Edit Inward -->
-<div class="modal fade" id="modalEditInward" tabindex="-1">
-    <div class="modal-dialog">
-        <form action="<?= \App\Core\Controller::url('/m/inward/update') ?>" method="POST" class="modal-content">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-            <input type="hidden" name="id" id="edit_inward_id" value="">
-
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-1 text-primary"></i> Edit Stock Inward Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Inward No</label>
-                    <input type="text" id="edit_inward_no" class="form-control font-monospace" readonly>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Inward Date *</label>
-                    <input type="date" name="inward_date" id="edit_inward_date" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Remarks / Gate Entry Notes</label>
-                    <textarea name="remarks" id="edit_inward_remarks" class="form-control" rows="3"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Update Inward</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal View Inward -->
-<div class="modal fade" id="modalViewInward" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-            <div class="modal-header border-bottom px-4 py-3 bg-light">
-                <div class="d-flex align-items-center gap-2">
-                    <span style="width: 36px; height: 36px; background: #e0f2fe; color: #0284c7; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
-                        <i class="bi bi-box-arrow-in-down"></i>
-                    </span>
-                    <div>
-                        <h6 class="modal-title fw-bold text-dark mb-0">Stock Inward Consignment</h6>
-                        <small class="badge bg-dark font-monospace" id="view_inward_no"></small>
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- Modal: Receive Direct Inward Consignment -->
+<div class="modal fade" id="modalAddInward" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <form action="<?= \App\Core\Controller::url('/m/inward/store') ?>" method="POST" class="modal-content border-0 shadow">
+            <?= \App\Core\Csrf::field() ?>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-box-arrow-in-down me-2"></i> Receive Inward Consignment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <div class="d-flex justify-content-between align-items-center p-3 rounded-3 mb-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                    <div>
-                        <span class="text-secondary small d-block">Total Units Credited</span>
-                        <span class="fw-bold fs-5 text-success font-monospace" id="view_inward_qty">+0.00</span>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Receiving Warehouse Bay <span class="text-danger">*</span></label>
+                        <input type="text" name="location" class="form-control form-control-sm" value="Main Store" required>
                     </div>
-                    <div class="text-end">
-                        <span class="text-secondary small d-block">Items Included</span>
-                        <span class="badge bg-primary bg-opacity-10 text-primary border fs-6" id="view_inward_items_count">0 Lines</span>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Delivery Vehicle Number</label>
+                        <input type="text" name="vehicle_number" class="form-control form-control-sm" placeholder="e.g. TN-38-AB-1234">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Supplier / Vendor</label>
+                        <select name="supplier_id" class="form-select form-select-sm">
+                            <option value="">-- Direct Consignment / Inter-Facility --</option>
+                            <?php foreach ($suppliers as $s): ?>
+                                <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Inward Date</label>
+                        <input type="date" name="inward_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" required>
                     </div>
                 </div>
 
-                <ul class="list-group list-group-flush small">
-                    <li class="list-group-item px-0 d-flex justify-content-between">
-                        <span class="text-muted"><i class="bi bi-building text-primary me-2"></i>Supplier:</span>
-                        <strong class="text-dark" id="view_inward_supplier">-</strong>
-                    </li>
-                    <li class="list-group-item px-0 d-flex justify-content-between">
-                        <span class="text-muted"><i class="bi bi-geo-alt text-primary me-2"></i>Storage Location:</span>
-                        <span class="badge bg-light text-dark border" id="view_inward_loc">Main Store</span>
-                    </li>
-                    <li class="list-group-item px-0 d-flex justify-content-between">
-                        <span class="text-muted"><i class="bi bi-calendar-check text-primary me-2"></i>Inward Date:</span>
-                        <span class="font-monospace text-dark" id="view_inward_date">-</span>
-                    </li>
-                    <li class="list-group-item px-0 d-flex justify-content-between">
-                        <span class="text-muted"><i class="bi bi-person text-primary me-2"></i>Received By:</span>
-                        <span class="text-dark" id="view_inward_user">Staff</span>
-                    </li>
-                    <li class="list-group-item px-0">
-                        <span class="text-muted d-block mb-1"><i class="bi bi-card-text text-primary me-2"></i>Remarks / Gate Entry Notes:</span>
-                        <div class="text-dark p-2 bg-light rounded" id="view_inward_remarks">None</div>
-                    </li>
-                </ul>
+                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Item Breakdown</h6>
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Select Variant / Finished Product</label>
+                        <select name="items[0][variant_id]" class="form-select form-select-sm" required>
+                            <?php foreach ($variants as $v): ?>
+                                <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['sku_code']) ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Accepted Qty</label>
+                        <input type="number" step="0.01" min="1" name="items[0][accepted_qty]" class="form-control form-control-sm" value="10" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Rejected Qty</label>
+                        <input type="number" step="0.01" min="0" name="items[0][rejected_qty]" class="form-control form-control-sm" value="0">
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Remarks & Notes</label>
+                    <textarea name="remarks" class="form-control form-control-sm" rows="2" placeholder="Inspection notes, challan references..."></textarea>
+                </div>
             </div>
-            <div class="modal-footer border-top px-4 py-2 bg-light">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary px-4 fw-semibold"><i class="bi bi-check2-circle me-1"></i> Confirm & Credit Stock</button>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 
+<!-- Dynamic Filter and View Mode Switcher Scripts -->
 <script>
-function toggleInwardSourceType() {
-    const isTransfer = document.getElementById('it_transfer').checked;
-    const transferDiv = document.getElementById('div_transfer_source');
-    const transferSelect = document.getElementById('inward_outward_id');
-    const supplierDiv = document.getElementById('div_supplier_source');
-    const variantSelect = document.getElementById('inward_variant_id');
+function switchViewMode(mode) {
+    const ledger = document.getElementById('viewLedgerContainer');
+    const cards = document.getElementById('viewCardsContainer');
+    const btnLedger = document.getElementById('btnModeLedger');
+    const btnCards = document.getElementById('btnModeCards');
 
-    if (isTransfer) {
-        supplierDiv.classList.add('d-none');
-        variantSelect.removeAttribute('required');
-        transferDiv.classList.remove('d-none');
-        transferSelect.setAttribute('required', 'required');
+    if (mode === 'cards') {
+        ledger.classList.add('d-none');
+        cards.classList.remove('d-none');
+        btnCards.classList.add('btn-primary', 'shadow-sm', 'active');
+        btnCards.classList.remove('btn-outline-secondary');
+        btnLedger.classList.remove('btn-primary', 'shadow-sm', 'active');
+        btnLedger.classList.add('btn-outline-secondary');
     } else {
-        transferDiv.classList.add('d-none');
-        transferSelect.removeAttribute('required');
-        supplierDiv.classList.remove('d-none');
-        variantSelect.setAttribute('required', 'required');
-        document.getElementById('transfer_details_card').classList.add('d-none');
+        cards.classList.add('d-none');
+        ledger.classList.remove('d-none');
+        btnLedger.classList.add('btn-primary', 'shadow-sm', 'active');
+        btnLedger.classList.remove('btn-outline-secondary');
+        btnCards.classList.remove('btn-primary', 'shadow-sm', 'active');
+        btnCards.classList.add('btn-outline-secondary');
     }
 }
 
-function onSelectTransferOutward(selectEl) {
-    const opt = selectEl.options[selectEl.selectedIndex];
-    const detailsCard = document.getElementById('transfer_details_card');
-    if (!opt || !opt.value) {
-        detailsCard.classList.add('d-none');
-        return;
-    }
+function filterBatches() {
+    const q = (document.getElementById('filterSearch').value || '').toLowerCase().trim();
+    const unit = (document.getElementById('filterUnit').value || '').trim();
+    const warehouse = (document.getElementById('filterWarehouse').value || '').trim();
+    const status = (document.getElementById('filterStatus').value || '').trim();
 
-    const from = opt.getAttribute('data-from');
-    const varName = opt.getAttribute('data-varname');
-    const varSku = opt.getAttribute('data-varsku');
-    const varSize = opt.getAttribute('data-varsize');
-    const qty = opt.getAttribute('data-qty');
-    const outNo = opt.getAttribute('data-outno');
-    const date = opt.getAttribute('data-date');
+    // Table rows
+    const rows = document.querySelectorAll('.inward-batch-row');
+    let visibleCount = 0;
 
-    document.getElementById('td_from').innerText = from || '-';
-    document.getElementById('td_product').innerText = varName + ' [' + varSku + '] (' + varSize + ')';
-    document.getElementById('td_qty').innerText = parseFloat(qty || 0).toFixed(2) + ' units';
-    detailsCard.classList.remove('d-none');
+    rows.forEach(row => {
+        const rowSearch = row.getAttribute('data-search') || '';
+        const rowUnit = row.getAttribute('data-unit') || '';
+        const rowStatus = row.getAttribute('data-status') || '';
 
-    document.getElementById('inward_qty').value = parseFloat(qty || 0).toFixed(2);
-    document.getElementById('inward_remarks').value = 'Inter-unit transfer from ' + from + ' (Pass #' + outNo + ')';
-}
+        const matchQ = !q || rowSearch.includes(q);
+        const matchUnit = !unit || rowUnit.includes(unit);
+        const matchStatus = !status || rowStatus === status;
 
-function receiveTransferModal(pt) {
-    if (!pt) return;
-    const itTransfer = document.getElementById('it_transfer');
-    if (itTransfer) {
-        itTransfer.checked = true;
-        toggleInwardSourceType();
-    }
+        if (matchQ && matchUnit && matchStatus) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
 
-    const outSelect = document.getElementById('inward_outward_id');
-    if (outSelect) {
-        outSelect.value = pt.id;
-        onSelectTransferOutward(outSelect);
-    }
+    // Cards
+    const cards = document.querySelectorAll('.inward-card-item');
+    cards.forEach(card => {
+        const cSearch = card.getAttribute('data-search') || '';
+        const cUnit = card.getAttribute('data-unit') || '';
+        const cStatus = card.getAttribute('data-status') || '';
 
-    const modalEl = document.getElementById('modalAddInward');
-    if (modalEl) {
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-    }
-}
+        const matchQ = !q || cSearch.includes(q);
+        const matchUnit = !unit || cUnit.includes(unit);
+        const matchStatus = !status || cStatus === status;
 
-function openViewInwardModal(inw) {
-    if (!inw) return;
-    const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
-    setTxt('view_inward_no', inw.inward_no || '');
-    const supplierText = (inw.inward_type === 'transfer' || inw.from_concern_id)
-        ? 'Unit Transfer: ' + (inw.from_concern_name || 'Sister Unit') + (inw.outward_no ? ' (Pass #' + inw.outward_no + ')' : '')
-        : (inw.supplier_name || 'Direct Receipt');
-    setTxt('view_inward_supplier', supplierText);
-    setTxt('view_inward_loc', inw.location || 'Main Store');
-    setTxt('view_inward_date', inw.inward_date ? inw.inward_date.substring(0, 10) : '-');
-    setTxt('view_inward_user', inw.user_name || 'Staff');
-    setTxt('view_inward_qty', '+' + parseFloat(inw.total_qty || 0).toLocaleString('en-IN', {minimumFractionDigits: 2}));
-    setTxt('view_inward_items_count', (inw.items_count || 1) + ' Items');
-    setTxt('view_inward_remarks', inw.remarks || 'None specified');
+        if (matchQ && matchUnit && matchStatus) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
 
-    const modalEl = document.getElementById('modalViewInward');
-    if (modalEl) {
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
+    const counter = document.getElementById('dispatchesCounter');
+    if (counter) {
+        counter.textContent = `Showing ${visibleCount} Dispatches`;
     }
 }
 
-function openEditInwardModal(inw) {
-    if (!inw) return;
-    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-    setVal('edit_inward_id', inw.id || '');
-    setVal('edit_inward_no', inw.inward_no || '');
-    setVal('edit_inward_date', inw.inward_date ? inw.inward_date.substring(0, 10) : '');
-    setVal('edit_inward_remarks', inw.remarks || '');
-
-    const modalEl = document.getElementById('modalEditInward');
-    if (modalEl) {
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-    }
+function resetFilters() {
+    document.getElementById('filterSearch').value = '';
+    document.getElementById('filterUnit').value = '';
+    document.getElementById('filterWarehouse').value = '';
+    document.getElementById('filterStatus').value = '';
+    filterBatches();
 }
 </script>
