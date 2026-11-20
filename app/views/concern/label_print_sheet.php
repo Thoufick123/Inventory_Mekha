@@ -211,10 +211,13 @@ $label1Val   = $labelData['label_1_val'] ?? ($labelData['item_title'] ?? '-');
 $label2Name  = $labelData['label_2_name'] ?? 'Color';
 $label2Val   = $labelData['label_2_val'] ?? ($labelData['color_or_spec'] ?? 'STANDARD');
 $designVal   = $labelData['design'] ?? ($labelData['label_3_val'] ?? ($labelData['pattern'] ?? 'STANDARD'));
+$variantAttributes = $labelData['variant_attributes'] ?? [];
+$variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
 $priceVal    = (float)($labelData['price'] ?? ($labelData['price_mrp'] ?? 0));
 $tagCode     = $labelData['tag_code'] ?? ($labelData['item_code'] ?? 'SKU');
 $qrText      = $qrCodeText ?? ($labelData['qr_payload'] ?? $tagCode);
 $badge       = $labelData['section_badge'] ?? 'STANDARD';
+$viewOnly    = !empty($viewOnly);
 $isProduction = ($labelType === 'production') 
     || (($labelData['section_title'] ?? '') === 'PRODUCTION FINISHED GARMENT')
     || (($labelData['stock_tab'] ?? '') === 'production');
@@ -236,22 +239,26 @@ if (!empty($multiLabels)) {
     <!-- Top Row: Title + Action buttons in one clean, un-wrapped row -->
     <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-2">
         <h5 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
-            <i class="bi bi-printer text-primary"></i> 
-            <span>Print Sheet Preview</span>
-            <span class="badge bg-primary-subtle text-primary border border-primary fs-6">Job #<?= (int)($jobId ?? 1) ?></span>
+            <i class="bi <?= $viewOnly ? 'bi-eye' : 'bi-printer' ?> text-primary"></i>
+            <span><?= $viewOnly ? 'Finished Goods Label' : 'Print Sheet Preview' ?></span>
+            <?php if (!$viewOnly): ?>
+                <span class="badge bg-primary-subtle text-primary border border-primary fs-6">Job #<?= (int)($jobId ?? 1) ?></span>
+            <?php endif; ?>
         </h5>
         <div class="d-flex align-items-center gap-2 flex-wrap" style="white-space: nowrap;">
-            <div class="btn-group btn-group-sm" role="group">
-                <button type="button" class="btn btn-outline-secondary active" id="btnLayoutA4" onclick="setLayout('a4')">
-                    <i class="bi bi-grid-3x3"></i> A4 Grid (3 Col)
+            <?php if (!$viewOnly): ?>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary active" id="btnLayoutA4" onclick="setLayout('a4')">
+                        <i class="bi bi-grid-3x3"></i> A4 Grid (3 Col)
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="btnLayoutThermal" onclick="setLayout('thermal')">
+                        <i class="bi bi-card-text"></i> Thermal Roll (1 Col)
+                    </button>
+                </div>
+                <button class="btn btn-primary btn-sm fw-bold px-3 shadow-sm" onclick="window.print()">
+                    <i class="bi bi-printer-fill me-1"></i> Print Labels Now
                 </button>
-                <button type="button" class="btn btn-outline-secondary" id="btnLayoutThermal" onclick="setLayout('thermal')">
-                    <i class="bi bi-card-text"></i> Thermal Roll (1 Col)
-                </button>
-            </div>
-            <button class="btn btn-primary btn-sm fw-bold px-3 shadow-sm" onclick="window.print()">
-                <i class="bi bi-printer-fill me-1"></i> Print Labels Now
-            </button>
+            <?php endif; ?>
             <button class="btn btn-outline-secondary btn-sm" onclick="window.close()">Close</button>
         </div>
     </div>
@@ -262,9 +269,21 @@ if (!empty($multiLabels)) {
             <span class="badge bg-light text-dark border"><?= htmlspecialchars($labelData['section_title'] ?? 'PRODUCT LABEL') ?></span>
             <span class="badge bg-primary-subtle text-primary border"><?= htmlspecialchars($badge) ?></span>
             <?php if (!empty($multiLabels)): ?>
-                <span>Printing <strong><?= (int)$qty ?> labels</strong> across <strong><?= (int)($variantCount ?? count($multiLabels)) ?> variants</strong> for Batch <strong>#<?= htmlspecialchars($batchNo ?? 'BATCH') ?></strong> &bull; Concern: <strong><?= htmlspecialchars($concernName) ?></strong></span>
+                <span>
+                    <?= $viewOnly ? 'Viewing' : 'Printing' ?>
+                    <strong><?= (int)$qty ?> <?= $viewOnly ? 'label' : 'labels' ?></strong>
+                    <?php if (!$viewOnly || ($variantCount ?? count($multiLabels)) !== 1): ?>
+                        across <strong><?= (int)($variantCount ?? count($multiLabels)) ?> variants</strong>
+                    <?php endif; ?>
+                    <?php if (($labelType ?? '') === 'production'): ?>
+                        for Batch <strong>#<?= htmlspecialchars($batchNo ?? 'BATCH') ?></strong>
+                    <?php elseif (($labelType ?? '') === 'purchase_fg'): ?>
+                        for Bill <strong>#<?= htmlspecialchars($batchNo ?: ($labelData['ref_no'] ?? '')) ?></strong>
+                    <?php endif; ?>
+                    &bull; Concern: <strong><?= htmlspecialchars($concernName) ?></strong>
+                </span>
             <?php else: ?>
-                <span>Printing <strong><?= (int)$qty ?> copies</strong> of <strong><?= htmlspecialchars(!empty($headerTitle) ? $headerTitle : $label1Val) ?></strong> (<?= htmlspecialchars($tagCode) ?>) &bull; Concern: <strong><?= htmlspecialchars($concernName) ?></strong></span>
+                <span><?= $viewOnly ? 'Viewing' : 'Printing' ?> <strong><?= (int)$qty ?> <?= $viewOnly ? 'label' : 'copies' ?></strong> of <strong><?= htmlspecialchars(!empty($headerTitle) ? $headerTitle : $label1Val) ?></strong> (<?= htmlspecialchars($tagCode) ?>) &bull; Concern: <strong><?= htmlspecialchars($concernName) ?></strong></span>
             <?php endif; ?>
         </div>
         <?php if (!empty($multiLabels) && !empty($variantSummary)): ?>
@@ -291,6 +310,8 @@ if (!empty($multiLabels)) {
             $l2Name    = $lbl['label_2_name'] ?? 'Color';
             $l2Val     = $lbl['label_2_val'] ?? 'STANDARD';
             $dVal      = $lbl['design'] ?? ($lbl['label_3_val'] ?? 'STANDARD');
+            $lblVariantAttributes = $lbl['variant_attributes'] ?? [];
+            $lblVariantAttributes = is_array($lblVariantAttributes) ? $lblVariantAttributes : [];
             $pVal      = (float)($lbl['price'] ?? ($lbl['price_mrp'] ?? 0));
             $tCode     = $lbl['tag_code'] ?? ($lbl['item_code'] ?? 'SKU');
             $iQr       = $lbl['qr_payload'] ?? $tCode;
@@ -342,10 +363,18 @@ if (!empty($multiLabels)) {
                                 <span class="detail-label"><?= htmlspecialchars($l2Name) ?>:</span>
                                 <span class="detail-val text-uppercase"><?= htmlspecialchars($l2Val) ?></span>
                             </div>
-                            <div class="label-detail-row">
-                                <span class="detail-label">Design:</span>
-                                <span class="detail-val text-uppercase"><?= htmlspecialchars($dVal) ?></span>
-                            </div>
+                            <?php foreach ($lblVariantAttributes as $attributeName => $attributeValue): ?>
+                                <div class="label-detail-row">
+                                    <span class="detail-label"><?= htmlspecialchars((string) $attributeName) ?>:</span>
+                                    <span class="detail-val text-uppercase"><?= htmlspecialchars((string) $attributeValue) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                            <?php if (empty($lblVariantAttributes) || ($dVal !== '' && strtoupper($dVal) !== 'STANDARD')): ?>
+                                <div class="label-detail-row">
+                                    <span class="detail-label">Design:</span>
+                                    <span class="detail-val text-uppercase"><?= htmlspecialchars($dVal) ?></span>
+                                </div>
+                            <?php endif; ?>
                             <div class="label-detail-row">
                                 <span class="detail-label">Price:</span>
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($pVal, 2) ?></span>
@@ -418,10 +447,18 @@ if (!empty($multiLabels)) {
                                 <span class="detail-label"><?= htmlspecialchars($label2Name) ?>:</span>
                                 <span class="detail-val text-uppercase"><?= htmlspecialchars($label2Val) ?></span>
                             </div>
-                            <div class="label-detail-row">
-                                <span class="detail-label">Design:</span>
-                                <span class="detail-val text-uppercase"><?= htmlspecialchars($designVal) ?></span>
-                            </div>
+                            <?php foreach ($variantAttributes as $attributeName => $attributeValue): ?>
+                                <div class="label-detail-row">
+                                    <span class="detail-label"><?= htmlspecialchars((string) $attributeName) ?>:</span>
+                                    <span class="detail-val text-uppercase"><?= htmlspecialchars((string) $attributeValue) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                            <?php if (empty($variantAttributes) || ($designVal !== '' && strtoupper($designVal) !== 'STANDARD')): ?>
+                                <div class="label-detail-row">
+                                    <span class="detail-label">Design:</span>
+                                    <span class="detail-val text-uppercase"><?= htmlspecialchars($designVal) ?></span>
+                                </div>
+                            <?php endif; ?>
                             <div class="label-detail-row">
                                 <span class="detail-label">Price:</span>
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($priceVal, 2) ?></span>

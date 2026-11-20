@@ -60,22 +60,12 @@ class AuthController extends Controller {
                 $cid = (int)$userConcerns[0]['id'];
                 Auth::setSessionConcern($cid);
                 $this->flash('success', 'Welcome back, ' . $user['name'] . '!');
-
-                if (Auth::isShopConcern($cid)) {
-                    $this->redirect('/m/billing');
-                } else {
-                    $this->redirect('/dashboard');
-                }
+                $this->redirect('/dashboard');
             } else {
                 // Fallback for user without explicit user_concerns entry
                 $cid = Auth::concernId();
-                if ($cid && Auth::isShopConcern($cid)) {
-                    $this->flash('success', 'Welcome back, ' . $user['name'] . '!');
-                    $this->redirect('/m/billing');
-                } else {
-                    $this->flash('success', 'Welcome back, ' . $user['name'] . '!');
-                    $this->redirect('/dashboard');
-                }
+                $this->flash('success', 'Welcome back, ' . $user['name'] . '!');
+                $this->redirect('/dashboard');
             }
         } else {
             $this->flash('error', 'Invalid email or password, or your organization account is inactive.');
@@ -156,18 +146,12 @@ class AuthController extends Controller {
         }
         $name = $chosenConcern['name'] ?? 'Concern';
 
-        // Direct routing based on whether it is a Retail Shop or a Production/Warehouse Unit
-        if (Auth::isShopConcern($concernId)) {
-            $this->flash('success', "Welcome to {$name}! Shop POS Billing is ready.");
-            $this->redirect('/m/billing');
-        } else {
-            $this->flash('success', "Active workspace set to {$name}.");
-            $this->redirect('/dashboard');
-        }
+        $this->flash('success', "Active workspace set to {$name}.");
+        $this->redirect('/dashboard');
     }
 
     /**
-     * Switch concern from navbar dropdown
+     * Switch concern from navbar dropdown or modal
      */
     public function switchConcernAction(): void {
         if (!Auth::check()) {
@@ -201,13 +185,8 @@ class AuthController extends Controller {
         }
         $name = $chosenConcern['name'] ?? 'Concern';
 
-        if (Auth::isShopConcern($concernId)) {
-            $this->flash('success', "Switched to {$name} successfully. Shop POS Billing active.");
-            $this->redirect('/m/billing');
-        } else {
-            $this->flash('success', "Switched to {$name} successfully.");
-            $this->redirect('/dashboard');
-        }
+        $this->flash('success', "Switched to {$name} successfully.");
+        $this->redirect('/dashboard');
     }
 
     public function logout(): void {

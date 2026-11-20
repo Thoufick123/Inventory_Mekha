@@ -11,7 +11,6 @@ require_once __DIR__ . '/../app/core/Autoloader.php';
 use App\Core\DB;
 use App\Core\Auth;
 use App\Services\RollRegistryService;
-use App\Services\StockService;
 use App\Controllers\PurchaseController;
 use App\Controllers\LabelController;
 use App\Controllers\PurchaseStockController;
@@ -167,32 +166,46 @@ assertCheck("Accumulated roll qty reflects inwarded items (at least 10 Rolls)", 
 // -----------------------------------------------------------
 echo "\n--- Group 5: Finished Goods Inward & Stock Ledger ---\n";
 
-// Create variant for Concern 1
-$variantId = (int)DB::fetchValue("SELECT id FROM variants WHERE concern_id = 1 LIMIT 1");
-if (!$variantId) {
-    DB::query("INSERT INTO variants (concern_id, category_id, subcategory_id, sku_code, name, size, price, mrp, created_at) 
-               VALUES (1, 1, 1, 'SKU-FG-TEST', 'Test Polo T-Shirt', 'L', 450.00, 799.00, NOW())");
-    $variantId = (int)DB::lastInsertId();
-}
-
-$initialStock = (float)DB::fetchValue("SELECT qty FROM stocks WHERE concern_id = 1 AND variant_id = ? AND location = 'Main Store'", [$variantId]);
-
 // Create purchase bill with finished goods item
 $fgBillNo = "PO-FG-{$uniqueSuffix}";
 DB::query("INSERT INTO purchase_bills (
     concern_id, bill_no, supplier_invoice_no, supplier_id, bill_date,
     total_amount, tax_amount, net_amount, payment_status, payment_method,
     inward_status, created_by, created_at
-) VALUES (1, ?, 'INV-FG-1', 1, CURDATE(), 9000.00, 450.00, 9450.00, 'unpaid', 'credit', 'pending', 1, NOW())",
+) VALUES (1, ?, 'INV-FG-1', 1, CURDATE(), 4500.00, 225.00, 4725.00, 'unpaid', 'credit', 'pending', 1, NOW())",
     [$fgBillNo]
 );
 $fgBillId = (int)DB::lastInsertId();
 
+DB::query(
+    "INSERT INTO catalogs (concern_id, code, name, sizes, status, created_at)
+     VALUES (1, ?, 'Test Polo T-Shirt', 'S,M,L', 'in_house', NOW())",
+    ["CAT-FG-{$uniqueSuffix}"]
+);
+$fgCatalogId = (int)DB::lastInsertId();
+$fgVariants = [];
+foreach (['S' => 2, 'M' => 2, 'L' => 6] as $size => $allocatedQty) {
+    DB::query(
+        "INSERT INTO variants (
+            concern_id, catalog_id, sku_code, name, size, attributes, price, mrp, creation_date, status, created_at
+        ) VALUES (1, ?, ?, ?, ?, ?, 450.00, 799.00, CURDATE(), 'active', NOW())",
+        [
+            $fgCatalogId,
+            "SKU-FG-{$uniqueSuffix}-{$size}",
+            "Test Polo T-Shirt - {$size}",
+            $size,
+            json_encode(['color' => 'Red', 'allocated_qty' => $allocatedQty]),
+        ]
+    );
+    $fgVariants[$size] = (int)DB::lastInsertId();
+}
+$primaryVariantId = $fgVariants['S'];
+
 DB::query("INSERT INTO purchase_bill_items (
-    concern_id, purchase_bill_id, variant_id, section_type, item_name, item_code,
+    concern_id, purchase_bill_id, variant_id, catalog_id, section_type, item_name, item_code,
     specification, qty, inward_status, unit_price, gst_rate, total_price, tax_amount
-) VALUES (1, ?, ?, 'finished_goods', 'Test Polo T-Shirt', 'SKU-FG-TEST', 'L', 20.00, 'pending', 450.00, 5.00, 9000.00, 450.00)",
-    [$fgBillId, $variantId]
+) VALUES (1, ?, ?, ?, 'finished_goods', 'Test Polo T-Shirt', 'SKU-FG-TEST', 'S,M,L', 10.00, 'pending', 450.00, 5.00, 4500.00, 225.00)",
+    [$fgBillId, $primaryVariantId, $fgCatalogId]
 );
 $fgItemId = (int)DB::lastInsertId();
 
@@ -206,22 +219,43 @@ $_POST = [
 $labelController->lastRedirect = null;
 $labelController->addToStock();
 
-assertCheck("addToStock for Finished Goods redirected to purchase_stocks tab=finished_goods", 
-    strpos($labelController->lastRedirect ?? '', '/m/purchase_stocks?tab=finished_goods') !== false,
+assertCheck("addToStock for Finished Goods redirected to Live Stocks",
+    strpos($labelController->lastRedirect ?? '', '/m/stocks') !== false,
     "Redirected to: " . ($labelController->lastRedirect ?? '')
 );
 
-$newStock = (float)DB::fetchValue("SELECT qty FROM stocks WHERE concern_id = 1 AND variant_id = ? AND location = 'Main Store'", [$variantId]);
-assertCheck("Live stock increased by inwarded 20 pcs (Initial: {$initialStock}, New: {$newStock})", 
-    $newStock == ($initialStock + 20.00)
-);
+$expectedVariantStock = ['S' => 2.0, 'M' => 2.0, 'L' => 6.0];
+$newVariantStocks = [];
+foreach ($fgVariants as $size => $variantId) {
+    $newVariantStocks[$size] = (float)DB::fetchValue(
+        "SELECT qty FROM stocks WHERE concern_id = 1 AND variant_id = ? AND location = 'Main Store'",
+        [$variantId]
+    );
+}
+assertCheck("Mapped variant stock is allocated as S=2, M=2, L=6", $newVariantStocks == $expectedVariantStock);
+assertCheck("Total Live Stock equals the 10-piece purchase quantity", array_sum($newVariantStocks) == 10.0);
 
-$ledgerEntry = DB::fetch(
-    "SELECT * FROM stock_ledger WHERE concern_id = 1 AND variant_id = ? AND ref_module = 'Purchase Inward' AND ref_id = ? ORDER BY id DESC LIMIT 1",
-    [$variantId, $fgBillId]
+$ledgerEntries = DB::fetchAll(
+    "SELECT variant_id, qty_in FROM stock_ledger
+     WHERE concern_id = 1 AND ref_module = 'Purchase Inward Item' AND ref_id = ?",
+    [$fgItemId]
 );
-assertCheck("Stock ledger entry logged for 'Purchase Inward'", !empty($ledgerEntry));
-assertCheck("Stock ledger qty_in equals 20.00", (float)($ledgerEntry['qty_in'] ?? 0) == 20.00);
+assertCheck("Three stock ledger entries are logged against the purchase item", count($ledgerEntries) === 3);
+
+$_POST = [
+    'csrf_token' => 'test_token_12345',
+    'item_id'    => $fgItemId,
+    'tab'        => 'finished_goods'
+];
+$labelController->addToStock();
+$stockAfterRetry = [];
+foreach ($fgVariants as $size => $variantId) {
+    $stockAfterRetry[$size] = (float)DB::fetchValue(
+        "SELECT qty FROM stocks WHERE concern_id = 1 AND variant_id = ? AND location = 'Main Store'",
+        [$variantId]
+    );
+}
+assertCheck("Retrying completed inward does not duplicate any variant stock", $stockAfterRetry == $newVariantStocks);
 
 // -----------------------------------------------------------
 // TEST GROUP 6: Tenant Isolation Security
@@ -243,13 +277,13 @@ assertCheck("Concern 2 blocked from adding Concern 1 bill to stock", $labelContr
 
 // Clean up test records
 DB::query("DELETE FROM purchase_bills WHERE id IN (?, ?)", [$testBillId, $fgBillId]);
-DB::query("DELETE FROM stock_ledger WHERE ref_module = 'Purchase Inward' AND ref_id = ?", [$fgBillId]);
+DB::query("DELETE FROM stock_ledger WHERE ref_module = 'Purchase Inward Item' AND ref_id = ?", [$fgItemId]);
 RollRegistryService::syncSpecs(1);
-if ($initialStock > 0) {
-    DB::query("UPDATE stocks SET qty = ? WHERE concern_id = 1 AND variant_id = ? AND location = 'Main Store'", [$initialStock, $variantId]);
-} else {
-    DB::query("DELETE FROM stocks WHERE concern_id = 1 AND variant_id = ? AND location = 'Main Store'", [$variantId]);
+foreach ($fgVariants as $variantId) {
+    DB::query("DELETE FROM stocks WHERE concern_id = 1 AND variant_id = ?", [$variantId]);
+    DB::query("DELETE FROM variants WHERE id = ?", [$variantId]);
 }
+DB::query("DELETE FROM catalogs WHERE id = ?", [$fgCatalogId]);
 
 // -----------------------------------------------------------
 // SUMMARY

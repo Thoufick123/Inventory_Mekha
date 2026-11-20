@@ -633,7 +633,7 @@ $activeTab = $activeTab ?? 'staff';
                                                             <?= htmlspecialchars($m['name']) ?>
                                                         </td>
                                                         <td class="text-center">
-                                                            <input type="checkbox" name="custom_perms[<?= $mid ?>][view]" value="1" class="custom-perm-view custom-perm-<?= $mid ?>" checked>
+                                                            <input type="checkbox" name="custom_perms[<?= $mid ?>][view]" value="1" class="custom-perm-view custom-perm-<?= $mid ?>">
                                                         </td>
                                                         <td class="text-center">
                                                             <input type="checkbox" name="custom_perms[<?= $mid ?>][add]" value="1" class="custom-perm-add custom-perm-<?= $mid ?>">

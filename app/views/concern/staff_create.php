@@ -1,9 +1,10 @@
 <?php
 // Group operational modules to match Images 1 & 2 hierarchy exactly
-$groupOrder = ['Dashboard', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+$groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
 $groupedModules = [];
 foreach ($modules as $m) {
     if ($m['code'] === 'cash') continue; // Unified under 'Cash & Cash Flow' (cash_flow)
+    if ($m['code'] === 'concern_dashboard' || $m['group_name'] === 'Dashboard') continue;
     if ($m['code'] === 'variants' || $m['group_name'] === 'Masters') continue;
     $grp = $m['group_name'] ?: 'General';
     $groupedModules[$grp][] = $m;
@@ -53,55 +54,56 @@ foreach ($modules as $m) {
                     </a>
                 </div>
 
-                <form action="<?= \App\Core\Controller::url('/m/staff/store') ?>" method="POST" class="card-body p-4">
+                <form action="<?= \App\Core\Controller::url('/m/staff/store') ?>" method="POST" class="card-body p-4" autocomplete="off">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
 
                     <!-- 1. BUSINESS CONCERN ASSIGNMENT -->
                     <div class="mb-4 p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                        <label class="form-label small fw-bold text-dark text-uppercase mb-1" style="font-size: 0.76rem; letter-spacing: 0.05em;">
-                            <i class="bi bi-building me-1 text-primary"></i> 1. Assigned Primary Business Concern / Location *
-                        </label>
-                        <select name="concern_id" id="staff_concern_id" class="form-select mb-2" required style="border-radius: 8px;" onchange="onPrimaryConcernChanged(this.value)">
-                            <option value="">-- Choose Primary Concern / Base Branch --</option>
-                            <?php foreach ($allConcerns as $c): ?>
-                                <option value="<?= (int)$c['id'] ?>" <?= ($selectedCid == $c['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code']) ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <small class="text-muted d-block mb-3" style="font-size: 0.74rem;">The staff member's primary home unit and payroll reporting entity.</small>
-
-                        <!-- Additional Authorized Concerns Option -->
-                        <div class="pt-3 border-top">
-                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                                <label class="small fw-bold text-dark mb-0 d-flex align-items-center gap-1.5" style="font-size: 0.78rem;">
-                                    <i class="bi bi-buildings-fill text-primary"></i> Authorized Business Concerns (Multi-Location Access Option)
-                                </label>
+                        <input type="hidden" name="concern_id" id="staff_concern_id" value="<?= (int)($selectedCid ?: ($allConcerns[0]['id'] ?? 0)) ?>">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <label class="small fw-bold text-dark text-uppercase mb-0 d-flex align-items-center gap-1.5" style="font-size: 0.78rem; letter-spacing: 0.05em;">
+                                <i class="bi bi-buildings-fill text-primary"></i> 1. Authorized Business Concerns *
+                            </label>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <div class="input-group input-group-sm" style="max-width: 220px;">
+                                    <span class="input-group-text bg-white border-end-0 py-0.5 px-2 text-secondary" style="border-radius: 6px 0 0 6px;">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+                                    <input type="text" id="search_concerns_input" class="form-control form-control-sm border-start-0 py-0.5 px-2" placeholder="Search concern..." oninput="filterConcernCards(this.value)" autocomplete="off">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0.5 px-2" onclick="clearConcernSearch()" title="Clear search" style="border-radius: 0 6px 6px 0;">
+                                        <i class="bi bi-x-lg" style="font-size: 0.7rem;"></i>
+                                    </button>
+                                </div>
                                 <div class="btn-group btn-group-sm">
                                     <button type="button" class="btn btn-outline-secondary btn-xs py-0.5 px-2" style="font-size: 0.72rem;" onclick="selectAllCreateConcerns(true)">Select All</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-xs py-0.5 px-2" style="font-size: 0.72rem;" onclick="selectOnlyPrimaryConcern()">Only Primary</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-xs py-0.5 px-2" style="font-size: 0.72rem;" onclick="selectAllCreateConcerns(false)">Deselect All</button>
                                 </div>
                             </div>
-                            <p class="text-secondary small mb-2" style="font-size: 0.73rem;">
-                                Choose which business units or retail outlets this staff member can switch between upon login:
-                            </p>
-                            <div class="row g-2" id="create_concern_checkboxes_grid">
-                                <?php foreach ($allConcerns as $c): ?>
-                                    <?php $isPrimary = ($selectedCid == $c['id']); ?>
-                                    <div class="col-md-6">
-                                        <div class="p-2.5 border rounded-3 bg-white d-flex align-items-center gap-2.5 concern-check-card" id="box_cid_<?= $c['id'] ?>" style="transition: all 0.18s ease; cursor: pointer;">
-                                            <input class="form-check-input create-concern-check m-0" type="checkbox" name="concern_ids[]" value="<?= (int)$c['id'] ?>" id="create_cid_<?= $c['id'] ?>" <?= $isPrimary ? 'checked' : '' ?> style="width: 17px; height: 17px; cursor: pointer;">
-                                            <label class="form-check-label flex-grow-1 cursor-pointer mb-0 small d-flex justify-content-between align-items-center" for="create_cid_<?= $c['id'] ?>" style="cursor: pointer;">
-                                                <span class="fw-semibold text-dark" style="font-size: 0.82rem;"><?= htmlspecialchars($c['name']) ?></span>
-                                                <div class="d-flex align-items-center gap-1.5">
-                                                    <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;"><?= htmlspecialchars($c['code']) ?></span>
-                                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 py-0.5 px-1.5 primary-label-<?= $c['id'] ?>" style="font-size: 0.62rem; display: <?= $isPrimary ? 'inline-block' : 'none' ?>;">Home</span>
-                                                </div>
-                                            </label>
-                                        </div>
+                        </div>
+                        <p class="text-secondary small mb-2" style="font-size: 0.73rem;">
+                            Choose which business units or retail outlets this staff member can access and operate:
+                        </p>
+                        <div class="row g-2" id="create_concern_checkboxes_grid">
+                            <?php foreach ($allConcerns as $c): ?>
+                                <?php 
+                                    $isPrimary = ($selectedCid == $c['id']); 
+                                    $isChecked = !empty($oldInput['concern_ids']) 
+                                        ? in_array((int)$c['id'], array_map('intval', (array)$oldInput['concern_ids']), true) 
+                                        : $isPrimary;
+                                ?>
+                                <div class="col-md-6" data-name="<?= htmlspecialchars($c['name']) ?>" data-code="<?= htmlspecialchars($c['code']) ?>">
+                                    <div class="p-2.5 border rounded-3 bg-white d-flex align-items-center gap-2.5 concern-check-card" id="box_cid_<?= $c['id'] ?>" style="transition: all 0.18s ease; cursor: pointer;">
+                                        <input class="form-check-input create-concern-check m-0" type="checkbox" name="concern_ids[]" value="<?= (int)$c['id'] ?>" id="create_cid_<?= $c['id'] ?>" <?= $isChecked ? 'checked' : '' ?> style="width: 17px; height: 17px; cursor: pointer;">
+                                        <label class="form-check-label flex-grow-1 cursor-pointer mb-0 small d-flex justify-content-between align-items-center" for="create_cid_<?= $c['id'] ?>" style="cursor: pointer;">
+                                            <span class="fw-semibold text-dark" style="font-size: 0.82rem;"><?= htmlspecialchars($c['name']) ?></span>
+                                            <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;"><?= htmlspecialchars($c['code']) ?></span>
+                                        </label>
                                     </div>
-                                <?php endforeach; ?>
-                            </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div id="no_concerns_match_msg" class="text-muted small text-center py-2" style="display: none;">
+                            <i class="bi bi-search me-1"></i> No matching concerns found.
                         </div>
                     </div>
 
@@ -111,47 +113,17 @@ foreach ($modules as $m) {
                             <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
                                 <i class="bi bi-person me-1 text-primary"></i> Full Name *
                             </label>
-                            <input type="text" name="name" class="form-control" required placeholder="e.g. Ramesh Kumar" style="border-radius: 8px;">
+                            <input type="text" name="name" id="staff_create_name" class="form-control" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required autocomplete="one-time-code" readonly onfocus="this.removeAttribute('readonly');" onmouseover="this.removeAttribute('readonly');" style="border-radius: 8px;">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
                                 <i class="bi bi-briefcase me-1 text-primary"></i> Designation / Title *
                             </label>
-                            <input type="text" name="designation" class="form-control" required placeholder="e.g. Cashier / Cutting Master / Manager" style="border-radius: 8px;">
+                            <input type="text" name="designation" id="staff_create_designation" class="form-control" value="<?= htmlspecialchars($oldInput['designation'] ?? '') ?>" required autocomplete="off" style="border-radius: 8px;">
                         </div>
                     </div>
 
-                    <!-- 3. DEPARTMENT & ROLE -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-diagram-2 me-1 text-primary"></i> Department *
-                            </label>
-                            <select name="department" class="form-select" required style="border-radius: 8px;">
-                                <option value="General" selected>General / Administration</option>
-                                <option value="Sales / Retail Counter">Sales / Retail Counter</option>
-                                <option value="Production & Cutting">Production & Cutting</option>
-                                <option value="Stitching & Assembly">Stitching & Assembly</option>
-                                <option value="Warehouse & Inventory">Warehouse & Inventory</option>
-                                <option value="Quality Control (QC)">Quality Control (QC)</option>
-                                <option value="Finance & Accounts">Finance & Accounts</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-shield-lock me-1 text-primary"></i> System Access Role
-                            </label>
-                            <select name="role_id" id="staff_role_id" class="form-select" style="border-radius: 8px;" onchange="onRoleChangedInCreate(this.value)">
-                                <option value="">-- Choose Role / Custom Permissions --</option>
-                                <?php foreach ($roles as $r): ?>
-                                    <?php if ($r['id'] == 1) continue; // Skip super admin ?>
-                                    <option value="<?= (int)$r['id'] ?>">
-                                        <?= htmlspecialchars($r['name']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
+
 
                     <!-- 4. EMAIL & LOGIN PASSWORD -->
                     <div class="row g-3 mb-3">
@@ -159,7 +131,7 @@ foreach ($modules as $m) {
                             <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
                                 <i class="bi bi-envelope me-1 text-primary"></i> Email Address (Login ID) *
                             </label>
-                            <input type="email" name="email" class="form-control" required placeholder="staff@example.com" style="border-radius: 8px;">
+                            <input type="email" name="email" id="staff_create_email" class="form-control" value="<?= htmlspecialchars($oldInput['email'] ?? '') ?>" required autocomplete="one-time-code" readonly onfocus="this.removeAttribute('readonly');" onmouseover="this.removeAttribute('readonly');" style="border-radius: 8px;">
                             <small class="text-muted" style="font-size: 0.72rem;">Used for user authentication into the ERP.</small>
                         </div>
                         <div class="col-md-6">
@@ -167,7 +139,7 @@ foreach ($modules as $m) {
                                 <i class="bi bi-lock me-1 text-primary"></i> Password *
                             </label>
                             <div class="input-group">
-                                <input type="password" name="password" id="staff_create_password" class="form-control border-end-0" required placeholder="Enter login password" style="border-radius: 8px 0 0 8px;">
+                                <input type="password" name="password" id="staff_create_password" class="form-control border-end-0" value="<?= htmlspecialchars($oldInput['password'] ?? '') ?>" required autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');" onmouseover="this.removeAttribute('readonly');" style="border-radius: 8px 0 0 8px;">
                                 <button class="btn btn-outline-secondary border-start-0" type="button" onclick="toggleCreatePassword(this)" style="border-radius: 0 8px 8px 0;">
                                     <i class="bi bi-eye"></i>
                                 </button>
@@ -182,15 +154,15 @@ foreach ($modules as $m) {
                             <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
                                 <i class="bi bi-telephone me-1 text-primary"></i> Mobile / Phone Number *
                             </label>
-                            <input type="tel" name="phone" maxlength="10" class="form-control font-monospace" required placeholder="10-digit mobile number" style="border-radius: 8px;">
+                            <input type="tel" name="phone" id="staff_create_phone" maxlength="10" class="form-control font-monospace" value="<?= htmlspecialchars($oldInput['phone'] ?? '') ?>" required autocomplete="one-time-code" readonly onfocus="this.removeAttribute('readonly');" onmouseover="this.removeAttribute('readonly');" style="border-radius: 8px;">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
                                 <i class="bi bi-toggle-on me-1 text-primary"></i> Employment Status *
                             </label>
                             <select name="status" class="form-select" required style="border-radius: 8px;">
-                                <option value="active" selected>Active (Can login & operate)</option>
-                                <option value="inactive">Inactive (Disabled)</option>
+                                <option value="active" <?= ($oldInput['status'] ?? 'active') === 'active' ? 'selected' : '' ?>>Active (Can login & operate)</option>
+                                <option value="inactive" <?= ($oldInput['status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Inactive (Disabled)</option>
                             </select>
                         </div>
                     </div>
@@ -277,7 +249,7 @@ foreach ($modules as $m) {
                                 <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
                                     <i class="bi bi-shield-check text-primary fs-5"></i> 6. Module Access & CRUD Permissions (View, Create, Edit, Delete)
                                 </h6>
-                                <small class="text-secondary">Configure specific View, Create, Edit, and Delete operational rights across all project modules.</small>
+                                <small class="text-secondary">Configure specific View, Create, Edit, and Delete operational rights across selected concern modules.</small>
                             </div>
                             <div class="d-flex align-items-center gap-1.5 flex-wrap">
                                 <button type="button" class="btn btn-outline-primary btn-xs py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllMatrixPerms(true)">
@@ -290,6 +262,21 @@ foreach ($modules as $m) {
                                     <i class="bi bi-x-square me-1"></i> Clear All
                                 </button>
                             </div>
+                        </div>
+
+                        <!-- DYNAMIC CONCERN TABS (Shown separately for each selected concern) -->
+                        <div class="mb-3" id="concern_matrix_tabs_wrapper">
+                            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                                <span class="small fw-bold text-secondary text-uppercase d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                                    <i class="bi bi-buildings text-primary"></i> Selected Concerns (<span id="concern_selected_count_badge">1</span>) - Click a concern to configure its modules:
+                                </span>
+                                <span class="badge bg-white text-secondary border px-2.5 py-1" id="active_tab_module_count_badge" style="font-size: 0.74rem;">
+                                    Loading modules...
+                                </span>
+                            </div>
+                            <ul class="nav nav-pills gap-1.5 p-1.5 bg-light rounded-3 border" id="concern_matrix_pills" role="tablist">
+                                <!-- Dynamically populated concern tabs -->
+                            </ul>
                         </div>
 
                         <!-- Column Quick Toggles -->
@@ -305,10 +292,13 @@ foreach ($modules as $m) {
                             </div>
                             <div>
                                 <span class="text-muted small" id="perm_sync_role_text" style="font-size: 0.74rem;">
-                                    <i class="bi bi-info-circle me-1"></i> Selecting a System Role will auto-populate defaults.
+                                    <i class="bi bi-shield-check me-1"></i> Configure module access and permissions below.
                                 </span>
                             </div>
                         </div>
+
+                        <!-- Container for dynamic serialized permissions inputs -->
+                        <div id="dynamic_perms_inputs"></div>
 
                         <!-- Matrix Table with Separated Checkboxes -->
                         <div class="table-responsive rounded-3 border">
@@ -355,13 +345,13 @@ foreach ($modules as $m) {
                                 <tbody>
                                     <?php foreach ($groupOrder as $grpName): ?>
                                         <?php if (empty($groupedModules[$grpName])) continue; ?>
-                                        <tr class="table-secondary">
+                                        <tr class="table-secondary matrix-group-header" data-group="<?= htmlspecialchars($grpName) ?>">
                                             <td colspan="5" class="fw-bold text-dark py-1.5 px-3 text-uppercase" style="font-size: 0.74rem; letter-spacing: 0.05em; background: #e2e8f0;">
                                                 <i class="bi bi-folder2-open me-1.5 text-primary"></i> <?= htmlspecialchars($grpName) ?>
                                             </td>
                                         </tr>
                                         <?php foreach ($groupedModules[$grpName] as $m): $mid = (int)$m['id']; ?>
-                                            <tr id="matrix_row_<?= $mid ?>" class="matrix-mod-row" data-mid="<?= $mid ?>">
+                                            <tr id="matrix_row_<?= $mid ?>" class="matrix-mod-row" data-mid="<?= $mid ?>" data-group="<?= htmlspecialchars($grpName) ?>">
                                                 <td class="ps-3 py-2">
                                                     <div class="d-flex align-items-center gap-2">
                                                         <i class="bi <?= htmlspecialchars($m['icon'] ?: 'bi-app') ?> text-primary fs-6"></i>
@@ -372,32 +362,32 @@ foreach ($modules as $m) {
                                                 <td class="text-center perm-matrix-col-view">
                                                     <div class="d-flex justify-content-center align-items-center m-0">
                                                         <input class="form-check-input matrix-perm-check matrix-perm-view matrix-row-<?= $mid ?>" 
-                                                               type="checkbox" name="perms[<?= $mid ?>][view]" value="1" id="m_view_<?= $mid ?>" checked
-                                                               onchange="updateHeaderCheckboxesState()">
+                                                               type="checkbox" value="1" id="m_view_<?= $mid ?>"
+                                                               onchange="onPermCheckboxChange(<?= $mid ?>, 'view', this.checked)">
                                                     </div>
                                                 </td>
                                                 <!-- Create -->
                                                 <td class="text-center perm-matrix-col-add">
                                                     <div class="d-flex justify-content-center align-items-center m-0">
                                                         <input class="form-check-input matrix-perm-check matrix-perm-add matrix-row-<?= $mid ?>" 
-                                                               type="checkbox" name="perms[<?= $mid ?>][add]" value="1" id="m_add_<?= $mid ?>"
-                                                               onchange="updateHeaderCheckboxesState()">
+                                                               type="checkbox" value="1" id="m_add_<?= $mid ?>"
+                                                               onchange="onPermCheckboxChange(<?= $mid ?>, 'add', this.checked)">
                                                     </div>
                                                 </td>
                                                 <!-- Edit -->
                                                 <td class="text-center perm-matrix-col-edit">
                                                     <div class="d-flex justify-content-center align-items-center m-0">
                                                         <input class="form-check-input matrix-perm-check matrix-perm-edit matrix-row-<?= $mid ?>" 
-                                                               type="checkbox" name="perms[<?= $mid ?>][edit]" value="1" id="m_edit_<?= $mid ?>"
-                                                               onchange="updateHeaderCheckboxesState()">
+                                                               type="checkbox" value="1" id="m_edit_<?= $mid ?>"
+                                                               onchange="onPermCheckboxChange(<?= $mid ?>, 'edit', this.checked)">
                                                     </div>
                                                 </td>
                                                 <!-- Delete -->
                                                 <td class="text-center perm-matrix-col-delete">
                                                     <div class="d-flex justify-content-center align-items-center m-0">
                                                         <input class="form-check-input matrix-perm-check matrix-perm-delete matrix-row-<?= $mid ?>" 
-                                                               type="checkbox" name="perms[<?= $mid ?>][delete]" value="1" id="m_delete_<?= $mid ?>"
-                                                               onchange="updateHeaderCheckboxesState()">
+                                                               type="checkbox" value="1" id="m_delete_<?= $mid ?>"
+                                                               onchange="onPermCheckboxChange(<?= $mid ?>, 'delete', this.checked)">
                                                     </div>
                                                 </td>
                                             </tr>
@@ -424,33 +414,195 @@ foreach ($modules as $m) {
 </div>
 
 <script>
+window.allConcerns = <?= json_encode($allConcerns ?? []) ?>;
 window.allRolePerms = <?= json_encode($allRolePerms ?? []) ?>;
 window.concernModules = <?= json_encode($concernModules ?? []) ?>;
+window.activeConcernId = null;
+window.concernPerms = <?= json_encode(!empty($oldInput['perms']) ? $oldInput['perms'] : new stdClass()) ?>;
+
+function getSelectedConcernIds() {
+    const cids = [];
+    document.querySelectorAll('.create-concern-check:checked').forEach(cb => {
+        const val = parseInt(cb.value);
+        if (val && !cids.includes(val)) {
+            cids.push(val);
+        }
+    });
+    const hiddenCid = document.getElementById('staff_concern_id');
+    if (hiddenCid && cids.length > 0) {
+        hiddenCid.value = cids[0];
+    }
+    return cids;
+}
+
+function renderConcernTabs() {
+    const cids = getSelectedConcernIds();
+    const countBadge = document.getElementById('concern_selected_count_badge');
+    if (countBadge) {
+        countBadge.textContent = cids.length;
+    }
+
+    if (!window.activeConcernId || !cids.includes(window.activeConcernId)) {
+        window.activeConcernId = cids.length > 0 ? cids[0] : null;
+    }
+
+    const pillsUl = document.getElementById('concern_matrix_pills');
+    if (!pillsUl) return;
+    pillsUl.innerHTML = '';
+
+    if (cids.length === 0) {
+        pillsUl.innerHTML = '<li class="nav-item p-2 text-muted small"><i class="bi bi-info-circle me-1"></i> Please check at least one concern above to configure permissions.</li>';
+        const badge = document.getElementById('active_tab_module_count_badge');
+        if (badge) badge.textContent = 'No concern selected';
+        return;
+    }
+
+    cids.forEach(cid => {
+        const c = (window.allConcerns || []).find(item => parseInt(item.id) === cid);
+        const name = c ? c.name : 'Concern #' + cid;
+        const code = c ? c.code : 'CON';
+        const modCount = (window.concernModules[cid] || []).length;
+        const isActive = (cid === window.activeConcernId);
+
+        const li = document.createElement('li');
+        li.className = 'nav-item';
+        li.innerHTML = `
+            <button type="button" class="btn btn-sm ${isActive ? 'btn-primary text-white shadow-sm' : 'btn-outline-secondary bg-white text-dark'} rounded-pill px-3 py-1.5 d-flex align-items-center gap-1.5 fw-semibold" style="font-size: 0.78rem;" onclick="switchConcernTab(${cid})">
+                <i class="bi bi-building"></i>
+                <span>${escapeHtml(name)}</span>
+                <span class="badge ${isActive ? 'bg-white text-primary' : 'bg-light text-secondary border'} font-monospace ms-1" style="font-size: 0.68rem;">${escapeHtml(code)} &bull; ${modCount} Modules</span>
+            </button>
+        `;
+        pillsUl.appendChild(li);
+    });
+
+    applyConcernView(window.activeConcernId);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function saveActiveTabPerms() {
+    if (!window.activeConcernId) return;
+    if (!window.concernPerms[window.activeConcernId]) {
+        window.concernPerms[window.activeConcernId] = {};
+    }
+    const allowed = window.concernModules[window.activeConcernId] || [];
+    allowed.forEach(mid => {
+        window.concernPerms[window.activeConcernId][mid] = {
+            view: document.getElementById('m_view_' + mid)?.checked ? 1 : 0,
+            add: document.getElementById('m_add_' + mid)?.checked ? 1 : 0,
+            edit: document.getElementById('m_edit_' + mid)?.checked ? 1 : 0,
+            delete: document.getElementById('m_delete_' + mid)?.checked ? 1 : 0,
+        };
+    });
+}
+
+function switchConcernTab(newCid) {
+    saveActiveTabPerms();
+    window.activeConcernId = newCid;
+    renderConcernTabs();
+}
+
+function applyConcernView(cid) {
+    if (!cid) return;
+    const c = (window.allConcerns || []).find(item => parseInt(item.id) === cid);
+    const name = c ? c.name : 'Concern #' + cid;
+    const allowed = window.concernModules[cid] || [];
+
+    const badge = document.getElementById('active_tab_module_count_badge');
+    if (badge) {
+        badge.innerHTML = `<i class="bi bi-shield-check text-success me-1"></i> Showing <strong>${allowed.length}</strong> modules provisioned for <strong>${escapeHtml(name)}</strong>`;
+    }
+
+    const groupCount = {};
+    document.querySelectorAll('.matrix-mod-row').forEach(row => {
+        const mid = parseInt(row.getAttribute('data-mid'));
+        const grp = row.getAttribute('data-group');
+        if (allowed.includes(mid)) {
+            row.style.display = '';
+            groupCount[grp] = (groupCount[grp] || 0) + 1;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    document.querySelectorAll('.matrix-group-header').forEach(header => {
+        const grp = header.getAttribute('data-group');
+        header.style.display = (groupCount[grp] && groupCount[grp] > 0) ? '' : 'none';
+    });
+
+    // Populate checkboxes from memory for this concern
+    const perms = window.concernPerms[cid] || {};
+    allowed.forEach(mid => {
+        const p = perms[mid] || {};
+        const v = document.getElementById('m_view_' + mid);
+        const a = document.getElementById('m_add_' + mid);
+        const e = document.getElementById('m_edit_' + mid);
+        const d = document.getElementById('m_delete_' + mid);
+        if (v) v.checked = (p.view === 1);
+        if (a) a.checked = (p.add === 1);
+        if (e) e.checked = (p.edit === 1);
+        if (d) d.checked = (p.delete === 1);
+    });
+
+    updateHeaderCheckboxesState();
+}
+
+function onPermCheckboxChange(mid, act, checked) {
+    if (!window.activeConcernId) return;
+    if (!window.concernPerms[window.activeConcernId]) {
+        window.concernPerms[window.activeConcernId] = {};
+    }
+    if (!window.concernPerms[window.activeConcernId][mid]) {
+        window.concernPerms[window.activeConcernId][mid] = {};
+    }
+    window.concernPerms[window.activeConcernId][mid][act] = checked ? 1 : 0;
+    updateHeaderCheckboxesState();
+}
+
+function onConcernSelectionChanged() {
+    saveActiveTabPerms();
+    renderConcernTabs();
+}
 
 document.addEventListener('DOMContentLoaded', function() {
-    const primaryId = document.getElementById('staff_concern_id')?.value;
-    if (primaryId) {
-        onPrimaryConcernChanged(primaryId);
-    }
     const roleId = document.getElementById('staff_role_id')?.value;
     if (roleId) {
         onRoleChangedInCreate(roleId);
     }
+
+    // Attach listeners to concern checkboxes
+    document.querySelectorAll('.create-concern-check').forEach(cb => {
+        cb.addEventListener('change', onConcernSelectionChanged);
+    });
+
+    renderConcernTabs();
     updateHeaderCheckboxesState();
 });
 
 function toggleHeaderColumn(action, checked) {
+    if (!window.activeConcernId) return;
+    const allowed = window.concernModules[window.activeConcernId] || [];
     document.querySelectorAll('.matrix-perm-' + action).forEach(cb => {
-        cb.checked = checked;
+        const row = cb.closest('tr');
+        if (row && row.style.display !== 'none') {
+            cb.checked = checked;
+            const mid = parseInt(row.getAttribute('data-mid'));
+            if (mid && allowed.includes(mid)) {
+                if (!window.concernPerms[window.activeConcernId]) window.concernPerms[window.activeConcernId] = {};
+                if (!window.concernPerms[window.activeConcernId][mid]) window.concernPerms[window.activeConcernId][mid] = {};
+                window.concernPerms[window.activeConcernId][mid][action] = checked ? 1 : 0;
+            }
+        }
     });
     updateHeaderCheckboxesState();
 }
 
 function toggleMasterSelectAll(checked) {
-    document.querySelectorAll('.matrix-perm-check').forEach(cb => {
-        cb.checked = checked;
-    });
-    updateHeaderCheckboxesState();
+    setAllMatrixPerms(checked);
 }
 
 function updateHeaderCheckboxesState() {
@@ -459,21 +611,27 @@ function updateHeaderCheckboxesState() {
     let totalAllCount = 0;
 
     actions.forEach(act => {
-        const cbs = document.querySelectorAll('.matrix-perm-' + act);
+        const visibleCbs = Array.from(document.querySelectorAll('.matrix-perm-' + act)).filter(cb => {
+            const row = cb.closest('tr');
+            return row && row.style.display !== 'none';
+        });
         const headerCb = document.getElementById('header_check_' + act);
-        if (!cbs.length || !headerCb) return;
+        if (!visibleCbs.length || !headerCb) return;
 
         let checkedCount = 0;
-        cbs.forEach(cb => {
+        visibleCbs.forEach(cb => {
             if (cb.checked) checkedCount++;
         });
 
-        totalAllCount += cbs.length;
+        totalAllCount += visibleCbs.length;
         allCheckedCount += checkedCount;
 
-        if (checkedCount === cbs.length && cbs.length > 0) {
+        if (checkedCount === visibleCbs.length && visibleCbs.length > 0) {
             headerCb.checked = true;
             headerCb.indeterminate = false;
+        } else if (checkedCount > 0) {
+            headerCb.checked = false;
+            headerCb.indeterminate = true;
         } else {
             headerCb.checked = false;
             headerCb.indeterminate = false;
@@ -483,29 +641,7 @@ function updateHeaderCheckboxesState() {
     const masterCb = document.getElementById('header_master_check_all');
     if (masterCb && totalAllCount > 0) {
         masterCb.checked = (allCheckedCount === totalAllCount && totalAllCount > 0);
-        masterCb.indeterminate = false;
-    }
-}
-
-function onPrimaryConcernChanged(selectedCid) {
-    // Hide all 'Home' badges
-    document.querySelectorAll('[class*="primary-label-"]').forEach(badge => badge.style.display = 'none');
-    document.querySelectorAll('[id*="box_cid_"]').forEach(box => box.classList.remove('border-primary', 'bg-light'));
-
-    if (selectedCid) {
-        // Auto-check the primary concern
-        const cb = document.getElementById('create_cid_' + selectedCid);
-        if (cb) {
-            cb.checked = true;
-        }
-        const badge = document.querySelector('.primary-label-' + selectedCid);
-        if (badge) {
-            badge.style.display = 'inline-block';
-        }
-        const box = document.getElementById('box_cid_' + selectedCid);
-        if (box) {
-            box.classList.add('border-primary', 'bg-light');
-        }
+        masterCb.indeterminate = (allCheckedCount > 0 && allCheckedCount < totalAllCount);
     }
 }
 
@@ -517,64 +653,108 @@ function onRoleChangedInCreate(roleId) {
         textNotice.innerHTML = '<i class="bi bi-check-circle-fill text-success me-1"></i> Permissions auto-populated from selected role.';
     }
 
-    Object.keys(rolePerms).forEach(mid => {
-        const rp = rolePerms[mid];
-        const v = document.getElementById('m_view_' + mid);
-        const a = document.getElementById('m_add_' + mid);
-        const e = document.getElementById('m_edit_' + mid);
-        const d = document.getElementById('m_delete_' + mid);
-        if (v) v.checked = (rp.view === 1);
-        if (a) a.checked = (rp.add === 1);
-        if (e) e.checked = (rp.edit === 1);
-        if (d) d.checked = (rp.delete === 1);
+    if (window.activeConcernId) {
+        if (!window.concernPerms[window.activeConcernId]) {
+            window.concernPerms[window.activeConcernId] = {};
+        }
+        Object.keys(rolePerms).forEach(mid => {
+            const rp = rolePerms[mid];
+            window.concernPerms[window.activeConcernId][mid] = {
+                view: rp.view === 1 ? 1 : 0,
+                add: rp.add === 1 ? 1 : 0,
+                edit: rp.edit === 1 ? 1 : 0,
+                delete: rp.delete === 1 ? 1 : 0,
+            };
+        });
+        applyConcernView(window.activeConcernId);
+    }
+}
+
+function setAllMatrixPerms(checked) {
+    if (!window.activeConcernId) return;
+    const allowed = window.concernModules[window.activeConcernId] || [];
+    document.querySelectorAll('.matrix-perm-check').forEach(cb => {
+        const row = cb.closest('tr');
+        if (row && row.style.display !== 'none') {
+            cb.checked = checked;
+            const mid = parseInt(row.getAttribute('data-mid'));
+            if (mid && allowed.includes(mid)) {
+                if (!window.concernPerms[window.activeConcernId]) window.concernPerms[window.activeConcernId] = {};
+                if (!window.concernPerms[window.activeConcernId][mid]) window.concernPerms[window.activeConcernId][mid] = {};
+                ['view', 'add', 'edit', 'delete'].forEach(act => {
+                    if (cb.classList.contains('matrix-perm-' + act)) {
+                        window.concernPerms[window.activeConcernId][mid][act] = checked ? 1 : 0;
+                    }
+                });
+            }
+        }
     });
     updateHeaderCheckboxesState();
 }
 
-function setAllMatrixPerms(checked) {
-    document.querySelectorAll('.matrix-perm-check').forEach(cb => cb.checked = checked);
-    updateHeaderCheckboxesState();
-}
-
 function setAllMatrixReadOnly() {
+    if (!window.activeConcernId) return;
+    const allowed = window.concernModules[window.activeConcernId] || [];
     document.querySelectorAll('.matrix-perm-check').forEach(cb => {
-        cb.checked = cb.classList.contains('matrix-perm-view');
+        const row = cb.closest('tr');
+        if (row && row.style.display !== 'none') {
+            const isView = cb.classList.contains('matrix-perm-view');
+            cb.checked = isView;
+            const mid = parseInt(row.getAttribute('data-mid'));
+            if (mid && allowed.includes(mid)) {
+                if (!window.concernPerms[window.activeConcernId]) window.concernPerms[window.activeConcernId] = {};
+                if (!window.concernPerms[window.activeConcernId][mid]) window.concernPerms[window.activeConcernId][mid] = {};
+                ['view', 'add', 'edit', 'delete'].forEach(act => {
+                    if (cb.classList.contains('matrix-perm-' + act)) {
+                        window.concernPerms[window.activeConcernId][mid][act] = (act === 'view') ? 1 : 0;
+                    }
+                });
+            }
+        }
     });
     updateHeaderCheckboxesState();
 }
 
 function setColumnMatrixPerm(action, checked) {
-    document.querySelectorAll('.matrix-perm-' + action).forEach(cb => cb.checked = checked);
-    updateHeaderCheckboxesState();
-}
-
-function setRowMatrixPerm(mid, checked) {
-    document.querySelectorAll('.matrix-row-' + mid).forEach(cb => cb.checked = checked);
-    updateHeaderCheckboxesState();
-}
-
-function setRowMatrixReadOnly(mid) {
-    document.querySelectorAll('.matrix-row-' + mid).forEach(cb => {
-        cb.checked = cb.classList.contains('matrix-perm-view');
-    });
-    updateHeaderCheckboxesState();
+    toggleHeaderColumn(action, checked);
 }
 
 function selectAllCreateConcerns(check) {
-    document.querySelectorAll('.create-concern-check').forEach(cb => cb.checked = check);
-    const primaryId = document.getElementById('staff_concern_id')?.value;
-    if (primaryId && !check) {
-        const cb = document.getElementById('create_cid_' + primaryId);
-        if (cb) cb.checked = true;
+    document.querySelectorAll('.create-concern-check').forEach(cb => {
+        const col = cb.closest('.col-md-6');
+        if (col && col.style.display !== 'none') {
+            cb.checked = check;
+        }
+    });
+    onConcernSelectionChanged();
+}
+
+function filterConcernCards(query) {
+    const term = (query || '').trim().toLowerCase();
+    let visibleCount = 0;
+    document.querySelectorAll('#create_concern_checkboxes_grid .col-md-6').forEach(col => {
+        const name = (col.getAttribute('data-name') || '').toLowerCase();
+        const code = (col.getAttribute('data-code') || '').toLowerCase();
+        if (!term || name.includes(term) || code.includes(term)) {
+            col.style.display = '';
+            visibleCount++;
+        } else {
+            col.style.display = 'none';
+        }
+    });
+
+    const noMatchesEl = document.getElementById('no_concerns_match_msg');
+    if (noMatchesEl) {
+        noMatchesEl.style.display = (visibleCount === 0) ? 'block' : 'none';
     }
 }
 
-function selectOnlyPrimaryConcern() {
-    document.querySelectorAll('.create-concern-check').forEach(cb => cb.checked = false);
-    const primaryId = document.getElementById('staff_concern_id')?.value;
-    if (primaryId) {
-        const cb = document.getElementById('create_cid_' + primaryId);
-        if (cb) cb.checked = true;
+function clearConcernSearch() {
+    const input = document.getElementById('search_concerns_input');
+    if (input) {
+        input.value = '';
+        filterConcernCards('');
+        input.focus();
     }
 }
 
@@ -594,4 +774,64 @@ function toggleCreatePassword(btn) {
         }
     }
 }
+
+// Prepare structured per-concern permissions on form submit
+function preparePermsOnSubmit() {
+    saveActiveTabPerms();
+    const container = document.getElementById('dynamic_perms_inputs');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const selectedCids = getSelectedConcernIds();
+    selectedCids.forEach(cid => {
+        const allowed = window.concernModules[cid] || [];
+        const perms = window.concernPerms[cid] || {};
+        allowed.forEach(mid => {
+            const p = perms[mid] || {};
+            ['view', 'add', 'edit', 'delete'].forEach(act => {
+                if (p[act] === 1) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = `perms[${cid}][${mid}][${act}]`;
+                    input.value = '1';
+                    container.appendChild(input);
+                }
+            });
+        });
+    });
+
+    // Remove name attribute from visible table checkboxes so they don't overwrite perms array
+    document.querySelectorAll('.matrix-perm-check').forEach(cb => {
+        cb.removeAttribute('name');
+    });
+}
+
+// Prevent browser password manager from automatically filling saved admin credentials
+document.addEventListener('DOMContentLoaded', () => {
+    const clearAutofill = () => {
+        const hasOld = <?= !empty($oldInput['email']) || !empty($oldInput['name']) ? 'true' : 'false' ?>;
+        if (hasOld) return; // Retain user's entered form data when returning from validation error
+        const emailEl = document.getElementById('staff_create_email');
+        const passEl = document.getElementById('staff_create_password');
+        if (emailEl) emailEl.value = '';
+        if (passEl) passEl.value = '';
+    };
+    clearAutofill();
+    setTimeout(clearAutofill, 50);
+    setTimeout(clearAutofill, 200);
+
+    const staffForm = document.querySelector('form[action*="/m/staff/store"]');
+    if (staffForm) {
+        staffForm.addEventListener('submit', (e) => {
+            const selectedCids = getSelectedConcernIds();
+            if (selectedCids.length === 0) {
+                e.preventDefault();
+                alert('Please select at least one business concern for this staff member.');
+                return false;
+            }
+            preparePermsOnSubmit();
+            staffForm.querySelectorAll('[readonly]').forEach(el => el.removeAttribute('readonly'));
+        });
+    }
+});
 </script>

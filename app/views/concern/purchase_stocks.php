@@ -182,14 +182,14 @@
                     <input type="hidden" name="concern_id" value="<?= (int)$selectedCid ?>">
                 <?php endif; ?>
 
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-5">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                         <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Search by Code, Name, Pattern, Color, Bill #..." value="<?= htmlspecialchars($search) ?>">
                     </div>
                 </div>
 
-                <div class="col-6 col-md-3">
+                <div class="col-6 col-md-4">
                     <select name="supplier_id" class="form-select form-select-sm">
                         <option value="">-- All Suppliers --</option>
                         <?php foreach ($suppliers as $sup): ?>
@@ -200,19 +200,11 @@
                     </select>
                 </div>
 
-                <div class="col-6 col-md-2">
-                    <select name="status" class="form-select form-select-sm">
-                        <option value="" <?= ($statusFilter === '' || $statusFilter === 'in_stock') ? 'selected' : '' ?>>In Stock (Completed)</option>
-                        <option value="pending" <?= ($statusFilter === 'pending') ? 'selected' : '' ?>>Pending Inward (Awaiting Add to Stock)</option>
-                        <option value="all" <?= ($statusFilter === 'all') ? 'selected' : '' ?>>All Purchase Items</option>
-                    </select>
-                </div>
-
-                <div class="col-12 col-md-3 d-flex gap-2">
+                <div class="col-6 col-md-3 d-flex gap-2">
                     <button type="submit" class="btn btn-sm btn-primary px-3 rounded-2 fw-semibold shadow-sm">
                         <i class="bi bi-funnel me-1"></i> Filter
                     </button>
-                    <?php if (!empty($search) || !empty($supplierFilter) || !empty($statusFilter)): ?>
+                    <?php if (!empty($search) || !empty($supplierFilter)): ?>
                         <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=' . $activeTab . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-sm btn-outline-secondary px-2 rounded-2">
                             Reset
                         </a>
@@ -225,20 +217,11 @@
         <!-- TAB SECTION 1: FABRIC ROLLS                    -->
         <!-- ============================================== -->
         <?php if ($activeTab === 'rolls'): ?>
-            <div class="card-body p-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="fw-bold small text-dark"><i class="bi bi-stack text-primary me-1"></i> Stock Registry Mode:</span>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn <?= $rollViewMode === 'consolidated' ? 'btn-primary' : 'btn-outline-secondary bg-white' ?> fw-semibold" id="btnRollConsolidated" onclick="switchRollView('consolidated')">
-                            <i class="bi bi-collection-fill me-1"></i> Consolidated by Color & Design (Accumulated Stock)
-                        </button>
-                        <button type="button" class="btn <?= $rollViewMode === 'detailed' ? 'btn-primary' : 'btn-outline-secondary bg-white' ?> fw-semibold" id="btnRollDetailed" onclick="switchRollView('detailed')">
-                            <i class="bi bi-list-columns-reverse me-1"></i> Individual Roll Batches
-                        </button>
-                    </div>
-                </div>
+            <div class="card-body p-2 px-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
                 <div class="d-flex align-items-center gap-2">
                     <span class="text-muted small"><i class="bi bi-info-circle text-primary me-1"></i> Duplicate entries automatically accumulated with previous count.</span>
+                </div>
+                <div>
                     <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=rolls&mode=consolidated' . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-sm btn-outline-success bg-white shadow-sm fw-semibold" title="Export Consolidated Stock by Color & Design">
                         <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Consolidated (CSV)
                     </a>
@@ -246,7 +229,7 @@
             </div>
 
             <!-- View A: Consolidated Color & Design Stock (Duplicates removed, Qty added to previous count) -->
-            <div id="viewRollConsolidated" class="card-body p-0" style="<?= $rollViewMode === 'detailed' ? 'display: none;' : '' ?>">
+            <div id="viewRollConsolidated" class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover table-bordered table-sm align-middle mb-0 text-center small">
                         <thead class="table-light">

@@ -18,6 +18,10 @@ use App\Controllers\CatalogMappingController;
 use App\Controllers\FinanceController;
 use App\Controllers\DamageController;
 use App\Controllers\StaffController;
+use App\Controllers\ProductionReturnController;
+use App\Controllers\ProductionStockRequestController;
+use App\Controllers\WarehouseDamageController;
+use App\Controllers\ShopDamageController;
 use App\Controllers\BatchController;
 use App\Controllers\OutwardController;
 
@@ -87,6 +91,9 @@ $router->post('/api/qr/lookup', [LabelController::class, 'lookup'], 'stocks', 'v
 
 // Stock & Ledger
 $router->get('/m/stocks', [StockController::class, 'index'], 'stocks', 'view');
+$router->get('/m/stocks/view-label', [LabelController::class, 'previewPurchaseFinishedGoodLabel'], 'stocks', 'view');
+$router->post('/m/stocks/update-quantity', [StockController::class, 'updateQuantity'], 'stocks', 'edit');
+$router->post('/m/stocks/delete-line', [StockController::class, 'deleteStockLine'], 'stocks', 'edit');
 $router->get('/m/stocks/export', [StockController::class, 'exportStocks'], 'stocks', 'view');
 $router->get('/m/stock_ledger', [StockController::class, 'ledger'], 'stocks', 'view');
 $router->get('/m/stock_ledger/export', [StockController::class, 'exportLedger'], 'stocks', 'view');
@@ -131,6 +138,7 @@ $router->post('/m/purchase_stocks/update_item', [PurchaseStockController::class,
 $router->get('/m/purchase_stocks/export', [PurchaseStockController::class, 'export'], 'purchase_stocks', 'view');
 
 $router->get('/m/purchase_damage', [PurchaseController::class, 'damage'], 'purchase_damage', 'view');
+$router->get('/m/purchase_damage/export', [PurchaseController::class, 'exportDamage'], 'purchase_damage', 'view');
 $router->post('/m/purchase_damage/scan', [PurchaseController::class, 'scanPurchaseDamageTag'], 'purchase_damage', 'add');
 $router->post('/m/purchase_damage/reasons/add', [PurchaseController::class, 'addDamageReason'], 'purchase_damage', 'add');
 $router->post('/m/purchase_damage/store', [PurchaseController::class, 'storeDamage'], 'purchase_damage', 'add');
@@ -139,10 +147,33 @@ $router->post('/m/purchase_damage/delete', [PurchaseController::class, 'deleteDa
 
 // Concern Damage
 $router->get('/m/concern_damage', [DamageController::class, 'index'], 'concern_damage', 'view');
+$router->get('/m/concern_damage/new', [DamageController::class, 'entry'], 'concern_damage', 'add');
 $router->get('/m/concern_damage/export', [DamageController::class, 'exportConcernDamage'], 'concern_damage', 'view');
+$router->post('/m/concern_damage/scan', [DamageController::class, 'scan'], 'concern_damage', 'add');
 $router->post('/m/concern_damage/store', [DamageController::class, 'store'], 'concern_damage', 'add');
 $router->post('/m/concern_damage/update', [DamageController::class, 'update'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/delete', [DamageController::class, 'delete'], 'concern_damage', 'delete');
+$router->post('/m/concern_damage/resolve', [DamageController::class, 'resolve'], 'concern_damage', 'edit');
+$router->post('/m/concern_damage/inward-replacement', [DamageController::class, 'inwardReplacement'], 'concern_damage', 'edit');
+$router->post('/m/concern_damage/cancel', [DamageController::class, 'cancel'], 'concern_damage', 'delete');
+
+// Warehouse Damage
+$router->get('/warehouse/damages', [WarehouseDamageController::class, 'index'], 'warehouse_damage', 'view');
+$router->get('/m/warehouse_damage', [WarehouseDamageController::class, 'index'], 'warehouse_damage', 'view');
+$router->post('/warehouse/damages/store', [WarehouseDamageController::class, 'store'], 'warehouse_damage', 'add');
+$router->post('/warehouse/damages/resolve', [WarehouseDamageController::class, 'resolve'], 'warehouse_damage', 'edit');
+$router->post('/warehouse/damages/inward-replacement', [WarehouseDamageController::class, 'inwardReplacement'], 'warehouse_damage', 'edit');
+$router->post('/warehouse/damages/cancel', [WarehouseDamageController::class, 'cancel'], 'warehouse_damage', 'delete');
+$router->get('/warehouse/damages/print/{id}', [WarehouseDamageController::class, 'print'], 'warehouse_damage', 'view');
+
+// Shop Damage
+$router->get('/shop/damages', [ShopDamageController::class, 'index'], 'shop_damage', 'view');
+$router->get('/m/shop_damage', [ShopDamageController::class, 'index'], 'shop_damage', 'view');
+$router->post('/shop/damages/store', [ShopDamageController::class, 'store'], 'shop_damage', 'add');
+$router->post('/shop/damages/resolve', [ShopDamageController::class, 'resolve'], 'shop_damage', 'edit');
+$router->post('/shop/damages/inward-replacement', [ShopDamageController::class, 'inwardReplacement'], 'shop_damage', 'edit');
+$router->post('/shop/damages/cancel', [ShopDamageController::class, 'cancel'], 'shop_damage', 'delete');
+$router->get('/shop/damages/print/{id}', [ShopDamageController::class, 'print'], 'shop_damage', 'view');
 
 // Sales & Distribution / Shop
 $router->get('/m/customers', [SalesController::class, 'customers'], 'customers', 'view');
@@ -155,6 +186,16 @@ $router->post('/m/customers/delete', [SalesController::class, 'deleteCustomer'],
 $router->post('/shop/customers/delete', [SalesController::class, 'deleteCustomer'], 'customers', 'delete');
 $router->get('/m/customers/export', [SalesController::class, 'exportCustomers'], 'customers', 'view');
 $router->get('/api/customers/details', [SalesController::class, 'customerProfile'], 'customers', 'view');
+// Stock Requests & Inter-Module Movement
+$router->get('/production/stock-requests', [ProductionStockRequestController::class, 'index'], 'request', 'view');
+$router->get('/production/stock-requests/create', [ProductionStockRequestController::class, 'create'], 'request', 'add');
+$router->post('/production/stock-requests/store', [ProductionStockRequestController::class, 'store'], 'request', 'add');
+$router->get('/production/stock-requests/view/{id}', [ProductionStockRequestController::class, 'view'], 'request', 'view');
+$router->post('/production/stock-requests/send', [ProductionStockRequestController::class, 'sendStocks'], 'request', 'edit');
+$router->post('/production/stock-requests/receive', [ProductionStockRequestController::class, 'confirmReceived'], 'request', 'edit');
+$router->post('/production/stock-requests/reject', [ProductionStockRequestController::class, 'reject'], 'request', 'edit');
+$router->post('/production/stock-requests/cancel', [ProductionStockRequestController::class, 'cancel'], 'request', 'delete');
+$router->get('/production/stock-requests/print/{id}', [ProductionStockRequestController::class, 'printChallan'], 'request', 'view');
 $router->get('/m/request', [SalesController::class, 'request'], 'request', 'view');
 $router->get('/m/request/export', [SalesController::class, 'exportRequests'], 'request', 'view');
 $router->post('/m/request/store', [SalesController::class, 'storeRequest'], 'request', 'add');
@@ -206,6 +247,14 @@ $router->get('/m/dispatch/export', [SalesController::class, 'exportDispatch'], '
 $router->post('/m/dispatch/store', [SalesController::class, 'storeDispatch'], 'dispatch', 'add');
 $router->post('/m/dispatch/update', [SalesController::class, 'updateDispatch'], 'dispatch', 'edit');
 $router->post('/m/dispatch/delete', [SalesController::class, 'deleteDispatch'], 'dispatch', 'delete');
+// Return & Exchange (RMA)
+$router->get('/production/returns', [ProductionReturnController::class, 'index'], 'return_exchange', 'view');
+$router->get('/production/returns/create', [ProductionReturnController::class, 'create'], 'return_exchange', 'add');
+$router->post('/production/returns/store', [ProductionReturnController::class, 'store'], 'return_exchange', 'add');
+$router->get('/production/returns/view/{id}', [ProductionReturnController::class, 'view'], 'return_exchange', 'view');
+$router->get('/production/returns/print/{id}', [ProductionReturnController::class, 'print'], 'return_exchange', 'view');
+$router->post('/production/returns/cancel', [ProductionReturnController::class, 'cancel'], 'return_exchange', 'delete');
+$router->get('/api/returns/lookup-bill', [ProductionReturnController::class, 'ajaxLookupBill'], 'return_exchange', 'view');
 $router->get('/m/return_exchange', [SalesController::class, 'returnExchange'], 'return_exchange', 'view');
 $router->get('/m/return_exchange/export', [SalesController::class, 'exportReturnExchange'], 'return_exchange', 'view');
 $router->post('/m/return_exchange/store', [SalesController::class, 'storeReturn'], 'return_exchange', 'add');

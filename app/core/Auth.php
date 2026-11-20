@@ -128,6 +128,22 @@ class Auth {
         }
     }
 
+    public static function currentConcernId(): ?int {
+        return self::concernId();
+    }
+
+    public static function currentWarehouseId(): int {
+        return (int)($_SESSION['active_warehouse_id'] ?? 1);
+    }
+
+    public static function currentShopId(): int {
+        return (int)($_SESSION['active_shop_id'] ?? 1);
+    }
+
+    public static function currentProductionUnitId(): ?int {
+        return self::productionUnitId() ?: 1;
+    }
+
     public static function allConcerns(): array {
         return DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
     }
@@ -249,13 +265,19 @@ class Auth {
         // 2. User-level permission overrides (NULL = inherit, 1 = grant, 0 = deny)
         $userMap = [];
         if ($userId > 0) {
-            $userPerms = DB::fetchAll(
-                "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
-                 FROM user_permissions up
-                 JOIN modules m ON up.module_id = m.id
-                 WHERE up.user_id = ?",
-                [$userId]
-            );
+            $cid = (int)($_SESSION['user']['concern_id'] ?? ($_SESSION['concern']['id'] ?? 0));
+            $params = [$userId];
+            $sql = "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
+                    FROM user_permissions up
+                    JOIN modules m ON up.module_id = m.id
+                    WHERE up.user_id = ?";
+            if ($cid > 0) {
+                $sql .= " AND (up.concern_id = ? OR up.concern_id IS NULL) ORDER BY (up.concern_id IS NOT NULL) ASC";
+                $params[] = $cid;
+            } else {
+                $sql .= " AND up.concern_id IS NULL";
+            }
+            $userPerms = DB::fetchAll($sql, $params);
             foreach ($userPerms as $up) {
                 $userMap[$up['code']] = [
                     'view'   => $up['can_view'] === null ? null : (int)$up['can_view'],
@@ -396,28 +418,38 @@ class Auth {
             return false;
         }
 
-        // Action normalization: support 'view', 'add'/'create', 'edit', 'delete'
+        // Action normalization: support 'view', 'add'/'create', 'edit', 'delete', plus operational actions
         $act = strtolower($action);
+        $actionAlias = null;
         if ($act === 'create') {
             $act = 'add';
+        } elseif (in_array($act, ['process', 'dispatch', 'receive', 'inward', 'resolve', 'inspect'], true)) {
+            $actionAlias = in_array($act, ['dispatch', 'receive', 'resolve', 'process']) ? 'edit' : 'add';
+        } elseif (in_array($act, ['cancel', 'reverse', 'reject'], true)) {
+            $actionAlias = 'delete';
         }
 
         // 1. Check user-specific granular overrides
-        // NULL = inherit from role, 1 = explicitly granted, 0 = explicitly denied
+        // If user has customized user_permissions, only explicitly granted actions are allowed
         $userPerms = $_SESSION['user_permissions'] ?? [];
-        if (isset($userPerms[$moduleCode]) && array_key_exists($act, $userPerms[$moduleCode])) {
-            $val = $userPerms[$moduleCode][$act];
-            if ($val === 1) {
-                return true; // Explicit grant overrides role default
+        if (!empty($userPerms)) {
+            if (isset($userPerms[$moduleCode]) && array_key_exists($act, $userPerms[$moduleCode])) {
+                return $userPerms[$moduleCode][$act] === 1;
             }
-            if ($val === 0) {
-                return false; // Explicit denial overrides role default
-            }
+            return false;
+        }
+        if ($actionAlias && isset($userPerms[$moduleCode]) && array_key_exists($actionAlias, $userPerms[$moduleCode])) {
+            $val = $userPerms[$moduleCode][$actionAlias];
+            if ($val === 1) return true;
+            if ($val === 0) return false;
         }
 
         // 2. Check role-level default permissions
         $rolePerms = $_SESSION['role_permissions'] ?? [];
         if (isset($rolePerms[$moduleCode]) && !empty($rolePerms[$moduleCode][$act])) {
+            return true;
+        }
+        if ($actionAlias && isset($rolePerms[$moduleCode]) && !empty($rolePerms[$moduleCode][$actionAlias])) {
             return true;
         }
 

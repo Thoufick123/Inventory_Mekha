@@ -1,5 +1,7 @@
 <?php
-// app/services/StockService.php - Single stock gateway
+// app/services/StockService.php - Single stock gateway with atomic multi-line batch movements
+
+declare(strict_types=1);
 
 namespace App\Services;
 
@@ -17,7 +19,7 @@ class StockService {
      * @param string $location
      * @param float $qtyIn
      * @param float $qtyOut
-     * @param string $refModule e.g. 'Inward', 'Outward', 'Purchase Damage', 'Concern Damage', 'QC Stocks', 'Return & Exchange', 'Cutting'
+     * @param string $refModule e.g. 'Inward', 'Outward', 'Purchase Damage', 'Concern Damage', 'Warehouse Damage', 'Shop Damage', 'Return & Exchange', 'Stock Request', 'Cutting'
      * @param int|null $refId
      * @param string|null $note
      * @param int|null $userId
@@ -70,7 +72,7 @@ class StockService {
             $newQty = $currentQty + $qtyIn - $qtyOut;
 
             if ($newQty < 0) {
-                throw new Exception("Insufficient stock for '{$var['name']}' ({$var['sku_code']}). Available: {$currentQty}, Requested: {$qtyOut}");
+                throw new Exception("Insufficient stock for '{$var['name']}' ({$var['sku_code']}) at '{$location}'. Available: {$currentQty}, Requested: {$qtyOut}");
             }
 
             // 3. Update or Insert stocks record
@@ -94,13 +96,133 @@ class StockService {
             );
 
             // Audit
-            AuditLog::log('STOCK_MOVE', 'stocks', $variantId, ['old_qty' => $currentQty], ['new_qty' => $newQty, 'ref_module' => $refModule, 'ref_id' => $refId]);
+            AuditLog::log('STOCK_MOVE', 'stocks', $variantId, ['old_qty' => $currentQty, 'location' => $location], ['new_qty' => $newQty, 'location' => $location, 'ref_module' => $refModule, 'ref_id' => $refId]);
 
             if (!$hasActiveTx) {
                 DB::commit();
             }
 
             return $newQty;
+        } catch (\Throwable $e) {
+            if (!$hasActiveTx) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Move stock with explicit audit metadata.
+     */
+    public static function moveWithAudit(
+        int $concernId,
+        int $variantId,
+        string $location,
+        float $qtyIn,
+        float $qtyOut,
+        string $refModule,
+        ?int $refId = null,
+        ?string $note = null,
+        ?int $userId = null
+    ): float {
+        return self::move($concernId, $variantId, $location, $qtyIn, $qtyOut, $refModule, $refId, $note, $userId);
+    }
+
+    /**
+     * Atomically transfer multiple stock lines across locations in a single transaction.
+     * Prevents partial dispatches / receipts and guarantees double-entry ledger balance.
+     *
+     * @param int $concernId
+     * @param array $lines Each element: ['variant_id' => int, 'from_location' => string, 'to_location' => string, 'qty' => float, 'note' => ?string]
+     * @param string $refModule e.g. 'Stock Request', 'Damage Resolution', 'Return & Exchange', 'Warehouse Transfer'
+     * @param int|null $refId
+     * @param string|null $note
+     * @param int|null $userId
+     * @return array Array of execution details
+     * @throws Exception
+     */
+    public static function transferBatch(
+        int $concernId,
+        array $lines,
+        string $refModule,
+        ?int $refId = null,
+        ?string $note = null,
+        ?int $userId = null
+    ): array {
+        if (empty($lines)) {
+            return [];
+        }
+
+        $userId = $userId ?? Auth::id();
+        $hasActiveTx = DB::pdo()->inTransaction();
+        if (!$hasActiveTx) {
+            DB::beginTransaction();
+        }
+
+        $results = [];
+
+        try {
+            foreach ($lines as $index => $line) {
+                $variantId = (int)($line['variant_id'] ?? 0);
+                $fromLocation = trim((string)($line['from_location'] ?? ''));
+                $toLocation = trim((string)($line['to_location'] ?? ''));
+                $qty = (float)($line['qty'] ?? 0);
+                $lineNote = trim((string)($line['note'] ?? $note ?? ''));
+
+                if ($variantId <= 0) {
+                    throw new Exception("Batch transfer line #{$index}: Invalid variant ID.");
+                }
+                if ($qty <= 0) {
+                    continue; // Skip zero quantity lines
+                }
+                if ($fromLocation === '' || $toLocation === '') {
+                    throw new Exception("Batch transfer line #{$index}: Both from_location and to_location are required.");
+                }
+                if ($fromLocation === $toLocation) {
+                    throw new Exception("Batch transfer line #{$index}: Cannot transfer to the same location ('{$fromLocation}').");
+                }
+
+                // 1. Debit from source location
+                $sourceBalAfter = self::move(
+                    $concernId,
+                    $variantId,
+                    $fromLocation,
+                    0.00,
+                    $qty,
+                    $refModule,
+                    $refId,
+                    "Transfer OUT to '{$toLocation}': {$lineNote}",
+                    $userId
+                );
+
+                // 2. Credit to destination location
+                $destBalAfter = self::move(
+                    $concernId,
+                    $variantId,
+                    $toLocation,
+                    $qty,
+                    0.00,
+                    $refModule,
+                    $refId,
+                    "Transfer IN from '{$fromLocation}': {$lineNote}",
+                    $userId
+                );
+
+                $results[] = [
+                    'variant_id' => $variantId,
+                    'qty' => $qty,
+                    'from_location' => $fromLocation,
+                    'to_location' => $toLocation,
+                    'source_balance' => $sourceBalAfter,
+                    'dest_balance' => $destBalAfter,
+                ];
+            }
+
+            if (!$hasActiveTx) {
+                DB::commit();
+            }
+
+            return $results;
         } catch (\Throwable $e) {
             if (!$hasActiveTx) {
                 DB::rollBack();
@@ -163,9 +285,66 @@ class StockService {
     }
 
     /**
-     * Helper to format consistent location keys (e.g. "Main Store", "PRODUCTION_UNIT:2", "WAREHOUSE:1:IN_TRANSIT")
+     * Alias for available stock check.
      */
-    private static function formatLocation(string $locationType, $locationTarget, string $stockState = 'AVAILABLE'): string {
+    public static function getAvailable(
+        int $variantId,
+        string $locationType = 'WAREHOUSE',
+        $locationTarget = 'Main Store',
+        ?int $concernId = null,
+        string $stockState = 'AVAILABLE'
+    ): float {
+        return self::getBalance($variantId, $locationType, $locationTarget, $stockState, $concernId);
+    }
+
+    /**
+     * Reserve stock at source location (marks as RESERVED).
+     */
+    public static function reserve(
+        int $concernId,
+        int $variantId,
+        string $location,
+        float $qty,
+        string $refModule,
+        ?int $refId = null
+    ): void {
+        $availLoc = self::formatLocation('', $location, 'AVAILABLE');
+        $resLoc = self::formatLocation('', $location, 'RESERVED');
+        self::transferBatch(
+            $concernId,
+            [['variant_id' => $variantId, 'from_location' => $availLoc, 'to_location' => $resLoc, 'qty' => $qty]],
+            $refModule,
+            $refId,
+            "Reserved stock"
+        );
+    }
+
+    /**
+     * Release reserved stock back to available.
+     */
+    public static function release(
+        int $concernId,
+        int $variantId,
+        string $location,
+        float $qty,
+        string $refModule,
+        ?int $refId = null
+    ): void {
+        $availLoc = self::formatLocation('', $location, 'AVAILABLE');
+        $resLoc = self::formatLocation('', $location, 'RESERVED');
+        self::transferBatch(
+            $concernId,
+            [['variant_id' => $variantId, 'from_location' => $resLoc, 'to_location' => $availLoc, 'qty' => $qty]],
+            $refModule,
+            $refId,
+            "Released reserved stock"
+        );
+    }
+
+    /**
+     * Helper to format consistent location keys (e.g. "Main Store", "PRODUCTION_UNIT:2", "WAREHOUSE:1:IN_TRANSIT", "SHOP:1:DAMAGED")
+     */
+    public static function formatLocation(string $locationType, $locationTarget, string $stockState = 'AVAILABLE'): string {
         $type = strtoupper(trim($locationType));
         $target = $locationTarget !== null ? trim((string)$locationTarget) : '';
 
@@ -175,8 +354,12 @@ class StockService {
             $base = $target !== '' ? "{$type}:{$target}" : $type;
         }
 
-        if (strtoupper($stockState) !== 'AVAILABLE') {
-            $base .= ':' . strtoupper(trim($stockState));
+        $cleanState = strtoupper(trim($stockState));
+        if ($cleanState !== '' && $cleanState !== 'AVAILABLE') {
+            // Avoid double suffix if already contains state
+            if (!str_ends_with($base, ":{$cleanState}")) {
+                $base .= ':' . $cleanState;
+            }
         }
         return $base;
     }

@@ -128,7 +128,7 @@
                                 <div>
                                     <h6 class="fw-bold text-dark mb-0 fs-6"><?= htmlspecialchars($c['name']) ?></h6>
                                     <small class="text-muted d-block" style="font-size: 0.78rem;">
-                                        <?= $isShop ? '<i class="bi bi-arrow-right-circle text-success me-1"></i>Opens directly into Shop POS' : '<i class="bi bi-arrow-right-circle text-primary me-1"></i>Opens Concern Dashboard' ?>
+                                        <i class="bi bi-speedometer2 text-primary me-1"></i>Opens Concern Dashboard
                                     </small>
                                 </div>
                             </div>

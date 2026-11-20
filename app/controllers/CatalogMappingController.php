@@ -7,7 +7,6 @@ use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Services\AuditLog;
-use App\Services\StockService;
 use Exception;
 
 class CatalogMappingController extends Controller
@@ -310,9 +309,12 @@ class CatalogMappingController extends Controller
                        pb.bill_no, pb.bill_date, pb.supplier_id, pb.supplier_invoice_no, pb.payment_status, pb.inward_status AS bill_inward_status,
                        pb.payment_method, pb.paid_amount, pb.total_amount AS bill_total_amount, pb.tax_amount AS bill_tax_amount,
                        s.name AS supplier_name, s.phone AS supplier_phone, s.email AS supplier_email, s.gstin AS supplier_gstin, s.city AS supplier_city, s.state AS supplier_state, s.address AS supplier_address,
-                       cm.id AS mapping_id, cm.catalog_id AS mapped_catalog_id, cm.selected_sizes, cm.selected_color,
+                       cm.id AS mapping_id, COALESCE(cm.catalog_id, pbi.catalog_id) AS mapped_catalog_id, cm.selected_sizes, cm.selected_color,
                        c.name AS catalog_name, c.style_code AS catalog_style_code, c.short_code AS catalog_short_code,
-                       c.hierarchy_path, c.category_id AS mapped_cat_id, c.subcategory_id AS mapped_subcat_id, c.sub_sub_category_id AS mapped_subsub_id
+                       c.hierarchy_path, c.sizes AS catalog_sizes, c.hsn_code AS catalog_hsn_code, c.gst_rate AS catalog_gst_rate,
+                       c.main_category_code AS mapped_main_category_code, c.sub_category_code AS mapped_sub_category_code,
+                       c.sub_sub_category_code AS mapped_sub_sub_category_code,
+                       c.category_id AS mapped_cat_id, c.subcategory_id AS mapped_subcat_id, c.sub_sub_category_id AS mapped_subsub_id
                 FROM purchase_bill_items pbi
                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                 LEFT JOIN suppliers s ON pb.supplier_id = s.id
@@ -326,6 +328,58 @@ class CatalogMappingController extends Controller
             $this->redirect('/production/catalog-mapping');
         }
         $cid = $cid ?: (int) ($item['concern_id'] ?? 1);
+
+        $existingVariantRows = [];
+        $catalogId = (int) ($item['mapped_catalog_id'] ?? 0);
+        if ($catalogId > 0) {
+            $savedVariants = DB::fetchAll(
+                "SELECT sku_code, name, size, weight, price, mrp, attributes
+                 FROM variants
+                 WHERE concern_id = ? AND catalog_id = ? AND status = 'active'
+                 ORDER BY id ASC",
+                [$cid, $catalogId]
+            );
+            foreach ($savedVariants as $variant) {
+                $variantAttributes = json_decode((string) ($variant['attributes'] ?? ''), true);
+                $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
+                $normalizedCustomAttributes = [];
+                foreach ($variantAttributes as $type => $value) {
+                    $type = strtolower(trim((string) $type));
+                    if (
+                        $type === '' ||
+                        in_array($type, ['color', 'size', 'hsn', 'weight', 'allocated_qty', 'custom_attributes'], true) ||
+                        !is_scalar($value)
+                    ) {
+                        continue;
+                    }
+                    $normalizedCustomAttributes[$type] = trim((string) $value);
+                }
+                $customAttributes = $variantAttributes['custom_attributes'] ?? [];
+                $customAttributes = is_array($customAttributes) ? $customAttributes : [];
+                foreach ($customAttributes as $type => $value) {
+                    $type = strtolower(trim((string) $type));
+                    if (!is_scalar($value)) {
+                        continue;
+                    }
+                    $value = trim((string) $value);
+                    if ($type !== '' && $value !== '') {
+                        $normalizedCustomAttributes[$type] = $value;
+                    }
+                }
+                $existingVariantRows[] = [
+                    'sku' => (string) ($variant['sku_code'] ?? ''),
+                    'name' => (string) ($variant['name'] ?? ''),
+                    'size' => (string) ($variant['size'] ?? ''),
+                    'color' => (string) ($variantAttributes['color'] ?? ''),
+                    'weight' => (string) ($variant['weight'] ?? ''),
+                    'hsn' => (string) ($variantAttributes['hsn'] ?? ''),
+                    'mrp' => (string) ($variant['mrp'] ?? ''),
+                    'selling_price' => (string) ($variant['price'] ?? ''),
+                    'qty' => isset($variantAttributes['allocated_qty']) ? (float) $variantAttributes['allocated_qty'] : null,
+                    'custom_attributes' => $normalizedCustomAttributes,
+                ];
+            }
+        }
 
         // Use values already entered on the purchase item; do not infer preset colors.
         $resolvedColor = !empty($item['selected_color'])
@@ -354,6 +408,32 @@ class CatalogMappingController extends Controller
                 if ($size !== '' && !in_array($size, $allSizes, true)) {
                     $allSizes[] = $size;
                 }
+            }
+        }
+        $storedSizes = json_decode((string) ($item['selected_sizes'] ?? ''), true);
+        if (!is_array($storedSizes)) {
+            $storedSizes = preg_split('/[,;|]+/', (string) ($item['selected_sizes'] ?? ''));
+        }
+        $catalogSizes = json_decode((string) ($item['catalog_sizes'] ?? ''), true);
+        if (!is_array($catalogSizes)) {
+            $catalogSizes = preg_split('/[,;|]+/', (string) ($item['catalog_sizes'] ?? ''));
+        }
+        $selectedSizes = [];
+        foreach (array_merge($storedSizes, $catalogSizes) as $size) {
+            $size = trim((string) $size);
+            if ($size !== '' && !in_array($size, $selectedSizes, true)) {
+                $selectedSizes[] = $size;
+            }
+        }
+        foreach ($existingVariantRows as $variant) {
+            $size = trim($variant['size']);
+            if ($size !== '' && !in_array($size, $selectedSizes, true)) {
+                $selectedSizes[] = $size;
+            }
+        }
+        foreach ($selectedSizes as $size) {
+            if (!in_array($size, $allSizes, true)) {
+                $allSizes[] = $size;
             }
         }
 
@@ -386,6 +466,18 @@ class CatalogMappingController extends Controller
                 $colorAttributeKeys[$key] = true;
             }
         }
+        foreach ($existingVariantRows as $variant) {
+            $color = trim($variant['color']);
+            $key = strtolower($color);
+            if ($color === '') {
+                continue;
+            }
+            $resolvedColors[$key] = true;
+            if (!isset($colorAttributeKeys[$key])) {
+                $colorAttributes[] = $color;
+                $colorAttributeKeys[$key] = true;
+            }
+        }
 
         // Group all other dynamic attribute types
         $otherAttributes = [];
@@ -399,6 +491,18 @@ class CatalogMappingController extends Controller
                 if ($rv !== '' && !in_array($rv, $otherAttributes[$t] ?? [], true)) {
                     $otherAttributes[$t][] = $rv;
                 }
+            }
+        }
+        $selectedOtherAttributes = [];
+        foreach ($existingVariantRows as $variant) {
+            foreach ($variant['custom_attributes'] as $type => $value) {
+                if (!isset($otherAttributes[$type])) {
+                    $otherAttributes[$type] = [];
+                }
+                if (!in_array($value, $otherAttributes[$type], true)) {
+                    $otherAttributes[$type][] = $value;
+                }
+                $selectedOtherAttributes[$type][$value] = true;
             }
         }
 
@@ -415,6 +519,9 @@ class CatalogMappingController extends Controller
             'colorAttributes' => $colorAttributes,
             'resolvedColors' => $resolvedColors,
             'otherAttributes' => $otherAttributes,
+            'selectedSizes' => $selectedSizes,
+            'selectedOtherAttributes' => $selectedOtherAttributes,
+            'existingVariantRows' => $existingVariantRows,
             'selectedCid' => $cid,
         ]);
     }
@@ -534,8 +641,31 @@ class CatalogMappingController extends Controller
             $variantHsns = $_POST['variant_hsns'] ?? [];
             $variantMrps = $_POST['variant_mrps'] ?? [];
             $variantSellingPrices = $_POST['variant_selling_prices'] ?? [];
+            $variantAttributeTypes = $_POST['variant_attribute_types'] ?? [];
+            $variantAttributeValues = $_POST['variant_attribute_values'] ?? [];
             if (!is_array($variantSkus) || empty($variantSkus) || !is_array($variantSizes) || !is_array($variantColors)) {
                 throw new Exception('Select at least one size attribute to generate catalog variants.');
+            }
+            if (!is_array($variantAttributeTypes) || !is_array($variantAttributeValues)) {
+                throw new Exception('Submitted variant attributes are invalid.');
+            }
+
+            $variantCustomAttributes = [];
+            foreach ($variantSkus as $variantKey => $_skuInput) {
+                $types = $variantAttributeTypes[$variantKey] ?? [];
+                $values = $variantAttributeValues[$variantKey] ?? [];
+                if (!is_array($types) || !is_array($values) || count($types) !== count($values)) {
+                    throw new Exception('Submitted variant attributes are incomplete.');
+                }
+                $variantCustomAttributes[$variantKey] = [];
+                foreach ($types as $index => $type) {
+                    $type = strtolower(trim((string) $type));
+                    $value = trim((string) ($values[$index] ?? ''));
+                    if ($type === '' || $value === '') {
+                        throw new Exception('Every selected variant attribute must have a value.');
+                    }
+                    $variantCustomAttributes[$variantKey][$type] = $value;
+                }
             }
 
             // Strict Validation 1: Qty Validation - sum of variant quantities must equal purchased total qty
@@ -592,6 +722,11 @@ class CatalogMappingController extends Controller
                     $values
                 );
             }
+            foreach ($variantCustomAttributes as $customValues) {
+                foreach ($customValues as $attributeType => $value) {
+                    $attributeValues[$attributeType][] = $value;
+                }
+            }
             $this->syncMappingAttributes($cid, $attributeValues);
 
             // Insert or update catalogs
@@ -629,7 +764,7 @@ class CatalogMappingController extends Controller
                 $catalogId = (int) DB::lastInsertId();
             }
 
-            // Generate / synchronize selected color-size variants.
+            // Generate / synchronize selected multi-attribute variants.
 
             $firstMrp = null;
             $firstPrice = null;
@@ -661,7 +796,8 @@ class CatalogMappingController extends Controller
                     'color' => $varColor,
                     'hsn' => $varHsn,
                     'weight' => $varWeight,
-                    'allocated_qty' => $varQty
+                    'allocated_qty' => $varQty,
+                    'custom_attributes' => $variantCustomAttributes[$variantKey] ?? [],
                 ]));
 
                 $existingVariants = DB::fetchAll(
@@ -671,7 +807,25 @@ class CatalogMappingController extends Controller
                 $existVar = null;
                 foreach ($existingVariants as $candidate) {
                     $candidateAttributes = json_decode((string) ($candidate['attributes'] ?? ''), true);
-                    if (strcasecmp(trim((string) ($candidateAttributes['color'] ?? '')), $varColor) === 0) {
+                    $candidateCustomAttributes = $candidateAttributes['custom_attributes'] ?? [];
+                    $currentCustomAttributes = $variantCustomAttributes[$variantKey] ?? [];
+                    if (!is_array($candidateCustomAttributes)) {
+                        $candidateCustomAttributes = [];
+                    }
+                    $normalizedCandidateAttributes = [];
+                    foreach ($candidateCustomAttributes as $type => $value) {
+                        $normalizedCandidateAttributes[strtolower(trim((string) $type))] = strtolower(trim((string) $value));
+                    }
+                    $normalizedCurrentAttributes = [];
+                    foreach ($currentCustomAttributes as $type => $value) {
+                        $normalizedCurrentAttributes[strtolower(trim((string) $type))] = strtolower(trim((string) $value));
+                    }
+                    ksort($normalizedCandidateAttributes);
+                    ksort($normalizedCurrentAttributes);
+                    if (
+                        strcasecmp(trim((string) ($candidateAttributes['color'] ?? '')), $varColor) === 0
+                        && $normalizedCandidateAttributes === $normalizedCurrentAttributes
+                    ) {
                         $existVar = $candidate;
                         break;
                     }
@@ -745,25 +899,6 @@ class CatalogMappingController extends Controller
                         Auth::id()
                     ]
                 );
-            }
-
-            // Sync with physical inventory stocks using StockService::move
-            if ($primaryVariantId && (float) $item['qty'] > 0) {
-                try {
-                    StockService::move(
-                        $cid,
-                        $primaryVariantId,
-                        'Main Store',
-                        (float) $item['qty'],
-                        0.0,
-                        'catalog_mapping',
-                        $itemId,
-                        "Finished Goods Inward via Catalog Mapping from Bill #{$item['purchase_bill_id']}",
-                        Auth::id()
-                    );
-                } catch (\Throwable $stkEx) {
-                    error_log('StockService notice: ' . $stkEx->getMessage());
-                }
             }
 
             // Audit Log

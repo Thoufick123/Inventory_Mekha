@@ -53,6 +53,12 @@ $_SESSION['user'] = [
     'concern_id' => $concernId
 ];
 $_SESSION['enabled_modules'] = ['purchase_billing', 'label_generation', 'purchase_stocks', 'stocks'];
+$_SESSION['user_permissions'] = [
+    'purchase_billing' => ['view' => 1, 'add' => 1, 'edit' => 1, 'delete' => 1],
+    'purchase_stocks'  => ['view' => 1, 'add' => 1, 'edit' => 1, 'delete' => 1],
+    'label_generation' => ['view' => 1, 'add' => 1, 'edit' => 1, 'delete' => 1],
+    'stocks'           => ['view' => 1, 'add' => 1, 'edit' => 1, 'delete' => 1],
+];
 
 assertTest("Concern setup for concern #{$concernId} ({$concernName})", $concernId > 0);
 
@@ -62,12 +68,17 @@ assertTest("Concern setup for concern #{$concernId} ({$concernName})", $concernI
 echo "\n--- Step 2: Create Purchase Bill with Rolls, Trims, & Finished Goods ---\n";
 $timeSuffix = time() . '_' . rand(100, 999);
 $billNo = "PB-INW-{$timeSuffix}";
+$supplierId = (int)(DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? LIMIT 1", [$concernId]) ?: DB::fetchValue("SELECT id FROM suppliers LIMIT 1"));
+if (!$supplierId) {
+    DB::query("INSERT INTO suppliers (concern_id, name, company_name, phone, status, created_at) VALUES (?, 'Inward Test Supplier', 'Supplier Co', '9876543210', 'active', NOW())", [$concernId]);
+    $supplierId = (int)DB::lastInsertId();
+}
 
 $db->prepare("INSERT INTO purchase_bills (
     concern_id, bill_no, supplier_id, bill_date, total_amount, tax_amount, net_amount,
     payment_status, payment_method, inward_status, created_by, created_at
-) VALUES (?, ?, 1, CURDATE(), 30000.00, 1500.00, 31500.00, 'unpaid', 'credit', 'pending', 1, NOW())")
-   ->execute([$concernId, $billNo]);
+) VALUES (?, ?, ?, CURDATE(), 30000.00, 1500.00, 31500.00, 'unpaid', 'credit', 'pending', 1, NOW())")
+   ->execute([$concernId, $billNo, $supplierId]);
 $billId = (int)$db->lastInsertId();
 assertTest("Purchase Bill inserted with ID #{$billId} and inward_status='pending'", $billId > 0);
 

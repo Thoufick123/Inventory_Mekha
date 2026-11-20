@@ -10,8 +10,8 @@ class ModuleRegistry
         return [
             ['code' => 'admin_dashboard', 'name' => 'Dashboard', 'icon' => 'bi-speedometer2', 'sort_order' => 1, 'group_name' => 'Super Admin', 'is_super_admin_only' => 1],
             ['code' => 'admin_concerns', 'name' => 'Concern Management', 'icon' => 'bi-buildings', 'sort_order' => 2, 'group_name' => 'Super Admin', 'is_super_admin_only' => 1],
-            ['code' => 'admin_assets', 'name' => 'Asset Management', 'icon' => 'bi-building-gear', 'sort_order' => 3, 'group_name' => 'Super Admin', 'is_super_admin_only' => 1],
-            ['code' => 'admin_reports', 'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line', 'sort_order' => 4, 'group_name' => 'Super Admin', 'is_super_admin_only' => 1],
+            ['code' => 'admin_assets', 'name' => 'Asset Management', 'icon' => 'bi-building-gear', 'sort_order' => 3, 'group_name' => 'Super Admin', 'is_super_admin_only' => 0],
+            ['code' => 'admin_reports', 'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line', 'sort_order' => 4, 'group_name' => 'Super Admin', 'is_super_admin_only' => 0],
 
             ['code' => 'concern_dashboard', 'name' => 'Concern Dashboard', 'icon' => 'bi-speedometer', 'sort_order' => 10, 'group_name' => 'Dashboard', 'is_super_admin_only' => 0],
             ['code' => 'suppliers', 'name' => 'Supplier', 'icon' => 'bi-truck', 'sort_order' => 20, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
@@ -27,7 +27,9 @@ class ModuleRegistry
             ['code' => 'inward', 'name' => 'Inward', 'icon' => 'bi-box-arrow-in-down', 'sort_order' => 40, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'stocks', 'name' => 'Stocks', 'icon' => 'bi-boxes', 'sort_order' => 41, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'concern_damage', 'name' => 'Concern Damage', 'icon' => 'bi-x-octagon', 'sort_order' => 42, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
-            ['code' => 'return_exchange', 'name' => 'Return & Exchange', 'icon' => 'bi-arrow-left-right', 'sort_order' => 43, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
+            ['code' => 'warehouse_damage', 'name' => 'Warehouse Damage', 'icon' => 'bi-shield-slash', 'sort_order' => 43, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
+            ['code' => 'shop_damage', 'name' => 'Shop Damage', 'icon' => 'bi-exclamation-octagon', 'sort_order' => 44, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
+            ['code' => 'return_exchange', 'name' => 'Return & Exchange', 'icon' => 'bi-arrow-left-right', 'sort_order' => 45, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'customers', 'name' => 'Customer Details', 'icon' => 'bi-people', 'sort_order' => 50, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
             ['code' => 'billing', 'name' => 'POS Billing', 'icon' => 'bi-calculator', 'sort_order' => 51, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
             ['code' => 'request', 'name' => 'Request', 'icon' => 'bi-file-earmark-text', 'sort_order' => 52, 'group_name' => 'Sales', 'is_super_admin_only' => 0],

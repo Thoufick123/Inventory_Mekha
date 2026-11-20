@@ -37,12 +37,19 @@ class PurchaseStockItemOverrideService {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 
-    public static function applyToItems(array $items): array {
+    public static function applyToItems(array $items, bool $initializeTable = true): array {
         if (!$items) {
             return $items;
         }
 
-        self::initTable();
+        if ($initializeTable) {
+            self::initTable();
+        } elseif (!(int)DB::fetchValue(
+            "SELECT COUNT(*) FROM information_schema.tables
+             WHERE table_schema = DATABASE() AND table_name = 'purchase_stock_item_overrides'"
+        )) {
+            return $items;
+        }
         $ids = array_values(array_unique(array_map(
             static fn(array $item): int => (int)$item['id'],
             $items

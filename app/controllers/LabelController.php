@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
+use App\Core\ModuleGuard;
 use App\Models\Variant;
 use App\Services\QrService;
 use App\Services\AuditLog;
@@ -169,13 +170,15 @@ class LabelController extends Controller {
         $fgSql = "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.inward_status AS bill_inward_status,
                          COALESCE(pbi.inward_status, pb.inward_status) AS inward_status,
                          s.name AS supplier_name, s.company_name AS supplier_company,
-                         v.sku_code, v.name AS variant_name, v.size AS variant_size, 
-                         v.price AS variant_price, v.mrp AS variant_mrp,
+                         fg_concern.name AS item_concern_name,
+                         v.sku_code, v.name AS variant_name, v.size AS variant_size, v.catalog_id AS variant_catalog_id,
+                         v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes,
                          v.category_id, v.subcategory_id,
                          c.name AS category_name, sc.name AS subcategory_name, b.name AS brand_name
                   FROM purchase_bill_items pbi
                   JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                   LEFT JOIN suppliers s ON pb.supplier_id = s.id
+                  LEFT JOIN concerns fg_concern ON fg_concern.id = pbi.concern_id
                   LEFT JOIN variants v ON pbi.variant_id = v.id
                   LEFT JOIN categories c ON v.category_id = c.id
                   LEFT JOIN subcategories sc ON v.subcategory_id = sc.id
@@ -192,6 +195,100 @@ class LabelController extends Controller {
             $fgSql .= " ORDER BY pbi.id DESC LIMIT 100";
         }
         $purchaseFgItems = PurchaseStockItemOverrideService::applyToItems(DB::fetchAll($fgSql, $fgParams));
+        $fgCatalogIds = [];
+        foreach ($purchaseFgItems as $fgItem) {
+            $catalogId = (int) ($fgItem['catalog_id'] ?? 0);
+            if ($catalogId <= 0) {
+                $catalogId = (int) ($fgItem['variant_catalog_id'] ?? 0);
+            }
+            if ($catalogId > 0) {
+                $fgCatalogIds[$catalogId] = $catalogId;
+            }
+        }
+        $fgVariantsByCatalog = [];
+        if ($fgCatalogIds) {
+            $catalogIdList = array_values($fgCatalogIds);
+            $catalogPlaceholders = implode(',', array_fill(0, count($catalogIdList), '?'));
+            $variantParams = $catalogIdList;
+            $variantWhere = "catalog_id IN ({$catalogPlaceholders}) AND status = 'active'";
+            if ($cid) {
+                array_unshift($variantParams, $cid);
+                $variantWhere = "concern_id = ? AND {$variantWhere}";
+            }
+            $mappedVariants = DB::fetchAll(
+                "SELECT catalog_id, sku_code, size, attributes
+                 FROM variants
+                 WHERE {$variantWhere}
+                 ORDER BY catalog_id ASC, id ASC",
+                $variantParams
+            );
+            foreach ($mappedVariants as $mappedVariant) {
+                $variantData = json_decode((string) ($mappedVariant['attributes'] ?? ''), true);
+                $variantData = is_array($variantData) ? $variantData : [];
+                $allocatedQty = max(0, (int) round((float) ($variantData['allocated_qty'] ?? 0)));
+                $details = [];
+                $color = trim((string) ($variantData['color'] ?? ''));
+                $size = trim((string) ($mappedVariant['size'] ?? ''));
+                if ($color !== '') {
+                    $details[] = $color;
+                }
+                if ($size !== '') {
+                    $details[] = $size;
+                }
+                $customAttributes = [];
+                foreach ($variantData as $attributeType => $attributeValue) {
+                    $attributeType = strtolower(trim((string) $attributeType));
+                    if (
+                        $attributeType === '' ||
+                        in_array($attributeType, ['color', 'size', 'hsn', 'weight', 'allocated_qty', 'custom_attributes'], true) ||
+                        !is_scalar($attributeValue)
+                    ) {
+                        continue;
+                    }
+                    $customAttributes[$attributeType] = trim((string) $attributeValue);
+                }
+                if (is_array($variantData['custom_attributes'] ?? null)) {
+                    $customAttributes = array_merge($customAttributes, $variantData['custom_attributes']);
+                }
+                foreach ($customAttributes as $attributeType => $attributeValue) {
+                    if (!is_scalar($attributeValue)) {
+                        continue;
+                    }
+                    $attributeValue = trim((string) $attributeValue);
+                    if ($attributeValue !== '') {
+                        $details[] = ucwords(str_replace(['_', '-'], ' ', (string) $attributeType)) . ' ' . $attributeValue;
+                    }
+                }
+                $fgVariantsByCatalog[(int) $mappedVariant['catalog_id']][] = [
+                    'details' => implode(' / ', $details),
+                    'allocated_qty' => $allocatedQty,
+                ];
+            }
+        }
+        $fgVariantSummaries = [];
+        foreach ($fgVariantsByCatalog as $catalogId => $variants) {
+            $hasAllocations = array_sum(array_column($variants, 'allocated_qty')) > 0;
+            foreach ($variants as $variant) {
+                $quantity = $hasAllocations ? $variant['allocated_qty'] : 1;
+                $fgVariantSummaries[$catalogId][] = $variant['details'] . ' ×' . $quantity;
+            }
+        }
+        foreach ($purchaseFgItems as &$fgItem) {
+            $catalogId = (int) ($fgItem['catalog_id'] ?? 0);
+            if ($catalogId <= 0) {
+                $catalogId = (int) ($fgItem['variant_catalog_id'] ?? 0);
+            }
+            $variantSummary = $fgVariantSummaries[$catalogId] ?? [];
+            if (!$variantSummary) {
+                $fallbackDetails = array_filter([
+                    trim((string) ($fgItem['color'] ?? '')),
+                    trim((string) ($fgItem['variant_size'] ?? '')),
+                ]);
+                $variantSummary = [implode(' / ', $fallbackDetails) . ' ×' . max(0, (int) ($fgItem['qty'] ?? 0))];
+            }
+            $fgItem['mapped_variant_summary'] = implode(' · ', $variantSummary);
+        }
+        unset($fgItem);
 
         // 3. Production Labels (After-Stitching assembled garments)
         $this->ensureStitchingInwardSchema();
@@ -421,10 +518,77 @@ class LabelController extends Controller {
      */
     public function generate(): void {
         $this->validateCsrf();
-        PurchaseStockItemOverrideService::initTable();
+        $this->renderGeneratedLabels(false);
+    }
 
+    public function previewPurchaseFinishedGoodLabel(): void
+    {
+        ModuleGuard::enforce('stocks', 'view');
+
+        $itemId = filter_var($_GET['item_id'] ?? null, FILTER_VALIDATE_INT);
+        $variantId = filter_var($_GET['variant_id'] ?? null, FILTER_VALIDATE_INT);
+        $postedConcernId = filter_var($_GET['concern_id'] ?? null, FILTER_VALIDATE_INT);
+        $concernId = Auth::isSuperAdmin()
+            ? (int)($postedConcernId ?: 0)
+            : (int)(Auth::concernId() ?? 0);
+        if (
+            !$itemId || $itemId < 1 ||
+            !$variantId || $variantId < 1 ||
+            !$concernId ||
+            (!Auth::isSuperAdmin() && $postedConcernId && (int)$postedConcernId !== $concernId)
+        ) {
+            $this->flash('error', 'Select a valid purchase item and variant to preview its label.');
+            $this->redirect('/m/stocks');
+            return;
+        }
+
+        $item = DB::fetch(
+            "SELECT pbi.id, pbi.catalog_id, pbi.variant_id, primary_variant.catalog_id AS primary_catalog_id
+             FROM purchase_bill_items pbi
+             LEFT JOIN variants primary_variant ON primary_variant.id = pbi.variant_id
+             WHERE pbi.id = ? AND pbi.concern_id = ? AND pbi.section_type = 'finished_goods'",
+            [$itemId, $concernId]
+        );
+        $variant = DB::fetch(
+            "SELECT id, catalog_id FROM variants
+             WHERE id = ? AND concern_id = ? AND status = 'active'",
+            [$variantId, $concernId]
+        );
+        if (!$item || !$variant) {
+            $this->flash('error', 'The selected purchase item or variant could not be found.');
+            $this->redirect('/m/stocks');
+            return;
+        }
+        $catalogId = (int)($item['catalog_id'] ?: ($item['primary_catalog_id'] ?? 0));
+        if ((int)$item['variant_id'] !== $variantId && ($catalogId <= 0 || (int)$variant['catalog_id'] !== $catalogId)) {
+            $this->flash('error', 'The selected variant does not belong to this purchase item.');
+            $this->redirect('/m/stocks');
+            return;
+        }
+
+        $_POST = [
+            'label_type' => 'purchase_fg',
+            'item_id' => (string)$itemId,
+            'variant_id' => (string)$variantId,
+            'preview_variant_id' => (string)$variantId,
+            'preview_only' => '1',
+            'qty' => '1',
+        ];
+        $this->renderGeneratedLabels(true, $concernId);
+    }
+
+    private function renderGeneratedLabels(bool $previewOnly, ?int $previewConcernId = null): void
+    {
+        if (!$previewOnly) {
+            PurchaseStockItemOverrideService::initTable();
+        }
+
+        $previewVariantId = $previewOnly ? (int)($_POST['preview_variant_id'] ?? 0) : 0;
         $labelType  = trim($_POST['label_type'] ?? 'variant');
         $qty        = max(1, min(500, (int)($_POST['qty'] ?? 12)));
+        $multiLabels = [];
+        $variantCount = 0;
+        $batchNo = '';
         $rawItemId  = $_POST['item_id'] ?? 0;
         if (is_string($rawItemId) && strpos($rawItemId, 'prod_') === 0) {
             $itemId = (int)str_replace('prod_', '', $rawItemId);
@@ -433,7 +597,7 @@ class LabelController extends Controller {
             $itemId = (int)$rawItemId;
         }
         $variantId  = !empty($_POST['variant_id']) ? (int)$_POST['variant_id'] : null;
-        $cid        = Auth::concernId();
+        $cid        = $previewOnly ? $previewConcernId : Auth::concernId();
 
         $concern = Auth::concern();
         if (!$concern && $cid) {
@@ -487,7 +651,7 @@ class LabelController extends Controller {
                 return;
             }
 
-            $item = PurchaseStockItemOverrideService::applyToItems([$item])[0];
+            $item = PurchaseStockItemOverrideService::applyToItems([$item], !$previewOnly)[0];
             $cid = $cid ?: (int)$item['concern_id'];
             $isRoll = ($item['section_type'] === 'rolls');
             $designVal = trim($item['pattern'] ?: ($item['specification'] ?: ($isRoll ? 'PLAIN' : 'STANDARD')));
@@ -569,12 +733,14 @@ class LabelController extends Controller {
         elseif ($labelType === 'purchase_fg') {
             $item = DB::fetch(
                 "SELECT pbi.*, pb.bill_no, pb.bill_date, s.name AS supplier_name, s.company_name AS supplier_company,
+                        fg_concern.name AS item_concern_name,
                         v.sku_code, v.name AS variant_name, v.size AS variant_size, v.price AS variant_price, v.mrp AS variant_mrp,
-                        v.category_id, v.subcategory_id,
+                        v.attributes AS variant_attributes, v.category_id, v.subcategory_id,
                         c.name AS category_name, sc.name AS subcategory_name, b.name AS brand_name
                  FROM purchase_bill_items pbi
                  JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                  LEFT JOIN suppliers s ON pb.supplier_id = s.id
+                 LEFT JOIN concerns fg_concern ON fg_concern.id = pbi.concern_id
                  LEFT JOIN variants v ON pbi.variant_id = v.id
                  LEFT JOIN categories c ON v.category_id = c.id
                  LEFT JOIN subcategories sc ON v.subcategory_id = sc.id
@@ -591,11 +757,17 @@ class LabelController extends Controller {
 
             $item = PurchaseStockItemOverrideService::applyToItems([$item])[0];
             $cid = $cid ?: (int)$item['concern_id'];
+            $itemConcernName = trim((string) ($item['item_concern_name'] ?? ''));
+            if ($itemConcernName !== '') {
+                $concernName = $itemConcernName;
+            }
             $varId = (int)($item['variant_id'] ?: ($variantId ?: 0));
 
             // If not mapped, map now if variantId is provided
             if (!$item['variant_id'] && $variantId) {
-                DB::query("UPDATE purchase_bill_items SET variant_id = ? WHERE id = ?", [$variantId, $item['id']]);
+                if (!$previewOnly) {
+                    DB::query("UPDATE purchase_bill_items SET variant_id = ? WHERE id = ?", [$variantId, $item['id']]);
+                }
                 $varModel = new Variant();
                 $v = $varModel->findWithDetails($variantId);
                 if ($v) {
@@ -604,6 +776,7 @@ class LabelController extends Controller {
                     $item['variant_name']     = $v['name'];
                     $item['variant_size']     = $v['size'];
                     $item['variant_mrp']      = $v['mrp'];
+                    $item['variant_attributes'] = $v['attributes'] ?? '';
                     $item['category_id']      = $v['category_id'];
                     $item['subcategory_id']   = $v['subcategory_id'];
                     $item['category_name']    = $v['category_name'] ?? 'Apparel';
@@ -612,15 +785,22 @@ class LabelController extends Controller {
             }
 
             $prodName = $item['variant_name'] ?: ($item['item_name'] ?: 'Finished Garment');
+            $variantAttributeData = json_decode((string) ($item['variant_attributes'] ?? ''), true);
+            $variantAttributeData = is_array($variantAttributeData) ? $variantAttributeData : [];
+            $labelColor = trim((string) ($variantAttributeData['color'] ?? ''))
+                ?: trim((string) ($item['color'] ?? ''))
+                ?: 'STANDARD';
+            $variantSize = trim((string) ($item['variant_size'] ?? ''));
+            $labelVariantAttributes = self::buildLabelVariantAttributes($variantAttributeData, $variantSize);
             $tagCode = QrService::generateTagCode(
                 $prodName,
-                $item['color'] ?? '',
-                $item['specification'] ?? '',
-                (string)$item['id']
+                $labelColor,
+                $variantSize ?: ($item['specification'] ?? ''),
+                (string) ($varId ?: $item['id'])
             );
             $qrText = $tagCode;
             $mrp = (float)($item['variant_mrp'] ?: ($item['mrp'] ?: $item['unit_price']));
-            $designVal = trim($item['pattern'] ?: ($item['specification'] ?: ($item['variant_size'] ?: 'STANDARD')));
+            $designVal = trim($item['pattern'] ?: ($item['specification'] ?: 'STANDARD'));
 
             $labelData = [
                 'concern_name'   => $concernName,
@@ -629,10 +809,11 @@ class LabelController extends Controller {
                 'label_1_name'   => 'Product',
                 'label_1_val'    => $item['category_name'] ?: 'Ready-Made Garment',
                 'label_2_name'   => 'Color',
-                'label_2_val'    => $item['color'] ?: 'STANDARD',
+                'label_2_val'    => $labelColor,
                 'label_3_name'   => 'Design',
                 'label_3_val'    => $designVal,
                 'design'         => $designVal,
+                'variant_attributes' => $labelVariantAttributes,
                 'label_4_name'   => 'Price',
                 'label_4_val'    => '₹' . number_format($mrp, 2),
                 'price'          => $mrp,
@@ -656,8 +837,115 @@ class LabelController extends Controller {
                     'Bill No'    => $item['bill_no'],
                     'Supplier'   => $item['supplier_name'],
                     'Catalog SKU'=> $item['sku_code'] ?: 'Not Mapped',
-                ]
+                ] + $labelVariantAttributes
             ];
+
+            $mappedCatalogId = (int) ($item['catalog_id'] ?? 0);
+            if ($mappedCatalogId <= 0 && $varId > 0) {
+                $mappedCatalogId = (int) DB::fetchValue(
+                    'SELECT catalog_id FROM variants WHERE id = ? AND concern_id = ?',
+                    [$varId, $cid]
+                );
+            }
+            if ($mappedCatalogId > 0) {
+                $mappedVariants = DB::fetchAll(
+                    "SELECT id, sku_code, name, size, price, mrp, attributes
+                     FROM variants
+                     WHERE concern_id = ? AND catalog_id = ? AND status = 'active'
+                     ORDER BY id ASC",
+                    [$cid, $mappedCatalogId]
+                );
+                if (
+                    $previewOnly &&
+                    $mappedVariants &&
+                    !in_array($previewVariantId, array_map('intval', array_column($mappedVariants, 'id')), true)
+                ) {
+                    $this->flash('error', 'The selected variant is not part of this mapped catalog.');
+                    $this->redirect('/m/stocks');
+                    return;
+                }
+                if ($previewOnly && !$mappedVariants && $previewVariantId !== $varId) {
+                    $this->flash('error', 'The selected variant is not available for this purchase item.');
+                    $this->redirect('/m/stocks');
+                    return;
+                }
+                if ($mappedVariants) {
+                    $variantAllocations = [];
+                    foreach ($mappedVariants as $mappedVariant) {
+                        $attributes = json_decode((string) ($mappedVariant['attributes'] ?? ''), true);
+                        $attributes = is_array($attributes) ? $attributes : [];
+                        $variantAllocations[] = max(0, (float) ($attributes['allocated_qty'] ?? 0));
+                    }
+                    if (array_sum($variantAllocations) <= 0) {
+                        $variantAllocations = array_fill(0, count($mappedVariants), 1);
+                    }
+                    $labelCopiesByVariant = self::allocateLabelCopies($variantAllocations, $qty);
+                    if ($previewOnly) {
+                        foreach ($mappedVariants as $index => $mappedVariant) {
+                            $labelCopiesByVariant[$index] = (int)$mappedVariant['id'] === $previewVariantId ? 1 : 0;
+                        }
+                    }
+                    $itemColors = array_values(array_filter(array_map(
+                        'trim',
+                        preg_split('/[,;|]+/', (string) ($item['color'] ?? ''))
+                    )));
+                    $fallbackColor = count($itemColors) === 1 ? $itemColors[0] : '';
+                    $includedVariantIds = [];
+                    $multiLabels = [];
+
+                    foreach ($mappedVariants as $index => $mappedVariant) {
+                        $copyCount = $labelCopiesByVariant[$index] ?? 0;
+                        if ($copyCount <= 0) {
+                            continue;
+                        }
+                        $attributes = json_decode((string) ($mappedVariant['attributes'] ?? ''), true);
+                        $attributes = is_array($attributes) ? $attributes : [];
+                        $variantName = trim((string) ($mappedVariant['name'] ?? '')) ?: $prodName;
+                        $variantSize = trim((string) ($mappedVariant['size'] ?? ''));
+                        $variantColor = trim((string) ($attributes['color'] ?? ''));
+                        if ($variantColor === '') {
+                            $variantColor = (int) $mappedVariant['id'] === $varId ? $labelColor : $fallbackColor;
+                        }
+                        if ($variantColor === '') {
+                            $variantColor = 'STANDARD';
+                        }
+                        $variantAttributes = self::buildLabelVariantAttributes($attributes, $variantSize);
+                        $variantMrp = (float) ($mappedVariant['mrp'] ?: ($item['mrp'] ?: $item['unit_price']));
+                        $variantTagCode = QrService::generateTagCode(
+                            $variantName,
+                            $variantColor,
+                            $variantSize ?: ($item['pattern'] ?: ($item['specification'] ?? '')),
+                            (string) $mappedVariant['id']
+                        );
+
+                        $variantLabel = $labelData;
+                        $variantLabel['header_title'] = $variantName;
+                        $variantLabel['item_title'] = $variantName;
+                        $variantLabel['label_2_val'] = $variantColor;
+                        $variantLabel['variant_size'] = $variantSize;
+                        $variantLabel['variant_attributes'] = $variantAttributes;
+                        $variantLabel['label_3_val'] = $designVal;
+                        $variantLabel['design'] = $designVal;
+                        $variantLabel['label_4_val'] = '₹' . number_format($variantMrp, 2);
+                        $variantLabel['price'] = $variantMrp;
+                        $variantLabel['price_mrp'] = $variantMrp;
+                        $variantLabel['tag_code'] = $variantTagCode;
+                        $variantLabel['item_code'] = $variantTagCode;
+                        $variantLabel['qr_payload'] = $variantTagCode;
+                        $variantLabel['extra_details'] = ($labelData['extra_details'] ?? []) + $variantAttributes;
+                        $includedVariantIds[(int) $mappedVariant['id']] = true;
+                        for ($copy = 0; $copy < $copyCount; $copy++) {
+                            $multiLabels[] = $variantLabel;
+                        }
+                    }
+
+                    if ($multiLabels) {
+                        $labelData = $multiLabels[0];
+                        $variantCount = count($includedVariantIds);
+                        $batchNo = (string) ($item['bill_no'] ?? '');
+                    }
+                }
+            }
         }
 
         // ----------------------------------------------------
@@ -1120,42 +1408,114 @@ class LabelController extends Controller {
             ];
         }
 
-        // Save print job for audit
-        DB::query(
-            "INSERT INTO label_jobs (concern_id, label_type, ref_id, variant_id, item_title, item_code, qr_payload, qty, printed_by, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-            [
-                $cid,
-                $labelType,
-                $itemId ?: null,
-                $variantId ?: null,
-                $labelData['item_title'],
-                $labelData['item_code'],
-                $labelData['qr_payload'],
-                $qty,
-                Auth::id()
-            ]
-        );
-        $jobId = (int)DB::lastInsertId();
+        $jobId = 0;
+        if (!$previewOnly) {
+            DB::query(
+                "INSERT INTO label_jobs (concern_id, label_type, ref_id, variant_id, item_title, item_code, qr_payload, qty, printed_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                [
+                    $cid,
+                    $labelType,
+                    $itemId ?: null,
+                    $variantId ?: null,
+                    $labelData['item_title'],
+                    $labelData['item_code'],
+                    $labelData['qr_payload'],
+                    $qty,
+                    Auth::id()
+                ]
+            );
+            $jobId = (int)DB::lastInsertId();
 
-        AuditLog::log('GENERATE_LABELS', 'label_jobs', $jobId, null, [
-            'label_type' => $labelType,
-            'item_title' => $labelData['item_title'],
-            'item_code'  => $labelData['item_code'],
-            'qty'        => $qty,
-            'qr_payload' => $labelData['qr_payload']
-        ]);
+            AuditLog::log('GENERATE_LABELS', 'label_jobs', $jobId, null, [
+                'label_type' => $labelType,
+                'item_title' => $labelData['item_title'],
+                'item_code'  => $labelData['item_code'],
+                'qty'        => $qty,
+                'qr_payload' => $labelData['qr_payload']
+            ]);
+        }
 
         // Render printable sheet
         $this->render('concern/label_print_sheet', [
-            'pageTitle'   => "Print Labels - {$labelData['item_code']} ({$qty} Copies)",
+            'pageTitle'   => $previewOnly
+                ? "Label Preview - {$labelData['item_code']}"
+                : "Print Labels - {$labelData['item_code']} ({$qty} Copies)",
             'noLayout'    => true,
+            'viewOnly'    => $previewOnly,
             'labelData'   => $labelData,
             'qty'         => $qty,
             'qrCodeText'  => $labelData['qr_payload'],
             'jobId'       => $jobId,
             'labelType'   => $labelType,
+            'multiLabels' => $multiLabels,
+            'variantCount' => $variantCount,
+            'batchNo' => $batchNo,
         ]);
+    }
+
+    private static function allocateLabelCopies(array $allocations, int $requestedCopies): array
+    {
+        $totalAllocation = array_sum(array_map(static fn($value): float => max(0, (float) $value), $allocations));
+        if ($totalAllocation <= 0 || !$allocations) {
+            return [];
+        }
+
+        $counts = [];
+        $remainders = [];
+        $assignedCopies = 0;
+        foreach ($allocations as $index => $allocation) {
+            $exactCopies = $requestedCopies * max(0, (float) $allocation) / $totalAllocation;
+            $wholeCopies = (int) floor($exactCopies);
+            $counts[$index] = $wholeCopies;
+            $assignedCopies += $wholeCopies;
+            $remainders[] = ['index' => $index, 'fraction' => $exactCopies - $wholeCopies];
+        }
+
+        usort($remainders, static function (array $left, array $right): int {
+            $fractionOrder = $right['fraction'] <=> $left['fraction'];
+            return $fractionOrder !== 0 ? $fractionOrder : ($left['index'] <=> $right['index']);
+        });
+        for ($remaining = $requestedCopies - $assignedCopies, $i = 0; $remaining > 0; $remaining--, $i++) {
+            $counts[$remainders[$i % count($remainders)]['index']]++;
+        }
+        ksort($counts);
+        return array_values($counts);
+    }
+
+    private static function buildLabelVariantAttributes(array $attributeData, string $size): array
+    {
+        $labelAttributes = [];
+        if ($size !== '') {
+            $labelAttributes['Size'] = $size;
+        }
+        $customAttributes = [];
+        foreach ($attributeData as $type => $value) {
+            $type = strtolower(trim((string) $type));
+            if (
+                $type === '' ||
+                in_array($type, ['color', 'size', 'hsn', 'weight', 'allocated_qty', 'custom_attributes'], true) ||
+                !is_scalar($value)
+            ) {
+                continue;
+            }
+            $customAttributes[$type] = trim((string) $value);
+        }
+        if (is_array($attributeData['custom_attributes'] ?? null)) {
+            $customAttributes = array_merge($customAttributes, $attributeData['custom_attributes']);
+        }
+        foreach ($customAttributes as $type => $value) {
+            $type = strtolower(trim((string) $type));
+            if (!is_scalar($value)) {
+                continue;
+            }
+            $value = trim((string) $value);
+            if ($type === '' || in_array($type, ['color', 'size'], true) || $value === '') {
+                continue;
+            }
+            $labelAttributes[ucwords(str_replace(['_', '-'], ' ', $type))] = $value;
+        }
+        return $labelAttributes;
     }
 
     public function scanPage(): void {
@@ -1455,6 +1815,9 @@ class LabelController extends Controller {
                     $itemLabel = ($item['section_type'] === 'rolls') ? 'Fabric roll' : 'Purchase item';
                     throw new Exception("{$itemLabel} '{$item['item_name']}' has already been added to stock.");
                 }
+                if ($item['section_type'] === 'finished_goods' && empty($item['variant_id'])) {
+                    throw new Exception("Finished good '{$item['item_name']}' must be mapped to a catalog variant before adding it to stock.");
+                }
 
                 $concernId = (int)$item['concern_id'];
                 $billId = (int)$item['purchase_bill_id'];
@@ -1480,24 +1843,7 @@ class LabelController extends Controller {
                     $targetTab = 'garment_other';
                 } elseif ($item['section_type'] === 'finished_goods') {
                     $targetTab = 'finished_goods';
-                    if (!empty($item['variant_id'])) {
-                        $alreadyLedger = DB::fetchValue(
-                            "SELECT id FROM stock_ledger WHERE concern_id = ? AND variant_id = ? AND ref_module = 'Purchase Inward' AND ref_id = ? LIMIT 1",
-                            [$concernId, $item['variant_id'], $billId]
-                        );
-                        if (!$alreadyLedger) {
-                            StockService::move(
-                                $concernId,
-                                (int)$item['variant_id'],
-                                'Main Store',
-                                (float)$item['qty'],
-                                0.00,
-                                'Purchase Inward',
-                                $billId,
-                                "Item '{$item['item_name']}' inward from Bill #{$billNo}"
-                            );
-                        }
-                    }
+                    $this->inwardPurchaseFinishedGood($concernId, $item, $billNo);
                 }
 
                 if ($preferredTab && in_array($preferredTab, ['rolls', 'garment_other', 'finished_goods'], true)) {
@@ -1509,7 +1855,7 @@ class LabelController extends Controller {
                 }
 
                 $this->flash('success', "Item '{$item['item_name']}' from Bill '{$billNo}' added to stock successfully!");
-                $this->redirect("/m/purchase_stocks?tab={$targetTab}");
+                $this->redirect($targetTab === 'finished_goods' ? '/m/stocks' : "/m/purchase_stocks?tab={$targetTab}");
                 return;
             }
 
@@ -1546,6 +1892,18 @@ class LabelController extends Controller {
                 }
 
                 if ($sectionFilter !== null) {
+                    if ($sectionFilter === 'finished_goods') {
+                        $unmappedCount = (int) DB::fetchValue(
+                            "SELECT COUNT(*) FROM purchase_bill_items
+                             WHERE purchase_bill_id = ? AND section_type = 'finished_goods'
+                               AND (variant_id IS NULL OR variant_id = 0)
+                               AND COALESCE(inward_status, 'pending') != 'completed'",
+                            [$billId]
+                        );
+                        if ($unmappedCount > 0) {
+                            throw new Exception("Map all finished goods in this bill to catalog variants before adding them to stock.");
+                        }
+                    }
                     // Strictly inward ONLY items of the requested section
                     DB::query(
                         "UPDATE purchase_bill_items SET inward_status = 'completed' WHERE purchase_bill_id = ? AND section_type = ?",
@@ -1566,22 +1924,7 @@ class LabelController extends Controller {
                     if ($it['section_type'] === 'rolls') {
                         $hasRolls = true;
                     } elseif ($it['section_type'] === 'finished_goods' && !empty($it['variant_id'])) {
-                        $alreadyLedger = DB::fetchValue(
-                            "SELECT id FROM stock_ledger WHERE concern_id = ? AND variant_id = ? AND ref_module = 'Purchase Inward' AND ref_id = ? LIMIT 1",
-                            [$concernId, $it['variant_id'], $billId]
-                        );
-                        if (!$alreadyLedger) {
-                            StockService::move(
-                                $concernId,
-                                (int)$it['variant_id'],
-                                'Main Store',
-                                (float)$it['qty'],
-                                0.00,
-                                'Purchase Inward',
-                                $billId,
-                                "Inward from Purchase Bill #{$billNo} via Label Generation Hub"
-                            );
-                        }
+                        $this->inwardPurchaseFinishedGood($concernId, $it, $billNo);
                     }
                 }
 
@@ -1609,7 +1952,7 @@ class LabelController extends Controller {
                     : "{$sectionLabel} from Purchase Bill '{$billNo}' added to stock successfully! Other sections remain pending.";
 
                 $this->flash('success', $msg);
-                $this->redirect("/m/purchase_stocks?tab={$targetTab}");
+                $this->redirect($targetTab === 'finished_goods' ? '/m/stocks' : "/m/purchase_stocks?tab={$targetTab}");
                 return;
             }
 
@@ -1620,6 +1963,111 @@ class LabelController extends Controller {
             $this->flash('error', 'Error adding item to stock: ' . $e->getMessage());
             $this->redirect('/m/label_generation' . ($billId ? "?bill_id={$billId}" : ''));
         }
+    }
+
+    private function inwardPurchaseFinishedGood(int $concernId, array $item, string $billNo): void
+    {
+        $primaryVariantId = (int)($item['variant_id'] ?? 0);
+        $catalogId = (int)($item['catalog_id'] ?? 0);
+        if ($catalogId <= 0 && $primaryVariantId > 0) {
+            $catalogId = (int)DB::fetchValue(
+                'SELECT catalog_id FROM variants WHERE id = ? AND concern_id = ?',
+                [$primaryVariantId, $concernId]
+            );
+        }
+
+        $variants = [];
+        if ($catalogId > 0) {
+            $variants = DB::fetchAll(
+                "SELECT id, attributes FROM variants
+                 WHERE concern_id = ? AND catalog_id = ? AND status = 'active'
+                 ORDER BY id ASC",
+                [$concernId, $catalogId]
+            );
+        }
+        if (!$variants) {
+            $variants = [['id' => $primaryVariantId, 'attributes' => null]];
+        }
+
+        $allocations = self::allocatePurchaseStockQuantity((float)$item['qty'], $variants, $primaryVariantId);
+        foreach ($allocations as $variantId => $quantity) {
+            if ($quantity <= 0) {
+                continue;
+            }
+
+            $alreadyLedger = DB::fetchValue(
+                "SELECT id FROM stock_ledger
+                 WHERE concern_id = ? AND variant_id = ? AND ref_module = 'Purchase Inward Item' AND ref_id = ?
+                 LIMIT 1",
+                [$concernId, $variantId, (int)$item['id']]
+            );
+            if ($alreadyLedger) {
+                continue;
+            }
+
+            StockService::move(
+                $concernId,
+                (int)$variantId,
+                'Main Store',
+                $quantity,
+                0.00,
+                'Purchase Inward Item',
+                (int)$item['id'],
+                "Item '{$item['item_name']}' inward from Bill #{$billNo}"
+            );
+        }
+    }
+
+    private static function allocatePurchaseStockQuantity(float $quantity, array $variants, int $primaryVariantId): array
+    {
+        if ($quantity <= 0) {
+            throw new Exception('Finished good purchase quantity must be greater than zero.');
+        }
+
+        $weights = [];
+        foreach ($variants as $variant) {
+            $variantId = (int)($variant['id'] ?? 0);
+            $attributes = json_decode((string)($variant['attributes'] ?? ''), true);
+            $weight = is_array($attributes) ? max(0, (float)($attributes['allocated_qty'] ?? 0)) : 0;
+            if ($variantId > 0 && $weight > 0) {
+                $weights[$variantId] = $weight;
+            }
+        }
+
+        if (!$weights) {
+            if ($primaryVariantId <= 0) {
+                throw new Exception('Finished good must be mapped to a catalog variant before adding it to stock.');
+            }
+            return [$primaryVariantId => round($quantity, 2)];
+        }
+
+        $totalWeight = array_sum($weights);
+        $totalCents = (int)round($quantity * 100);
+        $assignedCents = 0;
+        $remainders = [];
+        $allocations = [];
+        foreach ($weights as $variantId => $weight) {
+            $exactCents = $totalCents * $weight / $totalWeight;
+            $wholeCents = (int)floor($exactCents);
+            $allocations[$variantId] = $wholeCents;
+            $assignedCents += $wholeCents;
+            $remainders[] = ['variant_id' => $variantId, 'fraction' => $exactCents - $wholeCents];
+        }
+
+        usort($remainders, static function (array $left, array $right): int {
+            $fractionOrder = $right['fraction'] <=> $left['fraction'];
+            return $fractionOrder !== 0
+                ? $fractionOrder
+                : ($left['variant_id'] <=> $right['variant_id']);
+        });
+        for ($remaining = $totalCents - $assignedCents, $index = 0; $remaining > 0; $remaining--, $index++) {
+            $allocations[$remainders[$index % count($remainders)]['variant_id']]++;
+        }
+
+        foreach ($allocations as $variantId => $cents) {
+            $allocations[$variantId] = $cents / 100;
+        }
+        return $allocations;
     }
 
     /**
