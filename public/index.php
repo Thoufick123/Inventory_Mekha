@@ -83,6 +83,7 @@ $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 try {
+    \App\Core\Controller::ensureBaseTables();
     $router->dispatch($requestUri, $requestMethod);
 } catch (\Throwable $e) {
     error_log($e->getMessage() . "\n" . $e->getTraceAsString());

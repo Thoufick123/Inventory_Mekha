@@ -502,6 +502,7 @@ class SalesController extends Controller {
 
     // 3. BATCH
     public function batch(): void {
+        self::ensureBaseTables();
         $cid = Auth::concernId();
 
         $sql = "SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.weight_unit,
@@ -987,6 +988,7 @@ class SalesController extends Controller {
 
     // 5. OUTWARD
     public function outward(): void {
+        self::ensureBaseTables();
         $cid = Auth::concernId();
 
         $sql = "SELECT o.*, c.name AS customer_name, si.invoice_no, con.name AS concern_name, con.code AS concern_code,

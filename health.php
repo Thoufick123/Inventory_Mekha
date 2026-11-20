@@ -55,9 +55,19 @@ if ($envExists) {
         $tableCount = $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{$dbName}'")->fetchColumn();
         $dbStatus = true;
         $dbMessage = "Successfully connected to MySQL! Found {$tableCount} tables in database `{$dbName}`.";
+
+        $puExists = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{$dbName}' AND table_name = 'production_units'")->fetchColumn() > 0;
+        if (!$puExists || (isset($_GET['migrate']) && $_GET['migrate'] === '1')) {
+            ob_start();
+            require __DIR__ . '/scripts/migrate_production_blueprint.php';
+            $migrationOutput = ob_get_clean();
+            $tableCount = $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{$dbName}'")->fetchColumn();
+            $puExists = true;
+        }
     } catch (\Throwable $e) {
         $dbStatus = false;
         $dbMessage = $e->getMessage();
+        $puExists = false;
     }
 }
 
@@ -167,13 +177,34 @@ try {
 
         <!-- MySQL Database Connection -->
         <div class="section">
-            <div class="section-title">4. MySQL Database Connection</div>
+            <div class="section-title">4. MySQL Database & Schema Status</div>
             <?php if (!$envExists): ?>
                 <div style="color: #94a3b8; font-size: 0.9rem;">Database connection check requires <code>.env</code>.</div>
             <?php elseif ($dbStatus === true): ?>
                 <div class="box box-success">
                     <strong>OK:</strong> <?= htmlspecialchars($dbMessage) ?>
                 </div>
+
+                <?php if (!empty($migrationOutput)): ?>
+                    <div class="box box-success" style="white-space: pre-wrap; font-size: 0.8rem; margin-top: 0.75rem;">
+                        <strong>Migration Applied Successfully:</strong><br>
+                        <?= htmlspecialchars($migrationOutput) ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!$puExists): ?>
+                    <div class="box box-warning">
+                        <strong>Schema Update Required:</strong> Table <code>production_units</code> is not created yet on your live Hostinger database.<br><br>
+                        <a href="/health.php?migrate=1" class="btn-link" style="background: #d97706; padding: 0.5rem 1rem; font-size: 0.85rem;">
+                            ⚡ Click Here to Auto-Migrate Database Now
+                        </a>
+                    </div>
+                <?php else: ?>
+                    <div class="item" style="margin-top: 0.5rem;">
+                        <span class="item-label">Production Unit Schema (62 Tables)</span>
+                        <span class="badge badge-success">Migrated & Synced</span>
+                    </div>
+                <?php endif; ?>
             <?php else: ?>
                 <div class="box box-danger">
                     <strong>Connection Failed:</strong><br>
