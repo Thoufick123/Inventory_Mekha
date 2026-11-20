@@ -227,6 +227,7 @@
                             </td>
                             <td class="text-end pe-3">
                                 <div class="d-flex align-items-center justify-content-end gap-1">
+                                    <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-info" title="Consignment Log"><i class="bi bi-clock-history"></i></a>
                                     <button type="button" class="btn btn-sm btn-outline-warning" title="Edit Consignment Notes"><i class="bi bi-pencil-square"></i></button>
                                     <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Consignment"><i class="bi bi-trash"></i></button>
@@ -293,9 +294,12 @@
 
                 <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
                     <small class="text-muted font-monospace"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></small>
-                    <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
-                        <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
-                    </a>
+                    <div class="d-flex align-items-center gap-1">
+                        <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
+                        <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
+                            <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

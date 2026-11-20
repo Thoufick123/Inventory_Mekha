@@ -286,10 +286,10 @@ class Auth {
                 FROM users u
                 LEFT JOIN roles r ON u.role_id = r.id
                 LEFT JOIN concerns c ON u.concern_id = c.id
-                WHERE u.email = ? AND u.status = 'active'
+                WHERE (u.email = ? OR u.email = CONCAT(?, '@invento.com') OR u.name = ?) AND u.status = 'active'
                 LIMIT 1";
         
-        $user = DB::fetch($sql, [$email]);
+        $user = DB::fetch($sql, [$email, $email, $email]);
         if (!$user) {
             return false;
         }

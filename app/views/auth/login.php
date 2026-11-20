@@ -63,10 +63,10 @@
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
 
             <div class="mb-3">
-                <label for="email" class="form-label small fw-semibold text-secondary">Email Address</label>
+                <label for="email" class="form-label small fw-semibold text-secondary">Username or Email Address</label>
                 <div class="input-group">
-                    <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-envelope"></i></span>
-                    <input type="email" class="form-control border-start-0" id="email" name="email" required autocomplete="username" placeholder="name@company.com" value="">
+                    <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-person"></i></span>
+                    <input type="text" class="form-control border-start-0" id="email" name="email" required autocomplete="username" placeholder="Username or email (e.g. superadmin)" value="">
                 </div>
             </div>
 
