@@ -259,8 +259,6 @@ $router->get('/m/cutting_wastage', [ProductionController::class, 'cuttingIndex']
 $router->get('/production/cutting/create', [ProductionController::class, 'createCutting'], 'cutting_wastage', 'add');
 $router->post('/production/cutting/store', [ProductionController::class, 'storeCuttingBatch'], 'cutting_wastage', 'add');
 $router->get('/production/cutting/view', [ProductionController::class, 'viewCuttingBatch'], 'cutting_wastage', 'view');
-$router->get('/production/cutting/edit', [ProductionController::class, 'editCuttingBatch'], 'cutting_wastage', 'edit');
-$router->post('/production/cutting/update', [ProductionController::class, 'updateCuttingBatch'], 'cutting_wastage', 'edit');
 $router->post('/production/cutting/delete', [ProductionController::class, 'deleteCuttingBatch'], 'cutting_wastage', 'delete');
 
 // Cutting API Endpoints

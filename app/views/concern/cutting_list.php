@@ -293,10 +293,6 @@
                                                class="btn btn-outline-secondary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a href="<?= \App\Core\Controller::url('/production/cutting/edit?id=' . $b['id']) ?>"
-                                               class="btn btn-outline-primary" title="Edit Cutting Batch">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
                                             <?php if ($availScrap > 0.01): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sell-scrap" 
                                                         data-batch-id="<?= $b['id'] ?>"
