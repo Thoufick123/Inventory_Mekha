@@ -1,8 +1,8 @@
 -- ========================================================
 -- GRM Inventory: System Seed Data
 -- Modules and Super Admin only
+-- Compatible with Local & Live Hosting (Hostinger/cPanel)
 -- ========================================================
-USE `invento_db`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
