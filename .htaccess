@@ -19,6 +19,9 @@ AddDefaultCharset UTF-8
     RewriteEngine On
     RewriteBase /
 
+    # Prevent infinite rewrite loop: if already index.php, stop processing immediately
+    RewriteRule ^index\.php$ - [L]
+
     # Block direct access to hidden files and directories (.env, .git, etc.)
     RewriteRule ^\..* - [F,L]
 
@@ -32,6 +35,11 @@ AddDefaultCharset UTF-8
     RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^ - [L]
 
-    # Route all other web requests to the front controller
+    # Route directory requests to index.php
+    RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ index.php [QSA,L]
+
+    # Route all other web requests to the front controller
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(.*)$ index.php [QSA,L]
 </IfModule>

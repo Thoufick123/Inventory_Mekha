@@ -60,6 +60,26 @@ if ($envExists) {
         $dbMessage = $e->getMessage();
     }
 }
+
+// App Bootstrap Simulation Check
+$bootstrapStatus = null;
+$bootstrapError = null;
+try {
+    require_once __DIR__ . '/app/core/Autoloader.php';
+    \App\Core\Env::load(__DIR__ . '/.env');
+    \App\Core\Auth::startSession();
+    $router = new \App\Core\Router();
+    require_once __DIR__ . '/app/routes.php';
+    $routesCount = count($router->getRoutes());
+    
+    // Check concerns table
+    $concernsCount = (int)\App\Core\DB::fetchValue("SELECT COUNT(*) FROM concerns WHERE status = 'active'");
+    $bootstrapStatus = true;
+    $bootstrapMessage = "Application Bootstrap succeeded! Loaded {$routesCount} routes and verified {$concernsCount} active concerns.";
+} catch (\Throwable $e) {
+    $bootstrapStatus = false;
+    $bootstrapError = $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -85,6 +105,8 @@ if ($envExists) {
         .box-warning { border-left: 4px solid #f59e0b; color: #fde68a; }
         a { color: #38bdf8; text-decoration: none; }
         a:hover { text-decoration: underline; }
+        .btn-link { display: inline-block; background: #2563eb; color: #ffffff; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; text-decoration: none; }
+        .btn-link:hover { background: #1d4ed8; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -160,12 +182,29 @@ if ($envExists) {
             <?php endif; ?>
         </div>
 
-        <!-- Next Actions -->
+        <!-- Application Bootstrap Simulation -->
         <div class="section">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <a href="/login" style="font-weight: 600;">Go to Application Login &rarr;</a>
-                <span style="color: #64748b; font-size: 0.8rem;">GRM Inventory ERP</span>
+            <div class="section-title">5. Core Application Bootstrap Check</div>
+            <div class="item">
+                <span class="item-label">Router, Session & Autoloader</span>
+                <span class="badge <?= $bootstrapStatus ? 'badge-success' : 'badge-danger' ?>"><?= $bootstrapStatus ? 'Ready' : 'Failed' ?></span>
             </div>
+            <?php if ($bootstrapStatus): ?>
+                <div class="box box-success">
+                    <strong>OK:</strong> <?= htmlspecialchars($bootstrapMessage) ?>
+                </div>
+            <?php else: ?>
+                <div class="box box-danger">
+                    <strong>Bootstrap Exception:</strong><br>
+                    <?= htmlspecialchars($bootstrapError ?? 'Unknown error') ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Direct Navigation Buttons -->
+        <div class="section" style="text-align: center; padding-top: 1.5rem;">
+            <a href="/login" class="btn-link" style="margin-right: 0.75rem;">Open Login Page (/login) &rarr;</a>
+            <a href="/index.php" class="btn-link" style="background: #334155;">Open Front Controller (/index.php) &rarr;</a>
         </div>
     </div>
 </body>
