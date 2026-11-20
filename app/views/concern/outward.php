@@ -296,51 +296,63 @@
                         </div>
                     </div>
 
+                    <!-- Row 1: Dual Concern Routing: Current Concern -> Destination Concern -->
                     <div class="col-md-6">
-                        <label class="form-label small fw-semibold text-secondary">Select Production Batch to Dispatch *</label>
-                        <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm" required>
-                            <option value="">-- Select Finished Production Batch --</option>
-                            <?php foreach ($availableBatches as $b): ?>
-                                <option value="<?= $b['id'] ?>">
-                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['variant_name']) ?> (<?= (int)$b['batch_qty'] ?> pcs, <?= (int)$b['total_boxes'] ?> box)
-                                </option>
-                            <?php endforeach; ?>
-                            <option value="1">BAT-20261113-0001 (KIDS - BABY - DRESS - 490 pcs)</option>
-                        </select>
-                    </div>
-
-                    <!-- DROPDOWN WHERE ALL CREATED CONCERNS ARE LISTED -->
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold text-secondary">
-                            <i class="bi bi-buildings text-primary me-1"></i> Destination Concern (All Created Concerns) *
+                        <label class="form-label small fw-bold text-dark">
+                            <i class="bi bi-geo-alt-fill text-danger me-1"></i> Current Concern (Dispatched From) *
                         </label>
-                        <select name="destination_concern_id" id="dispatchConcernSelect" class="form-select form-select-sm" required>
-                            <option value="">-- Select Created Concern --</option>
+                        <select name="source_concern_id" id="sourceConcernSelect" class="form-select form-select-sm bg-light fw-semibold" onchange="filterBatchesByConcern(this.value)">
                             <?php foreach ($allConcerns as $con): ?>
-                                <option value="<?= $con['id'] ?>" <?= ((int)($selectedConcernId ?? 1) === (int)$con['id']) ? 'selected' : '' ?>>
+                                <option value="<?= $con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'selected' : '' ?>>
                                     🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <small class="text-muted d-block mt-1" style="font-size:0.73rem;">
+                            <i class="bi bi-info-circle me-1"></i> Current concern we are currently in (origin facility)
+                        </small>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label small fw-semibold text-secondary">Destination Warehouse / Facility</label>
+                        <label class="form-label small fw-bold text-dark">
+                            <i class="bi bi-truck text-primary me-1"></i> Destination Concern (Outward To Concern) *
+                        </label>
+                        <select name="destination_concern_id" id="dispatchConcernSelect" class="form-select form-select-sm fw-semibold border-primary" required>
+                            <option value="">-- Select Outward Destination Concern --</option>
+                            <?php foreach ($allConcerns as $con): ?>
+                                <option value="<?= $con['id'] ?>">
+                                    🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted d-block mt-1" style="font-size:0.73rem;">
+                            <i class="bi bi-arrow-right-circle me-1"></i> Select from all created concerns which we outward to
+                        </small>
+                    </div>
+
+                    <!-- Row 2: Batch Selection & Warehouse -->
+                    <div class="col-md-7">
+                        <label class="form-label small fw-semibold text-secondary">
+                            <i class="bi bi-box-seam text-primary me-1"></i> Select Production Batch to Dispatch *
+                        </label>
+                        <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm" required>
+                            <option value="">-- Select Finished Production Batch --</option>
+                            <?php foreach ($availableBatches as $b): ?>
+                                <option value="<?= $b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 1) ?>">
+                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['variant_name']) ?> (<?= (int)$b['batch_qty'] ?> pcs, <?= (int)$b['total_boxes'] ?> box)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-5">
+                        <label class="form-label small fw-semibold text-secondary">
+                            <i class="bi bi-archive me-1"></i> Destination Warehouse / Facility *
+                        </label>
                         <select name="warehouse_name" class="form-select form-select-sm">
                             <?php foreach ($warehouses as $wh): ?>
                                 <option value="<?= htmlspecialchars($wh['name']) ?>" <?= str_contains($wh['name'], 'wareouse') ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($wh['name']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold text-secondary">Origin Facility (Dispatched From)</label>
-                        <select name="source_concern_id" class="form-select form-select-sm">
-                            <?php foreach ($allConcerns as $con): ?>
-                                <option value="<?= $con['id'] ?>" <?= ((int)($selectedConcernId ?? 1) === (int)$con['id']) ? 'selected' : '' ?>>
-                                    🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -424,23 +436,44 @@
                     </div>
 
                     <!-- Destination Concern (All created concerns listed) & Boxes for Finishing Goods -->
-                    <div class="row g-3 mb-2">
+                    <div class="row g-3 mb-2 p-3 bg-light rounded-3 border">
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">
-                                <i class="bi bi-buildings text-primary me-1"></i> Destination Concern (All Created Concerns) *
+                            <label class="form-label small fw-bold text-dark">
+                                <i class="bi bi-geo-alt-fill text-danger me-1"></i> Current Concern (Dispatched From) *
                             </label>
-                            <select name="destination_concern_id_fg" id="fgDestConcernSelect" class="form-select form-select-sm" required>
-                                <option value="">-- Select Created Concern --</option>
+                            <select name="source_concern_id_fg" id="fgSourceConcernSelect" class="form-select form-select-sm bg-white fw-semibold">
                                 <?php foreach ($allConcerns as $con): ?>
-                                    <option value="<?= $con['id'] ?>" <?= ((int)($selectedConcernId ?? 1) === (int)$con['id']) ? 'selected' : '' ?>>
+                                    <option value="<?= $con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'selected' : '' ?>>
                                         🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <small class="text-muted d-block mt-1" style="font-size:0.73rem;">
+                                <i class="bi bi-info-circle me-1"></i> Current concern we are currently in (origin facility)
+                            </small>
                         </div>
 
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold text-secondary">Destination Warehouse</label>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-dark">
+                                <i class="bi bi-truck text-primary me-1"></i> Destination Concern (Outward To Concern) *
+                            </label>
+                            <select name="destination_concern_id_fg" id="fgDestConcernSelect" class="form-select form-select-sm fw-semibold border-primary">
+                                <option value="">-- Select Outward Destination Concern --</option>
+                                <?php foreach ($allConcerns as $con): ?>
+                                    <option value="<?= $con['id'] ?>">
+                                        🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="text-muted d-block mt-1" style="font-size:0.73rem;">
+                                <i class="bi bi-arrow-right-circle me-1"></i> Select from all created concerns which we outward to
+                            </small>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">
+                                <i class="bi bi-archive me-1"></i> Destination Warehouse
+                            </label>
                             <select name="destination_warehouse_fg" id="fgDestWarehouse" class="form-select form-select-sm">
                                 <?php foreach ($warehouses as $wh): ?>
                                     <option value="<?= htmlspecialchars($wh['name']) ?>" <?= str_contains($wh['name'], 'wareouse') ? 'selected' : '' ?>>
@@ -450,8 +483,10 @@
                             </select>
                         </div>
 
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold text-secondary">Total Boxes / Cartons</label>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">
+                                <i class="bi bi-boxes me-1"></i> Total Boxes / Cartons
+                            </label>
                             <input type="number" name="total_boxes" id="fgTotalBoxesInput" class="form-control form-control-sm" value="1" min="1" step="1">
                         </div>
                     </div>
@@ -598,21 +633,49 @@ const availableVariants = <?= json_encode($stockVariants) ?>;
 // Scanned items dictionary: { variant_id: { variant_id, name, sku, size, stock, qty } }
 let scannedFgMap = {};
 
+function filterBatchesByConcern(conId) {
+    const select = document.getElementById('dispatchBatchSelect');
+    if (!select) return;
+    const conIdStr = String(conId || '');
+    let matched = 0;
+    Array.from(select.options).forEach((opt, idx) => {
+        if (idx === 0) return;
+        const c = opt.getAttribute('data-concern');
+        if (!conIdStr || !c || String(c) === conIdStr) {
+            opt.style.display = '';
+            matched++;
+        } else {
+            opt.style.display = 'none';
+        }
+    });
+
+    const currentOpt = select.options[select.selectedIndex];
+    if (currentOpt && currentOpt.style.display === 'none') {
+        select.value = '';
+    }
+}
+
 function toggleDispatchMode(mode) {
     const batchSec = document.getElementById('sectionBatchMode');
     const fgSec = document.getElementById('sectionFgMode');
     const batchSelect = document.getElementById('dispatchBatchSelect');
+    const dispatchConcernSelect = document.getElementById('dispatchConcernSelect');
+    const fgDestConcernSelect = document.getElementById('fgDestConcernSelect');
     const btnSubmit = document.getElementById('btnSubmitOutward');
 
     if (mode === 'batch') {
         batchSec.classList.remove('d-none');
         fgSec.classList.add('d-none');
         if (batchSelect) batchSelect.required = true;
+        if (dispatchConcernSelect) dispatchConcernSelect.required = true;
+        if (fgDestConcernSelect) fgDestConcernSelect.required = false;
         btnSubmit.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> Confirm & Dispatch Production Batch';
     } else {
         batchSec.classList.add('d-none');
         fgSec.classList.remove('d-none');
         if (batchSelect) batchSelect.required = false;
+        if (dispatchConcernSelect) dispatchConcernSelect.required = false;
+        if (fgDestConcernSelect) fgDestConcernSelect.required = true;
         btnSubmit.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> Confirm & Outward Finishing Goods';
         setTimeout(() => {
             const input = document.getElementById('fgScanInput');
@@ -962,4 +1025,12 @@ function openTraceabilityModal(outwardNo, id) {
             document.getElementById('traceBody').innerHTML = '<div class="alert alert-danger">Error: ' + err.message + '</div>';
         });
 }
+
+// Initialize batch filtering on load based on active current concern
+document.addEventListener('DOMContentLoaded', function() {
+    const srcCon = document.getElementById('sourceConcernSelect');
+    if (srcCon && srcCon.value) {
+        filterBatchesByConcern(srcCon.value);
+    }
+});
 </script>

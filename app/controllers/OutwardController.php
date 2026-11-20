@@ -218,6 +218,8 @@ class OutwardController extends Controller {
             ['id' => 2, 'name' => 'Main Distribution Central', 'code' => 'WH-02'],
         ];
 
+        $currentConcernId = Auth::concernId() ?: ($selectedConcernId ?: 1);
+
         $this->render('concern/outward', [
             'pageTitle'         => 'Production Outward & Dispatch',
             'currentModule'     => 'outward',
@@ -232,6 +234,7 @@ class OutwardController extends Controller {
             'batchCount'        => $batchCount,
             'fgCount'           => $fgCount,
             'selectedConcernId' => $selectedConcernId,
+            'currentConcernId'  => $currentConcernId,
             'allConcerns'       => $allConcerns,
             'availableBatches'  => $availableBatches,
             'stockVariants'     => $stockVariants,
@@ -246,7 +249,7 @@ class OutwardController extends Controller {
      */
     public function store(): void {
         $this->validateCsrf();
-        $cid = Auth::concernId() ?: (int)($_POST['source_concern_id'] ?? 1);
+        $cid = (int)($_POST['source_concern_id'] ?? ($_POST['source_concern_id_fg'] ?? (Auth::concernId() ?: 1)));
 
         $dispatchMode    = trim($_POST['dispatch_mode'] ?? 'batch'); // batch, finished_goods
         $destConcernId   = !empty($_POST['destination_concern_id']) 
