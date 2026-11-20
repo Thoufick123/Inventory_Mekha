@@ -17,7 +17,6 @@ AddDefaultCharset UTF-8
 # 4. Routing and Security Engine
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /
 
     # Prevent infinite rewrite loop: if already index.php, stop processing immediately
     RewriteRule ^index\.php$ - [L]

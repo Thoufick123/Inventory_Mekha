@@ -235,6 +235,9 @@ class StaffController extends Controller {
             ];
         }
 
+        $oldInput = $_SESSION['_old_input'] ?? [];
+        unset($_SESSION['_old_input']);
+
         $this->render('concern/staff_create', [
             'pageTitle'        => 'Add New Staff Member',
             'currentModule'    => 'staff',
@@ -246,19 +249,25 @@ class StaffController extends Controller {
             'modules'          => $modules,
             'concernModules'   => $concernModules,
             'allRolePerms'     => $allRolePerms,
+            'oldInput'         => $oldInput,
         ]);
     }
 
     public function store(): void {
         $this->validateCsrf();
+        $concernIds = array_map('intval', (array)($_POST['concern_ids'] ?? []));
         $cid = (int)($_POST['concern_id'] ?? 0);
+        if (!$cid && !empty($concernIds)) {
+            $cid = $concernIds[0];
+        }
         if (!$cid) {
             $cid = Auth::concernId() ?: (int)($_SESSION['staff_selected_concern_id'] ?? 0);
         }
 
-        if (!$cid) {
-            $this->flash('error', 'Please choose a concern for this staff member.');
-            $this->redirect('/m/staff?choose=1');
+        if (empty($concernIds) && !$cid) {
+            $_SESSION['_old_input'] = $_POST;
+            $this->flash('error', 'Please select at least one business concern for this staff member.');
+            $this->redirect('/m/staff/create');
         }
 
         // Verify concern exists and is active
@@ -283,6 +292,7 @@ class StaffController extends Controller {
 
         // Server-side validation
         if (mb_strlen($name) < 2) {
+            $_SESSION['_old_input'] = $_POST;
             $this->flash('error', 'Staff member full name is required (minimum 2 characters).');
             $this->redirect('/m/staff/create?concern_id=' . $cid);
         }
@@ -291,6 +301,7 @@ class StaffController extends Controller {
         $existingUserId = null;
         if ($email !== '') {
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $_SESSION['_old_input'] = $_POST;
                 $this->flash('error', 'Please provide a valid email address.');
                 $this->redirect('/m/staff/create?concern_id=' . $cid);
             }
@@ -303,6 +314,7 @@ class StaffController extends Controller {
                         $existingUserId = (int)$dupStaff['user_id'];
                     }
                 } else {
+                    $_SESSION['_old_input'] = $_POST;
                     $this->flash('error', "The email '{$email}' is already registered with another account.");
                     $this->redirect('/m/staff/create?concern_id=' . $cid);
                 }
@@ -312,6 +324,7 @@ class StaffController extends Controller {
                 if ((int)$dupUser['concern_id'] === $cid) {
                     $existingUserId = (int)$dupUser['id'];
                 } else {
+                    $_SESSION['_old_input'] = $_POST;
                     $this->flash('error', "The email '{$email}' is already registered with another account.");
                     $this->redirect('/m/staff/create?concern_id=' . $cid);
                 }
@@ -321,17 +334,20 @@ class StaffController extends Controller {
         if ($phone !== '') {
             $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
             if (strlen($cleanPhone) < 10 || strlen($cleanPhone) > 15) {
+                $_SESSION['_old_input'] = $_POST;
                 $this->flash('error', 'Phone / mobile number must be 10 digits.');
                 $this->redirect('/m/staff/create?concern_id=' . $cid);
             }
             $dupPhone = DB::fetch("SELECT id FROM staff WHERE phone = ? AND concern_id = ?", [$phone, $cid]);
             if ($dupPhone && (!$existingStaffId || (int)$dupPhone['id'] !== $existingStaffId)) {
+                $_SESSION['_old_input'] = $_POST;
                 $this->flash('error', "A staff member with phone number '{$phone}' already exists in this concern.");
                 $this->redirect('/m/staff/create?concern_id=' . $cid);
             }
         }
 
         if ($password !== '' && strlen($password) < 6) {
+            $_SESSION['_old_input'] = $_POST;
             $this->flash('error', 'Password must be at least 6 characters long.');
             $this->redirect('/m/staff/create?concern_id=' . $cid);
         }
@@ -379,31 +395,7 @@ class StaffController extends Controller {
 
                 // Save module-level CRUD permissions (View, Create, Edit, Delete) for this staff account
                 if (!empty($_POST['perms'])) {
-                    $stmtUp = DB::pdo()->prepare(
-                        "INSERT INTO user_permissions (user_id, module_id, can_view, can_add, can_edit, can_delete)
-                         VALUES (?, ?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_add = VALUES(can_add), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)"
-                    );
-                    $allMods = DB::fetchAll("SELECT id, code FROM modules WHERE is_super_admin_only = 0");
-                    $perms = (array)$_POST['perms'];
-                    // Auto-mirror cash_flow permissions to cash module for transparent consistency
-                    $cashModId = null;
-                    $cashFlowModId = null;
-                    foreach ($allMods as $m) {
-                        if ($m['code'] === 'cash') $cashModId = (int)$m['id'];
-                        if ($m['code'] === 'cash_flow') $cashFlowModId = (int)$m['id'];
-                    }
-                    if ($cashModId && $cashFlowModId && isset($perms[$cashFlowModId])) {
-                        $perms[$cashModId] = $perms[$cashFlowModId];
-                    }
-                    foreach ($allMods as $m) {
-                        $mid = (int)$m['id'];
-                        $v = !empty($perms[$mid]['view']) ? 1 : 0;
-                        $a = !empty($perms[$mid]['add']) ? 1 : 0;
-                        $e = !empty($perms[$mid]['edit']) ? 1 : 0;
-                        $d = !empty($perms[$mid]['delete']) ? 1 : 0;
-                        $stmtUp->execute([$userId, $mid, $v, $a, $e, $d]);
-                    }
+                    $this->persistUserPermissions($userId, (array)$_POST['perms'], $concernIds);
                 }
             } elseif ($email !== '' && ($passwordHash || $selectedRole)) {
                 $passHash = $passwordHash ?: password_hash('password123', PASSWORD_BCRYPT);
@@ -428,31 +420,7 @@ class StaffController extends Controller {
 
                 // Save module-level CRUD permissions (View, Create, Edit, Delete) for this staff account
                 if (!empty($_POST['perms'])) {
-                    $stmtUp = DB::pdo()->prepare(
-                        "INSERT INTO user_permissions (user_id, module_id, can_view, can_add, can_edit, can_delete)
-                         VALUES (?, ?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_add = VALUES(can_add), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)"
-                    );
-                    $allMods = DB::fetchAll("SELECT id, code FROM modules WHERE is_super_admin_only = 0");
-                    $perms = (array)$_POST['perms'];
-                    // Auto-mirror cash_flow permissions to cash module for transparent consistency
-                    $cashModId = null;
-                    $cashFlowModId = null;
-                    foreach ($allMods as $m) {
-                        if ($m['code'] === 'cash') $cashModId = (int)$m['id'];
-                        if ($m['code'] === 'cash_flow') $cashFlowModId = (int)$m['id'];
-                    }
-                    if ($cashModId && $cashFlowModId && isset($perms[$cashFlowModId])) {
-                        $perms[$cashModId] = $perms[$cashFlowModId];
-                    }
-                    foreach ($allMods as $m) {
-                        $mid = (int)$m['id'];
-                        $v = !empty($perms[$mid]['view']) ? 1 : 0;
-                        $a = !empty($perms[$mid]['add']) ? 1 : 0;
-                        $e = !empty($perms[$mid]['edit']) ? 1 : 0;
-                        $d = !empty($perms[$mid]['delete']) ? 1 : 0;
-                        $stmtUp->execute([$userId, $mid, $v, $a, $e, $d]);
-                    }
+                    $this->persistUserPermissions($userId, (array)$_POST['perms'], $concernIds);
                 }
             }
 
@@ -483,6 +451,7 @@ class StaffController extends Controller {
                 );
 
                 DB::commit();
+                unset($_SESSION['_old_input']);
                 $this->flash('success', "Staff member '{$name}' [{$staffCode}] updated successfully.");
                 $this->redirect('/m/staff?concern_id=' . $cid);
             } else {
@@ -504,11 +473,13 @@ class StaffController extends Controller {
                 );
 
                 DB::commit();
+                unset($_SESSION['_old_input']);
                 $this->flash('success', "Staff member '{$name}' [{$staffCode}] registered successfully.");
                 $this->redirect('/m/staff?concern_id=' . $cid);
             }
         } catch (Exception $e) {
             DB::rollBack();
+            $_SESSION['_old_input'] = $_POST;
             $this->flash('error', 'Failed to register staff: ' . $e->getMessage());
             $this->redirect('/m/staff/create?concern_id=' . $cid);
         }
@@ -626,6 +597,11 @@ class StaffController extends Controller {
                     }
                 } elseif ($cid) {
                     DB::query("INSERT IGNORE INTO user_concerns (user_id, concern_id) VALUES (?, ?)", [$userId, $cid]);
+                }
+
+                if (!empty($_POST['perms'])) {
+                    $activePermCids = isset($updCids) ? $updCids : [$cid];
+                    $this->persistUserPermissions($userId, (array)$_POST['perms'], $activePermCids);
                 }
             }
 
@@ -1345,6 +1321,59 @@ class StaffController extends Controller {
             DB::rollBack();
             $this->flash('error', 'Failed to create role: ' . $e->getMessage());
             $this->redirect('/m/staff/roles?tab=matrix');
+        }
+    }
+
+    /**
+     * Persist module-level CRUD permissions for specific authorized concerns
+     */
+    private function persistUserPermissions(int $userId, array $postedPerms, array $concernIds): void {
+        if ($userId <= 0 || empty($postedPerms)) {
+            return;
+        }
+
+        $stmtUp = DB::pdo()->prepare(
+            "INSERT INTO user_permissions (user_id, concern_id, module_id, can_view, can_add, can_edit, can_delete)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_add = VALUES(can_add), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)"
+        );
+
+        $allMods = DB::fetchAll("SELECT id, code FROM modules WHERE is_super_admin_only = 0");
+        $cashModId = null;
+        $cashFlowModId = null;
+        foreach ($allMods as $m) {
+            if ($m['code'] === 'cash') $cashModId = (int)$m['id'];
+            if ($m['code'] === 'cash_flow') $cashFlowModId = (int)$m['id'];
+        }
+
+        // Clean existing permissions for this user to avoid stale permissions
+        DB::query("DELETE FROM user_permissions WHERE user_id = ?", [$userId]);
+
+        foreach ($concernIds as $authCid) {
+            if ($authCid <= 0) continue;
+
+            $concernPerms = [];
+            if (isset($postedPerms[$authCid]) && is_array($postedPerms[$authCid])) {
+                $concernPerms = $postedPerms[$authCid];
+            } elseif (count($concernIds) === 1 && isset($postedPerms[array_key_first($postedPerms)])) {
+                $concernPerms = $postedPerms;
+            }
+
+            if ($cashModId && $cashFlowModId && isset($concernPerms[$cashFlowModId])) {
+                $concernPerms[$cashModId] = $concernPerms[$cashFlowModId];
+            }
+
+            // Get modules enabled for this concern
+            $cmRows = DB::fetchAll("SELECT module_id FROM concern_modules WHERE concern_id = ? AND enabled = 1", [$authCid]);
+            $enabledMids = array_map('intval', array_column($cmRows, 'module_id'));
+
+            foreach ($enabledMids as $mid) {
+                $v = !empty($concernPerms[$mid]['view']) ? 1 : 0;
+                $a = !empty($concernPerms[$mid]['add']) ? 1 : 0;
+                $e = !empty($concernPerms[$mid]['edit']) ? 1 : 0;
+                $d = !empty($concernPerms[$mid]['delete']) ? 1 : 0;
+                $stmtUp->execute([$userId, $authCid, $mid, $v, $a, $e, $d]);
+            }
         }
     }
 }

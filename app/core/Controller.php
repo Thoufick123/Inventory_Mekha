@@ -148,6 +148,16 @@ abstract class Controller {
                 $sidebarModules = $registeredModuleCount < 5
                     ? ModuleRegistry::merge($databaseModules)
                     : $databaseModules;
+
+                if (!$isSuperAdmin) {
+                    $allowedSidebarModules = [];
+                    foreach ($sidebarModules as $m) {
+                        if (Auth::can($m['code'], 'view')) {
+                            $allowedSidebarModules[] = $m;
+                        }
+                    }
+                    $sidebarModules = $allowedSidebarModules;
+                }
             }
         }
 

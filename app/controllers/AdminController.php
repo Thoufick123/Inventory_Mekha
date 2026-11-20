@@ -190,6 +190,16 @@ class AdminController extends Controller {
              ORDER BY c.id DESC"
         );
 
+        $cmMap = [];
+        $cmRows = DB::fetchAll("SELECT concern_id, module_id FROM concern_modules WHERE enabled = 1");
+        foreach ($cmRows as $cm) {
+            $cmMap[(int)$cm['concern_id']][] = (int)$cm['module_id'];
+        }
+        foreach ($concerns as &$c) {
+            $c['enabled_module_ids'] = $cmMap[(int)$c['id']] ?? [];
+        }
+        unset($c);
+
         $allModules = $this->syncMasterModules();
 
         $this->render('admin/concerns', [
@@ -230,14 +240,18 @@ class AdminController extends Controller {
 
         if ($textLength($name) < 2 || $textLength($name) > 150 || preg_match('/\p{L}/u', $name) !== 1) {
             $errors[] = 'Concern name must be 2 to 150 characters and contain a letter.';
+        } else {
+            $dupConcern = DB::fetch("SELECT id FROM concerns WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1", [$name]);
+            if ($dupConcern) {
+                $errors[] = 'A business concern named "' . htmlspecialchars($name) . '" already exists. Concern names must be unique.';
+            }
         }
-        if ($gstin !== '' && !preg_match('/^[0-9A-Z]{15}$/D', $gstin)) {
-            $errors[] = 'Enter a valid 15-character GSTIN or leave the field blank.';
+        if ($gstin === '' || !preg_match('/^[0-9A-Z]{15}$/D', $gstin)) {
+            $errors[] = 'A valid 15-character alphanumeric GSTIN is required.';
         }
-        if ($email !== '' && (strlen($email) > 120 || filter_var($email, FILTER_VALIDATE_EMAIL) === false)) {
-            $errors[] = 'Enter a valid corporate email address or leave the field blank.';
-        }
-        if ($phone !== '') {
+        if ($phone === '') {
+            $errors[] = 'Phone number is required (10 or 12 digits starting with 6, 7, 8, or 9).';
+        } else {
             $cleanDigits = ltrim($phone, '+');
             if (!ctype_digit($cleanDigits)) {
                 $errors[] = 'Phone number can only contain digits with an optional leading +.';
@@ -260,8 +274,8 @@ class AdminController extends Controller {
                 }
             }
         }
-        if ($textLength($address) > 1000) {
-            $errors[] = 'Registered address cannot exceed 1000 characters.';
+        if ($textLength($address) < 5 || $textLength($address) > 1000) {
+            $errors[] = 'Registered physical address is required (minimum 5 characters).';
         }
         if ($adminEmail !== '') {
             if ($textLength($adminName) < 2 || $textLength($adminName) > 100 || preg_match('/\p{L}/u', $adminName) !== 1) {
@@ -282,8 +296,8 @@ class AdminController extends Controller {
         $allowedModuleIds = array_fill_keys(array_map('strval', array_column($allConcernModules, 'id')), true);
         $rawModuleIds = $_POST['modules'] ?? [];
         $pickedModuleIds = [];
-        if (!is_array($rawModuleIds)) {
-            $errors[] = 'Select valid modules for the concern.';
+        if (!is_array($rawModuleIds) || empty($rawModuleIds)) {
+            $errors[] = 'Please select at least one module for the concern from the Module Picker Checklist.';
         } else {
             foreach ($rawModuleIds as $moduleId) {
                 if ((!is_string($moduleId) && !is_int($moduleId))
@@ -479,8 +493,14 @@ class AdminController extends Controller {
             $this->redirect('/admin/concerns');
             return;
         }
-        if ($gstin !== '' && !preg_match('/^[0-9A-Z]{15}$/D', $gstin)) {
-            $this->flash('error', 'Enter a valid 15-character GSTIN or leave the field blank.');
+        $dupConcern = DB::fetch("SELECT id FROM concerns WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND id != ? LIMIT 1", [$name, $id]);
+        if ($dupConcern) {
+            $this->flash('error', 'A business concern named "' . htmlspecialchars($name) . '" already exists. Concern names must be unique.');
+            $this->redirect('/admin/concerns');
+            return;
+        }
+        if ($gstin === '' || !preg_match('/^[0-9A-Z]{15}$/D', $gstin)) {
+            $this->flash('error', 'A valid 15-character alphanumeric GSTIN is required.');
             $this->redirect('/admin/concerns');
             return;
         }
@@ -489,7 +509,11 @@ class AdminController extends Controller {
             $this->redirect('/admin/concerns');
             return;
         }
-        if ($phone !== '') {
+        if ($phone === '') {
+            $this->flash('error', 'Phone number is required (10 or 12 digits starting with 6, 7, 8, or 9).');
+            $this->redirect('/admin/concerns');
+            return;
+        } else {
             $cleanDigits = ltrim($phone, '+');
             if (!ctype_digit($cleanDigits)) {
                 $this->flash('error', 'Phone number can only contain digits with an optional leading +.');
@@ -518,9 +542,20 @@ class AdminController extends Controller {
                 }
             }
         }
+        $addrLen = function_exists('mb_strlen') ? mb_strlen($address, 'UTF-8') : strlen($address);
+        if ($addrLen < 5 || $addrLen > 1000) {
+            $this->flash('error', 'Registered physical address is required (minimum 5 characters).');
+            $this->redirect('/admin/concerns');
+            return;
+        }
 
         $rawModuleIds = $_POST['modules'] ?? [];
         $hasModulePicker = isset($_POST['modules_present']);
+        if ($hasModulePicker && (empty($rawModuleIds) || !is_array($rawModuleIds))) {
+            $this->flash('error', 'Please select at least one module for the concern from the Module Picker Checklist.');
+            $this->redirect('/admin/concerns');
+            return;
+        }
         $allConcernModules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'dispatch'");
         $allowedModuleIds = [];
         foreach ($allConcernModules as $m) {

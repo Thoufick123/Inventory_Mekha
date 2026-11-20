@@ -162,20 +162,6 @@
             </div>
 
             <div class="modal-body p-4">
-                <div class="alert alert-light border d-flex align-items-center justify-content-between py-2 px-3 mb-4 rounded-3">
-                    <div class="small text-muted">
-                        <i class="bi bi-info-circle text-primary me-1"></i> Drafting concern onboarding parameters offline?
-                    </div>
-                    <div class="d-flex gap-2">
-                        <a href="<?= \App\Core\Controller::url('/admin/concerns/template?format=excel') ?>" class="btn btn-sm btn-outline-success py-1 px-2 small">
-                            <i class="bi bi-file-earmark-excel me-1"></i> Download Excel Template
-                        </a>
-                        <a href="<?= \App\Core\Controller::url('/admin/concerns/template?format=csv') ?>" class="btn btn-sm btn-outline-primary py-1 px-2 small">
-                            <i class="bi bi-file-earmark-text me-1"></i> CSV Template
-                        </a>
-                    </div>
-                </div>
-
                 <div class="row g-4">
                     <!-- Column 1: Details & Initial Admin -->
                     <div class="col-lg-5 border-end">
@@ -184,6 +170,7 @@
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Concern Name *</label>
                             <input type="text" name="name" id="newConcernName" class="form-control" minlength="2" maxlength="150" autocomplete="off" required>
+                            <div class="invalid-feedback" id="newConcernNameFeedback">A business concern with this name already exists. Concern names must be unique.</div>
                         </div>
 
                         <div class="row g-2 mb-3">
@@ -193,26 +180,24 @@
                                 <div class="form-text" id="newConcernCodeHelp">Generated automatically from the concern name.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">GSTIN</label>
-                                <input type="text" name="gstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9A-Za-z]{15}" placeholder="15-character GSTIN" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="15-character alphanumeric GSTIN (e.g. 29AAAAA0000A1Z5)">
+                                <label class="form-label small fw-semibold">GSTIN *</label>
+                                <input type="text" name="gstin" id="newConcernGstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9A-Za-z]{15}" placeholder="15-character GSTIN" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="15-character alphanumeric GSTIN (e.g. 29AAAAA0000A1Z5)" required>
+                                <div class="invalid-feedback" id="newConcernGstinFeedback">A valid 15-character alphanumeric GSTIN is required.</div>
                             </div>
                         </div>
 
                         <div class="row g-2 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Phone</label>
-                                <input type="tel" name="phone" id="newConcernPhone" class="form-control" maxlength="13" pattern="^(\+?91)?[6-9][0-9]{9}$|^[6-9][0-9]{11}$" placeholder="10 or 12 digits (e.g. 9876543210)" oninput="this.value = this.value.replace(/[^0-9+]/g, '').slice(0, 13);" autocomplete="off" title="Phone number must be 10 or 12 digits and start with 6, 7, 8, or 9 (or +91)">
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Phone *</label>
+                                <input type="tel" name="phone" id="newConcernPhone" class="form-control" maxlength="13" pattern="^(\+?91)?[6-9][0-9]{9}$|^[6-9][0-9]{11}$" placeholder="10 or 12 digits (e.g. 9876543210)" oninput="this.value = this.value.replace(/[^0-9+]/g, '').slice(0, 13);" autocomplete="off" title="Phone number must be 10 or 12 digits and start with 6, 7, 8, or 9 (or +91)" required>
                                 <div class="invalid-feedback" id="newConcernPhoneFeedback">Phone must be 10 or 12 digits and start with 6, 7, 8, or 9.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Email</label>
-                                <input type="email" name="email" id="newConcernEmail" class="form-control" maxlength="120" placeholder="e.g. contact@concern.com" autocomplete="off">
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label small fw-semibold">Registered Address</label>
-                            <textarea name="address" class="form-control" rows="2" maxlength="1000" autocomplete="off"></textarea>
+                            <label class="form-label small fw-semibold">Registered Address *</label>
+                            <textarea name="address" id="newConcernAddress" class="form-control" rows="2" maxlength="1000" minlength="5" placeholder="Complete registered business address" autocomplete="off" required></textarea>
+                            <div class="invalid-feedback" id="newConcernAddressFeedback">Registered physical address is required (minimum 5 characters).</div>
                         </div>
                     </div>
 
@@ -225,14 +210,14 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllModules(false)">Deselect All</button>
                             </div>
                         </div>
-                        <p class="text-muted small">
-                            Select the modules this concern gets. Unchecked modules will not appear in their sidebar and will return 403 on direct URL access.
-                        </p>
                         <div class="alert alert-danger py-2 d-none" id="newConcernModuleError" role="alert">Select at least one module.</div>
 
                         <?php
                         $groupedAll = [];
                         foreach ($allModules as $mod) {
+                            if ($mod['code'] === 'concern_dashboard' || $mod['group_name'] === 'Dashboard' || $mod['code'] === 'cash') {
+                                continue;
+                            }
                             $groupName = $mod['code'] === 'catalog_mapping' ? 'Purchase' : $mod['group_name'];
                             $groupedAll[$groupName][] = $mod;
                         }
@@ -246,7 +231,7 @@
                                     <div class="card border h-100 shadow-sm">
                                         <div class="card-header bg-light py-2 px-3 d-flex align-items-center justify-content-between">
                                             <div class="form-check mb-0 d-flex align-items-center">
-                                                <input class="form-check-input group-master-check me-2" type="checkbox" id="grp_chk_<?= $slug ?>" <?= $slug === 'dashboard' ? 'checked' : '' ?> onchange="toggleGroupCheck('<?= $slug ?>', this.checked)">
+                                                <input class="form-check-input group-master-check me-2" type="checkbox" id="grp_chk_<?= $slug ?>" onchange="toggleGroupCheck('<?= $slug ?>', this.checked)">
                                                 <label class="form-check-label fw-bold small text-dark user-select-none" for="grp_chk_<?= $slug ?>" style="cursor: pointer;">
                                                     <?= htmlspecialchars($grp) ?>
                                                 </label>
@@ -256,7 +241,7 @@
                                         <div class="card-body p-2 ps-3">
                                             <?php foreach ($mods as $m): ?>
                                                 <div class="form-check mb-1">
-                                                    <input class="form-check-input module-check group-mod-<?= $slug ?>" type="checkbox" name="modules[]" value="<?= $m['id'] ?>" id="new_mod_<?= $m['id'] ?>" data-group="<?= $slug ?>" <?= $m['code'] === 'concern_dashboard' ? 'checked' : '' ?> onchange="syncGroupMasterCheck('<?= $slug ?>')">
+                                                    <input class="form-check-input module-check group-mod-<?= $slug ?>" type="checkbox" name="modules[]" value="<?= $m['id'] ?>" id="new_mod_<?= $m['id'] ?>" data-group="<?= $slug ?>" onchange="syncGroupMasterCheck('<?= $slug ?>')">
                                                     <label class="form-check-label small" for="new_mod_<?= $m['id'] ?>">
                                                         <i class="bi <?= htmlspecialchars($m['icon']) ?> text-muted me-1"></i>
                                                         <?= htmlspecialchars($m['name']) ?>
@@ -304,6 +289,7 @@
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Concern Name *</label>
                             <input type="text" name="name" id="edit_concern_name" class="form-control" required maxlength="150" autocomplete="off">
+                            <div class="invalid-feedback" id="editConcernNameFeedback">A business concern with this name already exists. Concern names must be unique.</div>
                         </div>
 
                         <div class="row g-2 mb-3">
@@ -312,20 +298,17 @@
                                 <input type="text" name="code" id="edit_concern_code" class="form-control text-uppercase font-monospace" required maxlength="20" autocomplete="off">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">GSTIN</label>
-                                <input type="text" name="gstin" id="edit_concern_gstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9A-Za-z]{15}" placeholder="15-character GSTIN" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="15-character alphanumeric GSTIN">
+                                <label class="form-label small fw-semibold">GSTIN *</label>
+                                <input type="text" name="gstin" id="edit_concern_gstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9A-Za-z]{15}" placeholder="15-character GSTIN" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="15-character alphanumeric GSTIN" required>
+                                <div class="invalid-feedback" id="editConcernGstinFeedback">A valid 15-character alphanumeric GSTIN is required.</div>
                             </div>
                         </div>
 
                         <div class="row g-2 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Phone</label>
-                                <input type="tel" name="phone" id="edit_concern_phone" class="form-control" maxlength="13" pattern="^(\+?91)?[6-9][0-9]{9}$|^[6-9][0-9]{11}$" placeholder="10 or 12 digits (e.g. 9876543210)" oninput="this.value = this.value.replace(/[^0-9+]/g, '').slice(0, 13);" autocomplete="off" title="Phone number must be 10 or 12 digits and start with 6, 7, 8, or 9 (or +91)">
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Phone *</label>
+                                <input type="tel" name="phone" id="edit_concern_phone" class="form-control" maxlength="13" pattern="^(\+?91)?[6-9][0-9]{9}$|^[6-9][0-9]{11}$" placeholder="10 or 12 digits (e.g. 9876543210)" oninput="this.value = this.value.replace(/[^0-9+]/g, '').slice(0, 13);" autocomplete="off" title="Phone number must be 10 or 12 digits and start with 6, 7, 8, or 9 (or +91)" required>
                                 <div class="invalid-feedback" id="editConcernPhoneFeedback">Phone must be 10 or 12 digits and start with 6, 7, 8, or 9.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Email</label>
-                                <input type="email" name="email" id="edit_concern_email" class="form-control" maxlength="120" placeholder="e.g. contact@concern.com" autocomplete="off">
                             </div>
                         </div>
 
@@ -338,8 +321,9 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label small fw-semibold">Registered Physical Address</label>
-                            <textarea name="address" id="edit_concern_address" class="form-control" rows="3" maxlength="1000" autocomplete="off" placeholder="Complete registered address"></textarea>
+                            <label class="form-label small fw-semibold">Registered Physical Address *</label>
+                            <textarea name="address" id="edit_concern_address" class="form-control" rows="3" maxlength="1000" minlength="5" autocomplete="off" placeholder="Complete registered address" required></textarea>
+                            <div class="invalid-feedback" id="editConcernAddressFeedback">Registered physical address is required (minimum 5 characters).</div>
                         </div>
                     </div>
 
@@ -352,9 +336,6 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllEditModules(false)">Deselect All</button>
                             </div>
                         </div>
-                        <p class="text-muted small">
-                            Select the modules this concern gets. Unchecked modules will not appear in their sidebar and will return 403 on direct URL access.
-                        </p>
                         <div class="alert alert-danger py-2 d-none" id="editConcernModuleError" role="alert">Select at least one module.</div>
 
                         <div class="row g-3" style="max-height: 520px; overflow-y: auto;">
@@ -452,10 +433,6 @@
                                 <strong class="text-dark font-monospace" id="view_concern_phone">-</strong>
                             </li>
                             <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                <span class="text-muted"><i class="bi bi-envelope text-primary me-2"></i>Corporate Email:</span>
-                                <strong class="text-dark" id="view_concern_email">-</strong>
-                            </li>
-                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
                                 <span class="text-muted"><i class="bi bi-check2-circle text-primary me-2"></i>Active Modules:</span>
                                 <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" id="view_concern_modules">0 Modules</span>
                             </li>
@@ -519,11 +496,50 @@
 </div>
 
 <script>
+const existingConcerns = <?= json_encode(array_map(function($c) {
+    return [
+        'id' => (int)$c['id'],
+        'name' => trim((string)$c['name'])
+    ];
+}, $concerns)) ?>;
+
 const createConcernModal = document.getElementById('modalCreateConcern');
 const createConcernForm = createConcernModal ? createConcernModal.querySelector('form') : null;
 const newConcernName = document.getElementById('newConcernName');
+const newConcernNameFb = document.getElementById('newConcernNameFeedback');
 const newConcernCode = document.getElementById('newConcernCode');
 const moduleSelectionError = document.getElementById('newConcernModuleError');
+
+function validateConcernName(inputEl, feedbackEl, excludeId = null) {
+    if (!inputEl) return true;
+    const rawVal = inputEl.value.trim();
+    if (!rawVal) {
+        inputEl.classList.remove('is-invalid');
+        inputEl.setCustomValidity('');
+        if (feedbackEl) feedbackEl.textContent = '';
+        return true;
+    }
+    const checkVal = rawVal.toLowerCase();
+    const isDuplicate = existingConcerns.some(c => {
+        if (excludeId !== null && Number(c.id) === Number(excludeId)) {
+            return false;
+        }
+        return (c.name || '').trim().toLowerCase() === checkVal;
+    });
+
+    if (isDuplicate) {
+        const errorMsg = 'A business concern named "' + rawVal + '" already exists. Concern names must be unique.';
+        inputEl.classList.add('is-invalid');
+        inputEl.setCustomValidity(errorMsg);
+        if (feedbackEl) feedbackEl.textContent = errorMsg;
+        return false;
+    }
+
+    inputEl.classList.remove('is-invalid');
+    inputEl.setCustomValidity('');
+    if (feedbackEl) feedbackEl.textContent = '';
+    return true;
+}
 
 function concernCodePreview(name) {
     const words = String(name).toUpperCase().match(/[A-Z0-9]+/g) || [];
@@ -536,6 +552,10 @@ function concernCodePreview(name) {
 if (newConcernName && newConcernCode) {
     newConcernName.addEventListener('input', () => {
         newConcernCode.value = concernCodePreview(newConcernName.value);
+        validateConcernName(newConcernName, newConcernNameFb);
+    });
+    newConcernName.addEventListener('blur', () => {
+        validateConcernName(newConcernName, newConcernNameFb);
     });
 }
 
@@ -543,6 +563,13 @@ function validateConcernPhone(inputEl, feedbackEl, isFinalCheck = false) {
     if (!inputEl) return true;
     const val = inputEl.value.trim();
     if (!val) {
+        if (isFinalCheck) {
+            const errorMsg = 'Phone number is required (10 or 12 digits starting with 6, 7, 8, or 9).';
+            inputEl.classList.add('is-invalid');
+            inputEl.setCustomValidity(errorMsg);
+            if (feedbackEl) feedbackEl.textContent = errorMsg;
+            return false;
+        }
         inputEl.classList.remove('is-invalid');
         inputEl.setCustomValidity('');
         if (feedbackEl) feedbackEl.textContent = '';
@@ -582,11 +609,72 @@ function validateConcernPhone(inputEl, feedbackEl, isFinalCheck = false) {
     return true;
 }
 
+function validateConcernGstin(inputEl, feedbackEl, isFinalCheck = false) {
+    if (!inputEl) return true;
+    const val = inputEl.value.trim().toUpperCase();
+    if (!val) {
+        if (isFinalCheck) {
+            const errorMsg = 'A valid 15-character alphanumeric GSTIN is required.';
+            inputEl.classList.add('is-invalid');
+            inputEl.setCustomValidity(errorMsg);
+            if (feedbackEl) feedbackEl.textContent = errorMsg;
+            return false;
+        }
+        inputEl.classList.remove('is-invalid');
+        inputEl.setCustomValidity('');
+        if (feedbackEl) feedbackEl.textContent = '';
+        return true;
+    }
+    if (!/^[0-9A-Z]{15}$/.test(val)) {
+        const errorMsg = 'GSTIN must be exactly 15 alphanumeric characters (e.g. 22AAAAA0000A1Z5).';
+        inputEl.classList.add('is-invalid');
+        inputEl.setCustomValidity(errorMsg);
+        if (feedbackEl) feedbackEl.textContent = errorMsg;
+        return false;
+    }
+    inputEl.classList.remove('is-invalid');
+    inputEl.setCustomValidity('');
+    if (feedbackEl) feedbackEl.textContent = '';
+    return true;
+}
+
+function validateConcernAddress(inputEl, feedbackEl, isFinalCheck = false) {
+    if (!inputEl) return true;
+    const val = inputEl.value.trim();
+    if (val.length < 5) {
+        if (isFinalCheck || val.length > 0) {
+            const errorMsg = 'Registered physical address is required (minimum 5 characters).';
+            inputEl.classList.add('is-invalid');
+            inputEl.setCustomValidity(errorMsg);
+            if (feedbackEl) feedbackEl.textContent = errorMsg;
+            return false;
+        }
+    }
+    inputEl.classList.remove('is-invalid');
+    inputEl.setCustomValidity('');
+    if (feedbackEl) feedbackEl.textContent = '';
+    return true;
+}
+
 const newConcernPhone = document.getElementById('newConcernPhone');
 const newConcernPhoneFb = document.getElementById('newConcernPhoneFeedback');
 if (newConcernPhone) {
     newConcernPhone.addEventListener('input', () => validateConcernPhone(newConcernPhone, newConcernPhoneFb, false));
     newConcernPhone.addEventListener('blur', () => validateConcernPhone(newConcernPhone, newConcernPhoneFb, true));
+}
+
+const newConcernGstin = document.getElementById('newConcernGstin');
+const newConcernGstinFb = document.getElementById('newConcernGstinFeedback');
+if (newConcernGstin) {
+    newConcernGstin.addEventListener('input', () => validateConcernGstin(newConcernGstin, newConcernGstinFb, false));
+    newConcernGstin.addEventListener('blur', () => validateConcernGstin(newConcernGstin, newConcernGstinFb, true));
+}
+
+const newConcernAddress = document.getElementById('newConcernAddress');
+const newConcernAddressFb = document.getElementById('newConcernAddressFeedback');
+if (newConcernAddress) {
+    newConcernAddress.addEventListener('input', () => validateConcernAddress(newConcernAddress, newConcernAddressFb, false));
+    newConcernAddress.addEventListener('blur', () => validateConcernAddress(newConcernAddress, newConcernAddressFb, true));
 }
 
 if (createConcernModal && createConcernForm) {
@@ -597,30 +685,56 @@ if (createConcernModal && createConcernForm) {
             field.classList.remove('is-invalid');
             field.setCustomValidity('');
         });
+        if (newConcernNameFb) newConcernNameFb.textContent = '';
         if (newConcernPhoneFb) newConcernPhoneFb.textContent = '';
-        createConcernForm.querySelectorAll('textarea').forEach(field => field.value = '');
+        if (newConcernGstinFb) newConcernGstinFb.textContent = '';
+        if (newConcernAddressFb) newConcernAddressFb.textContent = '';
+        createConcernForm.querySelectorAll('textarea').forEach(field => {
+            field.value = '';
+            field.classList.remove('is-invalid');
+            field.setCustomValidity('');
+        });
         document.querySelectorAll('.group-master-check').forEach(cb => {
             cb.checked = false;
             cb.indeterminate = false;
         });
-        const dashCb = document.querySelector('input.module-check[data-group="dashboard"]');
-        if (dashCb) dashCb.checked = true;
-        const dashGrpMaster = document.getElementById('grp_chk_dashboard');
-        if (dashGrpMaster) dashGrpMaster.checked = true;
         if (moduleSelectionError) moduleSelectionError.classList.add('d-none');
     });
 
     createConcernForm.addEventListener('submit', event => {
+        let isValid = true;
+
+        if (!validateConcernName(newConcernName, newConcernNameFb)) {
+            isValid = false;
+            newConcernName.focus();
+        }
+
+        if (!validateConcernGstin(newConcernGstin, newConcernGstinFb, true)) {
+            if (isValid) newConcernGstin.focus();
+            isValid = false;
+        }
+
         if (!validateConcernPhone(newConcernPhone, newConcernPhoneFb, true)) {
-            event.preventDefault();
-            newConcernPhone.focus();
-            return;
+            if (isValid) newConcernPhone.focus();
+            isValid = false;
+        }
+
+        if (!validateConcernAddress(newConcernAddress, newConcernAddressFb, true)) {
+            if (isValid) newConcernAddress.focus();
+            isValid = false;
         }
 
         const hasSelectedModule = createConcernForm.querySelector('.module-check:checked');
         if (!hasSelectedModule) {
+            isValid = false;
+            if (moduleSelectionError) {
+                moduleSelectionError.classList.remove('d-none');
+                moduleSelectionError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        if (!isValid) {
             event.preventDefault();
-            if (moduleSelectionError) moduleSelectionError.classList.remove('d-none');
         }
     });
 
@@ -685,7 +799,6 @@ function openViewConcernModal(con) {
     document.getElementById('view_concern_name').innerText = con.name || 'Concern';
     document.getElementById('view_concern_code').innerText = con.code || '';
     document.getElementById('view_concern_phone').innerText = con.phone || '-';
-    document.getElementById('view_concern_email').innerText = con.email || '-';
     document.getElementById('view_concern_gstin').innerText = con.gstin || 'Unregistered';
     document.getElementById('view_concern_address').innerText = con.address || 'No address specified';
     document.getElementById('view_concern_variants').innerText = (con.variants_count || 0) + ' SKUs';
@@ -743,10 +856,17 @@ function openEditConcernModal(con) {
     document.getElementById('edit_concern_name').value = con.name || '';
     document.getElementById('edit_concern_code').value = con.code || '';
     document.getElementById('edit_concern_phone').value = con.phone || '';
-    document.getElementById('edit_concern_email').value = con.email || '';
     document.getElementById('edit_concern_gstin').value = con.gstin || '';
     document.getElementById('edit_concern_address').value = con.address || '';
     document.getElementById('edit_concern_status').value = con.status || 'active';
+
+    const editNameEl = document.getElementById('edit_concern_name');
+    const editNameFb = document.getElementById('editConcernNameFeedback');
+    if (editNameEl) {
+        editNameEl.classList.remove('is-invalid');
+        editNameEl.setCustomValidity('');
+    }
+    if (editNameFb) editNameFb.textContent = '';
 
     const editPhoneEl = document.getElementById('edit_concern_phone');
     const editPhoneFb = document.getElementById('editConcernPhoneFeedback');
@@ -755,6 +875,22 @@ function openEditConcernModal(con) {
         editPhoneEl.setCustomValidity('');
     }
     if (editPhoneFb) editPhoneFb.textContent = '';
+
+    const editGstinEl = document.getElementById('edit_concern_gstin');
+    const editGstinFb = document.getElementById('editConcernGstinFeedback');
+    if (editGstinEl) {
+        editGstinEl.classList.remove('is-invalid');
+        editGstinEl.setCustomValidity('');
+    }
+    if (editGstinFb) editGstinFb.textContent = '';
+
+    const editAddressEl = document.getElementById('edit_concern_address');
+    const editAddressFb = document.getElementById('editConcernAddressFeedback');
+    if (editAddressEl) {
+        editAddressEl.classList.remove('is-invalid');
+        editAddressEl.setCustomValidity('');
+    }
+    if (editAddressFb) editAddressFb.textContent = '';
 
     const editModErr = document.getElementById('editConcernModuleError');
     if (editModErr) editModErr.classList.add('d-none');
@@ -823,26 +959,75 @@ function selectAllEditModules(check) {
 
 const editConcernForm = document.getElementById('editConcernForm');
 const editConcernModuleError = document.getElementById('editConcernModuleError');
+const editConcernName = document.getElementById('edit_concern_name');
+const editConcernNameFb = document.getElementById('editConcernNameFeedback');
+const editConcernId = document.getElementById('edit_concern_id');
 const editConcernPhone = document.getElementById('edit_concern_phone');
 const editConcernPhoneFb = document.getElementById('editConcernPhoneFeedback');
+const editConcernGstin = document.getElementById('edit_concern_gstin');
+const editConcernGstinFb = document.getElementById('editConcernGstinFeedback');
+const editConcernAddress = document.getElementById('edit_concern_address');
+const editConcernAddressFb = document.getElementById('editConcernAddressFeedback');
+
+if (editConcernName) {
+    editConcernName.addEventListener('input', () => {
+        validateConcernName(editConcernName, editConcernNameFb, editConcernId ? editConcernId.value : null);
+    });
+    editConcernName.addEventListener('blur', () => {
+        validateConcernName(editConcernName, editConcernNameFb, editConcernId ? editConcernId.value : null);
+    });
+}
+
+if (editConcernGstin) {
+    editConcernGstin.addEventListener('input', () => validateConcernGstin(editConcernGstin, editConcernGstinFb, false));
+    editConcernGstin.addEventListener('blur', () => validateConcernGstin(editConcernGstin, editConcernGstinFb, true));
+}
 
 if (editConcernPhone) {
     editConcernPhone.addEventListener('input', () => validateConcernPhone(editConcernPhone, editConcernPhoneFb, false));
     editConcernPhone.addEventListener('blur', () => validateConcernPhone(editConcernPhone, editConcernPhoneFb, true));
 }
 
+if (editConcernAddress) {
+    editConcernAddress.addEventListener('input', () => validateConcernAddress(editConcernAddress, editConcernAddressFb, false));
+    editConcernAddress.addEventListener('blur', () => validateConcernAddress(editConcernAddress, editConcernAddressFb, true));
+}
+
 if (editConcernForm) {
     editConcernForm.addEventListener('submit', event => {
+        let isValid = true;
+
+        if (!validateConcernName(editConcernName, editConcernNameFb, editConcernId ? editConcernId.value : null)) {
+            isValid = false;
+            editConcernName.focus();
+        }
+
+        if (!validateConcernGstin(editConcernGstin, editConcernGstinFb, true)) {
+            if (isValid) editConcernGstin.focus();
+            isValid = false;
+        }
+
         if (!validateConcernPhone(editConcernPhone, editConcernPhoneFb, true)) {
-            event.preventDefault();
-            editConcernPhone.focus();
-            return;
+            if (isValid) editConcernPhone.focus();
+            isValid = false;
+        }
+
+        if (!validateConcernAddress(editConcernAddress, editConcernAddressFb, true)) {
+            if (isValid) editConcernAddress.focus();
+            isValid = false;
         }
 
         const hasSelectedModule = editConcernForm.querySelector('.edit-module-check:checked');
         if (!hasSelectedModule) {
+            isValid = false;
+            if (editConcernModuleError) {
+                editConcernModuleError.classList.remove('d-none');
+                editConcernModuleError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        if (!isValid) {
             event.preventDefault();
-            if (editConcernModuleError) editConcernModuleError.classList.remove('d-none');
         }
     });
 

@@ -10,8 +10,8 @@ class ModuleRegistry
         return [
             ['code' => 'admin_dashboard', 'name' => 'Dashboard', 'icon' => 'bi-speedometer2', 'sort_order' => 1, 'group_name' => 'Super Admin', 'is_super_admin_only' => 1],
             ['code' => 'admin_concerns', 'name' => 'Concern Management', 'icon' => 'bi-buildings', 'sort_order' => 2, 'group_name' => 'Super Admin', 'is_super_admin_only' => 1],
-            ['code' => 'admin_assets', 'name' => 'Asset Management', 'icon' => 'bi-building-gear', 'sort_order' => 3, 'group_name' => 'Super Admin', 'is_super_admin_only' => 1],
-            ['code' => 'admin_reports', 'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line', 'sort_order' => 4, 'group_name' => 'Super Admin', 'is_super_admin_only' => 1],
+            ['code' => 'admin_assets', 'name' => 'Asset Management', 'icon' => 'bi-building-gear', 'sort_order' => 3, 'group_name' => 'Super Admin', 'is_super_admin_only' => 0],
+            ['code' => 'admin_reports', 'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line', 'sort_order' => 4, 'group_name' => 'Super Admin', 'is_super_admin_only' => 0],
 
             ['code' => 'concern_dashboard', 'name' => 'Concern Dashboard', 'icon' => 'bi-speedometer', 'sort_order' => 10, 'group_name' => 'Dashboard', 'is_super_admin_only' => 0],
             ['code' => 'suppliers', 'name' => 'Supplier', 'icon' => 'bi-truck', 'sort_order' => 20, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],

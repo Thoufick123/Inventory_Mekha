@@ -224,6 +224,13 @@
         </div>
 
         <div class="py-2">
+            <?php if (!$isSuperAdmin): ?>
+                <div class="nav-group-title">Dashboard</div>
+                <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="nav-link <?= (in_array($activeRoute, ['/dashboard', '/']) || (isset($currentModule) && $currentModule === 'concern_dashboard')) ? 'active' : '' ?>">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>Dashboard</span>
+                </a>
+            <?php endif; ?>
             <?php
             $activeRoute = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
             $grouped = [];
@@ -295,6 +302,7 @@
                 <?php endforeach; ?>
             <?php endforeach; ?>
 
+            <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'view')): ?>
             <div class="nav-group-title">Staff</div>
             <a href="<?= \App\Core\Controller::url('/m/staff') ?>" class="nav-link <?= (isset($currentModule) && $currentModule === 'staff' && (empty($currentSubModule) || $currentSubModule === 'all')) ? 'active' : '' ?>">
                 <i class="bi bi-people-fill"></i>
@@ -308,6 +316,7 @@
                 <i class="bi bi-person-badge-fill"></i>
                 <span>Role Assign</span>
             </a>
+            <?php endif; ?>
             <?php if ($isSuperAdmin): ?>
             <a href="<?= \App\Core\Controller::url('/admin/concerns') ?>" class="nav-link <?= (str_contains($activeRoute, 'admin/concerns') || (isset($currentModule) && $currentModule === 'admin_concerns')) ? 'active' : '' ?>">
                 <i class="bi bi-buildings"></i>
@@ -362,35 +371,41 @@
                     ?>
                     <?php if (count($userConcerns) > 1): ?>
                         <!-- CONCERN SWITCHER FOR MULTI-CONCERN STAFF / USERS -->
-                        <div class="dropdown">
-                            <button class="btn btn-sm <?= $currentConcern && \App\Core\Auth::isShopConcern($currentConcern['id']) ? 'btn-success' : 'btn-primary' ?> dropdown-toggle d-flex align-items-center gap-1.5 fw-semibold shadow-sm concern-switcher-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Switch Location / Shop">
-                                <i class="bi <?= $currentConcern && \App\Core\Auth::isShopConcern($currentConcern['id']) ? 'bi-shop' : 'bi-building' ?>"></i>
-                                <span class="text-truncate" style="max-width: 155px;"><?= $currentConcern ? htmlspecialchars($currentConcern['name']) : 'Select Concern' ?></span>
-                            </button>
-                            <ul class="dropdown-menu shadow">
-                                <li class="dropdown-header text-uppercase small fw-bold">Switch Location / Shop</li>
-                                <?php foreach ($userConcerns as $con): 
-                                    $isSel = ($currentConcern && $currentConcern['id'] == $con['id']);
-                                    $conIsShop = \App\Core\Auth::isShopConcern((int)$con['id']);
-                                ?>
+                        <div class="d-flex align-items-center gap-1.5">
+                            <div class="dropdown">
+                                <button class="btn btn-sm <?= $currentConcern && \App\Core\Auth::isShopConcern($currentConcern['id']) ? 'btn-success' : 'btn-primary' ?> dropdown-toggle d-flex align-items-center gap-1.5 fw-semibold shadow-sm concern-switcher-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Switch Location / Shop">
+                                    <i class="bi <?= $currentConcern && \App\Core\Auth::isShopConcern($currentConcern['id']) ? 'bi-shop' : 'bi-building' ?>"></i>
+                                    <span class="text-truncate" style="max-width: 155px;"><?= $currentConcern ? htmlspecialchars($currentConcern['name']) : 'Select Concern' ?></span>
+                                </button>
+                                <ul class="dropdown-menu shadow">
+                                    <li class="dropdown-header text-uppercase small fw-bold">Switch Location / Shop</li>
+                                    <?php foreach ($userConcerns as $con): 
+                                        $isSel = ($currentConcern && $currentConcern['id'] == $con['id']);
+                                        $conIsShop = \App\Core\Auth::isShopConcern((int)$con['id']);
+                                    ?>
+                                        <li>
+                                            <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isSel ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/switch-concern?id=' . $con['id']) ?>">
+                                                <span>
+                                                    <i class="bi <?= $conIsShop ? 'bi-shop' : 'bi-building' ?> me-2 <?= $isSel ? 'text-white' : ($conIsShop ? 'text-success' : 'text-primary') ?>"></i> 
+                                                    <?= htmlspecialchars($con['name']) ?> 
+                                                    <small class="<?= $isSel ? 'text-white-50' : 'text-muted' ?>">(<?= htmlspecialchars($con['code']) ?>)</small>
+                                                </span>
+                                                <?php if ($isSel): ?><i class="bi bi-check-lg ms-2"></i><?php endif; ?>
+                                            </a>
+                                        </li>
+                                    <?php endforeach; ?>
+                                    <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isSel ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/switch-concern?id=' . $con['id']) ?>">
-                                            <span>
-                                                <i class="bi <?= $conIsShop ? 'bi-shop' : 'bi-building' ?> me-2 <?= $isSel ? 'text-white' : ($conIsShop ? 'text-success' : 'text-primary') ?>"></i> 
-                                                <?= htmlspecialchars($con['name']) ?> 
-                                                <small class="<?= $isSel ? 'text-white-50' : 'text-muted' ?>">(<?= htmlspecialchars($con['code']) ?>)</small>
-                                            </span>
-                                            <?php if ($isSel): ?><i class="bi bi-check-lg ms-2"></i><?php endif; ?>
+                                        <a class="dropdown-item small text-primary fw-semibold d-flex align-items-center gap-2" href="#" data-bs-toggle="modal" data-bs-target="#modalStaffLocationPopup">
+                                            <i class="bi bi-grid-fill"></i> Switch Location Popup
                                         </a>
                                     </li>
-                                <?php endforeach; ?>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <a class="dropdown-item small text-secondary d-flex align-items-center gap-2" href="<?= \App\Core\Controller::url('/select-concern?switch=1') ?>">
-                                        <i class="bi bi-grid"></i> View All Locations Card
-                                    </a>
-                                </li>
-                            </ul>
+                                </ul>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 d-flex align-items-center gap-1.5" data-bs-toggle="modal" data-bs-target="#modalStaffLocationPopup" title="Open Switch Location Dialog">
+                                <i class="bi bi-arrow-left-right text-primary"></i>
+                                <span class="d-none d-md-inline small fw-semibold">Switch</span>
+                            </button>
                         </div>
                     <?php elseif ($currentConcern): ?>
                         <span class="concern-pill" title="Concern GSTIN: <?= htmlspecialchars($currentConcern['code']) ?>">
@@ -501,6 +516,74 @@
                 }
             });
         </script>
+    <?php endif; ?>
+
+    <?php 
+    $modalConcerns = \App\Core\Auth::check() ? \App\Core\Auth::getUserConcerns(\App\Core\Auth::id()) : [];
+    if (count($modalConcerns) > 1): 
+    ?>
+    <!-- LOCATION / CONCERN SWITCHER POPUP MODAL -->
+    <div class="modal fade" id="modalStaffLocationPopup" tabindex="-1" aria-labelledby="modalStaffLocationPopupLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content shadow-lg border-0" style="border-radius: 1.25rem; overflow: hidden;">
+                <div class="modal-header bg-dark text-white p-3 px-4 border-0">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="rounded-circle bg-primary bg-opacity-25 p-2 text-primary d-flex align-items-center justify-content-center">
+                            <i class="bi bi-buildings-fill fs-5"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title fw-bold text-white mb-0" id="modalStaffLocationPopupLabel">Select Authorized Concern</h5>
+                            <small class="text-secondary">Switch workspace to view dashboard and permitted modules</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <p class="text-secondary small mb-3">
+                        You have authorized access to <strong><?= count($modalConcerns) ?></strong> business concerns. Click on any concern to load its dashboard:
+                    </p>
+                    <div class="row g-3">
+                        <?php foreach ($modalConcerns as $con): 
+                            $isCur = ($currentConcern && $currentConcern['id'] == $con['id']);
+                            $conIsShop = \App\Core\Auth::isShopConcern((int)$con['id']);
+                        ?>
+                            <div class="col-md-6 col-12">
+                                <a href="<?= \App\Core\Controller::url('/switch-concern?id=' . $con['id']) ?>" class="text-decoration-none d-block h-100">
+                                    <div class="card h-100 border-2 <?= $isCur ? 'border-primary shadow-sm bg-white' : 'border-light-subtle bg-white' ?> rounded-4 p-3.5 transition-all hover-shadow">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <span class="badge font-monospace <?= $conIsShop ? 'bg-success' : 'bg-primary' ?>">
+                                                <?= htmlspecialchars($con['code']) ?>
+                                            </span>
+                                            <?php if ($isCur): ?>
+                                                <span class="badge bg-primary text-white"><i class="bi bi-check-circle-fill me-1"></i> Current Active</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-light text-secondary border">Switch <i class="bi bi-arrow-right ms-1"></i></span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-3 my-2">
+                                            <div class="rounded-3 p-2.5 <?= $conIsShop ? 'bg-success bg-opacity-10 text-success' : 'bg-primary bg-opacity-10 text-primary' ?>">
+                                                <i class="bi <?= $conIsShop ? 'bi-shop fs-3' : 'bi-building-gear fs-3' ?>"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold text-dark mb-1"><?= htmlspecialchars($con['name']) ?></h6>
+                                                <small class="text-muted d-block" style="font-size: 0.76rem;">
+                                                    <i class="bi bi-speedometer2 text-primary me-1"></i> Open Concern Dashboard
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white py-2.5 px-4 justify-content-between border-top">
+                    <small class="text-muted">Logged in as <?= htmlspecialchars(\App\Core\Auth::user()['name'] ?? '') ?></small>
+                    <button type="button" class="btn btn-secondary rounded-pill px-4 btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <?php endif; ?>
 </body>
 </html>

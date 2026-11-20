@@ -249,13 +249,19 @@ class Auth {
         // 2. User-level permission overrides (NULL = inherit, 1 = grant, 0 = deny)
         $userMap = [];
         if ($userId > 0) {
-            $userPerms = DB::fetchAll(
-                "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
-                 FROM user_permissions up
-                 JOIN modules m ON up.module_id = m.id
-                 WHERE up.user_id = ?",
-                [$userId]
-            );
+            $cid = (int)($_SESSION['user']['concern_id'] ?? ($_SESSION['concern']['id'] ?? 0));
+            $params = [$userId];
+            $sql = "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
+                    FROM user_permissions up
+                    JOIN modules m ON up.module_id = m.id
+                    WHERE up.user_id = ?";
+            if ($cid > 0) {
+                $sql .= " AND (up.concern_id = ? OR up.concern_id IS NULL) ORDER BY (up.concern_id IS NOT NULL) ASC";
+                $params[] = $cid;
+            } else {
+                $sql .= " AND up.concern_id IS NULL";
+            }
+            $userPerms = DB::fetchAll($sql, $params);
             foreach ($userPerms as $up) {
                 $userMap[$up['code']] = [
                     'view'   => $up['can_view'] === null ? null : (int)$up['can_view'],
@@ -403,16 +409,13 @@ class Auth {
         }
 
         // 1. Check user-specific granular overrides
-        // NULL = inherit from role, 1 = explicitly granted, 0 = explicitly denied
+        // If user has customized user_permissions, only explicitly granted actions are allowed
         $userPerms = $_SESSION['user_permissions'] ?? [];
-        if (isset($userPerms[$moduleCode]) && array_key_exists($act, $userPerms[$moduleCode])) {
-            $val = $userPerms[$moduleCode][$act];
-            if ($val === 1) {
-                return true; // Explicit grant overrides role default
+        if (!empty($userPerms)) {
+            if (isset($userPerms[$moduleCode]) && array_key_exists($act, $userPerms[$moduleCode])) {
+                return $userPerms[$moduleCode][$act] === 1;
             }
-            if ($val === 0) {
-                return false; // Explicit denial overrides role default
-            }
+            return false;
         }
 
         // 2. Check role-level default permissions
