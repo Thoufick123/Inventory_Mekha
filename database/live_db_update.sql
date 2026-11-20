@@ -6,6 +6,7 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
 -- 1. ENSURE CRITICAL MULTI-TENANT & LOGISTICS TABLES
@@ -126,16 +127,16 @@ CREATE TABLE IF NOT EXISTS `cashier_shifts` (
 DROP PROCEDURE IF EXISTS `AddColSafe`;
 DELIMITER $$
 CREATE PROCEDURE `AddColSafe`(
-    IN in_table VARCHAR(64),
-    IN in_col VARCHAR(64),
-    IN in_def TEXT
+    IN in_table VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    IN in_col VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    IN in_def TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
 )
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_schema = DATABASE() 
-          AND table_name = in_table 
-          AND column_name = in_col
+        WHERE table_schema COLLATE utf8mb4_unicode_ci = DATABASE() COLLATE utf8mb4_unicode_ci 
+          AND table_name COLLATE utf8mb4_unicode_ci = in_table COLLATE utf8mb4_unicode_ci 
+          AND column_name COLLATE utf8mb4_unicode_ci = in_col COLLATE utf8mb4_unicode_ci
     ) THEN
         SET @sql = CONCAT('ALTER TABLE `', in_table, '` ADD COLUMN `', in_col, '` ', in_def);
         PREPARE stmt FROM @sql;
@@ -307,5 +308,21 @@ INSERT IGNORE INTO `inwards` (
 
 INSERT IGNORE INTO `inward_items` (`id`, `concern_id`, `inward_id`, `variant_id`, `qty`, `accepted_qty`, `rejected_qty`)
 VALUES (1, 1, 1, 27, 490.00, 3.00, 0.00);
+
+-- ------------------------------------------------------------------------------
+-- 7. UNIFY TABLE COLLATIONS TO PREVENT MARIA DB 11.4+ COLLATION MISMATCH (ERROR 1267)
+-- ------------------------------------------------------------------------------
+ALTER TABLE `concerns` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `users` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `production_units` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `batches` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `outwards` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `outward_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `production_outward_batches` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `inwards` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `inward_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `variants` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `production_programs` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `qc_inspections` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

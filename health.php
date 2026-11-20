@@ -51,17 +51,27 @@ if ($envExists) {
         $pdo = new PDO($dsn, $dbUser, $dbPass, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_TIMEOUT => 5,
+            PDO::ATTR_EMULATE_PREPARES => true,
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
         ]);
-        $tableCount = $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{$dbName}'")->fetchColumn();
+        try {
+            $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+        } catch (\Throwable $t) {
+            $pdo->exec("SET NAMES utf8mb4");
+        }
+
+        $allTables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+        $tableCount = count($allTables);
         $dbStatus = true;
         $dbMessage = "Successfully connected to MySQL! Found {$tableCount} tables in database `{$dbName}`.";
 
-        $puExists = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{$dbName}' AND table_name = 'production_units'")->fetchColumn() > 0;
+        $puExists = in_array('production_units', $allTables, true);
         if (!$puExists || (isset($_GET['migrate']) && $_GET['migrate'] === '1')) {
             ob_start();
             require __DIR__ . '/scripts/migrate_production_blueprint.php';
             $migrationOutput = ob_get_clean();
-            $tableCount = $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{$dbName}'")->fetchColumn();
+            $allTables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+            $tableCount = count($allTables);
             $puExists = true;
         }
     } catch (\Throwable $e) {

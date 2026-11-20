@@ -349,7 +349,7 @@ class InwardController extends Controller {
                    coalesce(pu.manager_name, 'Vanaja (9943557998)') AS manager_name,
                    coalesce(dest_con.name, 'wareouse') AS dest_warehouse_name,
                    coalesce(dest_con.code, 'WH-01') AS dest_warehouse_code,
-                   coalesce(b.batch_no, (SELECT batch_no FROM batches WHERE id = (SELECT batch_id FROM outward_items WHERE outward_id = o.id LIMIT 1)), concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
+                   coalesce(b.batch_no, (SELECT batch_no FROM batches WHERE id = (SELECT batch_id FROM production_outward_batches WHERE outward_id = o.id LIMIT 1)), concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
                    coalesce(pp.program_no, 'PRG-20261113-0001') AS program_no,
                    coalesce(pp.program_name, 'KIDS - BABY - DRESS') AS program_name
             FROM outwards o

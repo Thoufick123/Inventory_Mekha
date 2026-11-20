@@ -16,6 +16,11 @@ class DB {
             
             try {
                 self::$instance = new PDO($dsn, $config['username'], $config['password'], $config['options']);
+                try {
+                    self::$instance->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+                } catch (\Throwable $t) {
+                    self::$instance->exec("SET NAMES utf8mb4");
+                }
             } catch (PDOException $e) {
                 // If in debug mode, show message; else generic error
                 die("Database connection failed: " . htmlspecialchars($e->getMessage()));
