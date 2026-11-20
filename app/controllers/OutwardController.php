@@ -98,9 +98,33 @@ class OutwardController extends Controller {
 
         $search       = trim($_GET['search'] ?? '');
         $typeFilter   = trim($_GET['type'] ?? '');
+        $activeTab    = trim($_GET['tab'] ?? ''); // 'batch', 'fg', or ''
         $page         = max(1, (int)($_GET['page'] ?? 1));
         $perPage      = max(5, (int)($_GET['per_page'] ?? 10));
         $offset       = ($page - 1) * $perPage;
+
+        // Calculate count of Production Batch Outwards vs Finished Goods Outwards
+        $scopeCon = $selectedConcernId ? " AND (o.concern_id = {$selectedConcernId} OR o.destination_concern_id = {$selectedConcernId})" : "";
+        $batchCount = (int)DB::fetchValue("
+            SELECT COUNT(DISTINCT o.id) 
+            FROM outwards o 
+            LEFT JOIN production_outward_batches pob ON pob.outward_id = o.id 
+            WHERE (pob.batch_id IS NOT NULL) {$scopeCon}
+        ");
+        $fgCount = (int)DB::fetchValue("
+            SELECT COUNT(DISTINCT o.id) 
+            FROM outwards o 
+            LEFT JOIN production_outward_batches pob ON pob.outward_id = o.id 
+            WHERE (pob.batch_id IS NULL) {$scopeCon}
+        ");
+
+        if ($activeTab === '' && $typeFilter === '') {
+            $activeTab = 'batch';
+        } elseif ($typeFilter === 'batch') {
+            $activeTab = 'batch';
+        } elseif ($typeFilter === 'fg') {
+            $activeTab = 'fg';
+        }
 
         $sql = "SELECT o.*, 
                        con.name AS source_concern_name, con.code AS source_concern_code,
@@ -149,12 +173,10 @@ class OutwardController extends Controller {
             $params[] = $term;
         }
 
-        if ($typeFilter === 'batch') {
+        if ($activeTab === 'batch') {
             $sql .= " AND (pob.batch_id IS NOT NULL OR b.batch_no IS NOT NULL)";
-        } elseif ($typeFilter === 'concern') {
-            $sql .= " AND o.destination_concern_id IS NOT NULL";
-        } elseif ($typeFilter === 'customer') {
-            $sql .= " AND o.customer_id IS NOT NULL";
+        } elseif ($activeTab === 'fg') {
+            $sql .= " AND (pob.batch_id IS NULL AND b.id IS NULL)";
         }
 
         $countSql = "SELECT COUNT(*) FROM (" . $sql . ") AS cnt_tbl";
@@ -184,7 +206,7 @@ class OutwardController extends Controller {
             FROM variants v
             WHERE v.status = 'active'
             ORDER BY v.name ASC
-            LIMIT 100
+            LIMIT 200
         ");
 
         // Customers list
@@ -206,6 +228,9 @@ class OutwardController extends Controller {
             'totalPages'        => $totalPages,
             'search'            => $search,
             'typeFilter'        => $typeFilter,
+            'activeTab'         => $activeTab,
+            'batchCount'        => $batchCount,
+            'fgCount'           => $fgCount,
             'selectedConcernId' => $selectedConcernId,
             'allConcerns'       => $allConcerns,
             'availableBatches'  => $availableBatches,
@@ -293,16 +318,47 @@ class OutwardController extends Controller {
                 DB::query("UPDATE batches SET status = 'DISPATCHED' WHERE id = ?", [$batchId]);
 
             } else {
-                // Mode 2, 3, 4: Dynamic Variant Stock / Inter-Concern / Customer Outward
-                $variantId = (int)($_POST['variant_id'] ?? 0);
-                $qty       = (float)($_POST['quantity'] ?? 0);
-                $boxes     = max(1, (int)($_POST['total_boxes'] ?? 1));
-
-                if (!$variantId || $qty <= 0) {
-                    throw new Exception('Please select a valid variant and enter quantity.');
+                // Mode 2: Finishing Good (FG) Product Scan & Outward Dispatch
+                $items = [];
+                if (!empty($_POST['items']) && is_array($_POST['items'])) {
+                    foreach ($_POST['items'] as $it) {
+                        $vid = (int)($it['variant_id'] ?? 0);
+                        $qty = (float)($it['qty'] ?? 0);
+                        if ($vid > 0 && $qty > 0) {
+                            $items[] = ['variant_id' => $vid, 'qty' => $qty];
+                        }
+                    }
                 }
 
-                $transferType = ($dispatchMode === 'customer') ? 'customer' : 'concern';
+                // Support JSON array string from barcode scanner
+                if (empty($items) && !empty($_POST['scanned_items_json'])) {
+                    $decoded = json_decode($_POST['scanned_items_json'], true);
+                    if (is_array($decoded)) {
+                        foreach ($decoded as $it) {
+                            $vid = (int)($it['variant_id'] ?? 0);
+                            $qty = (float)($it['qty'] ?? 0);
+                            if ($vid > 0 && $qty > 0) {
+                                $items[] = ['variant_id' => $vid, 'qty' => $qty];
+                            }
+                        }
+                    }
+                }
+
+                // Fallback to single variant selection
+                if (empty($items)) {
+                    $variantId = (int)($_POST['variant_id'] ?? 0);
+                    $qty       = (float)($_POST['quantity'] ?? 0);
+                    if ($variantId > 0 && $qty > 0) {
+                        $items[] = ['variant_id' => $variantId, 'qty' => $qty];
+                    }
+                }
+
+                if (empty($items)) {
+                    throw new Exception('Please scan or select at least one finishing good product to dispatch.');
+                }
+
+                $boxes = max(1, (int)($_POST['total_boxes'] ?? 1));
+                $transferType = ($dispatchMode === 'customer' || !empty($customerId)) ? 'customer' : 'concern';
                 $puId = (int)DB::fetchValue("SELECT id FROM production_units WHERE concern_id = ? LIMIT 1", [$cid]) ?: 1;
 
                 DB::query("
@@ -324,14 +380,23 @@ class OutwardController extends Controller {
                 ]);
 
                 $outwardId = (int)DB::lastInsertId();
+                $totalPiecesDispatched = 0;
 
-                DB::query("
-                    INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
-                    VALUES (?, ?, ?, ?)
-                ", [$cid, $outwardId, $variantId, $qty]);
+                foreach ($items as $it) {
+                    $vId = $it['variant_id'];
+                    $iQty = $it['qty'];
+                    $totalPiecesDispatched += $iQty;
 
-                // Deduct stock via StockService
-                StockService::move($cid, $variantId, 'Main Store', -$qty, 0.00, 'outward', $outwardId, "Outward dispatch {$outwardNo}");
+                    DB::query("
+                        INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
+                        VALUES (?, ?, ?, ?)
+                    ", [$cid, $outwardId, $vId, $iQty]);
+
+                    // Deduct stock via StockService (qtyIn = 0.00, qtyOut = $iQty)
+                    StockService::move($cid, $vId, 'Main Store', 0.00, $iQty, 'Outward', $outwardId, "Outward FG dispatch {$outwardNo}");
+                }
+
+                $qty = $totalPiecesDispatched;
             }
 
             DB::commit();
@@ -480,10 +545,17 @@ class OutwardController extends Controller {
 
         $destinationLabel = $out['dest_concern_name'] ?: ($out['customer_name'] ?: ($out['warehouse_name'] ?: 'wareouse (WH-01)'));
 
+        $itemsList = DB::fetchAll("
+            SELECT oi.qty, v.name AS variant_name, v.sku_code, v.size
+            FROM outward_items oi
+            JOIN variants v ON oi.variant_id = v.id
+            WHERE oi.outward_id = ?
+        ", [$out['id']]);
+
         echo json_encode([
             'success'            => true,
             'outward_no'         => $out['outward_no'],
-            'batch_no'           => $out['batch_no'] ?: 'Direct Outward',
+            'batch_no'           => $out['batch_no'] ?: 'Finishing Good Outward',
             'product_name'       => $out['product_name'],
             'sku_code'           => $out['sku_code'] ?? 'GRM-STY-0001-XL',
             'size'               => $out['size'] ?? 'XL',
@@ -498,6 +570,7 @@ class OutwardController extends Controller {
             'dispatched_at'      => date('d M Y, h:i A', strtotime($out['dispatched_at'] ?: $out['created_at'])),
             'status'             => strtoupper($out['status']),
             'production_unit'    => $out['production_unit_name'] ?: 'Kadampadi',
+            'items'              => $itemsList,
         ]);
         return;
     }

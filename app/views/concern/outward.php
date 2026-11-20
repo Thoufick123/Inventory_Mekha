@@ -1,6 +1,6 @@
 <?php
 // app/views/concern/outward.php
-// Production Outward & Dispatch View (Matches uploaded screenshot + Dynamic Concern & Batch Mode)
+// Production Outward & Dispatch View (With Production Batch & Finishing Good Scanner Flow)
 ?>
 <div class="container-fluid px-3 py-2">
     <!-- Breadcrumb -->
@@ -18,29 +18,44 @@
             <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
                 <i class="bi bi-truck text-primary"></i> Production Outward &amp; Dispatch
             </h4>
-            <p class="text-secondary small mb-0">Dispatch finished production boxes to central warehouses with vehicle tracking</p>
+            <p class="text-secondary small mb-0">Dispatch finished production boxes and scanned finishing goods with vehicle tracking</p>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <button type="button" class="btn btn-primary fw-semibold shadow-sm px-3 py-2" data-bs-toggle="modal" data-bs-target="#modalAddOutward" style="background:#4f46e5; border-color:#4f46e5;">
-                <i class="bi bi-box-arrow-up-right me-1"></i> New Outward Dispatch
+            <button type="button" class="btn btn-outline-primary fw-semibold shadow-sm px-3 py-2" onclick="openNewDispatchModal('batch')">
+                <i class="bi bi-boxes me-1"></i> New Batch Outward
+            </button>
+            <button type="button" class="btn btn-primary fw-semibold shadow-sm px-3 py-2" onclick="openNewDispatchModal('finished_goods')" style="background:#4f46e5; border-color:#4f46e5;">
+                <i class="bi bi-upc-scan me-1"></i> Scan Finishing Goods
             </button>
         </div>
     </div>
 
     <!-- Main Card -->
     <div class="card border-0 shadow-sm rounded-3">
-        <!-- Card Header with Filters and Search Input -->
+        <!-- Top Navigation: Two Primary Labels (1. Production Batches | 2. Finishing Good) + Filter & Search -->
         <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <!-- Two Flow Labels / Tabs -->
             <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-clock-history text-muted fs-5"></i>
-                <h6 class="mb-0 fw-bold text-dark">Outward Dispatch History</h6>
-                <span class="badge bg-light text-dark border px-2 py-1" style="font-size:0.75rem;">
-                    <?= (int)$totalRecords ?> Records
+                <span class="small fw-bold text-muted text-uppercase d-none d-md-inline" style="font-size:0.75rem; letter-spacing:0.05em;">DISPATCH TYPE:</span>
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="<?= \App\Core\Controller::url('/production/outward?tab=batch' . ($selectedConcernId ? '&concern_id=' . $selectedConcernId : '') . (!empty($search) ? '&search=' . urlencode($search) : '')) ?>" class="btn <?= ($activeTab === 'batch') ? 'btn-primary' : 'btn-outline-secondary' ?> fw-semibold px-3 py-1.5 d-flex align-items-center gap-1.5" style="<?= ($activeTab === 'batch') ? 'background:#4f46e5; border-color:#4f46e5;' : '' ?>">
+                        <i class="bi bi-boxes"></i> 1. Production Batches
+                        <span class="badge <?= ($activeTab === 'batch') ? 'bg-white text-dark' : 'bg-secondary text-white' ?> ms-1"><?= (int)$batchCount ?></span>
+                    </a>
+                    <a href="<?= \App\Core\Controller::url('/production/outward?tab=fg' . ($selectedConcernId ? '&concern_id=' . $selectedConcernId : '') . (!empty($search) ? '&search=' . urlencode($search) : '')) ?>" class="btn <?= ($activeTab === 'fg') ? 'btn-primary' : 'btn-outline-secondary' ?> fw-semibold px-3 py-1.5 d-flex align-items-center gap-1.5" style="<?= ($activeTab === 'fg') ? 'background:#4f46e5; border-color:#4f46e5;' : '' ?>">
+                        <i class="bi bi-upc-scan"></i> 2. Finishing Good
+                        <span class="badge <?= ($activeTab === 'fg') ? 'bg-white text-dark' : 'bg-secondary text-white' ?> ms-1"><?= (int)$fgCount ?></span>
+                    </a>
+                </div>
+                <span class="badge bg-light text-dark border px-2 py-1 ms-2" style="font-size:0.75rem;">
+                    <?= (int)$totalRecords ?> Total
                 </span>
             </div>
 
-            <!-- Toolbar: Dynamic Concern Filter, Dispatch Type Filter, and Search -->
-            <form method="GET" action="<?= \App\Core\Controller::url('/production/outward') ?>" class="d-flex flex-wrap align-items-center gap-2 m-0" style="max-width: 720px;">
+            <!-- Toolbar: Dynamic Concern Filter and Search -->
+            <form method="GET" action="<?= \App\Core\Controller::url('/production/outward') ?>" class="d-flex flex-wrap align-items-center gap-2 m-0" style="max-width: 500px;">
+                <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab) ?>">
+
                 <!-- Concern Selector -->
                 <div style="min-width: 170px;">
                     <select name="concern_id" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -53,22 +68,12 @@
                     </select>
                 </div>
 
-                <!-- Type Selector -->
-                <div style="min-width: 150px;">
-                    <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">All Types</option>
-                        <option value="batch" <?= (($typeFilter ?? '') === 'batch') ? 'selected' : '' ?>>📦 Production Batches</option>
-                        <option value="concern" <?= (($typeFilter ?? '') === 'concern') ? 'selected' : '' ?>>🏢 Inter-Concern Transfers</option>
-                        <option value="customer" <?= (($typeFilter ?? '') === 'customer') ? 'selected' : '' ?>>🛒 Customer Dispatches</option>
-                    </select>
-                </div>
-
                 <!-- Search Input -->
                 <div class="input-group input-group-sm" style="width: 220px;">
                     <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-search"></i></span>
                     <input type="text" name="search" class="form-control border-start-0" placeholder="Search dispatches..." value="<?= htmlspecialchars($search ?? '') ?>">
                     <?php if (!empty($search)): ?>
-                        <a href="<?= \App\Core\Controller::url('/production/outward' . ($selectedConcernId ? '?concern_id=' . $selectedConcernId : '')) ?>" class="btn btn-outline-secondary" title="Clear">
+                        <a href="<?= \App\Core\Controller::url('/production/outward?tab=' . urlencode($activeTab) . ($selectedConcernId ? '&concern_id=' . $selectedConcernId : '')) ?>" class="btn btn-outline-secondary" title="Clear">
                             <i class="bi bi-x-lg"></i>
                         </a>
                     <?php endif; ?>
@@ -97,7 +102,11 @@
                         <tr>
                             <td colspan="9" class="text-center py-5 text-muted">
                                 <i class="bi bi-truck fs-1 d-block mb-2 text-secondary opacity-50"></i>
-                                No outward dispatch records found. Click <strong>New Outward Dispatch</strong> to create a dispatch.
+                                <?php if ($activeTab === 'fg'): ?>
+                                    No finishing good dispatches found. Click <strong>Scan Finishing Goods</strong> to scan products and outward.
+                                <?php else: ?>
+                                    No production batch outward records found. Click <strong>New Batch Outward</strong> to dispatch a batch.
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php else: ?>
@@ -124,17 +133,9 @@
                                         <div class="fw-bold font-monospace text-dark">
                                             <?= htmlspecialchars($o['batch_no']) ?>
                                         </div>
-                                    <?php elseif (!empty($o['dest_concern_name'])): ?>
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
-                                            <i class="bi bi-arrow-left-right me-1"></i> Inter-Concern
-                                        </span>
-                                    <?php elseif (!empty($o['customer_name'])): ?>
-                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1">
-                                            <i class="bi bi-person me-1"></i> Customer
-                                        </span>
                                     <?php else: ?>
-                                        <span class="badge bg-light text-secondary border px-2 py-1">
-                                            <i class="bi bi-box-seam me-1"></i> Stock Dispatch
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                            <i class="bi bi-upc-scan me-1"></i> Finishing Good
                                         </span>
                                     <?php endif; ?>
                                 </td>
@@ -238,15 +239,15 @@
             <nav aria-label="Page navigation">
                 <ul class="pagination pagination-sm mb-0">
                     <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                        <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . max(1, $page - 1) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? '')) . '&type=' . urlencode($typeFilter ?? '')) ?>">&lt; Prev</a>
+                        <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . max(1, $page - 1) . '&tab=' . urlencode($activeTab) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>">&lt; Prev</a>
                     </li>
                     <?php for ($p = 1; $p <= $totalPages; $p++): ?>
                         <li class="page-item <?= ($page === $p) ? 'active' : '' ?>">
-                            <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . $p . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? '')) . '&type=' . urlencode($typeFilter ?? '')) ?>"><?= $p ?></a>
+                            <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . $p . '&tab=' . urlencode($activeTab) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>"><?= $p ?></a>
                         </li>
                     <?php endfor; ?>
                     <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
-                        <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . min($totalPages, $page + 1) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? '')) . '&type=' . urlencode($typeFilter ?? '')) ?>">Next &gt;</a>
+                        <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . min($totalPages, $page + 1) . '&tab=' . urlencode($activeTab) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>">Next &gt;</a>
                     </li>
                 </ul>
             </nav>
@@ -254,58 +255,61 @@
     </div>
 </div>
 
-<!-- Modal 1: Dynamic Outward Dispatch (Supports Concern Way, Production Batches, Direct Stock, Customer) -->
+<!-- Modal: New Outward Dispatch (Two Labels: 1. Production Batch | 2. Finishing Good) -->
 <div class="modal fade" id="modalAddOutward" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
-        <form action="<?= \App\Core\Controller::url('/m/outward/store') ?>" method="POST" class="modal-content border-0 shadow">
+        <form action="<?= \App\Core\Controller::url('/m/outward/store') ?>" method="POST" id="formAddOutward" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
+            <input type="hidden" name="scanned_items_json" id="scanned_items_json" value="[]">
+
             <div class="modal-header bg-primary text-white py-3">
                 <h5 class="modal-title fw-bold"><i class="bi bi-truck me-2"></i> New Outward Dispatch Manifest</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <!-- Mode Selector Pills -->
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-dark mb-2">Select Outward Dispatch Mode *</label>
-                    <div class="btn-group w-100" role="group" id="dispatchModeToggle">
+                <!-- Two Primary Flow Labels Switcher -->
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-dark mb-2 text-uppercase" style="letter-spacing:0.05em;">Choose Outward Dispatch Flow *</label>
+                    <div class="btn-group w-100 p-1 bg-light rounded-3 shadow-none border" role="group">
                         <input type="radio" class="btn-check" name="dispatch_mode" id="mode_batch" value="batch" checked onchange="toggleDispatchMode('batch')">
-                        <label class="btn btn-outline-primary btn-sm py-2" for="mode_batch">
-                            <i class="bi bi-box-seam me-1"></i> Production Batch
+                        <label class="btn btn-outline-primary fw-bold py-2.5 rounded-2 d-flex align-items-center justify-content-center gap-2" for="mode_batch">
+                            <i class="bi bi-boxes fs-5"></i>
+                            <span>1. Production Batch</span>
                         </label>
 
-                        <input type="radio" class="btn-check" name="dispatch_mode" id="mode_concern" value="concern_transfer" onchange="toggleDispatchMode('concern_transfer')">
-                        <label class="btn btn-outline-primary btn-sm py-2" for="mode_concern">
-                            <i class="bi bi-arrow-left-right me-1"></i> Inter-Concern Transfer
-                        </label>
-
-                        <input type="radio" class="btn-check" name="dispatch_mode" id="mode_direct" value="direct_stock" onchange="toggleDispatchMode('direct_stock')">
-                        <label class="btn btn-outline-primary btn-sm py-2" for="mode_direct">
-                            <i class="bi bi-building me-1"></i> Direct Warehouse Stock
-                        </label>
-
-                        <input type="radio" class="btn-check" name="dispatch_mode" id="mode_customer" value="customer" onchange="toggleDispatchMode('customer')">
-                        <label class="btn btn-outline-primary btn-sm py-2" for="mode_customer">
-                            <i class="bi bi-person-check me-1"></i> Customer Delivery
+                        <input type="radio" class="btn-check" name="dispatch_mode" id="mode_fg" value="finished_goods" onchange="toggleDispatchMode('finished_goods')">
+                        <label class="btn btn-outline-primary fw-bold py-2.5 rounded-2 d-flex align-items-center justify-content-center gap-2" for="mode_fg">
+                            <i class="bi bi-upc-scan fs-5"></i>
+                            <span>2. Finishing Good (Scan &amp; Outward)</span>
                         </label>
                     </div>
                 </div>
 
-                <!-- SECTION A: Production Batch Mode -->
+                <!-- ========================================================================= -->
+                <!-- FLOW 1: PRODUCTION BATCH DISPATCH (Show the batches)                      -->
+                <!-- ========================================================================= -->
                 <div id="sectionBatchMode" class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-12">
+                        <div class="alert alert-info py-2 px-3 small mb-0 d-flex align-items-center gap-2">
+                            <i class="bi bi-info-circle fs-5"></i>
+                            <div>Select an approved pre-packaged production batch (BAT-XXXX) to outward directly to central warehouse.</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-7">
                         <label class="form-label small fw-semibold text-secondary">Select Production Batch to Dispatch *</label>
-                        <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm">
-                            <option value="">-- Select Finished Batch --</option>
+                        <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm" required>
+                            <option value="">-- Select Finished Production Batch --</option>
                             <?php foreach ($availableBatches as $b): ?>
                                 <option value="<?= $b['id'] ?>">
-                                    <?= htmlspecialchars($b['batch_no']) ?> (<?= htmlspecialchars($b['variant_name']) ?> - <?= (int)$b['batch_qty'] ?> pcs)
+                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['variant_name']) ?> (<?= (int)$b['batch_qty'] ?> pcs, <?= (int)$b['total_boxes'] ?> box)
                                 </option>
                             <?php endforeach; ?>
                             <option value="1">BAT-20261113-0001 (KIDS - BABY - DRESS - 490 pcs)</option>
                         </select>
                     </div>
 
-                    <div class="col-md-6">
+                    <div class="col-md-5">
                         <label class="form-label small fw-semibold text-secondary">Destination Warehouse *</label>
                         <select name="warehouse_name" class="form-select form-select-sm">
                             <?php foreach ($warehouses as $wh): ?>
@@ -317,75 +321,105 @@
                     </div>
                 </div>
 
-                <!-- SECTION B: Dynamic Stock / Concern Transfer / Customer Fields -->
-                <div id="sectionDynamicMode" class="row g-3 d-none">
-                    <!-- Source Concern (if multi-concern) -->
-                    <div class="col-md-6" id="fieldSourceConcern">
-                        <label class="form-label small fw-semibold text-secondary">Origin Concern *</label>
-                        <select name="source_concern_id" class="form-select form-select-sm">
-                            <?php foreach ($allConcerns as $con): ?>
-                                <option value="<?= $con['id'] ?>" <?= ((int)($selectedConcernId ?? 1) === (int)$con['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                <!-- ========================================================================= -->
+                <!-- FLOW 2: FINISHING GOOD (Scan finished good products and outward)          -->
+                <!-- ========================================================================= -->
+                <div id="sectionFgMode" class="d-none">
+                    <!-- Scanner Input Bar -->
+                    <div class="card border-0 bg-light p-3 rounded-3 mb-3 border">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label small fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                                <i class="bi bi-upc-scan text-primary fs-5"></i> Scan Finishing Good Product QR / Barcode / SKU
+                            </label>
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 small">
+                                Live Scanner Ready
+                            </span>
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white text-muted"><i class="bi bi-qr-code-scan"></i></span>
+                            <input type="text" id="fgScanInput" class="form-control font-monospace fs-6" placeholder="Scan Barcode or type SKU (e.g. GRM-STY-0001-XL, KBD1126101)..." autocomplete="off">
+                            <button type="button" class="btn btn-primary px-3 fw-bold" onclick="processFgScanInput()">
+                                <i class="bi bi-plus-lg me-1"></i> Scan / Add
+                            </button>
+                        </div>
+                        <div id="fgScanFeedback" class="small mt-1 text-muted" style="min-height: 20px;">
+                            <i class="bi bi-info-circle me-1"></i> Point your handheld barcode scanner or type code and press Enter.
+                        </div>
+
+                        <!-- Manual Quick Select Dropdown Fallback -->
+                        <div class="mt-2 pt-2 border-top">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-md-8">
+                                    <select id="fgQuickSelect" class="form-select form-select-sm" onchange="quickAddFromSelect(this)">
+                                        <option value="">-- Or Quick Select Finishing Good Product --</option>
+                                        <?php foreach ($stockVariants as $sv): ?>
+                                            <option value="<?= $sv['id'] ?>" data-sku="<?= htmlspecialchars($sv['sku_code']) ?>" data-name="<?= htmlspecialchars($sv['name']) ?>" data-size="<?= htmlspecialchars($sv['size'] ?? 'Free') ?>" data-stock="<?= (int)$sv['stock_qty'] ?>">
+                                                <?= htmlspecialchars($sv['name']) ?> (<?= htmlspecialchars($sv['sku_code']) ?> - <?= htmlspecialchars($sv['size']) ?>) &mdash; Stock: <?= (int)$sv['stock_qty'] ?> pcs
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearAllScanned()">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i> Clear Scanned
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Destination Concern (Inter-Concern Transfer) -->
-                    <div class="col-md-6" id="fieldDestConcern">
-                        <label class="form-label small fw-semibold text-secondary">Destination Concern (Sister Unit / Branch) *</label>
-                        <select name="destination_concern_id" id="destConcernSelect" class="form-select form-select-sm">
-                            <option value="">-- Select Target Concern --</option>
-                            <?php foreach ($allConcerns as $con): ?>
-                                <option value="<?= $con['id'] ?>">
-                                    <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                    <!-- Scanned Finished Goods Table -->
+                    <div class="card border rounded-3 overflow-hidden mb-3">
+                        <div class="card-header bg-white py-2 border-bottom d-flex justify-content-between align-items-center">
+                            <span class="small fw-bold text-dark"><i class="bi bi-list-check me-1 text-primary"></i> Scanned Finishing Goods Items (<span id="fgItemsCount">0</span>)</span>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle" id="fgTotalPcsBadge">0 pcs scanned</span>
+                        </div>
+                        <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0" id="tableFgScanned">
+                                <thead class="bg-light text-muted small text-uppercase" style="font-size:0.7rem;">
+                                    <tr>
+                                        <th class="ps-3 py-2">PRODUCT &amp; SKU</th>
+                                        <th>SIZE</th>
+                                        <th>AVAILABLE STOCK</th>
+                                        <th style="width: 140px;">SCANNED PIECES</th>
+                                        <th class="text-end pe-3" style="width: 60px;">ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fgScannedTbody">
+                                    <tr id="emptyFgRow">
+                                        <td colspan="5" class="text-center py-4 text-muted small">
+                                            <i class="bi bi-upc-scan fs-3 d-block text-secondary opacity-50 mb-1"></i>
+                                            No finishing good products scanned yet. Scan barcodes or select products above.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
-                    <!-- Customer Dropdown (Customer Delivery) -->
-                    <div class="col-md-6 d-none" id="fieldCustomer">
-                        <label class="form-label small fw-semibold text-secondary">Select Customer *</label>
-                        <select name="customer_id" class="form-select form-select-sm">
-                            <option value="">-- Select Customer --</option>
-                            <?php foreach ($customers as $c): ?>
-                                <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
+                    <!-- Destination & Boxes for Finishing Goods -->
+                    <div class="row g-3 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Destination Warehouse / Facility *</label>
+                            <select name="destination_warehouse_fg" id="fgDestWarehouse" class="form-select form-select-sm">
+                                <?php foreach ($warehouses as $wh): ?>
+                                    <option value="<?= htmlspecialchars($wh['name']) ?>" <?= str_contains($wh['name'], 'wareouse') ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($wh['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
 
-                    <!-- Variant Selection with Live Stock Badges -->
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold text-secondary">Select Product Variant *</label>
-                        <select name="variant_id" id="variantSelect" class="form-select form-select-sm" onchange="updateVariantStockBadge(this)">
-                            <option value="" data-stock="0">-- Select Variant --</option>
-                            <?php foreach ($stockVariants as $sv): ?>
-                                <option value="<?= $sv['id'] ?>" data-stock="<?= (int)$sv['stock_qty'] ?>">
-                                    <?= htmlspecialchars($sv['name']) ?> (<?= htmlspecialchars($sv['size']) ?>) &mdash; Stock: <?= (int)$sv['stock_qty'] ?> pcs
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <!-- Quantity (Pieces) & Total Boxes -->
-                    <div class="col-md-3">
-                        <label class="form-label small fw-semibold text-secondary">
-                            Dispatch Pieces *
-                            <span id="stockBadge" class="badge bg-success-subtle text-success border ms-1 d-none">Stock: 0</span>
-                        </label>
-                        <input type="number" name="quantity" id="dispatchQtyInput" class="form-control form-control-sm" placeholder="e.g. 100" min="1" step="1">
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label small fw-semibold text-secondary">Total Boxes / Cartons</label>
-                        <input type="number" name="total_boxes" class="form-control form-control-sm" placeholder="e.g. 1" value="1" min="1" step="1">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Total Boxes / Cartons Count</label>
+                            <input type="number" name="total_boxes" id="fgTotalBoxesInput" class="form-control form-control-sm" value="1" min="1" step="1">
+                        </div>
                     </div>
                 </div>
 
                 <hr class="my-3 text-muted">
 
-                <!-- SECTION C: Common Logistics & Vehicle Info (Matches Screenshot) -->
+                <!-- SECTION C: Common Logistics & Vehicle Info (Matches Reference Screenshot) -->
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Vehicle Number *</label>
@@ -415,7 +449,7 @@
             </div>
             <div class="modal-footer bg-light py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary btn-sm px-4 fw-semibold shadow-sm" style="background:#4f46e5; border-color:#4f46e5;">
+                <button type="submit" id="btnSubmitOutward" class="btn btn-primary btn-sm px-4 fw-semibold shadow-sm" style="background:#4f46e5; border-color:#4f46e5;">
                     <i class="bi bi-box-arrow-up-right me-1"></i> Confirm &amp; Dispatch Consignment
                 </button>
             </div>
@@ -506,57 +540,255 @@
 </div>
 
 <script>
+// Catalog variants lookup for barcode/QR scanner
+const availableVariants = <?= json_encode($stockVariants) ?>;
+
+// Scanned items dictionary: { variant_id: { variant_id, name, sku, size, stock, qty } }
+let scannedFgMap = {};
+
 function toggleDispatchMode(mode) {
-    var batchSec = document.getElementById('sectionBatchMode');
-    var dynSec = document.getElementById('sectionDynamicMode');
-    var destConcernField = document.getElementById('fieldDestConcern');
-    var customerField = document.getElementById('fieldCustomer');
-    var batchSelect = document.getElementById('dispatchBatchSelect');
-    var variantSelect = document.getElementById('variantSelect');
-    var qtyInput = document.getElementById('dispatchQtyInput');
+    const batchSec = document.getElementById('sectionBatchMode');
+    const fgSec = document.getElementById('sectionFgMode');
+    const batchSelect = document.getElementById('dispatchBatchSelect');
+    const btnSubmit = document.getElementById('btnSubmitOutward');
 
     if (mode === 'batch') {
         batchSec.classList.remove('d-none');
-        dynSec.classList.add('d-none');
+        fgSec.classList.add('d-none');
         if (batchSelect) batchSelect.required = true;
-        if (variantSelect) variantSelect.required = false;
-        if (qtyInput) qtyInput.required = false;
+        btnSubmit.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> Confirm & Dispatch Production Batch';
     } else {
         batchSec.classList.add('d-none');
-        dynSec.classList.remove('d-none');
+        fgSec.classList.remove('d-none');
         if (batchSelect) batchSelect.required = false;
-        if (variantSelect) variantSelect.required = true;
-        if (qtyInput) qtyInput.required = true;
-
-        if (mode === 'concern_transfer') {
-            destConcernField.classList.remove('d-none');
-            customerField.classList.add('d-none');
-            document.getElementById('destConcernSelect').required = true;
-        } else if (mode === 'customer') {
-            destConcernField.classList.add('d-none');
-            customerField.classList.remove('d-none');
-            document.getElementById('destConcernSelect').required = false;
-        } else { // direct_stock
-            destConcernField.classList.add('d-none');
-            customerField.classList.add('d-none');
-            document.getElementById('destConcernSelect').required = false;
-        }
+        btnSubmit.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> Confirm & Outward Finishing Goods';
+        setTimeout(() => {
+            const input = document.getElementById('fgScanInput');
+            if (input) input.focus();
+        }, 150);
     }
 }
 
-function updateVariantStockBadge(select) {
-    var badge = document.getElementById('stockBadge');
-    var opt = select.options[select.selectedIndex];
-    var stock = opt ? parseInt(opt.getAttribute('data-stock') || '0') : 0;
-    if (badge) {
-        if (opt && opt.value) {
-            badge.innerText = 'Available Stock: ' + stock + ' pcs';
-            badge.classList.remove('d-none');
+function openNewDispatchModal(mode) {
+    const radioBatch = document.getElementById('mode_batch');
+    const radioFg = document.getElementById('mode_fg');
+
+    if (mode === 'batch') {
+        if (radioBatch) radioBatch.checked = true;
+        toggleDispatchMode('batch');
+    } else {
+        if (radioFg) radioFg.checked = true;
+        toggleDispatchMode('finished_goods');
+    }
+
+    new bootstrap.Modal(document.getElementById('modalAddOutward')).show();
+}
+
+// Web Audio API beep sound for realistic barcode scanner feedback
+function playScannerBeep(type = 'success') {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'success') {
+            osc.frequency.setValueAtTime(1400, audioCtx.currentTime); // crisp high beep
+            gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.09);
         } else {
-            badge.classList.add('d-none');
+            osc.frequency.setValueAtTime(350, audioCtx.currentTime); // low buzz
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
         }
+    } catch (e) {
+        // AudioContext not allowed or unsupported
     }
 }
+
+// Process scanner input
+function processFgScanInput() {
+    const input = document.getElementById('fgScanInput');
+    const feedback = document.getElementById('fgScanFeedback');
+    const code = (input.value || '').trim();
+
+    if (!code) {
+        feedback.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i> Please scan or enter a barcode / SKU code.</span>';
+        playScannerBeep('error');
+        return;
+    }
+
+    // Match code against variants: by SKU, ID, or partial name
+    const match = availableVariants.find(v => 
+        (v.sku_code && v.sku_code.toLowerCase() === code.toLowerCase()) ||
+        (v.name && v.name.toLowerCase().includes(code.toLowerCase())) ||
+        (code.toLowerCase().includes(String(v.id)))
+    );
+
+    if (match) {
+        addScannedVariant(match);
+        feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned: ${match.name} (${match.sku_code})! +1 piece added.</span>`;
+        playScannerBeep('success');
+        input.value = '';
+        input.focus();
+    } else {
+        feedback.innerHTML = `<span class="text-danger fw-semibold"><i class="bi bi-x-circle me-1"></i> No matching finishing good found for '${code}'.</span>`;
+        playScannerBeep('error');
+    }
+}
+
+function quickAddFromSelect(select) {
+    const opt = select.options[select.selectedIndex];
+    if (!opt || !opt.value) return;
+
+    const vId = parseInt(opt.value);
+    const match = availableVariants.find(v => parseInt(v.id) === vId);
+    if (match) {
+        addScannedVariant(match);
+        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i> Added: ${match.name} (${match.sku_code}).</span>`;
+        playScannerBeep('success');
+    }
+    select.value = '';
+}
+
+function addScannedVariant(v) {
+    const id = parseInt(v.id);
+    if (!scannedFgMap[id]) {
+        scannedFgMap[id] = {
+            variant_id: id,
+            name: v.name,
+            sku: v.sku_code || 'SKU-' + id,
+            size: v.size || 'Free',
+            stock: parseInt(v.stock_qty || 0),
+            qty: 1
+        };
+    } else {
+        scannedFgMap[id].qty += 1;
+    }
+    renderScannedTable();
+}
+
+function updateScannedQty(id, delta) {
+    if (!scannedFgMap[id]) return;
+    scannedFgMap[id].qty += delta;
+    if (scannedFgMap[id].qty <= 0) {
+        delete scannedFgMap[id];
+    }
+    renderScannedTable();
+}
+
+function setScannedQtyManual(id, input) {
+    const val = parseInt(input.value) || 0;
+    if (val <= 0) {
+        delete scannedFgMap[id];
+    } else {
+        scannedFgMap[id].qty = val;
+    }
+    renderScannedTable();
+}
+
+function removeScannedItem(id) {
+    delete scannedFgMap[id];
+    renderScannedTable();
+}
+
+function clearAllScanned() {
+    scannedFgMap = {};
+    renderScannedTable();
+    document.getElementById('fgScanFeedback').innerHTML = '<span class="text-muted"><i class="bi bi-info-circle me-1"></i> Scanned items cleared.</span>';
+}
+
+function renderScannedTable() {
+    const tbody = document.getElementById('fgScannedTbody');
+    const items = Object.values(scannedFgMap);
+    const countBadge = document.getElementById('fgItemsCount');
+    const pcsBadge = document.getElementById('fgTotalPcsBadge');
+    const jsonInput = document.getElementById('scanned_items_json');
+
+    countBadge.innerText = items.length;
+
+    let totalPcs = 0;
+    items.forEach(it => { totalPcs += it.qty; });
+    pcsBadge.innerText = totalPcs + ' pcs scanned';
+
+    jsonInput.value = JSON.stringify(items);
+
+    if (items.length === 0) {
+        tbody.innerHTML = `
+            <tr id="emptyFgRow">
+                <td colspan="5" class="text-center py-4 text-muted small">
+                    <i class="bi bi-upc-scan fs-3 d-block text-secondary opacity-50 mb-1"></i>
+                    No finishing good products scanned yet. Scan barcodes or select products above.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = '';
+    items.forEach((it, idx) => {
+        const isOverStock = it.stock > 0 && it.qty > it.stock;
+        html += `
+            <tr>
+                <td class="ps-3 py-2">
+                    <div class="fw-semibold text-dark">${it.name}</div>
+                    <small class="text-muted font-monospace">${it.sku}</small>
+                </td>
+                <td><span class="badge bg-light text-dark border">${it.size}</span></td>
+                <td>
+                    <span class="badge ${isOverStock ? 'bg-danger' : 'bg-success-subtle text-success border border-success-subtle'}">
+                        Stock: ${it.stock} pcs
+                    </span>
+                </td>
+                <td>
+                    <div class="input-group input-group-sm" style="width: 120px;">
+                        <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, -1)">-</button>
+                        <input type="number" class="form-control text-center px-1 font-monospace fw-bold" value="${it.qty}" min="1" onchange="setScannedQtyManual(${it.variant_id}, this)">
+                        <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, 1)">+</button>
+                    </div>
+                </td>
+                <td class="text-end pe-3">
+                    <button type="button" class="btn btn-sm btn-outline-danger p-1" onclick="removeScannedItem(${it.variant_id})" title="Remove">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+// Scanner enter key handler
+document.addEventListener('DOMContentLoaded', function() {
+    const scanInput = document.getElementById('fgScanInput');
+    if (scanInput) {
+        scanInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                processFgScanInput();
+            }
+        });
+    }
+
+    // Form submit validation for Finishing Good mode
+    const form = document.getElementById('formAddOutward');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const isFg = document.getElementById('mode_fg').checked;
+            if (isFg) {
+                const items = Object.values(scannedFgMap);
+                if (items.length === 0) {
+                    e.preventDefault();
+                    alert('Please scan or add at least 1 finishing good product before dispatching!');
+                    return false;
+                }
+            }
+        });
+    }
+});
 
 function openEditOutwardModal(o) {
     if (!o) return;
@@ -589,19 +821,50 @@ function openTraceabilityModal(outwardNo, id) {
                 return;
             }
 
+            let itemsHtml = '';
+            if (data.items && data.items.length > 0) {
+                itemsHtml = `
+                    <div class="col-12 mt-2">
+                        <div class="card border rounded-3 p-3 bg-white">
+                            <small class="fw-bold text-dark text-uppercase d-block mb-2">Itemized Finishing Goods Breakdown</small>
+                            <table class="table table-sm table-bordered mb-0 small">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th>Product Name</th>
+                                        <th>SKU Code</th>
+                                        <th>Size</th>
+                                        <th class="text-end">Dispatched Qty</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.items.map(it => `
+                                        <tr>
+                                            <td>${it.variant_name}</td>
+                                            <td class="font-monospace">${it.sku_code}</td>
+                                            <td>${it.size}</td>
+                                            <td class="text-end fw-bold text-success">${parseInt(it.qty)} pcs</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
             var html = `
                 <div class="row g-3">
                     <div class="col-md-6">
                         <div class="p-3 bg-light rounded-3 border">
                             <small class="text-muted d-block mb-1">Outward Gate Pass</small>
                             <div class="fw-bold font-monospace fs-5 text-primary">${data.outward_no}</div>
-                            <small class="text-muted d-block mt-2 mb-1">Origin / Batch</small>
-                            <div class="fw-bold text-dark font-monospace">${data.batch_no} (${data.source_concern})</div>
+                            <small class="text-muted d-block mt-2 mb-1">Dispatch Type / Batch</small>
+                            <div class="fw-bold text-dark font-monospace">${data.batch_no}</div>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="p-3 bg-light rounded-3 border">
-                            <small class="text-muted d-block mb-1">Product & Quantity</small>
+                            <small class="text-muted d-block mb-1">Product & Total Quantity</small>
                             <div class="fw-bold text-dark">${data.product_name} (${data.size})</div>
                             <div class="fs-5 fw-bold text-success mt-1">${data.pieces_count} pcs <span class="fs-6 text-muted font-normal">(${data.cartons_count} box)</span></div>
                         </div>
@@ -636,6 +899,7 @@ function openTraceabilityModal(outwardNo, id) {
                             </div>
                         </div>
                     </div>
+                    ${itemsHtml}
                 </div>
             `;
             document.getElementById('traceBody').innerHTML = html;
