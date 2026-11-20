@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../app/core/Autoloader.php';
+\App\Core\Env::load(__DIR__ . '/../.env');
 
 use App\Core\DB;
 use App\Core\Auth;
@@ -433,8 +434,9 @@ class StaffPermissionsTest {
             $log !== null,
             "AuditLog::record() successfully writes event to audit_log table"
         );
+        $decoded = !empty($log['new_json']) ? json_decode($log['new_json'], true) : [];
         $this->assert(
-            !empty($log['new_json']) && str_contains($log['new_json'], '"can_view":1'),
+            !empty($decoded) && ($decoded['can_view'] ?? null) === 1,
             "AuditLog entry correctly recorded state payload"
         );
 

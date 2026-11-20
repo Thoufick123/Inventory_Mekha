@@ -37,13 +37,67 @@ $printContent = file_get_contents($printSheetFile);
 
 $genHubFile = dirname(__DIR__) . '/app/views/concern/label_generation.php';
 $hubContent = file_get_contents($genHubFile);
+$labelControllerFile = dirname(__DIR__) . '/app/controllers/LabelController.php';
+$labelControllerContent = file_get_contents($labelControllerFile);
 
 // Check print sheet details stack
 assertCheck("Print sheet contains 'Design:' label", strpos($printContent, '<span class="detail-label">Design:</span>') !== false);
+assertCheck("Print sheet renders each dynamic variant attribute", strpos($printContent, '$variantAttributes as $attributeName => $attributeValue') !== false);
 assertCheck("Print sheet contains 'Price:' label", strpos($printContent, '<span class="detail-label">Price:</span>') !== false);
 assertCheck("Print sheet does NOT have 'Weight:' in details stack", strpos($printContent, '<span class="detail-label">Weight:</span>') === false);
 assertCheck("Print sheet does NOT have 'Qty:' in details stack", strpos($printContent, '<span class="detail-label">Qty:</span>') === false);
 assertCheck("Print sheet does NOT have 'Quantity:' in details stack", strpos($printContent, '<span class="detail-label">Quantity:</span>') === false);
+
+// Verify dynamically stored variant values render as individual label rows.
+$labelData = [
+    'concern_name' => 'Test Concern',
+    'header_title' => 'Test Finished Good',
+    'label_1_name' => 'Product',
+    'label_1_val' => 'Apparel',
+    'label_2_name' => 'Color',
+    'label_2_val' => 'RED',
+    'design' => 'STANDARD',
+    'price' => 100,
+    'tag_code' => 'FG-TEST',
+    'variant_attributes' => ['Size' => 'S', 'Memory' => '4GB'],
+];
+$labelType = 'purchase_fg';
+$qty = 1;
+$multiLabels = [];
+$qrCodeText = 'FG-TEST';
+ob_start();
+include $printSheetFile;
+$dynamicLabelHtml = ob_get_clean();
+assertCheck("Finished Goods label prints Size independently", strpos($dynamicLabelHtml, '>Size:</span>') !== false && strpos($dynamicLabelHtml, '>S</span>') !== false);
+assertCheck("Finished Goods label prints custom attributes independently", strpos($dynamicLabelHtml, '>Memory:</span>') !== false && strpos($dynamicLabelHtml, '>4GB</span>') !== false);
+$multiLabels = [];
+foreach ([['S', 'RED', 2], ['M', 'RED', 2], ['L', 'BLUE', 6]] as [$size, $color, $copies]) {
+    for ($copy = 0; $copy < $copies; $copy++) {
+        $multiLabels[] = array_merge($labelData, [
+            'variant_size' => $size,
+            'variant_attributes' => ['Size' => $size, 'Memory' => '4GB'],
+            'label_2_val' => $color,
+            'tag_code' => 'SKU-' . $size . '-' . $color,
+            'qr_payload' => 'SKU-' . $size . '-' . $color,
+        ]);
+    }
+}
+$labelData = $multiLabels[0];
+$qty = count($multiLabels);
+$variantCount = 3;
+$batchNo = 'BILL-1';
+ob_start();
+include $printSheetFile;
+$multiVariantLabelHtml = ob_get_clean();
+assertCheck("Finished Goods print sheet expands labels to mapped quantities", substr_count($multiVariantLabelHtml, 'class="label-sticker"') === 10);
+assertCheck("Finished Goods print sheet contains every mapped size and color", strpos($multiVariantLabelHtml, '>M</span>') !== false && strpos($multiVariantLabelHtml, '>L</span>') !== false && strpos($multiVariantLabelHtml, 'BLUE') !== false);
+$copyAllocator = new ReflectionMethod(LabelController::class, 'allocateLabelCopies');
+$copyAllocator->setAccessible(true);
+assertCheck("Finished Goods label copies follow mapped variant quantities", $copyAllocator->invoke(null, [2, 2, 6], 10) === [2, 2, 6]);
+assertCheck("Custom label copy counts preserve mapped proportions", $copyAllocator->invoke(null, [2, 2, 6], 5) === [1, 1, 3]);
+$attributeBuilder = new ReflectionMethod(LabelController::class, 'buildLabelVariantAttributes');
+$attributeBuilder->setAccessible(true);
+assertCheck("Finished Goods labels combine mapped size and custom attributes", $attributeBuilder->invoke(null, ['color' => 'red', 'custom_attributes' => ['memory' => '4GB']], 'S') === ['Size' => 'S', 'Memory' => '4GB']);
 
 // Check Live Preview in Hub
 assertCheck("Roll preview has id='roll_preview_design'", strpos($hubContent, 'id="roll_preview_design"') !== false);
@@ -55,6 +109,12 @@ assertCheck("Other Garments preview has id='other_preview_price'", strpos($hubCo
 assertCheck("Other Garments preview does NOT have id='other_preview_qty'", strpos($hubContent, 'id="other_preview_qty"') === false);
 
 assertCheck("FG preview has id='fg_preview_design'", strpos($hubContent, 'id="fg_preview_design"') !== false);
+assertCheck("FG preview can render dynamic variant attributes", strpos($hubContent, 'id="fg_preview_variant_attributes"') !== false);
+assertCheck("Finished Goods options carry saved variant attributes", strpos($hubContent, 'data-attributes=') !== false);
+assertCheck("Finished Goods options carry the item's concern name", strpos($hubContent, 'data-concern="<?= htmlspecialchars($fg[\'item_concern_name\'] ?: $concernName') !== false);
+assertCheck("Finished Goods preview updates to the selected item's concern", strpos($hubContent, 'concernPreview.textContent = opt.dataset.concern') !== false);
+assertCheck("Finished Goods label loads concern name through the purchase item's concern ID", strpos($labelControllerContent, 'fg_concern.name AS item_concern_name') !== false && strpos($labelControllerContent, '$concernName = $itemConcernName;') !== false);
+assertCheck("Finished Goods preview shows mapped variant quantities", strpos($hubContent, 'data-variant-summary=') !== false && strpos($hubContent, 'id="fg_preview_variant_summary"') !== false);
 assertCheck("FG preview has id='fg_preview_price'", strpos($hubContent, 'id="fg_preview_price"') !== false);
 assertCheck("FG preview does NOT have id='fg_preview_size_qty'", strpos($hubContent, 'id="fg_preview_size_qty"') === false);
 

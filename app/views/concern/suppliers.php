@@ -291,9 +291,9 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Email Address <span class="text-danger">*</span></label>
-                    <input type="email" name="email" id="supplierEmail" class="form-control" required placeholder="vendor@mill.com">
-                    <div class="invalid-feedback">Please enter a valid email address.</div>
+                    <label class="form-label small fw-semibold">Email Address <span class="text-muted small fw-normal">(Optional)</span></label>
+                    <input type="email" name="email" id="supplierEmail" class="form-control" placeholder="vendor@mill.com">
+                    <div class="invalid-feedback">Please enter a valid email address if provided.</div>
                 </div>
 
                 <div class="mb-3">
@@ -382,9 +382,9 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Email Address <span class="text-danger">*</span></label>
-                    <input type="email" name="email" id="editSupplierEmail" class="form-control" required>
-                    <div class="invalid-feedback">Please enter a valid email address.</div>
+                    <label class="form-label small fw-semibold">Email Address <span class="text-muted small fw-normal">(Optional)</span></label>
+                    <input type="email" name="email" id="editSupplierEmail" class="form-control" placeholder="vendor@mill.com">
+                    <div class="invalid-feedback">Please enter a valid email address if provided.</div>
                 </div>
 
                 <div class="mb-3">

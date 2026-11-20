@@ -191,7 +191,7 @@ class PurchaseController extends Controller {
             $errors[] = 'Phone: Enter a valid 10-digit Indian mobile number (starting with 6, 7, 8, or 9).';
         }
 
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors[] = 'Email: Enter a valid email address (e.g. vendor@mill.com).';
         }
 
@@ -228,11 +228,12 @@ class PurchaseController extends Controller {
         }
 
         $code = 'SUP-' . str_pad((string)(DB::fetchValue("SELECT COUNT(*) FROM suppliers WHERE concern_id = ?", [$cid]) + 1), 3, '0', STR_PAD_LEFT);
+        $emailValue = !empty($email) ? $email : null;
 
         DB::query(
             "INSERT INTO suppliers (concern_id, code, name, company_name, phone, email, gstin, address, city, district, state, status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
-            [$cid, $code, $name, $company, $phone, $email, $gstin, $address, $district, $district, $state]
+            [$cid, $code, $name, $company, $phone, $emailValue, $gstin, $address, $district, $district, $state]
         );
 
         $this->flash('success', "Supplier '{$name}' ({$company}) registered successfully with code {$code}!");
@@ -281,7 +282,7 @@ class PurchaseController extends Controller {
         if (empty($phone) || !preg_match('/^[6-9]\d{9}$/', $phone)) {
             $errors[] = 'Phone: Enter a valid 10-digit Indian mobile number (starting with 6, 7, 8, or 9).';
         }
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors[] = 'Email: Enter a valid email address.';
         }
         if (!empty($gstin) && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i', $gstin)) {
@@ -312,9 +313,10 @@ class PurchaseController extends Controller {
             return;
         }
 
+        $emailValue = !empty($email) ? $email : null;
         DB::query(
             "UPDATE suppliers SET name = ?, company_name = ?, phone = ?, email = ?, gstin = ?, address = ?, city = ?, district = ?, state = ?, status = ? WHERE id = ?",
-            [$name, $company, $phone, $email, $gstin, $address, $district, $district, $state, $status, $id]
+            [$name, $company, $phone, $emailValue, $gstin, $address, $district, $district, $state, $status, $id]
         );
 
         $this->flash('success', "Supplier '{$name}' ({$company}) updated successfully!");
@@ -878,6 +880,11 @@ class PurchaseController extends Controller {
 
         $billDate          = !empty($_POST['bill_date']) ? $_POST['bill_date'] : date('Y-m-d');
         $supplierInvoiceNo = trim($_POST['supplier_invoice_no'] ?? '');
+        if (empty($supplierInvoiceNo)) {
+            $this->flash('error', 'Invoice / Bill Number is required.');
+            $this->redirect('/m/purchase_billing/create');
+            return;
+        }
         $fabricDescription = trim($_POST['fabric_description'] ?? '');
         $notes             = trim($_POST['notes'] ?? '');
         $taxRate           = isset($_POST['tax_rate']) ? (float)$_POST['tax_rate'] : 5.0;
@@ -1133,6 +1140,11 @@ class PurchaseController extends Controller {
             $this->redirect('/m/purchase_billing/create');
             return;
         }
+        if (empty($attachmentPaths)) {
+            $this->flash('error', 'Tax Invoice / Bill Attachment is required. Please upload at least one invoice file.');
+            $this->redirect('/m/purchase_billing/create');
+            return;
+        }
         $attachmentPath = $attachmentPaths[0] ?? null;
         $attachmentPathsJson = empty($attachmentPaths)
             ? null
@@ -1320,6 +1332,11 @@ class PurchaseController extends Controller {
 
         $billDate          = !empty($_POST['bill_date']) ? $_POST['bill_date'] : $bill['bill_date'];
         $supplierInvoiceNo = trim($_POST['supplier_invoice_no'] ?? '');
+        if (empty($supplierInvoiceNo)) {
+            $this->flash('error', 'Invoice / Bill Number is required.');
+            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            return;
+        }
         $fabricDescription = trim($_POST['fabric_description'] ?? '');
         $notes             = trim($_POST['notes'] ?? '');
         $paymentStatus     = trim($_POST['payment_status'] ?? ($bill['payment_status'] ?? 'unpaid'));
@@ -1530,6 +1547,11 @@ class PurchaseController extends Controller {
             $attachmentPaths = $this->uploadBillAttachments($this->getBillAttachmentPaths($bill));
         } catch (\RuntimeException $e) {
             $this->flash('error', $e->getMessage());
+            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            return;
+        }
+        if (empty($attachmentPaths)) {
+            $this->flash('error', 'Tax Invoice / Bill Attachment is required. Please upload at least one invoice file.');
             $this->redirect('/m/purchase_billing/edit?id=' . $billId);
             return;
         }
@@ -1758,6 +1780,119 @@ class PurchaseController extends Controller {
             'canEditDamage' => $canEditDamage,
             'canDeleteDamage' => $canDeleteDamage,
         ]);
+    }
+
+    public function exportDamage(): void {
+        ModuleGuard::enforce('purchase_damage', 'view');
+        PurchaseDamageService::initTable();
+
+        $isSuperAdmin = Auth::isSuperAdmin();
+        $cid = $isSuperAdmin
+            ? (int)($_GET['concern_id'] ?? 0)
+            : Auth::concernId();
+        $format = is_scalar($_GET['format'] ?? null)
+            ? strtolower(trim((string)$_GET['format']))
+            : 'excel';
+        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
+
+        $sql = "SELECT history_source, record_id, damage_no, concern_id, concern_name, supplier_name,
+                       item_name, item_code, item_type, tag_code, qty, location, reason, notes,
+                       damaged_weight, estimated_loss, action_taken, created_at
+                FROM (
+                    SELECT 'legacy' AS history_source, pd.id AS record_id, pd.damage_no, pd.concern_id,
+                           con.name AS concern_name, s.name AS supplier_name, v.name AS item_name,
+                           v.sku_code AS item_code, 'legacy' AS item_type, NULL AS tag_code, pd.qty,
+                           pd.location, pd.reason, NULL AS notes, 0 AS damaged_weight, 0 AS estimated_loss,
+                           pd.action_taken, pd.created_at
+                    FROM purchase_damages pd
+                    JOIN suppliers s ON pd.supplier_id = s.id
+                    JOIN variants v ON pd.variant_id = v.id
+                    LEFT JOIN concerns con ON con.id = pd.concern_id
+                    UNION ALL
+                    SELECT 'quarantine' AS history_source, q.id AS record_id, q.damage_no, q.concern_id,
+                           con.name AS concern_name, q.supplier_name, q.item_name, q.item_code,
+                           q.item_type, q.tag_code, q.qty, q.location, q.reason, q.notes,
+                           q.damaged_weight, q.estimated_loss, q.status AS action_taken, q.created_at
+                    FROM purchase_damage_quarantine q
+                    LEFT JOIN concerns con ON con.id = q.concern_id
+                ) damage_history";
+        $where = [];
+        $params = [];
+        if ($cid) {
+            $where[] = 'damage_history.concern_id = ?';
+            $params[] = $cid;
+        }
+        if ($dateScope['start_date'] && $dateScope['end_date']) {
+            $where[] = 'DATE(damage_history.created_at) BETWEEN ? AND ?';
+            $params[] = $dateScope['start_date'];
+            $params[] = $dateScope['end_date'];
+        }
+        if ($where) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        $sql .= ' ORDER BY damage_history.created_at DESC';
+        $damages = DB::fetchAll($sql, $params);
+
+        $headers = [
+            'Damage No.', 'Date', 'Concern', 'Supplier', 'Fabric / Product', 'Item Code',
+            'Item Type', 'Quantity', 'Damaged Weight', 'Estimated Loss', 'Location',
+            'Reason', 'Notes', 'Status', 'Record Source',
+        ];
+        $rows = [];
+        $totalQty = 0.0;
+        $totalWeight = 0.0;
+        $totalLoss = 0.0;
+        foreach ($damages as $damage) {
+            $totalQty += (float)$damage['qty'];
+            $totalWeight += (float)$damage['damaged_weight'];
+            $totalLoss += (float)$damage['estimated_loss'];
+            $rows[] = [
+                $damage['damage_no'],
+                date('d M Y, h:i A', strtotime($damage['created_at'])),
+                $damage['concern_name'] ?: '—',
+                $damage['supplier_name'] ?: '—',
+                $damage['item_name'],
+                $damage['tag_code'] ?: ($damage['item_code'] ?: '—'),
+                $damage['item_type'],
+                (float)$damage['qty'],
+                (float)$damage['damaged_weight'],
+                '₹' . number_format((float)$damage['estimated_loss'], 2),
+                $damage['location'] ?: 'Main Store',
+                $damage['reason'] ?: 'Unspecified defect',
+                $damage['notes'] ?: '',
+                $damage['action_taken'] ?: 'Quarantined',
+                $damage['history_source'],
+            ];
+        }
+
+        $concernName = $cid
+            ? (string)(DB::fetchValue('SELECT name FROM concerns WHERE id = ?', [$cid]) ?: 'Selected Concern')
+            : 'All Concerns';
+        $metadata = [
+            'Concern / Outlet' => $concernName,
+            'Period Scope' => $dateScope['label'],
+            'Total Records' => (string)count($damages),
+            'Total Quantity' => number_format($totalQty, 2),
+            'Damaged Weight' => number_format($totalWeight, 2),
+            'Estimated Loss' => '₹' . number_format($totalLoss, 2),
+        ];
+        $totals = [
+            'Totals: ' . count($damages) . ' records', '', '', '', '', '', '',
+            $totalQty, $totalWeight, '₹' . number_format($totalLoss, 2), '', '', '', '', '',
+        ];
+        $filename = 'purchase_damage_' . date('Ymd_His');
+
+        if ($format === 'pdf') {
+            \App\Services\ExportService::renderPdfView('Purchase Damage & Quarantine Report', $metadata, $headers, $rows, $totals);
+        } elseif ($format === 'csv') {
+            \App\Services\ExportService::downloadCsv($filename, $headers, $rows, $totals);
+        } else {
+            \App\Services\ExportService::downloadExcel($filename, 'Purchase Damage & Quarantine Report', $metadata, $headers, $rows, $totals);
+        }
     }
 
     public function scanPurchaseDamageTag(): void {

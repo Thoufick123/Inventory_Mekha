@@ -20,9 +20,6 @@
             <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Dashboard
             </a>
-            <button class="btn btn-primary btn-sm px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddInward">
-                <i class="bi bi-plus-lg me-1"></i> Receive Inward Consignment
-            </button>
         </div>
     </div>
 
@@ -227,6 +224,7 @@
                             </td>
                             <td class="text-end pe-3">
                                 <div class="d-flex align-items-center justify-content-end gap-1">
+                                    <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-info" title="Consignment Log"><i class="bi bi-clock-history"></i></a>
                                     <button type="button" class="btn btn-sm btn-outline-warning" title="Edit Consignment Notes"><i class="bi bi-pencil-square"></i></button>
                                     <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Consignment"><i class="bi bi-trash"></i></button>
@@ -293,9 +291,12 @@
 
                 <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
                     <small class="text-muted font-monospace"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></small>
-                    <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
-                        <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
-                    </a>
+                    <div class="d-flex align-items-center gap-1">
+                        <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
+                        <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
+                            <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -366,7 +367,7 @@
 <div class="modal fade" id="modalAddInward" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <form action="<?= \App\Core\Controller::url('/m/inward/store') ?>" method="POST" class="modal-content border-0 shadow">
-            <?= \App\Core\Csrf::field() ?>
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title fw-bold"><i class="bi bi-box-arrow-in-down me-2"></i> Receive Inward Consignment</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>

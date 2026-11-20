@@ -59,8 +59,13 @@ class Router {
         }
 
         $uri = '/' . trim($uri, '/');
-        if ($uri === '//') {
+        if ($uri === '//' || $uri === '/index.php') {
             $uri = '/';
+        }
+
+        // Central CSRF protection for all POST requests (excluding /api/*)
+        if ($method === 'POST' && !str_starts_with($uri, '/api/')) {
+            CSRF::validateRequest();
         }
 
         foreach ($this->routes as $route) {

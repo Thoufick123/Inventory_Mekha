@@ -1,0 +1,757 @@
+<?php
+// app/controllers/ProductionStockRequestController.php - Requisition State Machine & Multi-location Stock Movement
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Core\Controller;
+use App\Core\Auth;
+use App\Core\DB;
+use App\Services\StockService;
+use App\Services\DocumentNumberService;
+use App\Services\AuditService;
+use Exception;
+
+class ProductionStockRequestController extends Controller {
+    /**
+     * Allowed status transitions
+     */
+    private const ALLOWED_TRANSITIONS = [
+        'PENDING'    => ['APPROVED', 'REJECTED', 'CANCELLED'],
+        'APPROVED'   => ['DISPATCHED', 'REJECTED', 'CANCELLED'],
+        'DISPATCHED' => ['IN_TRANSIT', 'RECEIVED', 'SHORTAGE', 'CANCELLED'],
+        'IN_TRANSIT' => ['RECEIVED', 'SHORTAGE', 'CANCELLED'],
+        'RECEIVED'   => [],
+        'SHORTAGE'   => [],
+        'REJECTED'   => [],
+        'CANCELLED'  => [],
+    ];
+
+    public static function canTransition(string $current, string $next): bool {
+        $current = strtoupper(trim($current));
+        $next = strtoupper(trim($next));
+        return in_array($next, self::ALLOWED_TRANSITIONS[$current] ?? [], true);
+    }
+
+    public function index(): void {
+        $cid = Auth::concernId();
+
+        $search = trim($_GET['search'] ?? '');
+        $status = strtoupper(trim($_GET['status'] ?? ''));
+        $fromDate = trim($_GET['from_date'] ?? '');
+        $toDate = trim($_GET['to_date'] ?? '');
+
+        $sql = "SELECT psr.*, con.name AS concern_name, con.code AS concern_code,
+                       (SELECT COUNT(*) FROM production_stock_request_items WHERE request_id = psr.id) AS item_count,
+                       u.name AS creator_name, du.name AS dispatcher_name, ru.name AS receiver_name
+                FROM production_stock_requests psr
+                LEFT JOIN concerns con ON psr.concern_id = con.id
+                LEFT JOIN users u ON psr.created_by = u.id
+                LEFT JOIN users du ON psr.dispatched_by = du.id
+                LEFT JOIN users ru ON psr.received_by = ru.id
+                WHERE 1=1";
+        $params = [];
+
+        if ($cid) {
+            $sql .= " AND psr.concern_id = ?";
+            $params[] = $cid;
+        }
+        if ($search !== '') {
+            $sql .= " AND (psr.request_no LIKE ? OR psr.notes LIKE ? OR psr.dispatch_challan_no LIKE ?)";
+            $params[] = "%{$search}%";
+            $params[] = "%{$search}%";
+            $params[] = "%{$search}%";
+        }
+        if ($status !== '') {
+            $sql .= " AND psr.status = ?";
+            $params[] = $status;
+        }
+        if ($fromDate !== '') {
+            $sql .= " AND psr.created_at >= ?";
+            $params[] = "{$fromDate} 00:00:00";
+        }
+        if ($toDate !== '') {
+            $sql .= " AND psr.created_at <= ?";
+            $params[] = "{$toDate} 23:59:59";
+        }
+
+        $sql .= " ORDER BY psr.id DESC";
+        $requests = DB::fetchAll($sql, $params);
+
+        $this->render('production/stock_requests/index', [
+            'pageTitle'     => 'Stock Requisitions & Inter-Module Movement',
+            'currentModule' => 'request',
+            'requests'      => $requests,
+            'search'        => $search,
+            'status'        => $status,
+            'fromDate'      => $fromDate,
+            'toDate'        => $toDate,
+            'selectedCid'   => $cid,
+        ]);
+    }
+
+    public function create(): void {
+        $cid = Auth::concernId();
+
+        $variants = DB::fetchAll(
+            "SELECT id, sku_code, name, size, price FROM variants 
+             WHERE (concern_id = ? OR ? IS NULL) AND status = 'active' ORDER BY name ASC",
+            [$cid, $cid]
+        );
+
+        $warehouses = [
+            ['id' => 1, 'name' => 'Central Warehouse'],
+            ['id' => 2, 'name' => 'Material Store'],
+        ];
+        $shops = [
+            ['id' => 1, 'name' => 'Main Retail Outlet'],
+            ['id' => 2, 'name' => 'Showroom Store'],
+        ];
+        $units = DB::fetchAll(
+            "SELECT id, name, code FROM production_units WHERE (concern_id = ? OR ? IS NULL) AND is_active = 1",
+            [$cid, $cid]
+        );
+
+        $this->render('production/stock_requests/create', [
+            'pageTitle'     => 'Create Stock Requisition',
+            'currentModule' => 'request',
+            'variants'      => $variants,
+            'warehouses'    => $warehouses,
+            'shops'         => $shops,
+            'units'         => $units,
+            'selectedCid'   => $cid,
+        ]);
+    }
+
+    public function store(): void {
+        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        if (!$cid) {
+            $this->flash('error', 'Please select a valid business concern.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        $fromType = strtoupper(trim($_POST['from_location_type'] ?? 'WAREHOUSE'));
+        $fromId = (int)($_POST['from_location_id'] ?? 1);
+        $toType = strtoupper(trim($_POST['to_location_type'] ?? 'SHOP'));
+        $toId = (int)($_POST['to_location_id'] ?? 1);
+        $priority = strtoupper(trim($_POST['priority'] ?? 'NORMAL'));
+        $expectedDate = !empty($_POST['expected_date']) ? trim($_POST['expected_date']) : date('Y-m-d', strtotime('+3 days'));
+        $notes = trim($_POST['notes'] ?? '');
+
+        $itemsJson = $_POST['items'] ?? '[]';
+        $items = json_decode($itemsJson, true);
+
+        // Fallback for single variant input
+        if (empty($items) && !empty($_POST['variant_id'])) {
+            $items = [[
+                'variant_id'    => (int)$_POST['variant_id'],
+                'requested_qty' => (float)($_POST['requested_qty'] ?? 1),
+            ]];
+        }
+
+        if (empty($items)) {
+            $this->flash('error', 'Please add at least one line item to the requisition.');
+            $this->redirect('/production/stock-requests/create');
+            return;
+        }
+
+        $hasActiveTx = DB::pdo()->inTransaction();
+        if (!$hasActiveTx) {
+            DB::beginTransaction();
+        }
+
+        try {
+            $requestNo = DocumentNumberService::generate('STOCK_REQUEST', $cid);
+
+            $totalRequestedQty = 0.00;
+            foreach ($items as $item) {
+                $totalRequestedQty += (float)($item['requested_qty'] ?? 0);
+            }
+
+            // 1. Insert header
+            DB::query(
+                "INSERT INTO production_stock_requests (
+                    concern_id, request_no, request_type, from_location_type, from_location_id,
+                    to_location_type, to_location_id, status, priority, requested_qty, expected_date, notes, created_by, created_at
+                 ) VALUES (?, ?, 'INTER_MODULE', ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, NOW())",
+                [
+                    $cid, $requestNo, $fromType, $fromId,
+                    $toType, $toId, $priority, $totalRequestedQty, $expectedDate, $notes, Auth::id()
+                ]
+            );
+            $requestId = (int)DB::lastInsertId();
+
+            // 2. Insert line items
+            foreach ($items as $item) {
+                $variantId = (int)($item['variant_id'] ?? 0);
+                $rq = (float)($item['requested_qty'] ?? 0);
+                if ($variantId <= 0 || $rq <= 0) continue;
+
+                DB::query(
+                    "INSERT INTO production_stock_request_items (request_id, variant_id, requested_qty, status, created_at)
+                     VALUES (?, ?, ?, 'PENDING', NOW())",
+                    [$requestId, $variantId, $rq]
+                );
+            }
+
+            // 3. Log audit timeline
+            DB::query(
+                "INSERT INTO production_stock_request_audits (request_id, action, qty, actor_id, notes, created_at)
+                 VALUES (?, 'CREATE', ?, ?, ?, NOW())",
+                [$requestId, $totalRequestedQty, Auth::id(), "Requisition created: {$notes}"]
+            );
+
+            // Backward compatibility insert into customer_requests
+            $firstItem = $items[0] ?? null;
+            if ($firstItem) {
+                DB::query(
+                    "INSERT INTO customer_requests (concern_id, request_no, customer_id, variant_id, requested_qty, expected_date, status, notes, created_at)
+                     VALUES (?, ?, 1, ?, ?, ?, 'pending', ?, NOW())",
+                    [$cid, $requestNo, (int)$firstItem['variant_id'], (float)$firstItem['requested_qty'], $expectedDate, $notes]
+                );
+            }
+
+            AuditService::log('STOCK_REQUEST_CREATE', 'production_stock_requests', $requestId, null, [
+                'request_no' => $requestNo,
+                'from'       => "{$fromType}:{$fromId}",
+                'to'         => "{$toType}:{$toId}",
+                'total_qty'  => $totalRequestedQty
+            ]);
+
+            if (!$hasActiveTx) {
+                DB::commit();
+            }
+
+            $this->flash('success', "Stock Requisition '{$requestNo}' submitted successfully.");
+            $this->redirect('/production/stock-requests/view/' . $requestId);
+        } catch (\Throwable $e) {
+            if (!$hasActiveTx) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Failed to create requisition: ' . $e->getMessage());
+            $this->redirect('/production/stock-requests/create');
+        }
+    }
+
+    public function view(int $id): void {
+        $cid = Auth::concernId();
+
+        $request = DB::fetch(
+            "SELECT psr.*, con.name AS concern_name, con.code AS concern_code,
+                    u.name AS creator_name, du.name AS dispatcher_name, ru.name AS receiver_name
+             FROM production_stock_requests psr
+             LEFT JOIN concerns con ON psr.concern_id = con.id
+             LEFT JOIN users u ON psr.created_by = u.id
+             LEFT JOIN users du ON psr.dispatched_by = du.id
+             LEFT JOIN users ru ON psr.received_by = ru.id
+             WHERE psr.id = ? AND (psr.concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid]
+        );
+
+        if (!$request) {
+            $this->flash('error', 'Stock requisition not found.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        $items = DB::fetchAll(
+            "SELECT psri.*, v.sku_code, v.name AS variant_name, v.size 
+             FROM production_stock_request_items psri
+             JOIN variants v ON psri.variant_id = v.id
+             WHERE psri.request_id = ?
+             ORDER BY psri.id ASC",
+            [$id]
+        );
+
+        // Fetch live available stock for each line at source location
+        $sourceType = $request['from_location_type'];
+        $sourceTarget = $request['from_location_id'];
+        foreach ($items as &$item) {
+            $item['live_source_available'] = StockService::getAvailable(
+                (int)$item['variant_id'],
+                $sourceType,
+                $sourceTarget,
+                (int)$request['concern_id']
+            );
+        }
+        unset($item);
+
+        $audits = DB::fetchAll(
+            "SELECT psra.*, u.name AS actor_name 
+             FROM production_stock_request_audits psra
+             LEFT JOIN users u ON psra.actor_id = u.id
+             WHERE psra.request_id = ?
+             ORDER BY psra.id ASC",
+            [$id]
+        );
+
+        $this->render('production/stock_requests/view', [
+            'pageTitle'     => "Requisition {$request['request_no']}",
+            'currentModule' => 'request',
+            'request'       => $request,
+            'items'         => $items,
+            'audits'        => $audits,
+        ]);
+    }
+
+    /**
+     * Dispatch stock: source AVAILABLE -> IN_TRANSIT
+     */
+    public function sendStocks(): void {
+        $id = (int)($_POST['request_id'] ?? 0);
+        $cid = Auth::concernId();
+
+        $request = DB::fetch(
+            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid]
+        );
+
+        if (!$request) {
+            $this->flash('error', 'Requisition record not found.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        if (!in_array($request['status'], ['PENDING', 'APPROVED'], true)) {
+            $this->flash('error', "Cannot dispatch requisition in status '{$request['status']}'.");
+            $this->redirect('/production/stock-requests/view/' . $id);
+            return;
+        }
+
+        $items = DB::fetchAll("SELECT * FROM production_stock_request_items WHERE request_id = ?", [$id]);
+        $dispatchInputs = $_POST['dispatch_qty'] ?? [];
+
+        $concernId = (int)$request['concern_id'];
+        $sourceLoc = StockService::formatLocation($request['from_location_type'], $request['from_location_id'], 'AVAILABLE');
+        $inTransitLoc = StockService::formatLocation($request['from_location_type'], $request['from_location_id'], 'IN_TRANSIT');
+
+        $hasActiveTx = DB::pdo()->inTransaction();
+        if (!$hasActiveTx) {
+            DB::beginTransaction();
+        }
+
+        try {
+            $challanNo = DocumentNumberService::generate('CHALLAN', $concernId);
+            $batchLines = [];
+            $totalDispatchedThisTurn = 0.00;
+
+            foreach ($items as $item) {
+                $itemId = (int)$item['id'];
+                $variantId = (int)$item['variant_id'];
+                $requested = (float)$item['requested_qty'];
+                $alreadyDispatched = (float)$item['dispatched_qty'];
+                $remainingToSend = $requested - $alreadyDispatched;
+
+                // Determine quantity to dispatch
+                $sendQty = isset($dispatchInputs[$itemId]) ? (float)$dispatchInputs[$itemId] : $remainingToSend;
+
+                // Validate bounded send_qty
+                if ($sendQty <= 0) continue;
+                if ($sendQty > $remainingToSend + 0.001) {
+                    throw new Exception("Dispatch quantity ({$sendQty}) exceeds remaining requested quantity ({$remainingToSend}).");
+                }
+
+                // Check live source stock
+                $available = StockService::getAvailable($variantId, $request['from_location_type'], $request['from_location_id'], $concernId);
+                if ($available < $sendQty) {
+                    throw new Exception("Insufficient stock at source. Available: {$available}, Requested dispatch: {$sendQty}.");
+                }
+
+                $batchLines[] = [
+                    'variant_id'    => $variantId,
+                    'from_location' => $sourceLoc,
+                    'to_location'   => $inTransitLoc,
+                    'qty'           => $sendQty,
+                    'note'          => "Dispatched under Challan #{$challanNo} for Request #{$request['request_no']}"
+                ];
+
+                $newDispatched = $alreadyDispatched + $sendQty;
+                $newInTransit = (float)$item['in_transit_qty'] + $sendQty;
+
+                DB::query(
+                    "UPDATE production_stock_request_items SET dispatched_qty = ?, in_transit_qty = ?, status = 'DISPATCHED' WHERE id = ?",
+                    [$newDispatched, $newInTransit, $itemId]
+                );
+
+                $totalDispatchedThisTurn += $sendQty;
+            }
+
+            if (empty($batchLines)) {
+                throw new Exception("No valid quantities specified for dispatch.");
+            }
+
+            // Atomic double-entry transfer: Source AVAILABLE -> IN_TRANSIT
+            StockService::transferBatch(
+                $concernId,
+                $batchLines,
+                'Stock Request Dispatch',
+                $id,
+                "Dispatch Challan [{$challanNo}]"
+            );
+
+            $newTotDispatched = (float)$request['dispatched_qty'] + $totalDispatchedThisTurn;
+            $newTotInTransit = (float)$request['in_transit_qty'] + $totalDispatchedThisTurn;
+
+            DB::query(
+                "UPDATE production_stock_requests SET 
+                    status = 'DISPATCHED',
+                    dispatch_challan_no = ?,
+                    dispatched_qty = ?,
+                    in_transit_qty = ?,
+                    dispatched_by = ?,
+                    dispatched_at = NOW()
+                 WHERE id = ?",
+                [$challanNo, $newTotDispatched, $newTotInTransit, Auth::id(), $id]
+            );
+
+            // Audit
+            DB::query(
+                "INSERT INTO production_stock_request_audits (request_id, action, qty, actor_id, notes, created_at)
+                 VALUES (?, 'DISPATCH', ?, ?, ?, NOW())",
+                [$id, $totalDispatchedThisTurn, Auth::id(), "Dispatched {$totalDispatchedThisTurn} units under Challan #{$challanNo}"]
+            );
+
+            AuditService::log('STOCK_REQUEST_DISPATCH', 'production_stock_requests', $id, ['old_status' => $request['status']], [
+                'status'        => 'DISPATCHED',
+                'challan_no'    => $challanNo,
+                'dispatched_qty'=> $totalDispatchedThisTurn
+            ]);
+
+            if (!$hasActiveTx) {
+                DB::commit();
+            }
+
+            $this->flash('success', "Dispatched {$totalDispatchedThisTurn} units under Challan '{$challanNo}'. Stock moved to IN_TRANSIT.");
+        } catch (\Throwable $e) {
+            if (!$hasActiveTx) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Dispatch failed: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/stock-requests/view/' . $id);
+    }
+
+    /**
+     * Confirm receipt at destination: IN_TRANSIT -> destination AVAILABLE
+     */
+    public function confirmReceived(): void {
+        $id = (int)($_POST['request_id'] ?? 0);
+        $cid = Auth::concernId();
+
+        $request = DB::fetch(
+            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid]
+        );
+
+        if (!$request) {
+            $this->flash('error', 'Requisition not found.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        if (!in_array($request['status'], ['DISPATCHED', 'IN_TRANSIT'], true)) {
+            $this->flash('error', "Cannot confirm receipt for requisition in status '{$request['status']}'.");
+            $this->redirect('/production/stock-requests/view/' . $id);
+            return;
+        }
+
+        $items = DB::fetchAll("SELECT * FROM production_stock_request_items WHERE request_id = ?", [$id]);
+        $receivedInputs = $_POST['received_qty'] ?? [];
+
+        $concernId = (int)$request['concern_id'];
+        $inTransitLoc = StockService::formatLocation($request['from_location_type'], $request['from_location_id'], 'IN_TRANSIT');
+        $destLoc = StockService::formatLocation($request['to_location_type'], $request['to_location_id'], 'AVAILABLE');
+
+        $hasActiveTx = DB::pdo()->inTransaction();
+        if (!$hasActiveTx) {
+            DB::beginTransaction();
+        }
+
+        try {
+            $transferLines = [];
+            $totalReceivedThisTurn = 0.00;
+            $totalShortageThisTurn = 0.00;
+
+            foreach ($items as $item) {
+                $itemId = (int)$item['id'];
+                $variantId = (int)$item['variant_id'];
+                $inTransit = (float)$item['in_transit_qty'];
+
+                if ($inTransit <= 0) continue;
+
+                $receivedQty = isset($receivedInputs[$itemId]) ? (float)$receivedInputs[$itemId] : $inTransit;
+                if ($receivedQty > $inTransit + 0.001) {
+                    throw new Exception("Received quantity ({$receivedQty}) cannot exceed in-transit quantity ({$inTransit}).");
+                }
+
+                $shortageQty = max(0.00, $inTransit - $receivedQty);
+
+                // Transfer received portion: IN_TRANSIT -> destination AVAILABLE
+                if ($receivedQty > 0) {
+                    $transferLines[] = [
+                        'variant_id'    => $variantId,
+                        'from_location' => $inTransitLoc,
+                        'to_location'   => $destLoc,
+                        'qty'           => $receivedQty,
+                        'note'          => "Receipt confirmation for Request #{$request['request_no']}"
+                    ];
+                }
+
+                // If shortage occurred, deduct shortage from IN_TRANSIT and log adjustment
+                if ($shortageQty > 0) {
+                    StockService::move(
+                        $concernId,
+                        $variantId,
+                        $inTransitLoc,
+                        0.00,
+                        $shortageQty,
+                        'Stock Request Shortage',
+                        $id,
+                        "In-transit transit shortage for Request #{$request['request_no']}",
+                        Auth::id()
+                    );
+                }
+
+                $newReceived = (float)$item['received_qty'] + $receivedQty;
+                $newShortage = (float)$item['shortage_qty'] + $shortageQty;
+                $lineStatus = $newShortage > 0 ? 'SHORTAGE' : 'RECEIVED';
+
+                DB::query(
+                    "UPDATE production_stock_request_items SET in_transit_qty = 0, received_qty = ?, shortage_qty = ?, status = ? WHERE id = ?",
+                    [$newReceived, $newShortage, $lineStatus, $itemId]
+                );
+
+                $totalReceivedThisTurn += $receivedQty;
+                $totalShortageThisTurn += $shortageQty;
+            }
+
+            if (!empty($transferLines)) {
+                StockService::transferBatch(
+                    $concernId,
+                    $transferLines,
+                    'Stock Request Receipt',
+                    $id,
+                    "Receipt Confirmation"
+                );
+            }
+
+            $overallStatus = $totalShortageThisTurn > 0 ? 'SHORTAGE' : 'RECEIVED';
+
+            DB::query(
+                "UPDATE production_stock_requests SET 
+                    status = ?,
+                    in_transit_qty = 0,
+                    received_qty = received_qty + ?,
+                    shortage_qty = shortage_qty + ?,
+                    received_by = ?,
+                    received_at = NOW()
+                 WHERE id = ?",
+                [$overallStatus, $totalReceivedThisTurn, $totalShortageThisTurn, Auth::id(), $id]
+            );
+
+            // Audit
+            DB::query(
+                "INSERT INTO production_stock_request_audits (request_id, action, qty, actor_id, notes, created_at)
+                 VALUES (?, 'RECEIVE', ?, ?, ?, NOW())",
+                [$id, $totalReceivedThisTurn, Auth::id(), "Confirmed receipt of {$totalReceivedThisTurn} units (Shortage: {$totalShortageThisTurn})"]
+            );
+
+            AuditService::log('STOCK_REQUEST_RECEIVE', 'production_stock_requests', $id, ['old_status' => $request['status']], [
+                'status'       => $overallStatus,
+                'received_qty' => $totalReceivedThisTurn,
+                'shortage_qty' => $totalShortageThisTurn
+            ]);
+
+            if (!$hasActiveTx) {
+                DB::commit();
+            }
+
+            $msg = "Received {$totalReceivedThisTurn} units at destination.";
+            if ($totalShortageThisTurn > 0) {
+                $msg .= " Shortage of {$totalShortageThisTurn} units was recorded.";
+            }
+            $this->flash('success', $msg);
+        } catch (\Throwable $e) {
+            if (!$hasActiveTx) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Receipt confirmation failed: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/stock-requests/view/' . $id);
+    }
+
+    /**
+     * Reject requisition (admin or source manager)
+     */
+    public function reject(): void {
+        $id = (int)($_POST['id'] ?? 0);
+        $reason = trim($_POST['reason'] ?? 'Rejected');
+        $cid = Auth::concernId();
+
+        $request = DB::fetch(
+            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid]
+        );
+
+        if (!$request) {
+            $this->flash('error', 'Requisition not found.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        if (!in_array($request['status'], ['PENDING', 'APPROVED'], true)) {
+            $this->flash('error', "Cannot reject requisition in status '{$request['status']}'.");
+            $this->redirect('/production/stock-requests/view/' . $id);
+            return;
+        }
+
+        DB::query(
+            "UPDATE production_stock_requests SET status = 'REJECTED', notes = CONCAT(COALESCE(notes, ''), '\n[Rejected]: ', ?) WHERE id = ?",
+            [$reason, $id]
+        );
+
+        DB::query(
+            "INSERT INTO production_stock_request_audits (request_id, action, actor_id, notes, created_at)
+             VALUES (?, 'REJECT', ?, ?, NOW())",
+            [$id, Auth::id(), "Rejected: {$reason}"]
+        );
+
+        AuditService::log('STOCK_REQUEST_REJECT', 'production_stock_requests', $id, ['old_status' => $request['status']], [
+            'status' => 'REJECTED',
+            'reason' => $reason
+        ]);
+
+        $this->flash('success', "Requisition '{$request['request_no']}' was rejected.");
+        $this->redirect('/production/stock-requests/view/' . $id);
+    }
+
+    /**
+     * Cancel requisition (reverses IN_TRANSIT stock if already dispatched)
+     */
+    public function cancel(): void {
+        $id = (int)($_POST['id'] ?? 0);
+        $reason = trim($_POST['cancel_reason'] ?? 'Cancelled by user');
+        $cid = Auth::concernId();
+
+        $request = DB::fetch(
+            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid]
+        );
+
+        if (!$request) {
+            $this->flash('error', 'Requisition not found.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        if (in_array($request['status'], ['RECEIVED', 'CANCELLED', 'REJECTED'], true)) {
+            $this->flash('error', "Cannot cancel requisition in status '{$request['status']}'.");
+            $this->redirect('/production/stock-requests/view/' . $id);
+            return;
+        }
+
+        $items = DB::fetchAll("SELECT * FROM production_stock_request_items WHERE request_id = ?", [$id]);
+        $concernId = (int)$request['concern_id'];
+        $inTransitLoc = StockService::formatLocation($request['from_location_type'], $request['from_location_id'], 'IN_TRANSIT');
+        $sourceLoc = StockService::formatLocation($request['from_location_type'], $request['from_location_id'], 'AVAILABLE');
+
+        $hasActiveTx = DB::pdo()->inTransaction();
+        if (!$hasActiveTx) {
+            DB::beginTransaction();
+        }
+
+        try {
+            $reverseLines = [];
+            foreach ($items as $item) {
+                $inTransit = (float)$item['in_transit_qty'];
+                if ($inTransit > 0) {
+                    $reverseLines[] = [
+                        'variant_id'    => (int)$item['variant_id'],
+                        'from_location' => $inTransitLoc,
+                        'to_location'   => $sourceLoc,
+                        'qty'           => $inTransit,
+                        'note'          => "Cancellation reversal: Restored in-transit stock"
+                    ];
+                }
+            }
+
+            if (!empty($reverseLines)) {
+                StockService::transferBatch(
+                    $concernId,
+                    $reverseLines,
+                    'Stock Request Cancellation',
+                    $id,
+                    "Cancelled Requisition Reversal"
+                );
+            }
+
+            DB::query(
+                "UPDATE production_stock_requests SET status = 'CANCELLED', in_transit_qty = 0, cancelled_by = ?, cancelled_at = NOW(), cancel_reason = ? WHERE id = ?",
+                [Auth::id(), $reason, $id]
+            );
+
+            DB::query(
+                "INSERT INTO production_stock_request_audits (request_id, action, actor_id, notes, created_at)
+                 VALUES (?, 'CANCEL', ?, ?, NOW())",
+                [$id, Auth::id(), "Cancelled: {$reason}"]
+            );
+
+            AuditService::log('STOCK_REQUEST_CANCEL', 'production_stock_requests', $id, ['old_status' => $request['status']], [
+                'status'        => 'CANCELLED',
+                'cancel_reason' => $reason
+            ]);
+
+            if (!$hasActiveTx) {
+                DB::commit();
+            }
+
+            $this->flash('success', "Requisition '{$request['request_no']}' was cancelled and in-transit stock returned to source.");
+        } catch (\Throwable $e) {
+            if (!$hasActiveTx) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Cancellation failed: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/stock-requests/view/' . $id);
+    }
+
+    public function printChallan(int $id): void {
+        $cid = Auth::concernId();
+
+        $request = DB::fetch(
+            "SELECT psr.*, con.name AS concern_name, con.code AS concern_code, con.gstin, con.phone AS concern_phone,
+                    du.name AS dispatcher_name
+             FROM production_stock_requests psr
+             LEFT JOIN concerns con ON psr.concern_id = con.id
+             LEFT JOIN users du ON psr.dispatched_by = du.id
+             WHERE psr.id = ? AND (psr.concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid]
+        );
+
+        if (!$request) {
+            $this->flash('error', 'Requisition not found.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        $items = DB::fetchAll(
+            "SELECT psri.*, v.sku_code, v.name AS variant_name, v.size 
+             FROM production_stock_request_items psri
+             JOIN variants v ON psri.variant_id = v.id
+             WHERE psri.request_id = ?
+             ORDER BY psri.id ASC",
+            [$id]
+        );
+
+        $this->render('production/stock_requests/print_challan', [
+            'pageTitle' => "Dispatch Challan {$request['dispatch_challan_no']}",
+            'request'   => $request,
+            'items'     => $items,
+        ]);
+    }
+}

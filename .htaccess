@@ -17,9 +17,20 @@ AddDefaultCharset UTF-8
 # 4. Routing and Security Engine
 <IfModule mod_rewrite.c>
     RewriteEngine On
+<<<<<<< HEAD
+=======
+    # RewriteBase /
+>>>>>>> a8018b3821ba5903be36be00f1c345a91533f131
 
     # Prevent infinite rewrite loop: if already index.php, stop processing immediately
     RewriteRule ^index\.php$ - [L]
+
+    # Force HTTPS (compatible with Hostinger LiteSpeed and Reverse Proxies)
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteCond %{HTTP_HOST} !^localhost [NC]
+    RewriteCond %{HTTP_HOST} !^127\.0\.0\.1 [NC]
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
     # Block direct access to hidden files and directories (.env, .git, etc.)
     RewriteRule ^\..* - [F,L]

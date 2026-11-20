@@ -100,8 +100,9 @@ if ($isEdit && !empty($existingItems)) {
                     </div>
 
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
-                        <label class="form-label small fw-semibold">Invoice / Bill Number</label>
-                        <input type="text" name="supplier_invoice_no" class="form-control" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>">
+                        <label class="form-label small fw-semibold">Invoice / Bill Number <span class="text-danger">*</span></label>
+                        <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
+                        <div class="invalid-feedback">Invoice / Bill number is required.</div>
                     </div>
                 </div>
 
@@ -142,8 +143,9 @@ if ($isEdit && !empty($existingItems)) {
 
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Tax Invoice / Bill Attachment (Optional)</label>
-                        <input type="file" name="attachments[]" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple>
+                        <label class="form-label small fw-semibold">Tax Invoice / Bill Attachment <span class="text-danger">*</span></label>
+                        <input type="file" name="attachments[]" id="billAttachments" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple <?= ($isEdit && !empty($existingAttachments)) ? '' : 'required' ?>>
+                        <div class="invalid-feedback">Please choose at least one tax invoice / bill attachment file.</div>
                         <div class="form-text text-muted small">Select multiple JPG, PNG, WEBP or PDF files. Each file can be up to 5 MB.</div>
                         <?php if (!empty($existingAttachments)): ?>
                             <div class="mt-1 small">
@@ -2921,11 +2923,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
     const attachmentsInput = form.querySelector('input[name="attachments[]"]');
+    const hasExistingAttachments = <?= (!empty($existingAttachments)) ? 'true' : 'false' ?>;
     const validateAttachments = function () {
         if (!attachmentsInput) return;
 
         const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
         const selectedFiles = Array.from(attachmentsInput.files || []);
+        if (selectedFiles.length === 0 && !hasExistingAttachments) {
+            attachmentsInput.setCustomValidity('Please upload at least one tax invoice / bill attachment file.');
+            return;
+        }
         const invalidType = selectedFiles.some(function (file) {
             return !allowedExtensions.includes(file.name.split('.').pop().toLowerCase());
         });

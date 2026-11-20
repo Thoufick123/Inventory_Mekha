@@ -115,6 +115,12 @@ assertContains($htmlPending, 'function updateFgPreview()', "updateFgPreview miss
 assertContains($htmlPending, 'fg_add_stock_btn', "fg_add_stock_btn reference missing in JS");
 assertContains($htmlPending, 'fg_in_stock_badge', "fg_in_stock_badge reference missing in JS");
 assertContains($htmlPending, 'This finished goods item has already been added to stock.', "Validation alert missing in submitFgToStock");
+$labelControllerSource = file_get_contents(__DIR__ . '/../app/controllers/LabelController.php');
+$labelGenerationSource = file_get_contents(__DIR__ . '/../app/views/concern/label_generation.php');
+assertContains($labelControllerSource, "targetTab === 'finished_goods' ? '/m/stocks'", "Finished Goods inward does not redirect to Live Stocks");
+assertContains($labelControllerSource, 'must be mapped to a catalog variant before adding it to stock', "Unmapped finished goods can be marked complete without stock");
+assertContains($labelGenerationSource, 'Map to catalog first', "Unmapped Finished Goods still show an Add to Stock action");
+assertContains($labelGenerationSource, "curSectionTab === 'finished_goods' ? '/m/stocks'", "Finished Goods completion banner does not link to Live Stocks");
 
 assertContains($htmlPending, 'function updateProdPreview()', "updateProdPreview missing");
 assertContains($htmlPending, 'prod_add_stock_btn', "prod_add_stock_btn reference missing in JS");

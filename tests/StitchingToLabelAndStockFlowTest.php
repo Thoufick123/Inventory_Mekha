@@ -162,6 +162,12 @@ if (strpos($stockHtml, 'floral Fabric (black) - XS') !== false) {
     echo "  FAIL: Variant description missing from Live Stocks.\n";
     exit(1);
 }
+if (strpos($stockHtml, 'Own Products') !== false && strpos($stockHtml, 'Production stitched finished goods') !== false && strpos($stockHtml, 'pcs') !== false) {
+    echo "  PASS: Production inward stock is grouped under Own Products and displayed in pieces!\n";
+} else {
+    echo "  FAIL: Production stock source grouping or piece units missing from Live Stocks.\n";
+    exit(1);
+}
 
 // 5. Test Label Generation page now marks the item as In Stock
 echo "[TEST 5] Testing LabelController::index() shows item as 'In Stock'...\n";

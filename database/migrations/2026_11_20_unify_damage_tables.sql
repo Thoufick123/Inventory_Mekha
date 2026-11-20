@@ -1,0 +1,86 @@
+-- Migration: 2026_11_20_unify_damage_tables.sql
+-- Module 3: Unified Multi-location Damage Tables (Warehouse, Shop, Concern) with Full Resolution Lifecycle
+
+-- 1. Create warehouse_damages table
+CREATE TABLE IF NOT EXISTS `warehouse_damages` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `concern_id` INT NOT NULL,
+    `damage_no` VARCHAR(50) NOT NULL UNIQUE,
+    `warehouse_id` INT NOT NULL DEFAULT 1,
+    `variant_id` INT NOT NULL,
+    `qty` DECIMAL(12,2) NOT NULL,
+    `location` VARCHAR(100) NOT NULL DEFAULT 'Warehouse Floor',
+    `damage_type` VARCHAR(50) NOT NULL DEFAULT 'PHYSICAL_DAMAGE',
+    `severity` ENUM('MINOR', 'MODERATE', 'SEVERE', 'SCRAP') NOT NULL DEFAULT 'MODERATE',
+    `status` ENUM('LOGGED', 'INSPECTED', 'RESOLVED', 'CANCELLED') NOT NULL DEFAULT 'LOGGED',
+    `resolution_action` ENUM('SCRAP', 'WRITE_OFF', 'SALVAGE', 'REPAIR', 'REWORK', 'RETURN_TO_SUPPLIER', 'SUPPLIER_REPLACEMENT') NULL,
+    `resolution_reason` VARCHAR(255) NULL,
+    `resolution_notes` TEXT NULL,
+    `loss_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `photo_url` VARCHAR(255) NULL,
+    `replacement_variant_id` INT NULL,
+    `replacement_qr_code` VARCHAR(100) NULL,
+    `replacement_inwarded_at` DATETIME NULL,
+    `resolved_by` INT NULL,
+    `resolved_at` DATETIME NULL,
+    `cancelled_by` INT NULL,
+    `cancelled_at` DATETIME NULL,
+    `cancel_reason` TEXT NULL,
+    `created_by` INT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_whd_concern` (`concern_id`),
+    INDEX `idx_whd_status` (`status`),
+    INDEX `idx_whd_variant` (`variant_id`),
+    INDEX `idx_whd_repl_qr` (`replacement_qr_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2. Create shop_damages table
+CREATE TABLE IF NOT EXISTS `shop_damages` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `concern_id` INT NOT NULL,
+    `damage_no` VARCHAR(50) NOT NULL UNIQUE,
+    `shop_id` INT NOT NULL DEFAULT 1,
+    `variant_id` INT NOT NULL,
+    `qty` DECIMAL(12,2) NOT NULL,
+    `location` VARCHAR(100) NOT NULL DEFAULT 'Retail Shop',
+    `damage_type` VARCHAR(50) NOT NULL DEFAULT 'CUSTOMER_DAMAGE',
+    `severity` ENUM('MINOR', 'MODERATE', 'SEVERE', 'SCRAP') NOT NULL DEFAULT 'MODERATE',
+    `status` ENUM('LOGGED', 'INSPECTED', 'RESOLVED', 'CANCELLED') NOT NULL DEFAULT 'LOGGED',
+    `resolution_action` ENUM('SCRAP', 'WRITE_OFF', 'SALVAGE', 'REPAIR', 'REWORK', 'RETURN_TO_WAREHOUSE', 'SUPPLIER_REPLACEMENT') NULL,
+    `resolution_reason` VARCHAR(255) NULL,
+    `resolution_notes` TEXT NULL,
+    `loss_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `photo_url` VARCHAR(255) NULL,
+    `replacement_variant_id` INT NULL,
+    `replacement_qr_code` VARCHAR(100) NULL,
+    `replacement_inwarded_at` DATETIME NULL,
+    `resolved_by` INT NULL,
+    `resolved_at` DATETIME NULL,
+    `cancelled_by` INT NULL,
+    `cancelled_at` DATETIME NULL,
+    `cancel_reason` TEXT NULL,
+    `created_by` INT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_shd_concern` (`concern_id`),
+    INDEX `idx_shd_status` (`status`),
+    INDEX `idx_shd_variant` (`variant_id`),
+    INDEX `idx_shd_repl_qr` (`replacement_qr_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. Enhance concern_damages table with resolution lifecycle fields
+ALTER TABLE `concern_damages`
+    ADD COLUMN IF NOT EXISTS `status` ENUM('LOGGED', 'INSPECTED', 'RESOLVED', 'CANCELLED') NOT NULL DEFAULT 'LOGGED' AFTER `reason`,
+    ADD COLUMN IF NOT EXISTS `severity` ENUM('MINOR', 'MODERATE', 'SEVERE', 'SCRAP') NOT NULL DEFAULT 'MODERATE' AFTER `status`,
+    ADD COLUMN IF NOT EXISTS `resolution_action` ENUM('SCRAP', 'WRITE_OFF', 'SALVAGE', 'REPAIR', 'REWORK', 'RETURN_TO_SUPPLIER', 'SUPPLIER_REPLACEMENT') NULL AFTER `severity`,
+    ADD COLUMN IF NOT EXISTS `resolution_reason` VARCHAR(255) NULL AFTER `resolution_action`,
+    ADD COLUMN IF NOT EXISTS `resolution_notes` TEXT NULL AFTER `resolution_reason`,
+    ADD COLUMN IF NOT EXISTS `loss_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `resolution_notes`,
+    ADD COLUMN IF NOT EXISTS `photo_url` VARCHAR(255) NULL AFTER `loss_amount`,
+    ADD COLUMN IF NOT EXISTS `replacement_variant_id` INT NULL AFTER `photo_url`,
+    ADD COLUMN IF NOT EXISTS `replacement_qr_code` VARCHAR(100) NULL AFTER `replacement_variant_id`,
+    ADD COLUMN IF NOT EXISTS `replacement_inwarded_at` DATETIME NULL AFTER `replacement_qr_code`,
+    ADD COLUMN IF NOT EXISTS `resolved_by` INT NULL AFTER `replacement_inwarded_at`,
+    ADD COLUMN IF NOT EXISTS `resolved_at` DATETIME NULL AFTER `resolved_by`,
+    ADD COLUMN IF NOT EXISTS `cancelled_by` INT NULL AFTER `resolved_at`,
+    ADD COLUMN IF NOT EXISTS `cancelled_at` DATETIME NULL AFTER `cancelled_by`,
+    ADD COLUMN IF NOT EXISTS `cancel_reason` TEXT NULL AFTER `cancelled_at`;

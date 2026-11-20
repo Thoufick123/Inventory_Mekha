@@ -128,6 +128,22 @@ class Auth {
         }
     }
 
+    public static function currentConcernId(): ?int {
+        return self::concernId();
+    }
+
+    public static function currentWarehouseId(): int {
+        return (int)($_SESSION['active_warehouse_id'] ?? 1);
+    }
+
+    public static function currentShopId(): int {
+        return (int)($_SESSION['active_shop_id'] ?? 1);
+    }
+
+    public static function currentProductionUnitId(): ?int {
+        return self::productionUnitId() ?: 1;
+    }
+
     public static function allConcerns(): array {
         return DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
     }
@@ -292,10 +308,10 @@ class Auth {
                 FROM users u
                 LEFT JOIN roles r ON u.role_id = r.id
                 LEFT JOIN concerns c ON u.concern_id = c.id
-                WHERE u.email = ? AND u.status = 'active'
+                WHERE (u.email = ? OR u.email = CONCAT(?, '@invento.com') OR u.name = ?) AND u.status = 'active'
                 LIMIT 1";
         
-        $user = DB::fetch($sql, [$email]);
+        $user = DB::fetch($sql, [$email, $email, $email]);
         if (!$user) {
             return false;
         }
@@ -402,10 +418,15 @@ class Auth {
             return false;
         }
 
-        // Action normalization: support 'view', 'add'/'create', 'edit', 'delete'
+        // Action normalization: support 'view', 'add'/'create', 'edit', 'delete', plus operational actions
         $act = strtolower($action);
+        $actionAlias = null;
         if ($act === 'create') {
             $act = 'add';
+        } elseif (in_array($act, ['process', 'dispatch', 'receive', 'inward', 'resolve', 'inspect'], true)) {
+            $actionAlias = in_array($act, ['dispatch', 'receive', 'resolve', 'process']) ? 'edit' : 'add';
+        } elseif (in_array($act, ['cancel', 'reverse', 'reject'], true)) {
+            $actionAlias = 'delete';
         }
 
         // 1. Check user-specific granular overrides
@@ -417,10 +438,18 @@ class Auth {
             }
             return false;
         }
+        if ($actionAlias && isset($userPerms[$moduleCode]) && array_key_exists($actionAlias, $userPerms[$moduleCode])) {
+            $val = $userPerms[$moduleCode][$actionAlias];
+            if ($val === 1) return true;
+            if ($val === 0) return false;
+        }
 
         // 2. Check role-level default permissions
         $rolePerms = $_SESSION['role_permissions'] ?? [];
         if (isset($rolePerms[$moduleCode]) && !empty($rolePerms[$moduleCode][$act])) {
+            return true;
+        }
+        if ($actionAlias && isset($rolePerms[$moduleCode]) && !empty($rolePerms[$moduleCode][$actionAlias])) {
             return true;
         }
 

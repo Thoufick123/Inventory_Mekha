@@ -65,7 +65,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                         <?php endif; ?>
                     </h6>
                     <p class="text-secondary small mb-0">
-                        Items are loaded for label generation. Review, print barcode/QR stickers, then click <strong>Add to Stock</strong> to inward into Purchase Stocks inventory.
+                        Items are loaded for label generation. Review, print barcode/QR stickers, then click <strong>Add to Stock</strong> to inward into <?= $curSectionTab === 'finished_goods' ? 'Live Stocks' : 'Purchase Stocks' ?>.
                     </p>
                 </div>
             </div>
@@ -76,15 +76,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                         <input type="hidden" name="bill_id" value="<?= (int)$activeBill['id'] ?>">
                         <input type="hidden" name="tab" value="<?= htmlspecialchars($curSectionTab) ?>">
                         <button type="submit" class="btn btn-success fw-bold px-3 py-2 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
-                            <i class="bi bi-box-arrow-in-down fs-6"></i> Add <?= $sectionDisplayTitle ?> to Stock &rarr; Purchase Stocks
+                            <i class="bi bi-box-arrow-in-down fs-6"></i> Add <?= $sectionDisplayTitle ?> to Stock &rarr; <?= $curSectionTab === 'finished_goods' ? 'Live Stocks' : 'Purchase Stocks' ?>
                         </button>
                     </form>
                 <?php else: ?>
                     <span class="badge bg-success-subtle text-success border border-success p-2">
                         <i class="bi bi-check-circle-fill me-1"></i> <?= $sectionDisplayTitle ?> In Stock
                     </span>
-                    <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=' . htmlspecialchars($curSectionTab)) ?>" class="btn btn-outline-success fw-bold px-3 py-2 rounded-2">
-                        View in Purchase Stocks &rarr;
+                    <a href="<?= \App\Core\Controller::url($curSectionTab === 'finished_goods' ? '/m/stocks' : '/m/purchase_stocks?tab=' . $curSectionTab) ?>" class="btn btn-outline-success fw-bold px-3 py-2 rounded-2">
+                        View in <?= $curSectionTab === 'finished_goods' ? 'Live Stocks' : 'Purchase Stocks' ?> &rarr;
                     </a>
                 <?php endif; ?>
             </div>
@@ -275,10 +275,16 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         </div>
                                     </div>
 
-                                    <div class="mt-auto">
-                                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold shadow-sm">
+                                    <div class="d-flex gap-2 mt-auto align-items-center">
+                                        <button type="submit" class="btn btn-primary flex-grow-1 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                         </button>
+                                        <button type="button" class="btn btn-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="roll_add_stock_btn" onclick="submitRollToStock()" title="Inward selected roll directly into Purchase Stocks">
+                                            <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
+                                        </button>
+                                        <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=rolls') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="roll_in_stock_badge" title="Already in Stock - View in Purchase Stocks">
+                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
+                                        </a>
                                     </div>
                                 </form>
                             </div>
@@ -482,10 +488,16 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         </div>
                                     </div>
 
-                                    <div class="mt-auto">
-                                        <button type="submit" class="btn btn-info text-white w-100 py-2 fw-semibold shadow-sm">
+                                    <div class="d-flex gap-2 mt-auto align-items-center">
+                                        <button type="submit" class="btn btn-info text-white flex-grow-1 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                         </button>
+                                        <button type="button" class="btn btn-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="other_add_stock_btn" onclick="submitOtherToStock()" title="Inward selected trim directly into Purchase Stocks">
+                                            <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
+                                        </button>
+                                        <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=garment_other') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="other_in_stock_badge" title="Already in Stock - View in Purchase Stocks">
+                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
+                                        </a>
                                     </div>
                                 </form>
                             </div>
@@ -608,13 +620,48 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                             continue;
                                         }
                                         $mappedFgCount++;
+                                        $fgVariantAttributeData = json_decode((string) ($fg['variant_attributes'] ?? ''), true);
+                                        $fgVariantAttributeData = is_array($fgVariantAttributeData) ? $fgVariantAttributeData : [];
+                                        $fgVariantDetails = [];
+                                        $fgVariantSize = trim((string) ($fg['variant_size'] ?? ''));
+                                        if ($fgVariantSize !== '') {
+                                            $fgVariantDetails['Size'] = $fgVariantSize;
+                                        }
+                                        $fgCustomAttributes = [];
+                                        foreach ($fgVariantAttributeData as $attributeType => $attributeValue) {
+                                            $attributeType = strtolower(trim((string) $attributeType));
+                                            if (
+                                                $attributeType === '' ||
+                                                in_array($attributeType, ['color', 'size', 'hsn', 'weight', 'allocated_qty', 'custom_attributes'], true) ||
+                                                !is_scalar($attributeValue)
+                                            ) {
+                                                continue;
+                                            }
+                                            $fgCustomAttributes[$attributeType] = trim((string) $attributeValue);
+                                        }
+                                        if (is_array($fgVariantAttributeData['custom_attributes'] ?? null)) {
+                                            $fgCustomAttributes = array_merge($fgCustomAttributes, $fgVariantAttributeData['custom_attributes']);
+                                        }
+                                        foreach ($fgCustomAttributes as $attributeType => $attributeValue) {
+                                            $attributeType = strtolower(trim((string) $attributeType));
+                                            if (!is_scalar($attributeValue)) {
+                                                continue;
+                                            }
+                                            $attributeValue = trim((string) $attributeValue);
+                                            if ($attributeType === '' || in_array($attributeType, ['color', 'size'], true) || $attributeValue === '') {
+                                                continue;
+                                            }
+                                            $fgVariantDetails[ucwords(str_replace(['_', '-'], ' ', $attributeType))] = $attributeValue;
+                                        }
+                                        $fgVariantDetailsJson = json_encode($fgVariantDetails, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
                                         $varName = $fg['variant_name'] ?: $fg['item_name'];
                                         $sku = $fg['sku_code'] ?: ($fg['item_code'] ?: 'FG-' . $fg['id']);
+                                        $fgColor = trim((string) ($fgVariantAttributeData['color'] ?? '')) ?: ($fg['color'] ?: 'STANDARD');
                                         $tagCode = QrService::generateTagCode(
                                             $varName,
-                                            $fg['color'] ?? '',
-                                            $fg['specification'] ?? '',
-                                            (string)$fg['id']
+                                            $fgColor,
+                                            $fg['variant_size'] ?: ($fg['specification'] ?? ''),
+                                            (string) ($fg['variant_id'] ?: $fg['id'])
                                         );
                                         $mrp = $fg['variant_mrp'] ?: ($fg['mrp'] ?: $fg['unit_price']);
                                         $size = $fg['variant_size'] ?: ($fg['specification'] ?: 'Free');
@@ -628,10 +675,14 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                 data-mrp="<?= htmlspecialchars($mrp) ?>"
                                                 data-price="<?= htmlspecialchars($mrp) ?>"
                                                 data-size="<?= htmlspecialchars($size) ?>"
-                                                data-pattern="<?= htmlspecialchars($fg['pattern'] ?: ($fg['specification'] ?? 'STANDARD')) ?>"
+                                                data-pattern="<?= htmlspecialchars($fg['pattern'] ?? '') ?>"
+                                                data-spec="<?= htmlspecialchars($fg['specification'] ?? '') ?>"
+                                                data-attributes="<?= htmlspecialchars($fgVariantDetailsJson ?: '{}', ENT_QUOTES, 'UTF-8') ?>"
+                                                data-variant-summary="<?= htmlspecialchars($fg['mapped_variant_summary'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                                 data-cat="<?= htmlspecialchars($cat) ?>"
+                                                data-concern="<?= htmlspecialchars($fg['item_concern_name'] ?: $concernName, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-brand="<?= htmlspecialchars($fg['brand_name'] ?: ($fg['supplier_company'] ?: 'GRM')) ?>"
-                                                data-color="<?= htmlspecialchars($fg['color'] ?: 'STANDARD') ?>"
+                                                data-color="<?= htmlspecialchars($fgColor) ?>"
                                                 data-mapped="1"
                                                 data-varid="<?= htmlspecialchars($fg['variant_id'] ?? '') ?>"
                                                 data-inward="<?= $isFgInStock ? 'completed' : 'pending' ?>"
@@ -746,7 +797,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                             <span style="background-color: #0d6efd; color: #ffffff; width: 17px; height: 17px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; margin-right: 6px;">
                                                 <i class="bi bi-check-lg"></i>
                                             </span>
-                                            <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.04em;" id="fg_preview_concern"><?= htmlspecialchars($concernName) ?></span>
+                                            <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.04em;" id="fg_preview_concern" data-default-concern="<?= htmlspecialchars($concernName, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($concernName) ?></span>
                                         </div>
                                         <span class="badge font-monospace px-2 py-1" style="background-color: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; font-size: 0.70rem;" id="fg_preview_ref">PO-REF</span>
                                     </div>
@@ -758,7 +809,9 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                             <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" style="font-size: 0.86rem;" id="fg_preview_title">Finished Good</div>
                                             <div class="text-truncate"><span class="text-secondary">Product:</span> <strong class="text-dark" id="fg_preview_cat">Apparel</strong></div>
                                             <div class="text-truncate"><span class="text-secondary">Color:</span> <strong class="text-dark text-uppercase" id="fg_preview_color">STANDARD</strong></div>
-                                            <div class="text-truncate"><span class="text-secondary">Design:</span> <strong class="text-dark text-uppercase" id="fg_preview_design">STANDARD</strong></div>
+                                            <div class="text-truncate" id="fg_preview_design_row"><span class="text-secondary">Design:</span> <strong class="text-dark text-uppercase" id="fg_preview_design">STANDARD</strong></div>
+                                            <div id="fg_preview_variant_attributes" class="d-none"></div>
+                                            <div id="fg_preview_variant_summary_row" class="d-none"><span class="text-secondary">Mapped variants:</span> <strong class="text-dark" id="fg_preview_variant_summary"></strong></div>
                                             <div class="text-truncate"><span class="text-secondary">Price:</span> <strong class="text-success fw-bold" id="fg_preview_price">₹0.00</strong></div>
                                             <div class="text-truncate"><span class="text-secondary">Code:</span> <strong class="font-monospace text-primary fw-bold" id="fg_preview_code_tag">FG-0-01</strong></div>
                                         </div>
@@ -766,10 +819,16 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                 </div>
                             </div>
 
-                            <div class="mt-auto">
-                                <button type="submit" class="btn btn-success w-100 py-2 fw-semibold shadow-sm">
+                            <div class="d-flex gap-2 mt-auto align-items-center">
+                                <button type="submit" class="btn btn-success flex-grow-1 py-2 fw-semibold shadow-sm">
                                     <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                 </button>
+                                <button type="button" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="fg_add_stock_btn" onclick="submitFgToStock()" title="Inward selected finished goods into Live Stocks">
+                                    <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
+                                </button>
+                                <a href="<?= \App\Core\Controller::url('/m/stocks') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="fg_in_stock_badge" title="Already in Stock - View Live Stocks">
+                                    <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
+                                </a>
                             </div>
                         </form>
                     </div>
@@ -845,18 +904,20 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                     <?php endif; ?>
                                                     <?php $isFgInStock = (($fg['inward_status'] ?? '') === 'completed'); ?>
                                                     <?php if ($isFgInStock): ?>
-                                                        <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=finished_goods') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" title="Already in Stock - Click to view in Purchase Stocks">
+                                                        <a href="<?= \App\Core\Controller::url('/m/stocks') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" title="Already in Stock - Click to view Live Stocks">
                                                             <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
                                                         </a>
-                                                    <?php else: ?>
+                                                    <?php elseif ($isMapped): ?>
                                                         <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" class="d-inline">
                                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                                             <input type="hidden" name="item_id" value="<?= (int)$fg['id'] ?>">
                                                             <input type="hidden" name="tab" value="finished_goods">
-                                                            <button type="submit" class="btn btn-sm btn-success py-1 px-2 fw-semibold" title="Inward finished goods directly into Purchase Stocks">
+                                                            <button type="submit" class="btn btn-sm btn-success py-1 px-2 fw-semibold" title="Inward finished goods into Live Stocks">
                                                                 <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
                                                             </button>
                                                         </form>
+                                                    <?php else: ?>
+                                                        <span class="small text-muted">Map to catalog first</span>
                                                     <?php endif; ?>
                                                 </td>
                                             </tr>
@@ -1070,6 +1131,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                 <div class="d-flex align-items-center justify-content-center bg-white flex-shrink-0" style="width:76px;height:76px;" id="prod_qr_box"></div>
                                                 <div class="flex-grow-1 overflow-hidden" style="line-height:1.35;font-size:0.76rem;">
                                                     <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" style="font-size:0.72rem;letter-spacing:0.02em;" id="prod_preview_title">Production Garment</div>
+                                                    <div class="text-truncate"><span class="text-secondary">Design:</span> <strong class="text-dark text-uppercase" id="prod_preview_design">-</strong></div>
                                                     <div class="text-truncate"><span class="text-secondary">Size:</span> <strong class="text-dark text-uppercase fw-bold" id="prod_preview_size">FREE</strong></div>
                                                     <div class="text-truncate"><span class="text-secondary">Price:</span> <strong class="text-success fw-bold" id="prod_preview_price">&#8377;0.00</strong></div>
                                                     <div class="text-truncate"><span class="text-secondary">Code:</span> <strong class="font-monospace text-primary fw-bold" id="prod_preview_code_tag">PRO-S-01</strong></div>
@@ -1078,10 +1140,16 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         </div>
                                     </div>
 
-                                    <div class="mt-auto">
-                                        <button type="submit" class="btn btn-warning text-dark w-100 py-2 fw-semibold shadow-sm">
+                                    <div class="d-flex gap-2 mt-auto align-items-center">
+                                        <button type="submit" class="btn btn-warning text-dark flex-grow-1 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet (N Labels)
                                         </button>
+                                        <button type="button" class="btn btn-success py-2 px-3 fw-semibold shadow-sm text-nowrap" id="prod_add_stock_btn" onclick="submitProdToStock()">
+                                            <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
+                                        </button>
+                                        <a href="<?= \App\Core\Controller::url('/m/stocks?tab=live_stock') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="prod_in_stock_badge">
+                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
+                                        </a>
                                     </div>
                                 </form>
                             </div><!-- /prod_variant_ui -->
@@ -1395,9 +1463,26 @@ function updateRollPreview() {
         titleEl.textContent = '';
     }
 
+    const addStockBtn = document.getElementById('roll_add_stock_btn');
+    const inStockBadge = document.getElementById('roll_in_stock_badge');
+
     const opt = sel.options[sel.selectedIndex];
     if (opt && opt.value) {
-        const isInStock = (opt.dataset && opt.dataset.inward === 'completed');
+        const isInStock = (opt.dataset && (opt.dataset.inward === 'completed' || opt.dataset.inStock === '1'));
+        if (addStockBtn) {
+            if (isInStock) {
+                addStockBtn.classList.add('d-none');
+            } else {
+                addStockBtn.classList.remove('d-none');
+            }
+        }
+        if (inStockBadge) {
+            if (isInStock) {
+                inStockBadge.classList.remove('d-none');
+            } else {
+                inStockBadge.classList.add('d-none');
+            }
+        }
 
         const fabric = opt.dataset.fabric || opt.dataset.name || opt.dataset.code || 'Fabric Material';
         const tag = opt.dataset.tag || opt.dataset.qr || makeTagCode(fabric, opt.dataset.color, opt.dataset.pattern || opt.dataset.spec, opt.value);
@@ -1508,10 +1593,26 @@ function submitRollToStock() {
 function updateOtherPreview() {
     const sel = document.getElementById('other_item_select');
     if (!sel) return;
+    const addStockBtn = document.getElementById('other_add_stock_btn');
+    const inStockBadge = document.getElementById('other_in_stock_badge');
 
     const opt = sel.options[sel.selectedIndex];
     if (opt && opt.value) {
-        const isInStock = (opt.dataset && opt.dataset.inward === 'completed');
+        const isInStock = (opt.dataset && (opt.dataset.inward === 'completed' || opt.dataset.inStock === '1'));
+        if (addStockBtn) {
+            if (isInStock) {
+                addStockBtn.classList.add('d-none');
+            } else {
+                addStockBtn.classList.remove('d-none');
+            }
+        }
+        if (inStockBadge) {
+            if (isInStock) {
+                inStockBadge.classList.remove('d-none');
+            } else {
+                inStockBadge.classList.add('d-none');
+            }
+        }
 
         const tag = opt.dataset.tag || makeTagCode(opt.dataset.name, opt.dataset.color, opt.dataset.pattern || opt.dataset.spec, opt.value);
         const ref = opt.dataset.bill ? ('BILL #' + opt.dataset.bill) : 'TRIM-REF';
@@ -1616,6 +1717,8 @@ function submitRawToStock() {
 function updateFgPreview() {
     const sel = document.getElementById('fg_item_select');
     if (!sel) return;
+    const addStockBtn = document.getElementById('fg_add_stock_btn');
+    const inStockBadge = document.getElementById('fg_in_stock_badge');
 
     const opt = sel.options[sel.selectedIndex];
     const mappingCard = document.getElementById('fg_mapping_card');
@@ -1624,18 +1727,58 @@ function updateFgPreview() {
 
     if (opt && opt.value) {
         const isInStock = (opt.dataset && (opt.dataset.inward === 'completed' || opt.dataset.inStock === '1'));
+        if (addStockBtn) {
+            if (isInStock) {
+                addStockBtn.classList.add('d-none');
+            } else {
+                addStockBtn.classList.remove('d-none');
+            }
+        }
+        if (inStockBadge) {
+            if (isInStock) {
+                inStockBadge.classList.remove('d-none');
+            } else {
+                inStockBadge.classList.add('d-none');
+            }
+        }
 
         const tag = opt.dataset.tag || makeTagCode(opt.dataset.name, opt.dataset.color, opt.dataset.pattern, opt.value);
         const ref = opt.dataset.bill ? ('BILL #' + opt.dataset.bill) : (opt.dataset.sku || 'PO-FG');
         const color = (opt.dataset.color || 'STANDARD').toUpperCase();
-        const design = (opt.dataset.pattern || opt.dataset.spec || opt.dataset.size || 'STANDARD').toUpperCase();
+        const design = (opt.dataset.pattern || opt.dataset.spec || 'STANDARD').toUpperCase();
         const price = parseFloat(opt.dataset.price || opt.dataset.mrp || 0);
 
         document.getElementById('fg_preview_ref').textContent = ref;
+        const concernPreview = document.getElementById('fg_preview_concern');
+        if (concernPreview) concernPreview.textContent = opt.dataset.concern || concernPreview.dataset.defaultConcern || '';
         document.getElementById('fg_preview_title').textContent = opt.dataset.name || 'Finished Good';
         document.getElementById('fg_preview_cat').textContent = opt.dataset.cat || 'Apparel';
         document.getElementById('fg_preview_color').textContent = color;
         document.getElementById('fg_preview_design').textContent = design;
+        const designRow = document.getElementById('fg_preview_design_row');
+        if (designRow) designRow.classList.toggle('d-none', !opt.dataset.pattern && !opt.dataset.spec);
+        const attributeContainer = document.getElementById('fg_preview_variant_attributes');
+        if (attributeContainer) {
+            const attributes = JSON.parse(opt.dataset.attributes || '{}');
+            attributeContainer.replaceChildren();
+            Object.entries(attributes).forEach(([name, value]) => {
+                const row = document.createElement('div');
+                row.className = 'text-truncate';
+                const label = document.createElement('span');
+                label.className = 'text-secondary';
+                label.textContent = name + ': ';
+                const detail = document.createElement('strong');
+                detail.className = 'text-dark text-uppercase';
+                detail.textContent = value;
+                row.append(label, detail);
+                attributeContainer.appendChild(row);
+            });
+            attributeContainer.classList.toggle('d-none', Object.keys(attributes).length === 0);
+        }
+        const summaryRow = document.getElementById('fg_preview_variant_summary_row');
+        const summaryText = document.getElementById('fg_preview_variant_summary');
+        if (summaryText) summaryText.textContent = opt.dataset.variantSummary || '';
+        if (summaryRow) summaryRow.classList.toggle('d-none', !opt.dataset.variantSummary);
         document.getElementById('fg_preview_price').textContent = '₹' + price.toFixed(2);
         document.getElementById('fg_preview_code_tag').textContent = tag;
 
@@ -1658,10 +1801,23 @@ function updateFgPreview() {
         if (inStockBadge) inStockBadge.classList.add('d-none');
 
         document.getElementById('fg_preview_ref').textContent = 'PO-FG';
+        const concernPreview = document.getElementById('fg_preview_concern');
+        if (concernPreview) concernPreview.textContent = concernPreview.dataset.defaultConcern || '';
         document.getElementById('fg_preview_title').textContent = 'Select Finished Good';
         document.getElementById('fg_preview_cat').textContent = 'Apparel';
         document.getElementById('fg_preview_color').textContent = 'STANDARD';
         document.getElementById('fg_preview_design').textContent = 'STANDARD';
+        const designRow = document.getElementById('fg_preview_design_row');
+        if (designRow) designRow.classList.remove('d-none');
+        const attributeContainer = document.getElementById('fg_preview_variant_attributes');
+        if (attributeContainer) {
+            attributeContainer.replaceChildren();
+            attributeContainer.classList.add('d-none');
+        }
+        const summaryRow = document.getElementById('fg_preview_variant_summary_row');
+        const summaryText = document.getElementById('fg_preview_variant_summary');
+        if (summaryText) summaryText.textContent = '';
+        if (summaryRow) summaryRow.classList.add('d-none');
         document.getElementById('fg_preview_price').textContent = '₹0.00';
         document.getElementById('fg_preview_code_tag').textContent = 'GAR-S-01';
         renderQr('fg_qr_box', 'GAR-S-01');
@@ -1744,10 +1900,18 @@ function doMapVariant() {
 function updateProdPreview() {
     const sel = document.getElementById('prod_item_select');
     if (!sel) return;
+    const addStockBtn = document.getElementById('prod_add_stock_btn');
+    const inStockBadge = document.getElementById('prod_in_stock_badge');
 
     const opt = sel.options[sel.selectedIndex];
     if (opt && opt.value) {
         const isInStock = (opt.dataset && (opt.dataset.inStock === '1' || opt.dataset.inward === 'completed'));
+        if (addStockBtn) {
+            isInStock ? addStockBtn.classList.add('d-none') : addStockBtn.classList.remove('d-none');
+        }
+        if (inStockBadge) {
+            isInStock ? inStockBadge.classList.remove('d-none') : inStockBadge.classList.add('d-none');
+        }
 
         const tag    = opt.dataset.tag || makeTagCode(opt.dataset.name, opt.dataset.color, opt.dataset.program, opt.value);
         const ref    = opt.dataset.program || opt.dataset.log || 'PP-REF';

@@ -25,7 +25,7 @@ function assertCondition(bool $cond, string $msg): void {
 echo "=== Purchase Billing Form Enhancement Verification Test ===\n";
 
 // Set up concern session
-$user = DB::fetch("SELECT u.*, c.id AS cid, c.name AS cname FROM users u JOIN concerns c ON u.concern_id = c.id WHERE u.status = 'active' AND u.concern_id = 1 LIMIT 1");
+$user = DB::fetch("SELECT u.*, c.id AS cid, c.name AS cname FROM users u JOIN concerns c ON u.concern_id = c.id WHERE u.status = 'active' AND u.concern_id IS NOT NULL LIMIT 1");
 if (!$user) {
     echo "No valid concern user found.\n";
     exit(1);
