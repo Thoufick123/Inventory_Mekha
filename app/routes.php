@@ -19,6 +19,7 @@ use App\Controllers\FinanceController;
 use App\Controllers\DamageController;
 use App\Controllers\StaffController;
 use App\Controllers\BatchController;
+use App\Controllers\OutwardController;
 
 /** @var Router $router */
 
@@ -185,13 +186,21 @@ $router->post('/shop/pos/complete', [SalesController::class, 'completePosSale'],
 $router->post('/m/billing/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->get('/api/pos/variant-lookup', [SalesController::class, 'variantLookup'], 'billing', 'view');
 $router->get('/api/pos/customer-lookup', [SalesController::class, 'customerLookup'], 'billing', 'view');
-$router->get('/m/outward', [SalesController::class, 'outward'], 'outward', 'view');
+// Production Outward & Dispatch (Image 1)
+$router->get('/m/outward', [OutwardController::class, 'index'], 'outward', 'view');
+$router->get('/production/outward', [OutwardController::class, 'index'], 'outward', 'view');
+$router->post('/m/outward/store', [OutwardController::class, 'store'], 'outward', 'add');
+$router->post('/production/outward/store', [OutwardController::class, 'store'], 'outward', 'add');
+$router->post('/m/outward/update', [OutwardController::class, 'update'], 'outward', 'edit');
+$router->post('/production/outward/update', [OutwardController::class, 'update'], 'outward', 'edit');
+$router->post('/m/outward/delete', [OutwardController::class, 'delete'], 'outward', 'delete');
+$router->post('/production/outward/delete', [OutwardController::class, 'delete'], 'outward', 'delete');
+$router->post('/m/outward/dispatch', [OutwardController::class, 'dispatch'], 'outward', 'edit');
+$router->post('/production/outward/dispatch', [OutwardController::class, 'dispatch'], 'outward', 'edit');
+$router->get('/m/outward/traceability/{id}', [OutwardController::class, 'traceability'], 'outward', 'view');
+$router->get('/production/outward/traceability/{id}', [OutwardController::class, 'traceability'], 'outward', 'view');
 $router->get('/m/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'view');
-$router->post('/m/outward/store', [SalesController::class, 'storeOutward'], 'outward', 'add');
-$router->post('/m/outward/dispatch', [SalesController::class, 'dispatchOutward'], 'outward', 'edit');
-$router->post('/m/outward/receive', [SalesController::class, 'receiveOutward'], 'outward', 'edit');
-$router->post('/m/outward/update', [SalesController::class, 'updateOutward'], 'outward', 'edit');
-$router->post('/m/outward/delete', [SalesController::class, 'deleteOutward'], 'outward', 'delete');
+$router->get('/production/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'view');
 $router->get('/m/dispatch', [SalesController::class, 'dispatch'], 'dispatch', 'view');
 $router->get('/m/dispatch/export', [SalesController::class, 'exportDispatch'], 'dispatch', 'view');
 $router->post('/m/dispatch/store', [SalesController::class, 'storeDispatch'], 'dispatch', 'add');
