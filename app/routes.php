@@ -21,19 +21,9 @@ use App\Controllers\StaffController;
 
 /** @var Router $router */
 
-// Home redirection
-$router->get('/', function() {
-    if (!Auth::check()) {
-        header('Location: ' . \App\Core\Controller::url('/login'));
-        exit;
-    }
-    if (Auth::isSuperAdmin()) {
-        header('Location: ' . \App\Core\Controller::url('/admin/dashboard'));
-    } else {
-        header('Location: ' . \App\Core\Controller::url('/dashboard'));
-    }
-    exit;
-});
+// Home / Landing Page - directly shows login if guest, or redirects to dashboard if authenticated
+$router->get('/', [AuthController::class, 'showLogin']);
+$router->post('/', [AuthController::class, 'login']);
 
 // Authentication
 $router->get('/login', [AuthController::class, 'showLogin']);
