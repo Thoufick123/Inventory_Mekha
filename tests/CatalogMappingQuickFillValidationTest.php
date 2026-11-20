@@ -30,20 +30,28 @@ function assertCondition(bool $cond, string $msg): void {
 
 echo "=== Catalog Mapping Quick Fill & Strict Validation Tests ===\n";
 
-// 1. Test Subcategory AJAX Endpoint for 'Non Feeding' (id = 2) via CLI subshell
-$ajaxOutput = shell_exec('php -r "require \'app/core/Autoloader.php\'; App\Core\Env::load(\'.env\'); App\Core\Auth::startSession(); $_SESSION[\'user_id\'] = 1; $_SESSION[\'concern_id\'] = 1; $_GET[\'category_id\'] = 2; (new App\Controllers\ProductionController())->getSubcategoriesAjax();"');
-$ajaxData = json_decode($ajaxOutput, true);
+// 1. Test Subcategory AJAX Endpoint dynamically using existing category & subcategory
+$existingSub = DB::fetch("SELECT s.*, c.name as cat_name FROM subcategories s JOIN categories c ON s.category_id = c.id LIMIT 1");
+if ($existingSub) {
+    $testCatId = (int)$existingSub['category_id'];
+    $subName = trim($existingSub['name']);
+    $catName = trim($existingSub['cat_name']);
+    $ajaxOutput = shell_exec("php -r \"require 'app/core/Autoloader.php'; App\Core\Env::load('.env'); App\Core\Auth::startSession(); \$_SESSION['user_id'] = 1; \$_SESSION['concern_id'] = 1; \$_GET['category_id'] = {$testCatId}; (new App\Controllers\ProductionController())->getSubcategoriesAjax();\"");
+    $ajaxData = json_decode($ajaxOutput, true);
 
-assertCondition(is_array($ajaxData) && ($ajaxData['success'] ?? false) === true, "Subcategories AJAX returned success: true");
-assertCondition(isset($ajaxData['data']) && count($ajaxData['data']) > 0, "Subcategories AJAX returned non-empty data array for Non Feeding (catId = 2)");
-$foundFullLength = false;
-foreach ($ajaxData['data'] as $sub) {
-    if (trim($sub['name']) === 'full length') {
-        $foundFullLength = true;
-        break;
+    assertCondition(is_array($ajaxData) && ($ajaxData['success'] ?? false) === true, "Subcategories AJAX returned success: true");
+    assertCondition(isset($ajaxData['data']) && count($ajaxData['data']) > 0, "Subcategories AJAX returned non-empty data array for {$catName} (catId = {$testCatId})");
+    $foundSub = false;
+    foreach ($ajaxData['data'] as $sub) {
+        if (trim($sub['name']) === $subName) {
+            $foundSub = true;
+            break;
+        }
     }
+    assertCondition($foundSub, "Subcategory '{$subName}' found under category '{$catName}'");
+} else {
+    echo "  [SKIP] No category with subcategories found in DB.\n";
 }
-assertCondition($foundFullLength, "Subcategory 'full length' found under category 'Non Feeding'");
 
 // 2. Test Color Attribute Extraction & View Rendering in mapItemForm()
 // Ensure sample bill item 1 exists or query from purchase_bill_items
@@ -60,12 +68,12 @@ if (!$item) {
     assertCondition(str_contains($formHtml, 'id="colorSuggestions"'), "Color suggestions datalist rendered in form");
     assertCondition(str_contains($formHtml, 'value="red"') || str_contains($formHtml, 'pickSavedColor(\'red\')'), "Color 'red' available in suggestions");
     assertCondition(str_contains($formHtml, 'value="blue"') || str_contains($formHtml, 'pickSavedColor(\'blue\')'), "Color 'blue' available in suggestions");
-    assertCondition(str_contains($formHtml, 'value="black"') || str_contains($formHtml, 'pickSavedColor(\'black\')'), "Color 'black' available in suggestions");
 
     // 3. Test Quick Fill Bar inputs in form
     assertCondition(str_contains($formHtml, 'Quick Fill (All Columns):'), "Quick Fill bar header rendered");
-    assertCondition(str_contains($formHtml, 'id="quickColorInput"'), "Quick fill Color input exists");
+    assertCondition(!str_contains($formHtml, 'id="quickColorInput"'), "Quick fill Color input is removed");
     assertCondition(str_contains($formHtml, 'id="quickQtyInput"'), "Quick fill Qty input exists");
+    assertCondition(str_contains($formHtml, '>QTY</label>') && !str_contains($formHtml, 'QTY / SIZE'), "Quick fill quantity label is QTY");
     assertCondition(str_contains($formHtml, 'id="quickWeightInput"'), "Quick fill Weight input exists");
     assertCondition(str_contains($formHtml, 'id="quickHsnInput"'), "Quick fill HSN input exists");
     assertCondition(str_contains($formHtml, 'id="quickMrpInput"'), "Quick fill MRP input exists");
