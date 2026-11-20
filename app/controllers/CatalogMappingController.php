@@ -359,19 +359,32 @@ class CatalogMappingController extends Controller
 
         // Extract distinct saved color attributes
         $colorAttributes = [];
+        $colorAttributeKeys = [];
         foreach ($attributes as $a) {
             if (strtolower($a['attribute_type'] ?? '') === 'color') {
                 $rawVals = preg_split('/[,;|]+/', (string) ($a['attribute_value'] ?? ''));
                 foreach ($rawVals as $rv) {
                     $rv = trim($rv);
-                    if ($rv !== '' && !in_array($rv, $colorAttributes, true)) {
+                    $key = strtolower($rv);
+                    if ($rv !== '' && !isset($colorAttributeKeys[$key])) {
                         $colorAttributes[] = $rv;
+                        $colorAttributeKeys[$key] = true;
                     }
                 }
             }
         }
-        if (!empty($resolvedColor) && !in_array($resolvedColor, $colorAttributes, true)) {
-            $colorAttributes[] = $resolvedColor;
+        $resolvedColors = [];
+        foreach (preg_split('/[,;|]+/', (string) $resolvedColor) as $rawColor) {
+            $rawColor = trim($rawColor);
+            $key = strtolower($rawColor);
+            if ($rawColor === '') {
+                continue;
+            }
+            $resolvedColors[$key] = true;
+            if (!isset($colorAttributeKeys[$key])) {
+                $colorAttributes[] = $rawColor;
+                $colorAttributeKeys[$key] = true;
+            }
         }
 
         // Group all other dynamic attribute types
@@ -400,6 +413,7 @@ class CatalogMappingController extends Controller
             'subSubcategories' => $subSubcategories,
             'sizes' => $allSizes,
             'colorAttributes' => $colorAttributes,
+            'resolvedColors' => $resolvedColors,
             'otherAttributes' => $otherAttributes,
             'selectedCid' => $cid,
         ]);
@@ -1112,9 +1126,13 @@ class CatalogMappingController extends Controller
 
         $val = trim($_POST['attribute_value'] ?? '');
         $name = trim($_POST['attribute_name'] ?? ucfirst($type));
+        $values = array_values(array_filter(
+            array_map('trim', preg_split('/[,;|]+/', $val)),
+            static fn(string $value): bool => $value !== ''
+        ));
 
-        if (empty($val)) {
-            $msg = 'Attribute value cannot be empty.';
+        if (empty($values)) {
+            $msg = 'Enter at least one attribute value.';
             if ($isAjax) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'message' => $msg]);
@@ -1125,56 +1143,58 @@ class CatalogMappingController extends Controller
             return;
         }
 
-        // Validate uniqueness under attribute_type (case-insensitive)
-        $existing = DB::fetch(
-            'SELECT id, attribute_value FROM product_attributes 
-             WHERE attribute_type = ? AND LOWER(TRIM(attribute_value)) = LOWER(TRIM(?)) 
-             AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)',
-            [$type, $val, $cid]
-        );
-        if ($existing) {
-            $msg = "Attribute '{$existing['attribute_value']}' already exists for '" . ucfirst($type) . "'.";
-            if ($isAjax) {
-                header('Content-Type: application/json');
-                echo json_encode(['success' => false, 'message' => $msg, 'existing_id' => $existing['id']]);
-                exit;
-            }
-            $this->flash('error', $msg);
-            $this->redirect($_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy');
-            return;
-        }
-
         try {
-            // Strict duplicate check for attribute values under this type
             $existingAttrs = DB::fetchAll(
                 'SELECT attribute_value FROM product_attributes WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(attribute_type)) = LOWER(TRIM(?))',
                 [$cid, $type]
             );
-            $newVals = preg_split('/[,;|]+/', (string) $val);
-            foreach ($newVals as $nv) {
-                $nv = strtolower(trim($nv));
-                if ($nv === '')
-                    continue;
-                foreach ($existingAttrs as $ea) {
-                    $eaVals = preg_split('/[,;|]+/', (string) ($ea['attribute_value'] ?? ''));
-                    foreach ($eaVals as $eav) {
-                        if (strtolower(trim($eav)) === $nv) {
-                            throw new Exception("Duplicate Error: Attribute value '{$nv}' already exists under '" . ucfirst($type) . "'. Duplicates are not allowed.");
-                        }
-                    }
+            $existingValues = [];
+            foreach ($existingAttrs as $existingAttr) {
+                foreach (preg_split('/[,;|]+/', (string) ($existingAttr['attribute_value'] ?? '')) as $existingValue) {
+                    $existingValues[strtolower(trim($existingValue))] = true;
                 }
             }
 
-            DB::query(
-                'INSERT INTO product_attributes (concern_id, attribute_type, attribute_name, attribute_value, sort_order)
-                 VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM product_attributes pa WHERE pa.concern_id = ?))',
-                [$cid, $type, $name, $val, $cid]
-            );
-            $newId = (int) DB::lastInsertId();
-            $msg = "Attribute '{$val}' for '" . ucfirst($type) . "' added successfully.";
+            $submittedValues = [];
+            foreach ($values as $value) {
+                $normalizedValue = strtolower($value);
+                if (isset($existingValues[$normalizedValue]) || isset($submittedValues[$normalizedValue])) {
+                    throw new Exception("Duplicate Error: Attribute value '{$value}' already exists under '" . ucfirst($type) . "'. Duplicates are not allowed.");
+                }
+                $submittedValues[$normalizedValue] = true;
+            }
+
+            DB::beginTransaction();
+            $newIds = [];
+            try {
+                foreach ($values as $value) {
+                    DB::query(
+                        'INSERT INTO product_attributes (concern_id, attribute_type, attribute_name, attribute_value, sort_order)
+                         VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM product_attributes pa WHERE pa.concern_id = ?))',
+                        [$cid, $type, $name, $value, $cid]
+                    );
+                    $newIds[] = (int) DB::lastInsertId();
+                }
+                DB::commit();
+            } catch (Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+            $msg = count($values) === 1
+                ? "Attribute '{$values[0]}' for '" . ucfirst($type) . "' added successfully."
+                : count($values) . " attributes for '" . ucfirst($type) . "' added successfully.";
             if ($isAjax) {
                 header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'id' => $newId, 'attribute_type' => $type, 'attribute_value' => $val, 'message' => $msg]);
+                echo json_encode([
+                    'success' => true,
+                    'id' => $newIds[0],
+                    'ids' => $newIds,
+                    'attribute_type' => $type,
+                    'attribute_value' => $val,
+                    'attribute_values' => $values,
+                    'message' => $msg
+                ]);
                 exit;
             }
             $this->flash('success', $msg);

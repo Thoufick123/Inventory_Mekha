@@ -415,7 +415,7 @@
                                     </div>
                                     <div class="d-flex flex-wrap gap-2 mb-3" id="colorsContainer">
                                         <?php foreach ($colorAttributes as $ca):
-                                                $isColorChecked = (!empty($resolvedColor) && strtolower($ca) === strtolower($resolvedColor));
+                                                $isColorChecked = isset($resolvedColors[strtolower($ca)]);
                                         ?>
                                             <label class="color-pill-label border rounded-3 p-2 d-inline-flex align-items-center gap-2 cursor-pointer <?= $isColorChecked ? 'border-primary bg-primary-subtle' : 'bg-light' ?>">
                                                 <input type="checkbox" name="colors[]" value="<?= htmlspecialchars($ca) ?>" class="form-check-input color-checkbox mt-0" onchange="handleColorCheckboxChange(this)" <?= $isColorChecked ? 'checked' : '' ?>>
@@ -1005,27 +1005,36 @@ function updateSelectedSizesCount() {
 
 function addCustomSizePill() {
     const input = document.getElementById('inputCustomSize');
-    const val = input.value.trim().toUpperCase();
-    if (!val) return;
+    const values = (input.value || '').split(/[,;|]+/).map(value => value.trim().toUpperCase()).filter(Boolean);
+    if (values.length === 0) return;
 
-    let exists = false;
-    document.querySelectorAll('.size-checkbox').forEach(cb => {
-        if (cb.value.toUpperCase() === val) exists = true;
+    const existing = new Set();
+    document.querySelectorAll('.size-checkbox').forEach(cb => existing.add(cb.value.trim().toUpperCase()));
+    const valuesToAdd = [];
+    const duplicates = [];
+    values.forEach(value => {
+        if (existing.has(value)) {
+            duplicates.push(value);
+        } else {
+            existing.add(value);
+            valuesToAdd.push(value);
+        }
     });
-
-    if (exists) {
-        alert(`Size "${val}" is already present.`);
+    if (duplicates.length > 0) {
+        alert(`Already present: ${duplicates.join(', ')}`);
+    }
+    if (valuesToAdd.length === 0) {
         input.value = '';
         return;
     }
 
     const container = document.getElementById('sizesContainer');
-    const html = `
+    const html = valuesToAdd.map(value => `
         <label class="size-pill-label border border-primary bg-primary-subtle rounded-3 p-2 d-inline-flex align-items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="sizes[]" value="${val}" class="form-check-input size-checkbox mt-0" checked onchange="handleSizeCheckboxChange(this)">
-            <span class="fw-bold font-monospace size-text text-dark">${val}</span>
+            <input type="checkbox" name="sizes[]" value="${escapeHtml(value)}" class="form-check-input size-checkbox mt-0" checked onchange="handleSizeCheckboxChange(this)">
+            <span class="fw-bold font-monospace size-text text-dark">${escapeHtml(value)}</span>
         </label>
-    `;
+    `).join('');
     container.insertAdjacentHTML('beforeend', html);
     input.value = '';
     updateSelectedSizesCount();
@@ -1089,27 +1098,37 @@ function updateSelectedColorsCount() {
 
 function addCustomColorPill() {
     const input = document.getElementById('inputCustomColor');
-    const val = (input?.value || '').trim();
-    if (!val) return;
+    const values = (input?.value || '').split(/[,;|]+/).map(value => value.trim()).filter(Boolean);
+    if (values.length === 0) return;
 
-    let exists = false;
-    document.querySelectorAll('.color-checkbox').forEach(cb => {
-        if (cb.value.toLowerCase() === val.toLowerCase()) exists = true;
+    const existing = new Set();
+    document.querySelectorAll('.color-checkbox').forEach(cb => existing.add(cb.value.trim().toLowerCase()));
+    const valuesToAdd = [];
+    const duplicates = [];
+    values.forEach(value => {
+        const key = value.toLowerCase();
+        if (existing.has(key)) {
+            duplicates.push(value);
+        } else {
+            existing.add(key);
+            valuesToAdd.push(value);
+        }
     });
-
-    if (exists) {
-        alert(`Color "${val}" is already present.`);
+    if (duplicates.length > 0) {
+        alert(`Already present: ${duplicates.join(', ')}`);
+    }
+    if (valuesToAdd.length === 0) {
         input.value = '';
         return;
     }
 
     const container = document.getElementById('colorsContainer');
-    const html = `
+    const html = valuesToAdd.map(value => `
         <label class="color-pill-label border border-primary bg-primary-subtle rounded-3 p-2 d-inline-flex align-items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="colors[]" value="${escapeHtml(val)}" class="form-check-input color-checkbox mt-0" checked onchange="handleColorCheckboxChange(this)">
-            <span class="fw-bold font-monospace color-text text-dark">${escapeHtml(val)}</span>
+            <input type="checkbox" name="colors[]" value="${escapeHtml(value)}" class="form-check-input color-checkbox mt-0" checked onchange="handleColorCheckboxChange(this)">
+            <span class="fw-bold font-monospace color-text text-dark">${escapeHtml(value)}</span>
         </label>
-    `;
+    `).join('');
     container.insertAdjacentHTML('beforeend', html);
     input.value = '';
     updateSelectedColorsCount();
