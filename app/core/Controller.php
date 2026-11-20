@@ -80,6 +80,16 @@ abstract class Controller {
             if (!in_array('qc_batch_id', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `qc_batch_id` INT NULL AFTER `stitching_batch_id`");
             if (!in_array('additional_qc_batch_ids', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `additional_qc_batch_ids` TEXT NULL AFTER `qc_batch_id`");
             if (!in_array('total_boxes', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `total_boxes` INT DEFAULT 0 AFTER `batch_qty`");
+            if (!in_array('warehouse_id', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `warehouse_id` INT NULL AFTER `total_boxes`");
+            if (!in_array('warehouse_name', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `warehouse_name` VARCHAR(150) NULL AFTER `warehouse_id`");
+            if (!in_array('packed_by_name', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `packed_by_name` VARCHAR(150) DEFAULT 'System Administrator' AFTER `warehouse_name`");
+            if (!in_array('rework_included', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `rework_included` TINYINT(1) DEFAULT 0 AFTER `packed_by_name`");
+            if (!in_array('qr_codes', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `qr_codes` LONGTEXT NULL AFTER `rework_included`");
+            if (!in_array('taxable_value', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `taxable_value` DECIMAL(12,2) DEFAULT 0.00 AFTER `qr_codes`");
+            if (!in_array('gst_amount', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `gst_amount` DECIMAL(12,2) DEFAULT 0.00 AFTER `taxable_value`");
+            if (!in_array('total_amount', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `total_amount` DECIMAL(12,2) DEFAULT 0.00 AFTER `gst_amount`");
+            if (!in_array('bill_no', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `bill_no` VARCHAR(100) NULL AFTER `total_amount`");
+            if (!in_array('fabric_details', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `fabric_details` VARCHAR(255) DEFAULT 'GREEN / BIRDS' AFTER `bill_no`");
             if (!in_array('approved_by', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `approved_by` INT NULL AFTER `status`");
             if (!in_array('approved_at', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `approved_at` DATETIME NULL AFTER `approved_by`");
 

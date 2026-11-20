@@ -278,7 +278,7 @@
 
             <!-- Bottom CTA Button / Form Submission -->
             <form action="<?= \App\Core\Controller::url('/m/inward/credit') ?>" method="POST" id="formCreditStock" onsubmit="return validateCreditSubmission(event)">
-                <?= \App\Core\Csrf::field() ?>
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                 <input type="hidden" name="outward_id" value="<?= (int)$outward['id'] ?>">
                 <input type="hidden" name="variant_id" id="submitVariantId" value="<?= (int)($items[0]['variant_id'] ?? 0) ?>">
                 <input type="hidden" name="verified_qty" id="submitVerifiedQty" value="0">

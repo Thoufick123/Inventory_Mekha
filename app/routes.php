@@ -18,6 +18,7 @@ use App\Controllers\CatalogMappingController;
 use App\Controllers\FinanceController;
 use App\Controllers\DamageController;
 use App\Controllers\StaffController;
+use App\Controllers\BatchController;
 
 /** @var Router $router */
 
@@ -158,12 +159,24 @@ $router->get('/m/request/export', [SalesController::class, 'exportRequests'], 'r
 $router->post('/m/request/store', [SalesController::class, 'storeRequest'], 'request', 'add');
 $router->post('/m/request/update', [SalesController::class, 'updateRequest'], 'request', 'edit');
 $router->post('/m/request/delete', [SalesController::class, 'deleteRequest'], 'request', 'delete');
-$router->get('/m/batch', [SalesController::class, 'batch'], 'batch', 'view');
+// Finished Production Batches & Carton Packaging (Image 1, 2, 3)
+$router->get('/m/batch', [BatchController::class, 'index'], 'batch', 'view');
+$router->get('/production/batches', [BatchController::class, 'index'], 'batch', 'view');
+$router->get('/m/batch/create', [BatchController::class, 'create'], 'batch', 'add');
+$router->get('/production/batches/create', [BatchController::class, 'create'], 'batch', 'add');
+$router->post('/m/batch/store', [BatchController::class, 'store'], 'batch', 'add');
+$router->post('/production/batches/store', [BatchController::class, 'store'], 'batch', 'add');
+$router->get('/m/batch/label/{id}', [BatchController::class, 'label'], 'batch', 'view');
+$router->get('/production/batches/label/{id}', [BatchController::class, 'label'], 'batch', 'view');
+$router->get('/m/batch/pieces/{id}', [BatchController::class, 'pieces'], 'batch', 'view');
+$router->get('/production/batches/pieces/{id}', [BatchController::class, 'pieces'], 'batch', 'view');
+$router->post('/m/batch/approve', [BatchController::class, 'approve'], 'batch', 'edit');
+$router->post('/production/batches/approve', [BatchController::class, 'approve'], 'batch', 'edit');
+$router->post('/m/batch/update', [BatchController::class, 'update'], 'batch', 'edit');
+$router->post('/production/batches/update', [BatchController::class, 'update'], 'batch', 'edit');
+$router->post('/m/batch/delete', [BatchController::class, 'delete'], 'batch', 'delete');
+$router->post('/production/batches/delete', [BatchController::class, 'delete'], 'batch', 'delete');
 $router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'view');
-$router->post('/m/batch/store', [SalesController::class, 'storeBatch'], 'batch', 'add');
-$router->post('/m/batch/approve', [SalesController::class, 'approveBatch'], 'batch', 'edit');
-$router->post('/m/batch/update', [SalesController::class, 'updateBatch'], 'batch', 'edit');
-$router->post('/m/batch/delete', [SalesController::class, 'deleteBatch'], 'batch', 'delete');
 $router->get('/m/billing', [SalesController::class, 'billing'], 'billing', 'view');
 $router->get('/m/billing/export', [SalesController::class, 'exportBilling'], 'billing', 'view');
 $router->post('/m/billing/store', [SalesController::class, 'storeInvoice'], 'billing', 'add');

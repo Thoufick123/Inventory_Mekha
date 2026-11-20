@@ -370,7 +370,7 @@
 <div class="modal fade" id="modalAddInward" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <form action="<?= \App\Core\Controller::url('/m/inward/store') ?>" method="POST" class="modal-content border-0 shadow">
-            <?= \App\Core\Csrf::field() ?>
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title fw-bold"><i class="bi bi-box-arrow-in-down me-2"></i> Receive Inward Consignment</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
