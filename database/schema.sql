@@ -742,6 +742,7 @@ CREATE TABLE IF NOT EXISTS `qc_inspections` (
     `qc_no` VARCHAR(50) NOT NULL,
     `batch_no` VARCHAR(50) NULL,
     `variant_id` INT NOT NULL,
+    `program_id` INT NULL,
     `cutting_batch_id` INT NULL,
     `stitching_batch_id` INT NULL,
     `inspected_qty` DECIMAL(12,2) NOT NULL,

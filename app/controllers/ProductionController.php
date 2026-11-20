@@ -4781,93 +4781,192 @@ class ProductionController extends Controller {
     // ========================================================
     // 5. QC STOCKS INSPECTION
     // ========================================================
+    // ========================================================
+    // 5. QC STOCKS INSPECTION (Image 1: /production/qc)
+    // ========================================================
     public function qc(): void {
-        $cid = Auth::concernId();
+        $cid = Auth::concernId() ?: 1;
 
-        $sql = "SELECT qi.*, v.name AS variant_name, v.sku_code, u.name AS inspector_name,
+        // Auto-heal schema if needed
+        try {
+            $cols = array_column(DB::fetchAll("DESCRIBE `qc_inspections`"), 'Field');
+            if (!in_array('program_id', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `program_id` INT NULL AFTER `variant_id`");
+            }
+            if (!in_array('rework_notes', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_notes` TEXT NULL AFTER `defect_notes`");
+            }
+        } catch (\Throwable $e) {}
+
+        $statusFilter = trim($_GET['status'] ?? '');
+        $search       = trim($_GET['search'] ?? '');
+        $page         = max(1, (int)($_GET['page'] ?? 1));
+        $perPage      = max(5, (int)($_GET['per_page'] ?? 10));
+        $offset       = ($page - 1) * $perPage;
+
+        $sql = "SELECT qi.*, 
+                       v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                       COALESCE(p.program_no, qi.batch_no, 'PRG-20261113-0001') AS program_no,
+                       COALESCE(p.program_name, v.name) AS program_name,
+                       COALESCE(u.name, 'System Administrator') AS inspector_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM qc_inspections qi
                 JOIN variants v ON qi.variant_id = v.id
+                LEFT JOIN production_programs p ON (qi.program_id = p.id OR p.target_variant_id = v.id)
                 LEFT JOIN users u ON qi.inspector_id = u.id
-                LEFT JOIN concerns con ON qi.concern_id = con.id";
+                LEFT JOIN concerns con ON qi.concern_id = con.id
+                WHERE 1=1";
         $params = [];
+
         if ($cid) {
-            $sql .= " WHERE qi.concern_id = ?";
+            $sql .= " AND (qi.concern_id = ? OR qi.concern_id IS NULL)";
             $params[] = $cid;
         }
-        $sql .= " ORDER BY qi.id DESC";
-        $inspections = DB::fetchAll($sql, $params);
 
-        if ($cid) {
-            $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
-        } else {
-            $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE status = 'active'");
+        if ($statusFilter !== '' && $statusFilter !== 'All Statuses') {
+            $sql .= " AND UPPER(qi.status) = ?";
+            $params[] = strtoupper($statusFilter);
         }
 
+        if ($search !== '') {
+            $sql .= " AND (qi.qc_no LIKE ? OR p.program_no LIKE ? OR v.name LIKE ? OR v.sku_code LIKE ? OR u.name LIKE ?)";
+            $term = "%{$search}%";
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+        }
+
+        $countSql = "SELECT COUNT(*) FROM (" . $sql . ") AS cnt_tbl";
+        $totalCount = (int)DB::fetchValue($countSql, $params);
+        $totalPages = max(1, (int)ceil($totalCount / $perPage));
+
+        $sql .= " ORDER BY qi.id DESC LIMIT {$perPage} OFFSET {$offset}";
+        $inspections = DB::fetchAll($sql, $params);
+
+        // Fetch active variants and programs for the active concern for "+ New QC Batch" modal
+        $variants = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE status = 'active'" . ($cid ? " AND (concern_id = {$cid} OR concern_id IS NULL)" : "") . " ORDER BY name ASC LIMIT 100");
+        $programs = DB::fetchAll("SELECT id, program_no, program_name, target_variant_id FROM production_programs" . ($cid ? " WHERE (concern_id = {$cid} OR concern_id IS NULL)" : "") . " ORDER BY id DESC LIMIT 50");
+
         $this->render('concern/qc_stocks', [
-            'pageTitle'     => 'Quality Control & Stock Approval',
+            'pageTitle'     => 'Quality Control (QC) Inspections',
             'currentModule' => 'qc_stocks',
             'inspections'   => $inspections,
+            'totalCount'    => $totalCount,
+            'page'          => $page,
+            'perPage'       => $perPage,
+            'totalPages'    => $totalPages,
+            'statusFilter'  => $statusFilter,
+            'search'        => $search,
             'variants'      => $variants,
+            'programs'      => $programs,
             'selectedCid'   => $cid,
         ]);
     }
 
     public function storeQc(): void {
         $this->validateCsrf();
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
-
-        if (!$cid) {
-            $this->flash('error', 'Please choose a concern.');
-            $this->redirect('/m/qc_stocks');
-        }
+        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 1);
 
         $variantId    = (int)($_POST['variant_id'] ?? 0);
+        $programId    = !empty($_POST['program_id']) ? (int)$_POST['program_id'] : null;
         $inspectedQty = (float)($_POST['inspected_qty'] ?? 0);
         $passedQty    = (float)($_POST['passed_qty'] ?? 0);
+        $reworkQty    = (float)($_POST['rework_qty'] ?? 0);
         $rejectedQty  = (float)($_POST['rejected_qty'] ?? 0);
         $location     = trim($_POST['location'] ?? 'Main Store');
         $defectNotes  = trim($_POST['defect_notes'] ?? '');
 
-        if (!$variantId || $inspectedQty <= 0 || $passedQty < 0) {
-            $this->flash('error', 'Variant, Inspected Qty, and Passed Qty are required.');
-            $this->redirect('/m/qc_stocks');
+        if (!$variantId || $inspectedQty <= 0) {
+            $this->flash('error', 'Variant and Inspected Qty are required.');
+            $this->redirect('/production/qc');
+            return;
         }
+
+        // Auto-balance if user only filled inspected & passed
+        if ($passedQty + $reworkQty + $rejectedQty <= 0 && $inspectedQty > 0) {
+            $passedQty = $inspectedQty;
+        }
+
+        // Auto-determine status
+        if ($reworkQty > 0) {
+            $status = 'REWORK';
+        } elseif ($rejectedQty > 0 && $passedQty == 0) {
+            $status = 'REJECTED';
+        } else {
+            $status = 'PASSED';
+        }
+
+        // Sequential QC number: QC #X
+        $qcCount = (int)DB::fetchValue("SELECT COUNT(*) FROM qc_inspections WHERE (concern_id = ? OR concern_id IS NULL)", [$cid]);
+        $qcNo = 'QC #' . ($qcCount + 1);
 
         DB::beginTransaction();
         try {
-            $qcNo = 'QC-' . date('Ymd') . '-' . rand(100, 999);
-
             DB::query(
-                "INSERT INTO qc_inspections (concern_id, qc_no, variant_id, inspected_qty, passed_qty, rejected_qty, location, defect_notes, inspector_id, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                [$cid, $qcNo, $variantId, $inspectedQty, $passedQty, $rejectedQty, $location, $defectNotes, Auth::id()]
+                "INSERT INTO qc_inspections (concern_id, qc_no, variant_id, program_id, inspected_qty, passed_qty, rework_qty, rejected_qty, location, defect_notes, status, inspector_id, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                [$cid, $qcNo, $variantId, $programId, $inspectedQty, $passedQty, $reworkQty, $rejectedQty, $location, $defectNotes, $status, Auth::id()]
             );
-            $qcId = (int)DB::lastInsertId();
-
-            if ($passedQty > 0) {
-                StockService::move(
-                    $cid,
-                    $variantId,
-                    $location,
-                    $passedQty,
-                    0.00,
-                    'QC Stocks',
-                    $qcId,
-                    "QC Inspection Passed [{$qcNo}]: {$passedQty} units approved",
-                    Auth::id()
-                );
-            }
 
             DB::commit();
-
-            $this->flash('success', "QC Inspection '{$qcNo}' approved! {$passedQty} units moved to live stock.");
-        } catch (Exception $e) {
+            $this->flash('success', "Quality Control record {$qcNo} created successfully! ({$passedQty} passed, {$reworkQty} rework, {$rejectedQty} rejected)");
+        } catch (\Exception $e) {
             DB::rollBack();
-            $this->flash('error', 'QC processing error: ' . $e->getMessage());
+            $this->flash('error', 'Failed to save QC inspection: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/qc_stocks');
+        $this->redirect('/production/qc');
+    }
+
+    public function reinspectQc(): void {
+        $this->validateCsrf();
+        $id = (int)($_POST['id'] ?? 0);
+        $qc = DB::fetch("SELECT * FROM qc_inspections WHERE id = ?", [$id]);
+        if (!$qc) {
+            $this->flash('error', 'QC inspection record not found.');
+            $this->redirect('/production/qc');
+            return;
+        }
+
+        $passedAdd   = (float)($_POST['passed_add'] ?? 0);
+        $rejectedAdd = (float)($_POST['rejected_add'] ?? 0);
+        $notes       = trim($_POST['rework_notes'] ?? '');
+        $reworkQty   = (float)$qc['rework_qty'];
+
+        if ($passedAdd + $rejectedAdd <= 0) {
+            $this->flash('error', 'Please specify how many rework pieces passed or rejected.');
+            $this->redirect('/production/qc');
+            return;
+        }
+
+        if (($passedAdd + $rejectedAdd) > $reworkQty) {
+            $this->flash('error', "Cannot cycle {$passedAdd} + {$rejectedAdd} pieces; only {$reworkQty} pieces are currently in rework.");
+            $this->redirect('/production/qc');
+            return;
+        }
+
+        $newPassed   = (float)$qc['passed_qty'] + $passedAdd;
+        $newRejected = (float)$qc['rejected_qty'] + $rejectedAdd;
+        $newRework   = max(0.00, $reworkQty - ($passedAdd + $rejectedAdd));
+        $newStatus   = ($newRework > 0) ? 'REWORK' : 'COMPLETED';
+
+        $reworkLog = date('Y-m-d H:i') . " Re-inspected: +{$passedAdd} passed, +{$rejectedAdd} rejected. " . ($notes ? "Notes: {$notes}" : "");
+        $existingLog = trim($qc['rework_notes'] ?? '');
+        $updatedLog = $existingLog ? ($existingLog . "\n" . $reworkLog) : $reworkLog;
+
+        try {
+            DB::query(
+                "UPDATE qc_inspections SET passed_qty = ?, rework_qty = ?, rejected_qty = ?, rework_notes = ?, status = ? WHERE id = ?",
+                [$newPassed, $newRework, $newRejected, $updatedLog, $newStatus, $id]
+            );
+            $this->flash('success', "Re-inspection cycle saved for {$qc['qc_no']}! {$passedAdd} moved to passed, {$rejectedAdd} rejected. Remaining rework: {$newRework}.");
+        } catch (\Throwable $e) {
+            $this->flash('error', 'Re-inspection failed: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/qc');
     }
 
     public function updateQc(): void {
@@ -4876,39 +4975,34 @@ class ProductionController extends Controller {
         $qc = DB::fetch("SELECT * FROM qc_inspections WHERE id = ?", [$id]);
         if (!$qc) {
             $this->flash('error', 'QC inspection not found.');
-            $this->redirect('/m/qc_stocks');
+            $this->redirect('/production/qc');
+            return;
         }
 
         $inspectedQty = (float)($_POST['inspected_qty'] ?? $qc['inspected_qty']);
         $newPassed    = (float)($_POST['passed_qty'] ?? $qc['passed_qty']);
+        $reworkQty    = (float)($_POST['rework_qty'] ?? $qc['rework_qty']);
         $rejectedQty  = (float)($_POST['rejected_qty'] ?? $qc['rejected_qty']);
         $location     = trim($_POST['location'] ?? $qc['location']);
         $defectNotes  = trim($_POST['defect_notes'] ?? $qc['defect_notes']);
 
+        $status = ($reworkQty > 0) ? 'REWORK' : (($rejectedQty > 0 && $newPassed == 0) ? 'REJECTED' : 'PASSED');
+
         DB::beginTransaction();
         try {
-            $diff = $newPassed - (float)$qc['passed_qty'];
-            if ($diff != 0) {
-                if ($diff > 0) {
-                    StockService::move($qc['concern_id'], $qc['variant_id'], $location, $diff, 0.00, 'QC Stocks', $id, "Updated QC Inspection [{$qc['qc_no']}]: Additional approved units", Auth::id());
-                } else {
-                    StockService::move($qc['concern_id'], $qc['variant_id'], $location, 0.00, abs($diff), 'QC Stocks', $id, "Updated QC Inspection [{$qc['qc_no']}]: Reduced approved units", Auth::id());
-                }
-            }
-
             DB::query(
-                "UPDATE qc_inspections SET inspected_qty = ?, passed_qty = ?, rejected_qty = ?, location = ?, defect_notes = ? WHERE id = ?",
-                [$inspectedQty, $newPassed, $rejectedQty, $location, $defectNotes, $id]
+                "UPDATE qc_inspections SET inspected_qty = ?, passed_qty = ?, rework_qty = ?, rejected_qty = ?, location = ?, defect_notes = ?, status = ? WHERE id = ?",
+                [$inspectedQty, $newPassed, $reworkQty, $rejectedQty, $location, $defectNotes, $status, $id]
             );
 
             DB::commit();
             $this->flash('success', "QC Inspection '{$qc['qc_no']}' updated successfully.");
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Failed to update QC inspection: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/qc_stocks');
+        $this->redirect('/production/qc');
     }
 
     public function deleteQc(): void {
@@ -4917,35 +5011,21 @@ class ProductionController extends Controller {
         $qc = DB::fetch("SELECT * FROM qc_inspections WHERE id = ?", [$id]);
         if (!$qc) {
             $this->flash('error', 'QC inspection not found.');
-            $this->redirect('/m/qc_stocks');
+            $this->redirect('/production/qc');
+            return;
         }
 
         DB::beginTransaction();
         try {
-            // Reverse approved stock
-            if ((float)$qc['passed_qty'] > 0) {
-                StockService::move(
-                    $qc['concern_id'],
-                    $qc['variant_id'],
-                    $qc['location'],
-                    0.00,
-                    (float)$qc['passed_qty'],
-                    'QC Stocks',
-                    $id,
-                    "Reversal of deleted QC Inspection [{$qc['qc_no']}]",
-                    Auth::id()
-                );
-            }
-
             DB::query("DELETE FROM qc_inspections WHERE id = ?", [$id]);
             DB::commit();
-            $this->flash('success', "QC Inspection '{$qc['qc_no']}' deleted and stock reversed.");
-        } catch (Exception $e) {
+            $this->flash('success', "QC Inspection '{$qc['qc_no']}' deleted successfully.");
+        } catch (\Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Failed to delete QC inspection: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/qc_stocks');
+        $this->redirect('/production/qc');
     }
 
     public function exportCatalogProgram(): void {

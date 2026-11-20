@@ -370,11 +370,20 @@ $router->get('/m/stitching_wastage/export', [ProductionController::class, 'expor
 $router->post('/m/stitching_wastage/store', [ProductionController::class, 'storeStitchingBatch'], 'stitching_wastage', 'add');
 $router->post('/m/stitching_wastage/update', [ProductionController::class, 'updateStitchingBatch'], 'stitching_wastage', 'edit');
 $router->post('/m/stitching_wastage/delete', [ProductionController::class, 'deleteStitchingBatch'], 'stitching_wastage', 'delete');
+// Production QC (Quality Control Inspections - Image 1)
+$router->get('/production/qc', [ProductionController::class, 'qc'], 'qc_stocks', 'view');
+$router->get('/production/qc/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'view');
+$router->post('/production/qc/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
+$router->post('/production/qc/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
+$router->post('/production/qc/delete', [ProductionController::class, 'deleteQc'], 'qc_stocks', 'delete');
+$router->post('/production/qc/reinspect', [ProductionController::class, 'reinspectQc'], 'qc_stocks', 'edit');
+
 $router->get('/m/qc_stocks', [ProductionController::class, 'qc'], 'qc_stocks', 'view');
 $router->get('/m/qc_stocks/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'view');
 $router->post('/m/qc_stocks/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
 $router->post('/m/qc_stocks/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
 $router->post('/m/qc_stocks/delete', [ProductionController::class, 'deleteQc'], 'qc_stocks', 'delete');
+$router->post('/m/qc_stocks/reinspect', [ProductionController::class, 'reinspectQc'], 'qc_stocks', 'edit');
 
 // Finance & Accounts
 $router->get('/m/expense', [FinanceController::class, 'expense'], 'expense', 'view');

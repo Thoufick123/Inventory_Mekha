@@ -95,6 +95,7 @@ abstract class Controller {
 
             $qcCols = array_column(DB::fetchAll("DESCRIBE `qc_inspections`"), 'Field');
             if (!in_array('batch_no', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `batch_no` VARCHAR(50) NULL AFTER `qc_no`");
+            if (!in_array('program_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `program_id` INT NULL AFTER `variant_id`");
             if (!in_array('cutting_batch_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `cutting_batch_id` INT NULL AFTER `variant_id`");
             if (!in_array('stitching_batch_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `stitching_batch_id` INT NULL AFTER `cutting_batch_id`");
             if (!in_array('rework_qty', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_qty` DECIMAL(12,2) DEFAULT 0.00 AFTER `passed_qty`");

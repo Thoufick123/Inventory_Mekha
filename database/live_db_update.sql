@@ -234,7 +234,8 @@ CALL AddColSafe('stitching_logs', 'produced_variant_id', 'INT NULL');
 
 -- Align `qc_inspections` table
 CALL AddColSafe('qc_inspections', 'batch_no', 'VARCHAR(50) NULL AFTER `qc_no`');
-CALL AddColSafe('qc_inspections', 'cutting_batch_id', 'INT NULL AFTER `variant_id`');
+CALL AddColSafe('qc_inspections', 'program_id', 'INT NULL AFTER `variant_id`');
+CALL AddColSafe('qc_inspections', 'cutting_batch_id', 'INT NULL AFTER `program_id`');
 CALL AddColSafe('qc_inspections', 'stitching_batch_id', 'INT NULL AFTER `cutting_batch_id`');
 CALL AddColSafe('qc_inspections', 'rework_qty', 'DECIMAL(12,2) DEFAULT 0.00 AFTER `passed_qty`');
 CALL AddColSafe('qc_inspections', 'rework_notes', 'TEXT NULL AFTER `defect_notes`');
@@ -252,65 +253,7 @@ ALTER TABLE `batches` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'activ
 DROP PROCEDURE IF EXISTS `AddColSafe`;
 
 -- ------------------------------------------------------------------------------
--- 3. ENSURE BASELINE SEED DATA (Matches Live Visuals)
--- ------------------------------------------------------------------------------
-
--- Ensure primary concern GRM Garments
-INSERT IGNORE INTO `concerns` (`id`, `code`, `name`, `status`) 
-VALUES (1, 'CON-GRM', 'GRM Garments Pvt Ltd', 'active'),
-       (2, 'CON-APEX', 'Apex Fashion Mills', 'active');
-
--- Ensure Production Unit PU-01 Kadampadi
-INSERT IGNORE INTO `production_units` (`id`, `concern_id`, `code`, `name`, `location`, `manager_name`, `capacity_per_day`, `is_active`)
-VALUES (1, 1, 'PU-01', 'Kadampadi', 'Kadampadi', 'Vanaja (9943557998)', 500, 1);
-
--- Ensure Category & Variant KIDS - BABY - DRESS
-INSERT IGNORE INTO `categories` (`id`, `concern_id`, `name`, `code`, `status`)
-VALUES (1, 1, 'Kids Wear', 'CAT-KIDS', 'active');
-
-INSERT IGNORE INTO `variants` (`id`, `concern_id`, `sku_code`, `name`, `category_id`, `size`, `price`, `mrp`, `status`)
-VALUES (27, 1, 'GRM-STY-0001-XL', 'KIDS - BABY - DRESS', 1, 'XL', 700.00, 1000.00, 'active');
-
--- Ensure Finished Batches BAT-20261113-0001 and BAT-20261113-0002
-INSERT IGNORE INTO `batches` (
-    `id`, `concern_id`, `production_unit_id`, `batch_no`, `variant_id`, 
-    `batch_qty`, `total_boxes`, `warehouse_name`, `packed_by_name`, `fabric_details`, `status`, `created_at`
-) VALUES 
-(1, 1, 1, 'BAT-20261113-0001', 27, 490.00, 1, 'wareouse', 'System Administrator', 'GREEN / BIRDS', 'RECEIVED', '2026-11-13 13:06:00'),
-(2, 1, 1, 'BAT-20261113-0002', 27, 70.00, 1, 'wareouse', 'System Administrator', 'GREEN / BIRDS', 'PREPARING', '2026-11-13 13:06:00');
-
--- Ensure Outward Gate Pass OUT-20261113-0001
-INSERT IGNORE INTO `outwards` (
-    `id`, `concern_id`, `production_unit_id`, `outward_no`, `gate_pass_no`, `destination_concern_id`,
-    `outward_date`, `location`, `warehouse_name`, `total_boxes`, `vehicle_number`, `driver_name`, `driver_contact`,
-    `dispatched_by_name`, `status`, `dispatched_at`, `created_at`
-) VALUES (
-    1, 1, 1, 'OUT-20261113-0001', 'OUT-20261113-0001', 1,
-    '2026-11-13', 'Main Store', 'wareouse (WH-01)', 1, 'rtt31232', 'Vanaja', '9943557998',
-    'System Administrator', 'DISPATCHED', '2026-11-13 13:06:00', '2026-11-13 13:06:00'
-);
-
--- Link Outward to Batch
-INSERT IGNORE INTO `production_outward_batches` (`id`, `concern_id`, `outward_id`, `batch_id`, `cartons_count`, `pieces_count`)
-VALUES (1, 1, 1, 1, 1, 490.00);
-
-INSERT IGNORE INTO `outward_items` (`id`, `concern_id`, `outward_id`, `variant_id`, `qty`)
-VALUES (1, 1, 1, 27, 490.00);
-
--- Ensure Inward INW-20261113-0001 (Partial: 3 Credited, 487 Pending)
-INSERT IGNORE INTO `inwards` (
-    `id`, `concern_id`, `production_unit_id`, `outward_id`, `inward_no`, `grn_number`,
-    `inward_date`, `location`, `vehicle_number`, `status`, `created_at`
-) VALUES (
-    1, 1, 1, 1, 'INW-20261113-0001', 'GRN-20261113-0001',
-    '2026-11-13', 'Main Store', 'rtt31232', 'PARTIAL', '2026-11-13 13:06:00'
-);
-
-INSERT IGNORE INTO `inward_items` (`id`, `concern_id`, `inward_id`, `variant_id`, `qty`, `accepted_qty`, `rejected_qty`)
-VALUES (1, 1, 1, 27, 490.00, 3.00, 0.00);
-
--- ------------------------------------------------------------------------------
--- 7. UNIFY TABLE COLLATIONS TO PREVENT MARIA DB 11.4+ COLLATION MISMATCH (ERROR 1267)
+-- 3. UNIFY TABLE COLLATIONS TO PREVENT MARIA DB 11.4+ COLLATION MISMATCH (ERROR 1267)
 -- ------------------------------------------------------------------------------
 ALTER TABLE `concerns` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ALTER TABLE `users` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
