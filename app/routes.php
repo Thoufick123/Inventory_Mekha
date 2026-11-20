@@ -115,6 +115,7 @@ $router->post('/m/inward/delete', [InwardController::class, 'delete'], 'inward',
 // Purchase
 $router->get('/m/suppliers', [PurchaseController::class, 'suppliers'], 'suppliers', 'view');
 $router->get('/m/suppliers/export', [PurchaseController::class, 'exportSuppliers'], 'suppliers', 'view');
+$router->get('/suppliers/export', [PurchaseController::class, 'exportSuppliers'], 'suppliers', 'view');
 $router->post('/m/suppliers/store', [PurchaseController::class, 'storeSupplier'], 'suppliers', 'add');
 $router->post('/m/suppliers/update', [PurchaseController::class, 'updateSupplier'], 'suppliers', 'edit');
 $router->post('/m/suppliers/delete', [PurchaseController::class, 'deleteSupplier'], 'suppliers', 'delete');

@@ -159,6 +159,99 @@ class PurchaseController extends Controller {
         ]);
     }
 
+    public function exportSuppliers(): void {
+        ModuleGuard::enforce('suppliers', 'view');
+
+        $isSuperAdmin = Auth::isSuperAdmin();
+        $cid = $isSuperAdmin
+            ? (int)($_GET['concern_id'] ?? 0)
+            : Auth::concernId();
+        if (!$cid && !$isSuperAdmin) {
+            $cid = Auth::concernId() ?: 1;
+        }
+
+        $format = is_scalar($_GET['format'] ?? null)
+            ? strtolower(trim((string)$_GET['format']))
+            : 'excel';
+        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+
+        $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
+
+        $sql = "SELECT s.*, con.name AS concern_name, con.code AS concern_code
+                FROM suppliers s
+                LEFT JOIN concerns con ON s.concern_id = con.id";
+        $params = [];
+        $where = [];
+        if ($cid) {
+            $where[] = "s.concern_id = ?";
+            $params[] = $cid;
+        }
+        if ($dateScope['start_date'] && $dateScope['end_date']) {
+            $where[] = "DATE(s.created_at) BETWEEN ? AND ?";
+            $params[] = $dateScope['start_date'];
+            $params[] = $dateScope['end_date'];
+        }
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(" AND ", $where);
+        }
+        $sql .= " ORDER BY s.id DESC";
+        $suppliers = DB::fetchAll($sql, $params);
+
+        $headers = [
+            '#', 'Supplier Code', 'Supplier Name', 'Company / Mill Name',
+            'Phone', 'Email', 'GSTIN', 'Address', 'City / District',
+            'State', 'Status', 'Registered Date'
+        ];
+
+        $rows = [];
+        $idx = 1;
+        foreach ($suppliers as $s) {
+            $code = $s['code'] ?: 'SUP-' . str_pad((string)$s['id'], 3, '0', STR_PAD_LEFT);
+            $rows[] = [
+                $idx++,
+                $code,
+                $s['name'],
+                $s['company_name'] ?: '—',
+                $s['phone'] ?: '—',
+                $s['email'] ?: '—',
+                $s['gstin'] ?: 'Unregistered',
+                $s['address'] ?: '—',
+                trim(($s['city'] ?? '') . ' ' . ($s['district'] ?? '')) ?: '—',
+                $s['state'] ?: 'Tamil Nadu',
+                strtoupper($s['status'] ?? 'active'),
+                !empty($s['created_at']) ? date('d M Y, h:i A', strtotime($s['created_at'])) : '—',
+            ];
+        }
+
+        $concernName = 'GRM Enterprise';
+        if ($cid) {
+            $con = DB::fetch("SELECT name FROM concerns WHERE id = ?", [$cid]);
+            if ($con && !empty($con['name'])) {
+                $concernName = $con['name'];
+            }
+        }
+
+        $metadata = [
+            'Generated On' => date('d M Y, h:i A'),
+            'Concern'      => $concernName,
+            'Period'       => $dateScope['label'] ?? 'All Time',
+            'Total Vendors'=> count($rows),
+        ];
+
+        $filename = 'Suppliers_Directory_' . date('Ymd_His');
+
+        if ($format === 'pdf') {
+            \App\Services\ExportService::renderPdfView('Supplier Directory Master Report', $metadata, $headers, $rows, []);
+        } elseif ($format === 'csv') {
+            \App\Services\ExportService::downloadCsv($filename, $headers, $rows, []);
+        } else {
+            \App\Services\ExportService::downloadExcel($filename, 'Supplier Directory Master Report', $metadata, $headers, $rows, []);
+        }
+    }
+
     public function storeSupplier(): void {
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);

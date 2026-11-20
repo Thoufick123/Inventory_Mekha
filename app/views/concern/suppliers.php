@@ -3,7 +3,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h4 class="fw-bold mb-1 text-dark">Supplier Directory</h4>
-            <p class="text-secondary small mb-0">Vendors, spinning mills, dye-houses and yarn suppliers registered for this concern.</p>
         </div>
         <button class="btn btn-primary shadow-sm rounded-2 d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalAddSupplier">
             <i class="bi bi-plus-circle fs-6"></i> Add Supplier
@@ -12,8 +11,8 @@
 
     <!-- Export Intelligence Toolbar -->
     <?php
-    $exportTitle = 'Export Supplier Directory (Excel & PDF)';
-    $exportSubtitle = 'Download registered vendors, spinning mills, contact directory, GSTIN & ledger balances';
+    $exportTitle = '';
+    $exportSubtitle = '';
     $exportUrl = \App\Core\Controller::url('/m/suppliers/export');
     $prefix = 'sup_exp';
     include __DIR__ . '/../partials/export_card.php';
@@ -475,7 +474,6 @@
                     <div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <h5 class="modal-title fw-bold text-dark mb-0" id="viewSupplierCompany"></h5>
-                            <span class="badge bg-dark font-monospace" id="viewSupplierCodeBadge"></span>
                             <span class="badge" id="viewSupplierStatusBadge"></span>
                         </div>
                         <small class="text-muted" id="viewSupplierSubtitle"></small>
@@ -530,14 +528,6 @@
                                         <i class="bi bi-clipboard"></i> Copy
                                     </button>
                                 </div>
-                            </div>
-                            <div class="mb-2 mt-3">
-                                <label class="text-muted small fw-semibold d-block">GST Tax Category</label>
-                                <span class="badge" id="viewSupplierGstCategory"></span>
-                            </div>
-                            <div class="mb-2 mt-2">
-                                <label class="text-muted small fw-semibold d-block">Status in System</label>
-                                <span class="badge" id="viewSupplierStatusDesc"></span>
                             </div>
                         </div>
                     </div>
@@ -707,7 +697,8 @@ function openViewSupplierModal(sup) {
     const concernName = sup.concern_name || (sup.concern_id ? 'Concern #' + sup.concern_id : '');
 
     document.getElementById('viewSupplierCompany').textContent = company;
-    document.getElementById('viewSupplierCodeBadge').textContent = code;
+    const codeBadge = document.getElementById('viewSupplierCodeBadge');
+    if (codeBadge) codeBadge.textContent = code;
     document.getElementById('viewSupplierSubtitle').textContent = 'Contact: ' + contact + (concernName ? ' • ' + concernName : '');
     document.getElementById('viewSupplierContact').textContent = contact;
 
@@ -715,15 +706,23 @@ function openViewSupplierModal(sup) {
     const statusBadge = document.getElementById('viewSupplierStatusBadge');
     const statusDesc = document.getElementById('viewSupplierStatusDesc');
     if (status === 'active') {
-        statusBadge.className = 'badge bg-success-subtle text-success border border-success';
-        statusBadge.textContent = 'Active';
-        statusDesc.className = 'badge bg-success-subtle text-success border border-success';
-        statusDesc.textContent = 'Active Vendor (Eligible for Purchase Orders & Bills)';
+        if (statusBadge) {
+            statusBadge.className = 'badge bg-success-subtle text-success border border-success';
+            statusBadge.textContent = 'Active';
+        }
+        if (statusDesc) {
+            statusDesc.className = 'badge bg-success-subtle text-success border border-success';
+            statusDesc.textContent = 'Active Vendor (Eligible for Purchase Orders & Bills)';
+        }
     } else {
-        statusBadge.className = 'badge bg-secondary-subtle text-secondary border';
-        statusBadge.textContent = 'Inactive';
-        statusDesc.className = 'badge bg-secondary-subtle text-secondary border';
-        statusDesc.textContent = 'Archived / Inactive (Disabled from new purchases)';
+        if (statusBadge) {
+            statusBadge.className = 'badge bg-secondary-subtle text-secondary border';
+            statusBadge.textContent = 'Inactive';
+        }
+        if (statusDesc) {
+            statusDesc.className = 'badge bg-secondary-subtle text-secondary border';
+            statusDesc.textContent = 'Archived / Inactive (Disabled from new purchases)';
+        }
     }
 
     // Phone
@@ -761,19 +760,23 @@ function openViewSupplierModal(sup) {
     const gstinEl = document.getElementById('viewSupplierGstin');
     const gstCatEl = document.getElementById('viewSupplierGstCategory');
     if (gstin) {
-        gstinEl.textContent = gstin;
-        const isTn = state.toLowerCase().includes('tamil') || gstin.startsWith('33');
-        if (isTn) {
-            gstCatEl.className = 'badge bg-primary-subtle text-primary border';
-            gstCatEl.textContent = 'Intra-State GST (CGST + SGST @ State Rate)';
-        } else {
-            gstCatEl.className = 'badge bg-info-subtle text-info border';
-            gstCatEl.textContent = 'Inter-State GST (IGST applicable)';
+        if (gstinEl) gstinEl.textContent = gstin;
+        if (gstCatEl) {
+            const isTn = state.toLowerCase().includes('tamil') || gstin.startsWith('33');
+            if (isTn) {
+                gstCatEl.className = 'badge bg-primary-subtle text-primary border';
+                gstCatEl.textContent = 'Intra-State GST (CGST + SGST @ State Rate)';
+            } else {
+                gstCatEl.className = 'badge bg-info-subtle text-info border';
+                gstCatEl.textContent = 'Inter-State GST (IGST applicable)';
+            }
         }
     } else {
-        gstinEl.textContent = 'Not Registered';
-        gstCatEl.className = 'badge bg-light text-muted border';
-        gstCatEl.textContent = 'Unregistered Vendor (No Input Tax Credit)';
+        if (gstinEl) gstinEl.textContent = 'Not Registered';
+        if (gstCatEl) {
+            gstCatEl.className = 'badge bg-light text-muted border';
+            gstCatEl.textContent = 'Unregistered Vendor (No Input Tax Credit)';
+        }
     }
 
     // Address
