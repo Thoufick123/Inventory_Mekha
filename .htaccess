@@ -1,30 +1,19 @@
 # ==============================================================================
 # INVENTO ERP - Production Apache Configuration & Security (.htaccess)
+# Fully Compatible with Hostinger, cPanel, LiteSpeed & Apache
 # ==============================================================================
 
-# 1. PREVENT DIRECTORY BROWSING
-<IfModule mod_autoindex.c>
-    Options -Indexes
-</IfModule>
-
-# Disable server signature
-ServerSignature Off
-
-# 2. DEFAULT CHARSET
+# 1. DEFAULT CHARSET
 AddDefaultCharset UTF-8
 
 # ==============================================================================
-# 3. BLOCK ACCESS TO SENSITIVE FILES
+# 2. BLOCK ACCESS TO SENSITIVE FILES
 # ==============================================================================
 
 # Block direct access to hidden files (.env, .git, .gitignore, etc.)
 <FilesMatch "^\.">
     <IfModule mod_authz_core.c>
         Require all denied
-    </IfModule>
-    <IfModule !mod_authz_core.c>
-        Order allow,deny
-        Deny from all
     </IfModule>
 </FilesMatch>
 
@@ -33,14 +22,10 @@ AddDefaultCharset UTF-8
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
-    <IfModule !mod_authz_core.c>
-        Order allow,deny
-        Deny from all
-    </IfModule>
 </FilesMatch>
 
 # ==============================================================================
-# 4. HTTP SECURITY HEADERS
+# 3. HTTP SECURITY HEADERS
 # ==============================================================================
 <IfModule mod_headers.c>
     # Prevent MIME type sniffing
@@ -57,7 +42,7 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 # ==============================================================================
-# 5. ASSET COMPRESSION (GZIP / DEFLATE)
+# 4. ASSET COMPRESSION (GZIP / DEFLATE)
 # ==============================================================================
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/plain
@@ -79,7 +64,7 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 # ==============================================================================
-# 6. BROWSER CACHING (EXPIRES HEADERS)
+# 5. BROWSER CACHING (EXPIRES HEADERS)
 # ==============================================================================
 <IfModule mod_expires.c>
     ExpiresActive On
@@ -107,10 +92,11 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 # ==============================================================================
-# 7. ROUTING ENGINE & DIRECTORY ACCESS RESTRICTION
+# 6. ROUTING ENGINE & DIRECTORY ACCESS RESTRICTION
 # ==============================================================================
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    RewriteBase /
 
     # Block access to protected system directories
     RewriteRule ^(app|config|database|scripts|tests)/.*$ - [F,L,NC]
