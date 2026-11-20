@@ -19,7 +19,62 @@ class InwardController extends Controller {
         }
 
         try {
+            // Ensure production_units exists
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `production_units` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `concern_id` INT NOT NULL DEFAULT 1,
+                    `code` VARCHAR(50) UNIQUE NOT NULL,
+                    `name` VARCHAR(150) NOT NULL,
+                    `location` VARCHAR(255) NULL,
+                    `manager_id` INT NULL,
+                    `manager_name` VARCHAR(150) NULL,
+                    `capacity_per_day` INT DEFAULT 0,
+                    `is_active` TINYINT(1) DEFAULT 1,
+                    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX `idx_pu_concern` (`concern_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            ");
+
+            // Seed default unit if empty
+            $unitCount = (int)DB::fetchValue("SELECT COUNT(*) FROM `production_units`");
+            if ($unitCount === 0) {
+                $concerns = DB::fetchAll("SELECT id, name, code FROM `concerns` WHERE status = 'active'");
+                foreach ($concerns as $c) {
+                    $uCode = 'PU-' . strtoupper(str_replace(' ', '', $c['code'] ?? '01'));
+                    DB::query("INSERT INTO `production_units` (`concern_id`, `code`, `name`, `location`, `capacity_per_day`, `is_active`) VALUES (?, ?, ?, 'Main Facility', 500, 1)", [$c['id'], $uCode, $c['name'] . ' Production Unit 1']);
+                }
+            }
+
+            // Ensure production_outward_batches exists
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `production_outward_batches` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `concern_id` INT NOT NULL DEFAULT 1,
+                    `outward_id` INT NOT NULL,
+                    `batch_id` INT NOT NULL,
+                    `cartons_count` INT DEFAULT 0,
+                    `pieces_count` DECIMAL(12,2) DEFAULT 0.00,
+                    `notes` VARCHAR(255) NULL,
+                    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX `idx_pob_outward` (`outward_id`),
+                    INDEX `idx_pob_batch` (`batch_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            ");
+
             $inCols = array_column(DB::fetchAll("DESCRIBE `inwards`"), 'Field');
+            if (!in_array('production_unit_id', $inCols)) {
+                DB::query("ALTER TABLE `inwards` ADD COLUMN `production_unit_id` INT NULL AFTER `concern_id`");
+            }
+            if (!in_array('grn_number', $inCols)) {
+                DB::query("ALTER TABLE `inwards` ADD COLUMN `grn_number` VARCHAR(50) NULL AFTER `inward_no`");
+            }
+            if (!in_array('vehicle_number', $inCols)) {
+                DB::query("ALTER TABLE `inwards` ADD COLUMN `vehicle_number` VARCHAR(50) NULL AFTER `location`");
+            }
+            if (!in_array('status', $inCols)) {
+                DB::query("ALTER TABLE `inwards` ADD COLUMN `status` VARCHAR(50) DEFAULT 'VERIFIED' AFTER `remarks`");
+            }
             if (!in_array('outward_id', $inCols)) {
                 DB::query("ALTER TABLE `inwards` ADD COLUMN `outward_id` INT NULL AFTER `purchase_bill_id`");
             }
@@ -30,6 +85,17 @@ class InwardController extends Controller {
                 DB::query("ALTER TABLE `inwards` ADD COLUMN `inward_type` ENUM('purchase', 'transfer') NOT NULL DEFAULT 'purchase' AFTER `from_concern_id`");
             }
 
+            $inItemCols = array_column(DB::fetchAll("DESCRIBE `inward_items`"), 'Field');
+            if (!in_array('accepted_qty', $inItemCols)) {
+                DB::query("ALTER TABLE `inward_items` ADD COLUMN `accepted_qty` DECIMAL(12,2) DEFAULT 0.00 AFTER `qty`");
+            }
+            if (!in_array('rejected_qty', $inItemCols)) {
+                DB::query("ALTER TABLE `inward_items` ADD COLUMN `rejected_qty` DECIMAL(12,2) DEFAULT 0.00 AFTER `accepted_qty`");
+            }
+            if (!in_array('rejection_reason', $inItemCols)) {
+                DB::query("ALTER TABLE `inward_items` ADD COLUMN `rejection_reason` VARCHAR(255) NULL AFTER `rejected_qty`");
+            }
+
             $outCols = array_column(DB::fetchAll("DESCRIBE `outwards`"), 'Field');
             if (!in_array('transfer_type', $outCols)) {
                 DB::query("ALTER TABLE `outwards` ADD COLUMN `transfer_type` ENUM('customer', 'concern') NOT NULL DEFAULT 'customer' AFTER `customer_id`");
@@ -37,6 +103,28 @@ class InwardController extends Controller {
             if (!in_array('destination_concern_id', $outCols)) {
                 DB::query("ALTER TABLE `outwards` ADD COLUMN `destination_concern_id` INT NULL AFTER `transfer_type`");
             }
+            if (!in_array('gate_pass_no', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `gate_pass_no` VARCHAR(50) NULL AFTER `lr_number`");
+            }
+            if (!in_array('vehicle_number', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `vehicle_number` VARCHAR(100) NULL AFTER `warehouse_id`");
+            }
+            if (!in_array('driver_name', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `driver_name` VARCHAR(150) NULL AFTER `vehicle_number`");
+            }
+            if (!in_array('transporter_name', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `transporter_name` VARCHAR(150) NULL AFTER `driver_contact`");
+            }
+            if (!in_array('lr_number', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `lr_number` VARCHAR(100) NULL AFTER `transporter_name`");
+            }
+            if (!in_array('dispatched_at', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `dispatched_at` DATETIME NULL AFTER `status`");
+            }
+            if (!in_array('received_at', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `received_at` DATETIME NULL AFTER `dispatched_at`");
+            }
+
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
             // Ignore if columns exist
