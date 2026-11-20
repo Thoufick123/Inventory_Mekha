@@ -61,12 +61,14 @@ assertCondition(!str_contains($html, 'Net Weight'), "Net Weight field is removed
 // 2. Verify 3-Tier Hierarchy & HSN Removal
 assertCondition(str_contains($html, '2. Category Hierarchy (3-Tier) & HSN Classification'), "Section 2 Category Hierarchy header exists");
 assertCondition(str_contains($html, 'Hierarchy Tier') && str_contains($html, 'Category Selection') && str_contains($html, 'Short Code'), "Table 2.1: 3-Tier Category Hierarchy Matrix table exists");
+assertCondition(!str_contains($html, 'Select Mapping Action:') && !str_contains($html, 'Link to Existing Catalog Style'), "Catalog mapping has one create-style action");
 assertCondition(!str_contains($html, 'HSN Code & GST Tax Classification Table'), "Table 2.2: HSN Code & GST Tax Classification Table is removed as requested");
 assertCondition(str_contains($html, 'id="inputHsnCode"'), "Hidden HSN input exists for form mapping");
 
 // 3. Verify Product Attributes & Variations in Table Format (Empty by default)
 assertCondition(str_contains($html, '3. Product Attributes & Variations'), "Section 3 Product Attributes & Variations header exists");
 assertCondition(str_contains($html, 'Product Style Code') && str_contains($html, 'Product Style Name') && str_contains($html, 'Color / Fabric Variation') && str_contains($html, 'Size Attributes'), "Attribute Table rows exist");
+assertCondition(!str_contains($html, 'Attribute Description & Usage'), "Attribute Description & Usage column is removed");
 
 $htmlBodyBeforeScript = substr($html, 0, strpos($html, '<script>') ?: strlen($html));
 assertCondition(!str_contains($htmlBodyBeforeScript, 'class="form-check-input size-checkbox mt-0" checked'), "Size attributes are initially empty/unchecked in DOM (not all selected)");

@@ -288,6 +288,7 @@ class CatalogMappingController extends Controller
             ],
             'activeTab' => $activeTab,
             'selectedCid' => $cid,
+            'allConcerns' => Auth::isSuperAdmin() ? Auth::allConcerns() : [],
         ]);
     }
 
@@ -326,23 +327,12 @@ class CatalogMappingController extends Controller
         }
         $cid = $cid ?: (int) ($item['concern_id'] ?? 1);
 
-        // Extract or resolve color from item, specification, or product name
-        $knownColors = ['RED', 'BLUE', 'GREEN', 'BLACK', 'WHITE', 'YELLOW', 'NAVY', 'NAVY BLUE', 'ORANGE', 'PINK', 'GREY', 'GRAY', 'PURPLE', 'MAROON', 'BEIGE', 'BROWN', 'CORAL', 'TEAL', 'OLIVE'];
-        $colorFromProduct = '';
-        $upperName = strtoupper($item['item_name'] ?? '');
-        foreach ($knownColors as $c) {
-            if (preg_match('/\b' . preg_quote($c, '/') . '\b/i', $upperName)) {
-                $colorFromProduct = ucwords(strtolower($c));
-                break;
-            }
-        }
+        // Use values already entered on the purchase item; do not infer preset colors.
         $resolvedColor = !empty($item['selected_color'])
             ? $item['selected_color']
             : (!empty($item['color'])
                 ? $item['color']
-                : (!empty($item['specification'])
-                    ? $item['specification']
-                    : $colorFromProduct));
+                : ($item['specification'] ?? ''));
 
         // Generate suggested style code: GRM-STY-XXXX
         $styleCount = (int) DB::fetchValue('SELECT COUNT(*) FROM catalogs WHERE concern_id = ?', [$cid]) + 1;
@@ -354,15 +344,18 @@ class CatalogMappingController extends Controller
         $subcategories = $cid ? DB::fetchAll("SELECT * FROM subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]) : DB::fetchAll("SELECT * FROM subcategories WHERE status = 'active' ORDER BY name ASC");
         $subSubcategories = $cid ? DB::fetchAll('SELECT * FROM sub_subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY name ASC', [$cid]) : DB::fetchAll('SELECT * FROM sub_subcategories ORDER BY name ASC');
         $attributes = $cid ? DB::fetchAll('SELECT * FROM product_attributes WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY attribute_type ASC, sort_order ASC', [$cid]) : DB::fetchAll('SELECT * FROM product_attributes ORDER BY attribute_type ASC, sort_order ASC');
-        $catalogs = $cid ? DB::fetchAll("SELECT id, style_code, short_code, name, hierarchy_path FROM catalogs WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status != 'inactive' ORDER BY id DESC", [$cid]) : DB::fetchAll("SELECT id, style_code, short_code, name, hierarchy_path FROM catalogs WHERE status != 'inactive' ORDER BY id DESC");
-
-        // Default sizes available
-        $defaultSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'Free Size'];
-        $customSizes = array_column(
-            array_filter($attributes, fn($a) => $a['attribute_type'] === 'size'),
-            'attribute_value'
-        );
-        $allSizes = array_unique(array_merge($defaultSizes, $customSizes));
+        $allSizes = [];
+        foreach ($attributes as $attribute) {
+            if (strtolower(trim($attribute['attribute_type'] ?? '')) !== 'size') {
+                continue;
+            }
+            foreach (preg_split('/[,;|]+/', (string) ($attribute['attribute_value'] ?? '')) as $size) {
+                $size = trim($size);
+                if ($size !== '' && !in_array($size, $allSizes, true)) {
+                    $allSizes[] = $size;
+                }
+            }
+        }
 
         // Extract distinct saved color attributes
         $colorAttributes = [];
@@ -405,7 +398,6 @@ class CatalogMappingController extends Controller
             'categories' => $categories,
             'subcategories' => $subcategories,
             'subSubcategories' => $subSubcategories,
-            'catalogs' => $catalogs,
             'sizes' => $allSizes,
             'colorAttributes' => $colorAttributes,
             'otherAttributes' => $otherAttributes,
@@ -422,8 +414,6 @@ class CatalogMappingController extends Controller
         $this->validateCsrf();
 
         $itemId = (int) ($_POST['purchase_bill_item_id'] ?? 0);
-        $mappingMode = $_POST['mapping_mode'] ?? 'new_style';  // 'new_style' or 'existing_style'
-
         if (!$itemId) {
             $this->flash('error', 'Invalid Purchased Item ID.');
             $this->redirect('/production/catalog-mapping');
@@ -439,7 +429,11 @@ class CatalogMappingController extends Controller
             $this->flash('error', 'Finished good item not found or unauthorized.');
             $this->redirect('/production/catalog-mapping');
         }
-        $cid = (int) ($item['concern_id'] ?: ($userCid ?: 1));
+        $cid = (int) ($item['concern_id'] ?? $userCid ?? 0);
+        if ($cid <= 0 || !DB::fetch('SELECT id FROM concerns WHERE id = ?', [$cid])) {
+            $this->flash('error', 'Finished good item has no valid concern for catalog mapping.');
+            $this->redirect('/production/catalog-mapping');
+        }
 
         DB::beginTransaction();
         try {
@@ -450,226 +444,256 @@ class CatalogMappingController extends Controller
             $mrp = (float) ($_POST['mrp'] ?? ($item['mrp'] ?? 0.0));
             $sellingPrice = (float) ($_POST['selling_price'] ?? ($item['selling_price'] ?? 0.0));
 
-            if ($mappingMode === 'existing_style') {
-                $catalogId = (int) ($_POST['existing_catalog_id'] ?? 0);
-                if (!$catalogId) {
-                    throw new Exception('Please select an existing catalog style to map.');
-                }
-                $catRecord = DB::fetch('SELECT * FROM catalogs WHERE id = ? AND concern_id = ?', [$catalogId, $cid]);
-                if (!$catRecord) {
-                    throw new Exception('Selected catalog style not found.');
-                }
+            // Create one catalog style for this purchase item.
+            $styleCode = strtoupper(trim($_POST['style_code'] ?? ''));
+            $styleName = trim($_POST['style_name'] ?? '');
+            $categoryId = (int) ($_POST['category_id'] ?? 0);
+            $subcategoryId = !empty($_POST['subcategory_id']) ? (int) $_POST['subcategory_id'] : null;
+            $subSubcategoryId = !empty($_POST['sub_sub_category_id']) ? (int) $_POST['sub_sub_category_id'] : null;
 
-                // Pick primary variant
-                $existVar = DB::fetch("SELECT id FROM variants WHERE catalog_id = ? AND status = 'active' LIMIT 1", [$catalogId]);
-                $primaryVariantId = $existVar ? (int) $existVar['id'] : null;
-
-                $cleanSizes = !empty($catRecord['sizes']) ? json_decode($catRecord['sizes'], true) : [];
-            } else {
-                // New Style Mapping
-                $styleCode = strtoupper(trim($_POST['style_code'] ?? ''));
-                $styleName = trim($_POST['style_name'] ?? '');
-                $categoryId = (int) ($_POST['category_id'] ?? 0);
-                $subcategoryId = !empty($_POST['subcategory_id']) ? (int) $_POST['subcategory_id'] : null;
-                $subSubcategoryId = !empty($_POST['sub_sub_category_id']) ? (int) $_POST['sub_sub_category_id'] : null;
-
-                if (empty($styleCode)) {
-                    throw new Exception('Product Style Code is required.');
-                }
-                if (empty($styleName)) {
-                    throw new Exception('Product Style Name is required.');
-                }
-                if ($categoryId <= 0) {
-                    throw new Exception('Main Category is required.');
-                }
-
-                $mainCatCode = strtoupper(trim($_POST['main_category_code'] ?? ''));
-                $subCatCode = strtoupper(trim($_POST['sub_category_code'] ?? ''));
-                $subSubCatCode = strtoupper(trim($_POST['sub_sub_category_code'] ?? ''));
-                $wholeCode = strtoupper(trim($_POST['whole_code'] ?? ''));
-                if (empty($wholeCode)) {
-                    $wholeCode = $mainCatCode . $subCatCode . $subSubCatCode;
-                }
-
-                $hsnCode = trim($_POST['hsn_code'] ?? ($item['hsn_code'] ?? ''));
-                $gstRateInput = trim((string)($_POST['gst_rate'] ?? ($item['gst_rate'] ?? '')));
-                if (!preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsnCode)) {
-                    throw new Exception('Select a valid 4-, 6-, or 8-digit HSN code before saving this catalog mapping.');
-                }
-                if ($gstRateInput === '' || !is_numeric($gstRateInput) || (float)$gstRateInput < 0 || (float)$gstRateInput > 100) {
-                    throw new Exception('Enter the verified GST rate for the selected HSN code.');
-                }
-                $gstRate = (float)$gstRateInput;
-                $mrp = (float) ($_POST['mrp'] ?? 0.0);
-                $sellingPrice = (float) ($_POST['selling_price'] ?? 0.0);
-
-                // Sizes
-                $rawSizes = $_POST['sizes'] ?? [];
-                if (is_array($rawSizes)) {
-                    foreach ($rawSizes as $s) {
-                        $val = trim($s);
-                        if ($val !== '' && !in_array($val, $cleanSizes)) {
-                            $cleanSizes[] = $val;
-                        }
-                    }
-                }
-                if (empty($cleanSizes)) {
-                    $cleanSizes = ['Free Size'];
-                }
-
-                // Construct hierarchy path
-                $cat = DB::fetch('SELECT name FROM categories WHERE id = ?', [$categoryId]);
-                $pathParts = [$cat['name'] ?? ''];
-                if ($subcategoryId) {
-                    $sub = DB::fetch('SELECT name FROM subcategories WHERE id = ?', [$subcategoryId]);
-                    if ($sub)
-                        $pathParts[] = $sub['name'];
-                }
-                if ($subSubcategoryId) {
-                    $subsub = DB::fetch('SELECT name FROM sub_subcategories WHERE id = ?', [$subSubcategoryId]);
-                    if ($subsub)
-                        $pathParts[] = $subsub['name'];
-                }
-                $hierarchyPath = implode(' > ', array_filter($pathParts));
-
-                // Validate variant inputs before inserting or updating catalog
-                $variantSkus = $_POST['variant_skus'] ?? [];
-                $variantNames = $_POST['variant_names'] ?? [];
-                $variantColors = $_POST['variant_colors'] ?? [];
-                $variantQtys = $_POST['variant_qtys'] ?? [];
-                $variantWeights = $_POST['variant_weights'] ?? [];
-                $variantHsns = $_POST['variant_hsns'] ?? [];
-                $variantMrps = $_POST['variant_mrps'] ?? [];
-                $variantSellingPrices = $_POST['variant_selling_prices'] ?? [];
-
-                // Strict Validation 1: Qty Validation - sum of variant quantities must equal purchased total qty
-                $purchasedTotalQty = (float) ($item['qty'] ?? 0);
-                $sumAllocatedQty = 0;
-                if (!empty($variantQtys) && is_array($variantQtys)) {
-                    foreach ($variantQtys as $vQtyVal) {
-                        $sumAllocatedQty += (float) $vQtyVal;
-                    }
-                }
-
-                if ($purchasedTotalQty > 0 && abs($sumAllocatedQty - $purchasedTotalQty) > 0.001) {
-                    $diff = $sumAllocatedQty - $purchasedTotalQty;
-                    $diffText = $diff > 0 ? "+{$diff} pieces exceeded" : "{$diff} pieces short";
-                    throw new Exception("Quantity Validation Error: Sum of all variant quantities ({$sumAllocatedQty}) must exactly equal the total purchased quantity ({$purchasedTotalQty}). It cannot be less than or greater than {$purchasedTotalQty} ({$diffText}).");
-                }
-
-                // Strict Validation 2: Pricing Hierarchy Validation - Supplier Cost < Selling Price < MRP
-                $supplierUnitCost = (float) ($item['unit_price'] ?? 0.0);
-                foreach ($variantMrps as $vKey => $vMrpVal) {
-                    $varMrp = $vMrpVal !== '' ? (float) $vMrpVal : $mrp;
-                    $varPrice = isset($variantSellingPrices[$vKey]) && $variantSellingPrices[$vKey] !== '' ? (float) $variantSellingPrices[$vKey] : $sellingPrice;
-
-                    if ($varPrice <= $supplierUnitCost) {
-                        throw new Exception('Pricing Validation Error: Selling Price (₹' . number_format($varPrice, 2) . ') must be strictly greater than Supplier Cost (₹' . number_format($supplierUnitCost, 2) . '). Required Rule: Supplier Cost < Selling Price < MRP.');
-                    }
-
-                    if ($varMrp <= $varPrice) {
-                        throw new Exception('Pricing Validation Error: MRP (₹' . number_format($varMrp, 2) . ') must be strictly greater than Selling Price (₹' . number_format($varPrice, 2) . '). Required Rule: Supplier Cost < Selling Price < MRP.');
-                    }
-                }
-
-                // Insert or update catalogs
-                $existStyle = DB::fetch('SELECT id FROM catalogs WHERE concern_id = ? AND style_code = ?', [$cid, $styleCode]);
-                if ($existStyle) {
-                    $catalogId = (int) $existStyle['id'];
-                    DB::query(
-                        "UPDATE catalogs SET
-                            name = ?, category_id = ?, subcategory_id = ?, sub_sub_category_id = ?,
-                            short_code = ?, main_category_code = ?, sub_category_code = ?, sub_sub_category_code = ?,
-                            hierarchy_path = ?, hsn_code = ?, gst_rate = ?, sizes = ?, status = 'in_house', updated_at = NOW()
-                         WHERE id = ?",
-                        [
-                            $styleName, $categoryId, $subcategoryId, $subSubcategoryId,
-                            $wholeCode, $mainCatCode, $subCatCode, $subSubCatCode,
-                            $hierarchyPath, $hsnCode, $gstRate, json_encode($cleanSizes),
-                            $catalogId
-                        ]
-                    );
-                } else {
-                    DB::query(
-                        "INSERT INTO catalogs (
-                            concern_id, code, style_code, short_code, name,
-                            category_id, subcategory_id, sub_sub_category_id,
-                            main_category_code, sub_category_code, sub_sub_category_code,
-                            hierarchy_path, hsn_code, gst_rate, sizes, status, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_house', NOW())",
-                        [
-                            $cid, $styleCode, $styleCode, $wholeCode, $styleName,
-                            $categoryId, $subcategoryId, $subSubcategoryId,
-                            $mainCatCode, $subCatCode, $subSubCatCode,
-                            $hierarchyPath, $hsnCode, $gstRate, json_encode($cleanSizes)
-                        ]
-                    );
-                    $catalogId = (int) DB::lastInsertId();
-                }
-
-                // Generate / synchronize size variants (from editable table format)
-
-                $firstMrp = null;
-                $firstPrice = null;
-                $createdVariantQtys = [];
-
-                foreach ($cleanSizes as $size) {
-                    $sku = !empty($variantSkus[$size]) ? trim($variantSkus[$size]) : "{$styleCode}-{$size}";
-                    $varName = !empty($variantNames[$size]) ? trim($variantNames[$size]) : "{$styleName} - {$size}";
-                    $varColor = !empty($variantColors[$size]) ? trim($variantColors[$size]) : $color;
-                    $varQty = isset($variantQtys[$size]) && (float) $variantQtys[$size] > 0 ? (float) $variantQtys[$size] : 1;
-                    $varWeight = isset($variantWeights[$size]) && $variantWeights[$size] !== '' ? (float) $variantWeights[$size] : 0.0;
-                    $varHsn = !empty($variantHsns[$size]) ? trim($variantHsns[$size]) : $hsnCode;
-                    $varMrp = isset($variantMrps[$size]) && $variantMrps[$size] !== '' ? (float) $variantMrps[$size] : $mrp;
-                    $varPrice = isset($variantSellingPrices[$size]) && $variantSellingPrices[$size] !== '' ? (float) $variantSellingPrices[$size] : $sellingPrice;
-
-                    if ($firstMrp === null && $varMrp > 0)
-                        $firstMrp = $varMrp;
-                    if ($firstPrice === null && $varPrice > 0)
-                        $firstPrice = $varPrice;
-
-                    $varAttrJson = json_encode(array_filter([
-                        'color' => $varColor,
-                        'hsn' => $varHsn,
-                        'weight' => $varWeight,
-                        'allocated_qty' => $varQty
-                    ]));
-
-                    $existVar = DB::fetch('SELECT id FROM variants WHERE concern_id = ? AND catalog_id = ? AND size = ?', [$cid, $catalogId, $size]);
-                    if (!$existVar) {
-                        DB::query(
-                            "INSERT INTO variants (
-                                concern_id, catalog_id, sku_code, name,
-                                category_id, subcategory_id, size, weight, weight_unit, attributes,
-                                price, mrp, creation_date, status, created_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'kg', ?, ?, ?, CURDATE(), 'active', NOW())",
-                            [
-                                $cid, $catalogId, $sku, $varName,
-                                $categoryId, $subcategoryId, $size, $varWeight, $varAttrJson,
-                                $varPrice, $varMrp
-                            ]
-                        );
-                        $newVarId = (int) DB::lastInsertId();
-                        if (!$primaryVariantId)
-                            $primaryVariantId = $newVarId;
-                        $createdVariantQtys[$newVarId] = $varQty;
-                    } else {
-                        DB::query(
-                            "UPDATE variants SET sku_code = ?, name = ?, weight = ?, weight_unit = 'kg', price = ?, mrp = ?, attributes = ?, status = 'active' WHERE id = ?",
-                            [$sku, $varName, $varWeight, $varPrice, $varMrp, $varAttrJson, $existVar['id']]
-                        );
-                        if (!$primaryVariantId)
-                            $primaryVariantId = (int) $existVar['id'];
-                        $createdVariantQtys[(int) $existVar['id']] = $varQty;
-                    }
-                }
-
-                if ($mrp <= 0 && $firstMrp !== null)
-                    $mrp = $firstMrp;
-                if ($sellingPrice <= 0 && $firstPrice !== null)
-                    $sellingPrice = $firstPrice;
+            if (empty($styleCode)) {
+                throw new Exception('Product Style Code is required.');
+            }
+            if (empty($styleName)) {
+                throw new Exception('Product Style Name is required.');
+            }
+            if ($categoryId <= 0) {
+                throw new Exception('Main Category is required.');
             }
 
+            $mainCatCode = strtoupper(trim($_POST['main_category_code'] ?? ''));
+            $subCatCode = strtoupper(trim($_POST['sub_category_code'] ?? ''));
+            $subSubCatCode = strtoupper(trim($_POST['sub_sub_category_code'] ?? ''));
+            $wholeCode = strtoupper(trim($_POST['whole_code'] ?? ''));
+            if (empty($wholeCode)) {
+                $wholeCode = $mainCatCode . $subCatCode . $subSubCatCode;
+            }
+
+            $hsnCode = trim($_POST['hsn_code'] ?? ($item['hsn_code'] ?? ''));
+            $gstRateInput = trim((string)($_POST['gst_rate'] ?? ($item['gst_rate'] ?? '')));
+            if (!preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsnCode)) {
+                throw new Exception('Select a valid 4-, 6-, or 8-digit HSN code before saving this catalog mapping.');
+            }
+            if ($gstRateInput === '' || !is_numeric($gstRateInput) || (float)$gstRateInput < 0 || (float)$gstRateInput > 100) {
+                throw new Exception('Enter the verified GST rate for the selected HSN code.');
+            }
+            $gstRate = (float)$gstRateInput;
+            $mrp = (float) ($_POST['mrp'] ?? 0.0);
+            $sellingPrice = (float) ($_POST['selling_price'] ?? 0.0);
+
+            // Sizes
+            $rawSizes = $_POST['sizes'] ?? [];
+            if (is_array($rawSizes)) {
+                foreach ($rawSizes as $s) {
+                    $val = trim($s);
+                    if ($val !== '' && !in_array($val, $cleanSizes)) {
+                        $cleanSizes[] = $val;
+                    }
+                }
+            }
+            if (empty($cleanSizes)) {
+                throw new Exception('Select at least one size attribute before saving the catalog mapping.');
+            }
+
+            // Construct hierarchy path
+            $cat = DB::fetch('SELECT name FROM categories WHERE id = ?', [$categoryId]);
+            $pathParts = [$cat['name'] ?? ''];
+            if ($subcategoryId) {
+                $sub = DB::fetch('SELECT name FROM subcategories WHERE id = ?', [$subcategoryId]);
+                if ($sub)
+                    $pathParts[] = $sub['name'];
+            }
+            if ($subSubcategoryId) {
+                $subsub = DB::fetch('SELECT name FROM sub_subcategories WHERE id = ?', [$subSubcategoryId]);
+                if ($subsub)
+                    $pathParts[] = $subsub['name'];
+            }
+            $hierarchyPath = implode(' > ', array_filter($pathParts));
+
+            // Validate variant inputs before inserting or updating catalog
+            $variantSkus = $_POST['variant_skus'] ?? [];
+            $variantNames = $_POST['variant_names'] ?? [];
+            $variantSizes = $_POST['variant_sizes'] ?? [];
+            $variantColors = $_POST['variant_colors'] ?? [];
+            $variantQtys = $_POST['variant_qtys'] ?? [];
+            $variantWeights = $_POST['variant_weights'] ?? [];
+            $variantHsns = $_POST['variant_hsns'] ?? [];
+            $variantMrps = $_POST['variant_mrps'] ?? [];
+            $variantSellingPrices = $_POST['variant_selling_prices'] ?? [];
+            if (!is_array($variantSkus) || empty($variantSkus) || !is_array($variantSizes) || !is_array($variantColors)) {
+                throw new Exception('Select at least one size attribute to generate catalog variants.');
+            }
+
+            // Strict Validation 1: Qty Validation - sum of variant quantities must equal purchased total qty
+            $purchasedTotalQty = (float) ($item['qty'] ?? 0);
+            $sumAllocatedQty = 0;
+            if (!empty($variantQtys) && is_array($variantQtys)) {
+                foreach ($variantQtys as $vQtyVal) {
+                    $sumAllocatedQty += (float) $vQtyVal;
+                }
+            }
+
+            if ($purchasedTotalQty > 0 && abs($sumAllocatedQty - $purchasedTotalQty) > 0.001) {
+                $diff = $sumAllocatedQty - $purchasedTotalQty;
+                $diffText = $diff > 0 ? "+{$diff} pieces exceeded" : "{$diff} pieces short";
+                throw new Exception("Quantity Validation Error: Sum of all variant quantities ({$sumAllocatedQty}) must exactly equal the total purchased quantity ({$purchasedTotalQty}). It cannot be less than or greater than {$purchasedTotalQty} ({$diffText}).");
+            }
+
+            // Strict Validation 2: Pricing Hierarchy Validation - Supplier Cost < Selling Price < MRP
+            $supplierUnitCost = (float) ($item['unit_price'] ?? 0.0);
+            foreach ($variantMrps as $vKey => $vMrpVal) {
+                $varMrp = $vMrpVal !== '' ? (float) $vMrpVal : $mrp;
+                $varPrice = isset($variantSellingPrices[$vKey]) && $variantSellingPrices[$vKey] !== '' ? (float) $variantSellingPrices[$vKey] : $sellingPrice;
+
+                if ($varPrice <= $supplierUnitCost) {
+                    throw new Exception('Pricing Validation Error: Selling Price (₹' . number_format($varPrice, 2) . ') must be strictly greater than Supplier Cost (₹' . number_format($supplierUnitCost, 2) . '). Required Rule: Supplier Cost < Selling Price < MRP.');
+                }
+
+                if ($varMrp <= $varPrice) {
+                    throw new Exception('Pricing Validation Error: MRP (₹' . number_format($varMrp, 2) . ') must be strictly greater than Selling Price (₹' . number_format($varPrice, 2) . '). Required Rule: Supplier Cost < Selling Price < MRP.');
+                }
+            }
+
+            $postedColors = $_POST['colors'] ?? [];
+            if (!is_array($postedColors)) {
+                throw new Exception('Submitted color attributes are invalid.');
+            }
+            $attributeValues = [
+                'color' => array_merge(
+                    $postedColors,
+                    array_values($variantColors)
+                ),
+                'size' => $cleanSizes,
+            ];
+            $postedCustomAttributes = $_POST['custom_attributes'] ?? [];
+            if (!is_array($postedCustomAttributes)) {
+                throw new Exception('Submitted product attributes are invalid.');
+            }
+            foreach ($postedCustomAttributes as $attributeType => $values) {
+                if (!is_array($values)) {
+                    throw new Exception('Submitted product attribute values are invalid.');
+                }
+                $attributeValues[(string) $attributeType] = array_merge(
+                    $attributeValues[(string) $attributeType] ?? [],
+                    $values
+                );
+            }
+            $this->syncMappingAttributes($cid, $attributeValues);
+
+            // Insert or update catalogs
+            $existStyle = DB::fetch('SELECT id FROM catalogs WHERE concern_id = ? AND style_code = ?', [$cid, $styleCode]);
+            if ($existStyle) {
+                $catalogId = (int) $existStyle['id'];
+                DB::query(
+                    "UPDATE catalogs SET
+                        name = ?, category_id = ?, subcategory_id = ?, sub_sub_category_id = ?,
+                        short_code = ?, main_category_code = ?, sub_category_code = ?, sub_sub_category_code = ?,
+                        hierarchy_path = ?, hsn_code = ?, gst_rate = ?, sizes = ?, status = 'in_house', updated_at = NOW()
+                     WHERE id = ?",
+                    [
+                        $styleName, $categoryId, $subcategoryId, $subSubcategoryId,
+                        $wholeCode, $mainCatCode, $subCatCode, $subSubCatCode,
+                        $hierarchyPath, $hsnCode, $gstRate, json_encode($cleanSizes),
+                        $catalogId
+                    ]
+                );
+            } else {
+                DB::query(
+                    "INSERT INTO catalogs (
+                        concern_id, code, style_code, short_code, name,
+                        category_id, subcategory_id, sub_sub_category_id,
+                        main_category_code, sub_category_code, sub_sub_category_code,
+                        hierarchy_path, hsn_code, gst_rate, sizes, status, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_house', NOW())",
+                    [
+                        $cid, $styleCode, $styleCode, $wholeCode, $styleName,
+                        $categoryId, $subcategoryId, $subSubcategoryId,
+                        $mainCatCode, $subCatCode, $subSubCatCode,
+                        $hierarchyPath, $hsnCode, $gstRate, json_encode($cleanSizes)
+                    ]
+                );
+                $catalogId = (int) DB::lastInsertId();
+            }
+
+            // Generate / synchronize selected color-size variants.
+
+            $firstMrp = null;
+            $firstPrice = null;
+            $createdVariantQtys = [];
+
+            foreach ($variantSkus as $variantKey => $skuInput) {
+                $size = trim((string) ($variantSizes[$variantKey] ?? ''));
+                if ($size === '' || !in_array($size, $cleanSizes, true)) {
+                    throw new Exception('A generated variant has an invalid or unselected size.');
+                }
+                $sku = trim((string) $skuInput);
+                $varName = trim((string) ($variantNames[$variantKey] ?? '')) ?: "{$styleName} - {$size}";
+                $varColor = trim((string) ($variantColors[$variantKey] ?? ''));
+                if ($sku === '' || $varColor === '') {
+                    throw new Exception('Enter a SKU and color for every generated variant.');
+                }
+                $varQty = isset($variantQtys[$variantKey]) && (float) $variantQtys[$variantKey] > 0 ? (float) $variantQtys[$variantKey] : 1;
+                $varWeight = isset($variantWeights[$variantKey]) && $variantWeights[$variantKey] !== '' ? (float) $variantWeights[$variantKey] : 0.0;
+                $varHsn = !empty($variantHsns[$variantKey]) ? trim($variantHsns[$variantKey]) : $hsnCode;
+                $varMrp = isset($variantMrps[$variantKey]) && $variantMrps[$variantKey] !== '' ? (float) $variantMrps[$variantKey] : $mrp;
+                $varPrice = isset($variantSellingPrices[$variantKey]) && $variantSellingPrices[$variantKey] !== '' ? (float) $variantSellingPrices[$variantKey] : $sellingPrice;
+
+                if ($firstMrp === null && $varMrp > 0)
+                    $firstMrp = $varMrp;
+                if ($firstPrice === null && $varPrice > 0)
+                    $firstPrice = $varPrice;
+
+                $varAttrJson = json_encode(array_filter([
+                    'color' => $varColor,
+                    'hsn' => $varHsn,
+                    'weight' => $varWeight,
+                    'allocated_qty' => $varQty
+                ]));
+
+                $existingVariants = DB::fetchAll(
+                    'SELECT id, attributes FROM variants WHERE concern_id = ? AND catalog_id = ? AND size = ?',
+                    [$cid, $catalogId, $size]
+                );
+                $existVar = null;
+                foreach ($existingVariants as $candidate) {
+                    $candidateAttributes = json_decode((string) ($candidate['attributes'] ?? ''), true);
+                    if (strcasecmp(trim((string) ($candidateAttributes['color'] ?? '')), $varColor) === 0) {
+                        $existVar = $candidate;
+                        break;
+                    }
+                }
+                if (!$existVar) {
+                    DB::query(
+                        "INSERT INTO variants (
+                            concern_id, catalog_id, sku_code, name,
+                            category_id, subcategory_id, size, weight, weight_unit, attributes,
+                            price, mrp, creation_date, status, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'kg', ?, ?, ?, CURDATE(), 'active', NOW())",
+                        [
+                            $cid, $catalogId, $sku, $varName,
+                            $categoryId, $subcategoryId, $size, $varWeight, $varAttrJson,
+                            $varPrice, $varMrp
+                        ]
+                    );
+                    $newVarId = (int) DB::lastInsertId();
+                    if (!$primaryVariantId)
+                        $primaryVariantId = $newVarId;
+                    $createdVariantQtys[$newVarId] = $varQty;
+                } else {
+                    DB::query(
+                        "UPDATE variants SET sku_code = ?, name = ?, weight = ?, weight_unit = 'kg', price = ?, mrp = ?, attributes = ?, status = 'active' WHERE id = ?",
+                        [$sku, $varName, $varWeight, $varPrice, $varMrp, $varAttrJson, $existVar['id']]
+                    );
+                    if (!$primaryVariantId)
+                        $primaryVariantId = (int) $existVar['id'];
+                    $createdVariantQtys[(int) $existVar['id']] = $varQty;
+                }
+            }
+
+            if ($mrp <= 0 && $firstMrp !== null)
+                $mrp = $firstMrp;
+            if ($sellingPrice <= 0 && $firstPrice !== null)
+                $sellingPrice = $firstPrice;
             // Update purchase_bill_items
             DB::query(
                 "UPDATE purchase_bill_items 
@@ -747,6 +771,54 @@ class CatalogMappingController extends Controller
         $this->redirect('/production/catalog-mapping');
     }
 
+    private function syncMappingAttributes(int $concernId, array $valuesByType): void
+    {
+        $existingRows = DB::fetchAll(
+            'SELECT attribute_type, attribute_value FROM product_attributes
+             WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL',
+            [$concernId]
+        );
+        $knownValues = [];
+        foreach ($existingRows as $row) {
+            $type = strtolower(trim((string) ($row['attribute_type'] ?? '')));
+            foreach (preg_split('/[,;|]+/', (string) ($row['attribute_value'] ?? '')) as $value) {
+                $value = strtolower(trim($value));
+                if ($type !== '' && $value !== '') {
+                    $knownValues[$type][$value] = true;
+                }
+            }
+        }
+
+        $sortOrder = (int) DB::fetchValue(
+            'SELECT COALESCE(MAX(sort_order), 0) FROM product_attributes WHERE concern_id = ?',
+            [$concernId]
+        );
+        foreach ($valuesByType as $attributeType => $values) {
+            $type = strtolower(trim((string) $attributeType));
+            if ($type === '' || strlen($type) > 50 || !is_array($values)) {
+                throw new Exception('A submitted product attribute type is invalid.');
+            }
+
+            foreach ($values as $value) {
+                if (!is_scalar($value)) {
+                    throw new Exception('A submitted product attribute value is invalid.');
+                }
+                $value = trim((string) $value);
+                $normalizedValue = strtolower($value);
+                if ($value === '' || isset($knownValues[$type][$normalizedValue])) {
+                    continue;
+                }
+
+                DB::query(
+                    'INSERT INTO product_attributes (concern_id, attribute_type, attribute_name, attribute_value, sort_order)
+                     VALUES (?, ?, ?, ?, ?)',
+                    [$concernId, $type, ucfirst($type), $value, ++$sortOrder]
+                );
+                $knownValues[$type][$normalizedValue] = true;
+            }
+        }
+    }
+
     /**
      * Unmap Finished Good Item
      */
@@ -790,7 +862,8 @@ class CatalogMappingController extends Controller
     {
         $this->ensureSchema();
         $this->validateCsrf();
-        $cid = Auth::concernId() ?: 1;
+        $userCid = Auth::concernId();
+        $itemId = (int) ($_POST['purchase_bill_item_id'] ?? 0);
 
         $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
             !empty($_POST['ajax']) ||
@@ -816,8 +889,25 @@ class CatalogMappingController extends Controller
             $gst = null;
             $catId = null;
             $subcatId = null;
+            $itemCid = null;
+
+            if ($itemId > 0) {
+                $mappingItem = DB::fetch('SELECT concern_id FROM purchase_bill_items WHERE id = ?', [$itemId]);
+                if (!$mappingItem) {
+                    throw new Exception('Finished good item not found.');
+                }
+                $itemCid = (int) $mappingItem['concern_id'];
+                if ($userCid !== null && $itemCid !== $userCid) {
+                    throw new Exception('Finished good item not found or unauthorized.');
+                }
+            }
+
+            $cid = $userCid ?? $itemCid;
 
             if ($tier === 'category') {
+                if (!$cid || !DB::fetch('SELECT id FROM concerns WHERE id = ?', [$cid])) {
+                    throw new Exception('Select a valid concern before creating a main category.');
+                }
                 $hsn = trim($_POST['default_hsn'] ?? '');
                 $gstInput = trim((string)($_POST['default_gst_rate'] ?? ''));
                 $gst = $gstInput === '' ? null : (is_numeric($gstInput) ? (float)$gstInput : -1.0);
@@ -856,6 +946,19 @@ class CatalogMappingController extends Controller
                 $catId = (int) ($_POST['category_id'] ?? 0);
                 if (!$catId)
                     throw new Exception('Parent Main Category is required.');
+                $parentCategory = DB::fetch("SELECT concern_id FROM categories WHERE id = ? AND status = 'active'", [$catId]);
+                if (!$parentCategory) {
+                    throw new Exception('Selected parent category was not found or is inactive.');
+                }
+                $parentCid = (int) $parentCategory['concern_id'];
+                if (($userCid !== null && $parentCid !== $userCid && $parentCid !== 1) ||
+                    ($itemCid !== null && $parentCid !== $itemCid && $parentCid !== 1)) {
+                    throw new Exception('Selected parent category belongs to a different concern.');
+                }
+                if (!DB::fetch('SELECT id FROM concerns WHERE id = ?', [$parentCid])) {
+                    throw new Exception('Selected parent category has an invalid concern.');
+                }
+                $cid = $parentCid;
                 if (empty($code))
                     $code = strtoupper(substr($name, 0, 2));
 
@@ -879,6 +982,26 @@ class CatalogMappingController extends Controller
                 $subcatId = (int) ($_POST['subcategory_id'] ?? 0);
                 if (!$subcatId)
                     throw new Exception('Parent Subcategory is required for Tier-3 category.');
+                $parentSubcategory = DB::fetch(
+                    "SELECT s.concern_id, s.category_id FROM subcategories s WHERE s.id = ? AND s.status = 'active'",
+                    [$subcatId]
+                );
+                if (!$parentSubcategory) {
+                    throw new Exception('Selected parent subcategory was not found or is inactive.');
+                }
+                $catId = (int) ($_POST['category_id'] ?? 0);
+                $parentCid = (int) $parentSubcategory['concern_id'];
+                if (!$catId || $catId !== (int) $parentSubcategory['category_id']) {
+                    throw new Exception('Selected subcategory does not belong to the selected main category.');
+                }
+                if (($userCid !== null && $parentCid !== $userCid && $parentCid !== 1) ||
+                    ($itemCid !== null && $parentCid !== $itemCid && $parentCid !== 1)) {
+                    throw new Exception('Selected parent subcategory belongs to a different concern.');
+                }
+                if (!DB::fetch('SELECT id FROM concerns WHERE id = ?', [$parentCid])) {
+                    throw new Exception('Selected parent subcategory has an invalid concern.');
+                }
+                $cid = $parentCid;
                 if (empty($code))
                     $code = strtoupper(substr($name, 0, 2));
 
@@ -898,6 +1021,8 @@ class CatalogMappingController extends Controller
                 );
                 $newId = (int) DB::lastInsertId();
                 $msg = "Tier-3 Sub-Subcategory '{$name}' created successfully.";
+            } else {
+                throw new Exception('Invalid category tier.');
             }
 
             if ($isAjax) {
@@ -940,17 +1065,49 @@ class CatalogMappingController extends Controller
     {
         $this->ensureSchema();
         $this->validateCsrf();
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId();
+        $itemId = (int) ($_POST['purchase_bill_item_id'] ?? 0);
+        if ($cid === null && Auth::isSuperAdmin()) {
+            $requestedCid = (int) ($_POST['concern_id'] ?? 0);
+            if ($requestedCid > 0) {
+                $cid = $requestedCid;
+            }
+        }
+        if ($cid === null && $itemId > 0) {
+            $mappingItem = DB::fetch('SELECT concern_id FROM purchase_bill_items WHERE id = ?', [$itemId]);
+            if ($mappingItem) {
+                $cid = (int) $mappingItem['concern_id'];
+            }
+        }
         $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
             (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
             (isset($_POST['is_ajax']) && $_POST['is_ajax'] == '1');
+        if (!$cid || !DB::fetch('SELECT id FROM concerns WHERE id = ?', [$cid])) {
+            $msg = 'Choose a concern in the attribute form, or select a specific concern from the top bar.';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $msg]);
+                exit;
+            }
+            $this->flash('error', $msg);
+            $this->redirect($_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy');
+            return;
+        }
 
         $type = trim($_POST['attribute_type'] ?? '');
         if ($type === '__create_new__' || !empty($_POST['new_attribute_type'])) {
             $type = strtolower(trim($_POST['new_attribute_type'] ?? ''));
         }
         if (empty($type)) {
-            $type = 'size';
+            $msg = 'Choose an existing attribute type or enter a new one.';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $msg]);
+                exit;
+            }
+            $this->flash('error', $msg);
+            $this->redirect($_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy');
+            return;
         }
 
         $val = trim($_POST['attribute_value'] ?? '');

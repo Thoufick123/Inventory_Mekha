@@ -1,5 +1,5 @@
 <?php
-// tests/LabelGenerationRebuildTest.php - Comprehensive verification of rebuilt 4-section Label Generation
+// tests/LabelGenerationRebuildTest.php - Comprehensive verification of 3-section Label Generation
 
 require_once __DIR__ . '/../app/core/Autoloader.php';
 \App\Core\Env::load(dirname(__DIR__) . '/.env');
@@ -10,7 +10,7 @@ use App\Controllers\LabelController;
 use App\Services\QrService;
 
 echo "======================================================\n";
-echo "INVENTO: Rebuilt 4-Section Label Generation Verification\n";
+echo "INVENTO: Rebuilt 3-Section Label Generation Verification\n";
 echo "======================================================\n\n";
 
 $passCount = 0;
@@ -38,7 +38,7 @@ $_SESSION['csrf_token'] = 'test-token-labels';
 $ctrl = new LabelController();
 
 // 2. Hub View Rendering & Data Extraction
-echo "\nTEST 2: Label Generation Hub (4 Sections Data Retrieval)\n";
+echo "\nTEST 2: Label Generation Hub (3 Sections Data Retrieval)\n";
 ob_start();
 $ctrl->index();
 $hubHtml = ob_get_clean();
@@ -46,7 +46,7 @@ $hubHtml = ob_get_clean();
 assertTest("Rendered hub contains '1. Purchase Label'", str_contains($hubHtml, '1. Purchase Label'));
 assertTest("Rendered hub contains '2. Purchase Finished Goods'", str_contains($hubHtml, '2. Purchase Finished Goods'));
 assertTest("Rendered hub contains '3. Production Label'", str_contains($hubHtml, '3. Production Label'));
-assertTest("Rendered hub contains '4. Return Label'", str_contains($hubHtml, '4. Return Label'));
+assertTest("Rendered hub does NOT contain '4. Return Label'", !str_contains($hubHtml, '4. Return Label'));
 assertTest("Rendered hub contains Recent Label Generation Jobs table", str_contains($hubHtml, 'Recent Label Generation Jobs'));
 
 // Separate Options in Purchase Label: Fabric Rolls vs Other Garments
@@ -166,36 +166,6 @@ $latestJob3 = DB::fetch("SELECT * FROM label_jobs WHERE concern_id = ? ORDER BY 
 assertTest("Audit job logged with label_type = 'production'", ($latestJob3['label_type'] ?? '') === 'production');
 assertTest("Audit job copies = 15", (int)($latestJob3['qty'] ?? 0) === 15);
 
-// 6. Test Section 4: Return Label Generation (Returns & Exchanges)
-echo "\nTEST 6: Section 4 - Return Label Generation (Restock Tag)\n";
-$retItem = DB::fetch(
-    "SELECT re.* FROM returns_exchanges re 
-     WHERE re.concern_id = ? 
-     ORDER BY re.id DESC LIMIT 1",
-    [$cid]
-);
-assertTest("Found return & exchange record in Concern 1", !empty($retItem));
-
-$_POST = [
-    'csrf_token'  => Auth::csrfToken(),
-    'label_type'  => 'return',
-    'item_id'     => (int)$retItem['id'],
-    'item_target' => 'returned',
-    'qty'         => 3
-];
-
-ob_start();
-$ctrl->generate();
-$retPrintHtml = ob_get_clean();
-
-assertTest("Generated Return print sheet contains 3 copies", substr_count($retPrintHtml, 'class="label-sticker"') === 3);
-assertTest("Print sheet contains 'RETURN / RESTOCK LABEL'", str_contains($retPrintHtml, 'RETURN / RESTOCK LABEL'));
-assertTest("Print sheet contains 'RESTOCK / RETURN'", str_contains($retPrintHtml, 'RESTOCK / RETURN'));
-
-$latestJob4 = DB::fetch("SELECT * FROM label_jobs WHERE concern_id = ? ORDER BY id DESC LIMIT 1", [$cid]);
-assertTest("Audit job logged with label_type = 'return'", ($latestJob4['label_type'] ?? '') === 'return');
-assertTest("Audit job copies = 3", (int)($latestJob4['qty'] ?? 0) === 3);
-
 // 7. Test Catalog Variant Mapping AJAX
 echo "\nTEST 7: Catalog Variant Mapping AJAX Handler\n";
 $_POST = [
@@ -215,7 +185,7 @@ $updatedPbi = DB::fetch("SELECT variant_id FROM purchase_bill_items WHERE id = ?
 assertTest("Purchase bill item updated with variant_id = 3", (int)$updatedPbi['variant_id'] === 3);
 
 // Clean up test audit jobs
-DB::query("DELETE FROM label_jobs WHERE id IN (?, ?, ?, ?)", [$latestJob1['id'], $latestJob2['id'], $latestJob3['id'], $latestJob4['id']]);
+DB::query("DELETE FROM label_jobs WHERE id IN (?, ?, ?)", [$latestJob1['id'], $latestJob2['id'], $latestJob3['id']]);
 
 echo "\n======================================================\n";
 echo "SUMMARY: {$passCount} PASSED, {$failCount} FAILED\n";

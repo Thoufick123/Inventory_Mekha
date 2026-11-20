@@ -566,15 +566,7 @@
                     </div>
                 </div>
             </div>
-            <div class="modal-footer border-top bg-light justify-content-between">
-                <div>
-                    <a href="<?= \App\Core\Controller::url('/m/purchase_billing') ?>" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-receipt me-1"></i> View Invoices
-                    </a>
-                    <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn btn-outline-primary btn-sm ms-1">
-                        <i class="bi bi-plus-circle me-1"></i> New Purchase Bill
-                    </a>
-                </div>
+            <div class="modal-footer border-top bg-light justify-content-end">
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-primary fw-semibold" id="btnEditFromView">

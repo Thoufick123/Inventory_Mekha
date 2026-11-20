@@ -61,8 +61,6 @@ assertCheck("FG preview does NOT have id='fg_preview_size_qty'", strpos($hubCont
 assertCheck("Production preview has id='prod_preview_design'", strpos($hubContent, 'id="prod_preview_design"') !== false);
 assertCheck("Production preview has id='prod_preview_price'", strpos($hubContent, 'id="prod_preview_price"') !== false);
 
-assertCheck("Return preview has id='ret_preview_design'", strpos($hubContent, 'id="ret_preview_design"') !== false);
-assertCheck("Return preview has id='ret_preview_price'", strpos($hubContent, 'id="ret_preview_price"') !== false);
 
 assertCheck("Roll label quantity has decrement control", strpos($hubContent, "adjustCopies('roll_qty', -1)") !== false);
 assertCheck("Roll label quantity has increment control", strpos($hubContent, "adjustCopies('roll_qty', 1)") !== false);

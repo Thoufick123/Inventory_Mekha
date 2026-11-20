@@ -510,7 +510,7 @@ if ($isEdit && !empty($existingItems)) {
                 <!-- HSN Code -->
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-dark">HSN Code <span class="text-danger">*</span></label>
-                    <input type="text" id="newHsnCode" class="form-control text-uppercase font-monospace" placeholder="E.G. 6206 OR 61091000" required>
+                    <input type="text" id="newHsnCode" class="form-control text-uppercase font-monospace" placeholder="E.G. 6206 OR 61091000" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-description-target="#newHsnDesc" data-hsn-gst-target="#newHsnGstRate" data-hsn-note-target="#newHsnRateNote" autocomplete="off" required>
                     <div class="form-text text-muted small mt-1">Harmonized System of Nomenclature code for invoices</div>
                 </div>
 
@@ -619,7 +619,7 @@ if ($isEdit && !empty($existingItems)) {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold text-secondary mb-1">HSN Code</label>
-                            <input type="text" id="newDesignHsn" class="form-control text-uppercase form-control-sm" placeholder="E.G. 6543, 5208">
+                            <input type="text" id="newDesignHsn" class="form-control text-uppercase form-control-sm" placeholder="E.G. 6543, 5208" data-hsn-autocomplete data-hsn-type="HSN" autocomplete="off">
                         </div>
                     </div>
 
@@ -747,6 +747,7 @@ let otherCounter = 0;
 let finishedCounter = 0;
 let currentHsnTarget = { type: 'rolls', id: 1 };
 let createdHsnList = <?= json_encode($hsnList ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+window.hsnSearchData = createdHsnList;
 
 function escapeHtml(text) {
     if (!text) return '';
@@ -782,19 +783,21 @@ function getHsnInputAttributes(selectedVal = '') {
 }
 
 function findHsnMasterRow(code) {
+    if (!code) return null;
+    const clean = String(code).trim().toUpperCase();
     return Array.isArray(createdHsnList)
-        ? createdHsnList.find(item => item.hsn_code === code && item.code_type === 'HSN')
+        ? (createdHsnList.find(item => item.hsn_code.toUpperCase() === clean && (item.code_type || 'HSN') === 'HSN') || null)
         : null;
 }
 
 function setHsnInputMetadata(input, code) {
     const row = findHsnMasterRow(code);
-    input.dataset.hsnGstRate = row?.gst_rate ?? '';
+    input.dataset.hsnGstRate = (row?.gst_rate !== null && row?.gst_rate !== undefined && row?.gst_rate !== '') ? row.gst_rate : '';
     input.dataset.hsnRateNote = row?.rate_note || '';
 }
 
 function resolveHsnInputMetadata(input) {
-    if (input && !input.dataset.hsnGstRate && !input.dataset.hsnRateNote) {
+    if (input) {
         setHsnInputMetadata(input, input.value);
     }
 }
@@ -879,6 +882,7 @@ function promptAddHsn(targetId, targetType = 'rolls') {
     document.getElementById('newHsnCode').value = '';
     document.getElementById('newHsnDesc').value = '';
     document.getElementById('newHsnGstRate').value = '';
+    document.getElementById('newHsnRateNote').value = '';
     const modal = new bootstrap.Modal(document.getElementById('modalQuickHsn'));
     modal.show();
 }
@@ -896,6 +900,12 @@ function saveAndSelectHsn() {
     }
     if (rateInput !== '' && (!Number.isFinite(rate) || rate < 0 || rate > 100)) {
         alert('Enter a valid GST rate between 0 and 100, or leave it blank.');
+        return;
+    }
+
+    const existing = createdHsnList.find(item => item.hsn_code === code && item.code_type === 'HSN');
+    if (existing) {
+        applyCreatedHsn(existing);
         return;
     }
 
@@ -925,7 +935,7 @@ function saveAndSelectHsn() {
 }
 
 function applyCreatedHsn(hsn) {
-    const { hsn_code: code, gst_rate: rate, rate_note: rateNote = '' } = hsn;
+    const { hsn_code: code, gst_rate: rate, rate_note: rateNote = '', code_type: type = 'HSN' } = hsn;
     const exists = createdHsnList.some(item => item.hsn_code === code && item.code_type === type);
     if (!exists) {
         createdHsnList.push(hsn);
@@ -1131,7 +1141,15 @@ function applyHsnRateToGstInputs(card, prefix) {
 
     if (gstRate === null || !Number.isFinite(gstRate) || gstRate < 0 || gstRate > 100) return;
 
-    const gstType = card.querySelector(`.${prefix}-input-gst`)?.value || 'Exempted';
+    const gstSelect = card.querySelector(`.${prefix}-input-gst`);
+    let gstType = gstSelect?.value || 'Exempted';
+
+    // Auto-switch to 'Both (CGST and SGST)' if currently Exempted and HSN has rate > 0
+    if (gstType === 'Exempted' && gstRate > 0 && gstSelect) {
+        gstSelect.value = 'Both (CGST and SGST)';
+        gstType = 'Both (CGST and SGST)';
+    }
+
     const halfRate = (gstRate / 2).toFixed(2);
     if (gstType === 'Both (CGST and SGST)') {
         if (sgstInput) sgstInput.value = halfRate;
@@ -1142,6 +1160,20 @@ function applyHsnRateToGstInputs(card, prefix) {
         if (sgstInput) sgstInput.value = halfRate;
     } else if (gstType === 'IGST' && igstInput) {
         igstInput.value = gstRate.toFixed(2);
+    }
+}
+
+function onRollHsnInput(rollId) {
+    const card = document.getElementById('rollCard_' + rollId);
+    if (!card) return;
+    const hsnInput = card.querySelector('.roll-input-hsn');
+    if (!hsnInput) return;
+    resolveHsnInputMetadata(hsnInput);
+    updateHsnRateNote(hsnInput);
+    const rateText = hsnInput.dataset.hsnGstRate;
+    if (rateText !== '' && rateText !== undefined && rateText !== null) {
+        applyHsnRateToGstInputs(card, 'roll');
+        onRollGstTypeChange(rollId);
     }
 }
 
@@ -1237,6 +1269,20 @@ function onOtherHsnChange(otherId) {
     onOtherGstTypeChange(otherId);
 }
 
+function onOtherHsnInput(otherId) {
+    const card = document.getElementById('otherCard_' + otherId);
+    if (!card) return;
+    const hsnInput = card.querySelector('.other-input-hsn');
+    if (!hsnInput) return;
+    resolveHsnInputMetadata(hsnInput);
+    updateHsnRateNote(hsnInput);
+    const rateText = hsnInput.dataset.hsnGstRate;
+    if (rateText !== '' && rateText !== undefined && rateText !== null) {
+        applyHsnRateToGstInputs(card, 'other');
+        onOtherGstTypeChange(otherId);
+    }
+}
+
 function onFinishedGstTypeChange(fgId) {
     const card = document.getElementById('finishedCard_' + fgId);
     if (!card) return;
@@ -1327,6 +1373,20 @@ function onFinishedHsnChange(fgId) {
     updateHsnRateNote(hsnInput);
     applyHsnRateToGstInputs(card, 'fg');
     onFinishedGstTypeChange(fgId);
+}
+
+function onFinishedHsnInput(fgId) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    if (!card) return;
+    const hsnInput = card.querySelector('.fg-input-hsn');
+    if (!hsnInput) return;
+    resolveHsnInputMetadata(hsnInput);
+    updateHsnRateNote(hsnInput);
+    const rateText = hsnInput.dataset.hsnGstRate;
+    if (rateText !== '' && rateText !== undefined && rateText !== null) {
+        applyHsnRateToGstInputs(card, 'fg');
+        onFinishedGstTypeChange(fgId);
+    }
 }
 
 // ==========================================
@@ -1881,7 +1941,7 @@ function addRollRow() {
                         <label class="form-label small fw-semibold mb-0">HSN Code</label>
                         <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddHsn(${rollCounter})">+ Add HSN</a>
                     </div>
-                    <input type="text" name="rolls[${rollCounter}][hsn]" class="form-control form-control-sm font-monospace roll-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" onchange="onRollHsnChange(${rollCounter})">
+                    <input type="text" name="rolls[${rollCounter}][hsn]" class="form-control form-control-sm font-monospace roll-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" oninput="onRollHsnInput(${rollCounter})" onchange="onRollHsnChange(${rollCounter})">
                     <small class="hsn-rate-note text-muted d-block mt-1"></small>
                 </div>
                 <div class="col-md-2">
@@ -2257,7 +2317,7 @@ function addOtherRow() {
                         <label class="form-label small fw-semibold mb-0">HSN Code</label>
                         <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddHsn(${otherCounter}, 'other')">+ Add HSN</a>
                     </div>
-                    <input type="text" name="garment_other[${otherCounter}][hsn]" class="form-control form-control-sm font-monospace other-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" onchange="onOtherHsnChange(${otherCounter})">
+                    <input type="text" name="garment_other[${otherCounter}][hsn]" class="form-control form-control-sm font-monospace other-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" oninput="onOtherHsnInput(${otherCounter})" onchange="onOtherHsnChange(${otherCounter})">
                     <small class="hsn-rate-note text-muted d-block mt-1"></small>
                 </div>
                 <div class="col-md-2">
@@ -2419,7 +2479,7 @@ function addFinishedRow() {
                         <label class="form-label small fw-semibold mb-0">HSN Code</label>
                         <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddHsn(${finishedCounter}, 'finished')">+ Add HSN</a>
                     </div>
-                    <input type="text" name="finished_goods[${finishedCounter}][hsn]" class="form-control form-control-sm font-monospace fg-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" onchange="onFinishedHsnChange(${finishedCounter})">
+                    <input type="text" name="finished_goods[${finishedCounter}][hsn]" class="form-control form-control-sm font-monospace fg-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" oninput="onFinishedHsnInput(${finishedCounter})" onchange="onFinishedHsnChange(${finishedCounter})">
                     <small class="hsn-rate-note text-muted d-block mt-1"></small>
                 </div>
                 <div class="col-md-2">
@@ -2691,7 +2751,7 @@ function loadInitialData() {
                                 <label class="form-label small fw-semibold mb-0">HSN Code</label>
                                 <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddHsn(${rollCounter})">+ Add HSN</a>
                             </div>
-                            <input type="text" name="rolls[${rollCounter}][hsn]" class="form-control form-control-sm font-monospace roll-input-hsn" value="${escapeHtml(r.hsn_code || '')}" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes(r.hsn_code || '')} autocomplete="off" onchange="onRollHsnChange(${rollCounter})">
+                            <input type="text" name="rolls[${rollCounter}][hsn]" class="form-control form-control-sm font-monospace roll-input-hsn" value="${escapeHtml(r.hsn_code || '')}" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes(r.hsn_code || '')} autocomplete="off" oninput="onRollHsnInput(${rollCounter})" onchange="onRollHsnChange(${rollCounter})">
                             <small class="hsn-rate-note text-muted d-block mt-1"></small>
                         </div>
                         <div class="col-md-2">

@@ -86,10 +86,10 @@ if (strpos($printHtml, 'FLO-B-FL-XS') !== false || strpos($printHtml, 'floral Fa
     exit(1);
 }
 
-if (strpos($printHtml, 'Add to Stock') !== false) {
-    echo "  PASS: 'Add to Stock' button present on printable sheet!\n";
+if (strpos($printHtml, 'Add to Stock') === false) {
+    echo "  PASS: 'Add to Stock' button cleanly removed from printable sheet!\n";
 } else {
-    echo "  FAIL: 'Add to Stock' button missing from printable sheet.\n";
+    echo "  FAIL: 'Add to Stock' button still present on printable sheet.\n";
     exit(1);
 }
 

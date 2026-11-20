@@ -249,41 +249,6 @@ if (!empty($multiLabels)) {
                     <i class="bi bi-card-text"></i> Thermal Roll (1 Col)
                 </button>
             </div>
-            <?php if (!empty($multiLabels) && !empty($batchNo)): ?>
-                <!-- BATCH MODE: Add all batch items to stock -->
-                <?php $batchStitchId = $labelData['item_id'] ?? 0; ?>
-                <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" class="d-inline m-0" target="_self">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                    <input type="hidden" name="item_id" value="batch_<?= (int)($batchId ?? $batchStitchId) ?>">
-                    <input type="hidden" name="tab" value="production">
-                    <button type="submit" class="btn btn-success btn-sm fw-bold px-3 shadow-sm d-flex align-items-center gap-1" title="Inward all <?= (int)($variantCount ?? count($multiLabels)) ?> variants of this batch into Live Stocks">
-                        <i class="bi bi-box-arrow-in-down"></i> Add Batch to Stock &rarr; Live Stocks
-                    </button>
-                </form>
-            <?php elseif (!empty($labelData['item_id'])): ?>
-                <?php $isProdStock = ($labelData['stock_tab'] ?? '') === 'production'; ?>
-                <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" class="d-inline m-0" target="_self">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                    <input type="hidden" name="item_id" value="<?= (int)$labelData['item_id'] ?>">
-                    <input type="hidden" name="tab" value="<?= htmlspecialchars($labelData['stock_tab'] ?? 'rolls') ?>">
-                    <button type="submit" class="btn btn-success btn-sm fw-bold px-3 shadow-sm d-flex align-items-center gap-1" title="Add this item to <?= $isProdStock ? 'Live Inventory Stocks' : 'Purchase Stocks' ?>">
-                        <i class="bi bi-box-arrow-in-down"></i> Add to Stock &rarr; <?= $isProdStock ? 'Live Stocks' : 'Purchase Stocks' ?>
-                    </button>
-                </form>
-            <?php elseif (!empty($labelData['bill_id'])): ?>
-                <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" class="d-inline m-0" target="_self">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                    <input type="hidden" name="bill_id" value="<?= (int)$labelData['bill_id'] ?>">
-                    <input type="hidden" name="tab" value="<?= htmlspecialchars($labelData['stock_tab'] ?? 'rolls') ?>">
-                    <button type="submit" class="btn btn-success btn-sm fw-bold px-3 shadow-sm d-flex align-items-center gap-1" title="Add items of this section to Purchase Stocks">
-                        <i class="bi bi-box-arrow-in-down"></i> Add to Stock &rarr; Purchase Stocks
-                    </button>
-                </form>
-            <?php else: ?>
-                <a href="<?= \App\Core\Controller::url('/m/purchase_stocks') ?>" class="btn btn-outline-success btn-sm fw-bold">
-                    <i class="bi bi-boxes me-1"></i> View Purchase Stocks
-                </a>
-            <?php endif; ?>
             <button class="btn btn-primary btn-sm fw-bold px-3 shadow-sm" onclick="window.print()">
                 <i class="bi bi-printer-fill me-1"></i> Print Labels Now
             </button>
