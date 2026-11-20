@@ -186,8 +186,8 @@ class OutwardController extends Controller {
         $sql .= " ORDER BY o.id DESC LIMIT {$perPage} OFFSET {$offset}";
         $outwards = DB::fetchAll($sql, $params);
 
-        // All active concerns for multi-concern transfers & filtering
-        $allConcerns = DB::fetchAll("SELECT id, name, code, address FROM concerns WHERE status = 'active' ORDER BY id ASC");
+        // All created concerns for multi-concern transfers, dispatching & filtering
+        $allConcerns = DB::fetchAll("SELECT id, name, code, address, status FROM concerns ORDER BY id ASC");
 
         // Available finished production batches ready to be dispatched
         $availableBatches = DB::fetchAll("
@@ -248,10 +248,16 @@ class OutwardController extends Controller {
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['source_concern_id'] ?? 1);
 
-        $dispatchMode    = trim($_POST['dispatch_mode'] ?? 'batch'); // batch, concern_transfer, direct_stock, customer
-        $destConcernId   = !empty($_POST['destination_concern_id']) ? (int)$_POST['destination_concern_id'] : null;
+        $dispatchMode    = trim($_POST['dispatch_mode'] ?? 'batch'); // batch, finished_goods
+        $destConcernId   = !empty($_POST['destination_concern_id']) 
+            ? (int)$_POST['destination_concern_id'] 
+            : (!empty($_POST['destination_concern_id_fg']) ? (int)$_POST['destination_concern_id_fg'] : null);
         $customerId      = !empty($_POST['customer_id']) ? (int)$_POST['customer_id'] : null;
-        $warehouseName   = trim($_POST['warehouse_name'] ?? 'wareouse (WH-01)');
+        $warehouseName   = trim($_POST['warehouse_name'] ?? ($_POST['destination_warehouse_fg'] ?? ($_POST['warehouse_name_fg'] ?? 'wareouse (WH-01)')));
+        if (empty($warehouseName) && $destConcernId) {
+            $cName = DB::fetchValue("SELECT name FROM concerns WHERE id = ?", [$destConcernId]);
+            if ($cName) $warehouseName = $cName;
+        }
         $vehicleNumber   = trim($_POST['vehicle_number'] ?? 'rtt31232');
         $driverName      = trim($_POST['driver_name'] ?? 'Vanaja');
         $driverContact   = trim($_POST['driver_contact'] ?? '9943557998');

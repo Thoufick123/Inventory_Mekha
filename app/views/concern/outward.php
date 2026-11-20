@@ -292,11 +292,11 @@
                     <div class="col-12">
                         <div class="alert alert-info py-2 px-3 small mb-0 d-flex align-items-center gap-2">
                             <i class="bi bi-info-circle fs-5"></i>
-                            <div>Select an approved pre-packaged production batch (BAT-XXXX) to outward directly to central warehouse.</div>
+                            <div>Select an approved pre-packaged production batch (BAT-XXXX) and choose the destination concern / warehouse.</div>
                         </div>
                     </div>
 
-                    <div class="col-md-7">
+                    <div class="col-md-6">
                         <label class="form-label small fw-semibold text-secondary">Select Production Batch to Dispatch *</label>
                         <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm" required>
                             <option value="">-- Select Finished Production Batch --</option>
@@ -309,12 +309,38 @@
                         </select>
                     </div>
 
-                    <div class="col-md-5">
-                        <label class="form-label small fw-semibold text-secondary">Destination Warehouse *</label>
+                    <!-- DROPDOWN WHERE ALL CREATED CONCERNS ARE LISTED -->
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">
+                            <i class="bi bi-buildings text-primary me-1"></i> Destination Concern (All Created Concerns) *
+                        </label>
+                        <select name="destination_concern_id" id="dispatchConcernSelect" class="form-select form-select-sm" required>
+                            <option value="">-- Select Created Concern --</option>
+                            <?php foreach ($allConcerns as $con): ?>
+                                <option value="<?= $con['id'] ?>" <?= ((int)($selectedConcernId ?? 1) === (int)$con['id']) ? 'selected' : '' ?>>
+                                    🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">Destination Warehouse / Facility</label>
                         <select name="warehouse_name" class="form-select form-select-sm">
                             <?php foreach ($warehouses as $wh): ?>
                                 <option value="<?= htmlspecialchars($wh['name']) ?>" <?= str_contains($wh['name'], 'wareouse') ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($wh['name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">Origin Facility (Dispatched From)</label>
+                        <select name="source_concern_id" class="form-select form-select-sm">
+                            <?php foreach ($allConcerns as $con): ?>
+                                <option value="<?= $con['id'] ?>" <?= ((int)($selectedConcernId ?? 1) === (int)$con['id']) ? 'selected' : '' ?>>
+                                    🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -397,10 +423,24 @@
                         </div>
                     </div>
 
-                    <!-- Destination & Boxes for Finishing Goods -->
+                    <!-- Destination Concern (All created concerns listed) & Boxes for Finishing Goods -->
                     <div class="row g-3 mb-2">
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Destination Warehouse / Facility *</label>
+                            <label class="form-label small fw-semibold text-secondary">
+                                <i class="bi bi-buildings text-primary me-1"></i> Destination Concern (All Created Concerns) *
+                            </label>
+                            <select name="destination_concern_id_fg" id="fgDestConcernSelect" class="form-select form-select-sm" required>
+                                <option value="">-- Select Created Concern --</option>
+                                <?php foreach ($allConcerns as $con): ?>
+                                    <option value="<?= $con['id'] ?>" <?= ((int)($selectedConcernId ?? 1) === (int)$con['id']) ? 'selected' : '' ?>>
+                                        🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold text-secondary">Destination Warehouse</label>
                             <select name="destination_warehouse_fg" id="fgDestWarehouse" class="form-select form-select-sm">
                                 <?php foreach ($warehouses as $wh): ?>
                                     <option value="<?= htmlspecialchars($wh['name']) ?>" <?= str_contains($wh['name'], 'wareouse') ? 'selected' : '' ?>>
@@ -410,8 +450,8 @@
                             </select>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Total Boxes / Cartons Count</label>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold text-secondary">Total Boxes / Cartons</label>
                             <input type="number" name="total_boxes" id="fgTotalBoxesInput" class="form-control form-control-sm" value="1" min="1" step="1">
                         </div>
                     </div>
@@ -494,8 +534,20 @@
                         <input type="text" name="driver_contact" id="edit_driver_contact" class="form-control form-control-sm">
                     </div>
 
-                    <div class="col-md-12">
-                        <label class="form-label small fw-semibold text-secondary">Destination Warehouse / Concern</label>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary"><i class="bi bi-buildings text-primary me-1"></i> Destination Concern</label>
+                        <select name="destination_concern_id" id="edit_destination_concern_id" class="form-select form-select-sm">
+                            <option value="">-- Select Created Concern --</option>
+                            <?php foreach ($allConcerns as $con): ?>
+                                <option value="<?= $con['id'] ?>">
+                                    🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">Destination Warehouse / Facility</label>
                         <input type="text" name="warehouse_name" id="edit_warehouse_name" class="form-control form-control-sm">
                     </div>
 
@@ -799,6 +851,8 @@ function openEditOutwardModal(o) {
     document.getElementById('edit_driver_name').value = o.driver_name || '';
     document.getElementById('edit_driver_contact').value = o.driver_contact || '';
     document.getElementById('edit_warehouse_name').value = o.display_warehouse_name || o.warehouse_name || '';
+    const editCon = document.getElementById('edit_destination_concern_id');
+    if (editCon) editCon.value = o.destination_concern_id || '';
     document.getElementById('edit_status').value = (o.status || 'DISPATCHED').toUpperCase();
 
     new bootstrap.Modal(document.getElementById('modalEditOutward')).show();
