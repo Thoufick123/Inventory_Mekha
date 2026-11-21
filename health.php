@@ -52,7 +52,6 @@ if ($envExists) {
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_TIMEOUT => 5,
             PDO::ATTR_EMULATE_PREPARES => true,
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
         ]);
         try {
             $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");

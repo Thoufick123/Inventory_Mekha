@@ -5,9 +5,11 @@
             <p class="text-secondary small mb-0">Reversible Return Merchandise Authorization with real exchanges, multi-line double-entry ledger & cancellation recovery.</p>
         </div>
         <div class="d-flex gap-2">
+            <?php if (\App\Core\Auth::can('return_exchange', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/production/returns/create') ?>" class="btn btn-warning shadow-sm fw-semibold">
                 <i class="bi bi-plus-lg me-1"></i> New Return / Exchange
             </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/return_exchange') ?>" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-clock-history me-1"></i> Legacy Log
             </a>
