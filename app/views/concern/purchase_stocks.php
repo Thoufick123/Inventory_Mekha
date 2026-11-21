@@ -223,11 +223,6 @@
                 <div class="d-flex align-items-center gap-2">
                     <span class="text-muted small"><i class="bi bi-info-circle text-primary me-1"></i> Duplicate entries automatically accumulated with previous count.</span>
                 </div>
-                <div>
-                    <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=rolls&mode=consolidated' . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-sm btn-outline-success bg-white shadow-sm fw-semibold" title="Export Consolidated Stock by Color & Design">
-                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Consolidated (CSV)
-                    </a>
-                </div>
             </div>
 
             <!-- View A: Consolidated Color & Design Stock (Duplicates removed, Qty added to previous count) -->
