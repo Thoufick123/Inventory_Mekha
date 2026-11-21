@@ -153,7 +153,7 @@
 <div class="modal fade" id="modalCancelRma" tabindex="-1">
     <div class="modal-dialog">
         <form method="POST" action="<?= \App\Core\Controller::url('/production/returns/cancel') ?>" class="modal-content">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\CSRF::token()) ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
             <input type="hidden" name="id" value="<?= $return['id'] ?>">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Cancel & Reverse RMA</h5>

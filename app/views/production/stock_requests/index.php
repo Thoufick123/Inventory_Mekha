@@ -305,7 +305,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <form method="POST" action="<?= \App\Core\Controller::url('/production/stock-requests/store') ?>" id="formIndentStock">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\CSRF::token()) ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
 
                 <div class="modal-header border-0 pb-0 pt-4 px-4 d-flex justify-content-between align-items-start">
                     <div>
@@ -395,7 +395,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <form method="POST" action="<?= \App\Core\Controller::url('/production/stock-requests/receive') ?>">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\CSRF::token()) ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
                 <input type="hidden" name="request_id" id="receiveRequestId" value="">
 
                 <div class="modal-header border-0 pb-0 pt-4 px-4">

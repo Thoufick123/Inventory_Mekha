@@ -5,6 +5,8 @@
 CREATE TABLE IF NOT EXISTS `production_stock_requests` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
+    `source_concern_id` INT NULL,
+    `destination_concern_id` INT NULL,
     `request_no` VARCHAR(50) NOT NULL UNIQUE,
     `request_type` VARCHAR(50) NOT NULL DEFAULT 'INTER_MODULE',
     `from_location_type` VARCHAR(50) NOT NULL DEFAULT 'WAREHOUSE',

@@ -537,6 +537,32 @@ foreach ($companyInvoiceColumns as $column => $definition) {
 }
 echo "  + POS direct bill and company invoice fields are ready\n";
 
+// 20. Align nullability and defaults with schema.sql
+echo "\n20. Aligning required column constraints...\n";
+DB::query("UPDATE `inwards` SET `status` = 'VERIFIED' WHERE `status` IS NULL");
+DB::query("ALTER TABLE `inwards` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'VERIFIED'");
+
+DB::query("UPDATE `inward_items` SET `accepted_qty` = 0.00 WHERE `accepted_qty` IS NULL");
+DB::query("ALTER TABLE `inward_items` MODIFY COLUMN `accepted_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+DB::query("UPDATE `inward_items` SET `rejected_qty` = 0.00 WHERE `rejected_qty` IS NULL");
+DB::query("ALTER TABLE `inward_items` MODIFY COLUMN `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+
+DB::query("UPDATE `qc_inspections` SET `rework_qty` = 0.00 WHERE `rework_qty` IS NULL");
+DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+DB::query("UPDATE `qc_inspections` SET `status` = 'COMPLETED' WHERE `status` IS NULL");
+DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'COMPLETED'");
+
+foreach ([
+    'can_view' => 1,
+    'can_add' => 0,
+    'can_edit' => 0,
+    'can_delete' => 0,
+] as $permission => $default) {
+    DB::query("UPDATE `user_permissions` SET `{$permission}` = {$default} WHERE `{$permission}` IS NULL");
+    DB::query("ALTER TABLE `user_permissions` MODIFY COLUMN `{$permission}` TINYINT(1) NOT NULL DEFAULT {$default}");
+}
+echo "  + Required columns and defaults aligned with schema.sql\n";
+
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";
 echo "========================================================\n";

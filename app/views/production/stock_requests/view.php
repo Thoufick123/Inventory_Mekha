@@ -174,7 +174,7 @@
 <div class="modal fade" id="modalDispatchStock" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <form method="POST" action="<?= \App\Core\Controller::url('/production/stock-requests/send') ?>" class="modal-content">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\CSRF::token()) ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
             <input type="hidden" name="request_id" value="<?= $request['id'] ?>">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold text-primary"><i class="bi bi-truck me-2"></i>Dispatch Stock to In-Transit</h5>
@@ -229,7 +229,7 @@
 <div class="modal fade" id="modalConfirmReceipt" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <form method="POST" action="<?= \App\Core\Controller::url('/production/stock-requests/receive') ?>" class="modal-content">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\CSRF::token()) ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
             <input type="hidden" name="request_id" value="<?= $request['id'] ?>">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold text-success"><i class="bi bi-box-seam me-2"></i>Confirm Receipt at Destination</h5>
@@ -280,7 +280,7 @@
 <div class="modal fade" id="modalCancelRequest" tabindex="-1">
     <div class="modal-dialog">
         <form method="POST" action="<?= \App\Core\Controller::url('/production/stock-requests/cancel') ?>" class="modal-content">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\CSRF::token()) ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
             <input type="hidden" name="id" value="<?= $request['id'] ?>">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Cancel Requisition</h5>

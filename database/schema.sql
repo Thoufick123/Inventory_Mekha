@@ -1,6 +1,7 @@
 -- ========================================================
 -- INVENTO: Multi-Concern Inventory Management System Schema
 -- Compatible with Local (XAMPP) & Live Hosting (Hostinger/cPanel)
+-- Fresh-install baseline; use live_db_update.sql to upgrade an existing database.
 -- ========================================================
 
 -- Disable foreign key checks for clean creation
