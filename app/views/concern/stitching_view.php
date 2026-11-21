@@ -35,10 +35,12 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
             <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $batch['id']) ?>" 
                class="btn btn-outline-primary shadow-sm fw-semibold">
                 <i class="bi bi-pencil me-1"></i> Edit Batch
             </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/production/stitching') ?>" 
                class="btn btn-outline-secondary shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left me-1"></i> Back to List

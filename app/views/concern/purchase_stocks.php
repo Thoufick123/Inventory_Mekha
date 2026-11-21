@@ -24,9 +24,11 @@
             </div>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
+            <?php if (\App\Core\Auth::can('purchase_stocks', 'export')): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . $activeTab . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
                 <i class="bi bi-file-earmark-spreadsheet"></i> Export <?= match($activeTab) { 'rolls' => 'Rolls', 'garment_other' => 'Trims', 'finished_goods' => 'Finished Goods', default => 'Stocks' } ?> (CSV)
             </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/label_generation?tab=' . match($activeTab) { 'rolls' => 'purchase_raw', 'garment_other' => 'purchase_raw', 'finished_goods' => 'purchase_fg', default => 'purchase_raw' }) ?>" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
                 <i class="bi bi-qr-code"></i> Print Labels
             </a>

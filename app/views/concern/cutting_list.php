@@ -109,9 +109,11 @@
                 <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
                     <i class="bi bi-clock-history text-primary"></i> Wastage Scrap Sales History
                 </h6>
+                <?php if (\App\Core\Auth::can('cutting_wastage', 'add')): ?>
                 <button class="btn btn-sm btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalSellWastage">
                     <i class="bi bi-plus-circle me-1"></i> New Scrap Sale
                 </button>
+                <?php endif; ?>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">

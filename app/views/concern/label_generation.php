@@ -279,9 +279,11 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         <button type="submit" class="btn btn-primary flex-grow-1 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                         </button>
+                                        <?php if (\App\Core\Auth::can('purchase_stocks', 'add') || \App\Core\Auth::can('inward', 'add')): ?>
                                         <button type="button" class="btn btn-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="roll_add_stock_btn" onclick="submitRollToStock()" title="Inward selected roll directly into Purchase Stocks">
                                             <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
                                         </button>
+                                        <?php endif; ?>
                                         <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=rolls') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="roll_in_stock_badge" title="Already in Stock - View in Purchase Stocks">
                                             <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
                                         </a>
@@ -364,7 +366,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                                 <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=rolls') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" title="In Stock - View in Purchase Stocks">
                                                                     <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
                                                                 </a>
-                                                            <?php else: ?>
+                                                            <?php elseif (\App\Core\Auth::can('purchase_stocks', 'add') || \App\Core\Auth::can('inward', 'add')): ?>
                                                                 <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" class="d-inline">
                                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                                                     <input type="hidden" name="item_id" value="<?= (int)$item['id'] ?>">
@@ -830,9 +832,11 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                 <button type="submit" class="btn btn-success flex-grow-1 py-2 fw-semibold shadow-sm">
                                     <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                 </button>
+                                <?php if (\App\Core\Auth::can('stocks', 'add') || \App\Core\Auth::can('inward', 'add')): ?>
                                 <button type="button" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="fg_add_stock_btn" onclick="submitFgToStock()" title="Inward selected finished goods into Live Stocks">
                                     <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
                                 </button>
+                                <?php endif; ?>
                                 <a href="<?= \App\Core\Controller::url('/m/stocks') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="fg_in_stock_badge" title="Already in Stock - View Live Stocks">
                                     <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
                                 </a>
@@ -914,7 +918,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                         <a href="<?= \App\Core\Controller::url('/m/stocks') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" title="Already in Stock - Click to view Live Stocks">
                                                             <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
                                                         </a>
-                                                    <?php elseif ($isMapped): ?>
+                                                    <?php elseif ($isMapped && (\App\Core\Auth::can('stocks', 'add') || \App\Core\Auth::can('inward', 'add'))): ?>
                                                         <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" class="d-inline">
                                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                                             <input type="hidden" name="item_id" value="<?= (int)$fg['id'] ?>">
@@ -923,6 +927,8 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                                 <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
                                                             </button>
                                                         </form>
+                                                    <?php elseif ($isMapped): ?>
+                                                        <span class="small text-muted">Ready for Inward</span>
                                                     <?php else: ?>
                                                         <span class="small text-muted">Map to catalog first</span>
                                                     <?php endif; ?>
@@ -1325,7 +1331,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                     <a href="<?= \App\Core\Controller::url('/m/stocks') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
-                                                <?php else: ?>
+                                                <?php elseif (\App\Core\Auth::can('stocks', 'add') || \App\Core\Auth::can('inward', 'add')): ?>
                                                     <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" class="d-inline">
                                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                                         <input type="hidden" name="item_id" value="<?= (int)$bItem['id'] ?>">

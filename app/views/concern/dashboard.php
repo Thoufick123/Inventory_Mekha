@@ -1,5 +1,6 @@
 <div class="container-fluid px-0">
     <!-- Operations & Ledger Export Intelligence Toolbar -->
+    <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('concern_dashboard', 'export') || \App\Core\Auth::can('stocks', 'export')): ?>
     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4" style="border: 1px solid #e2e8f0 !important;">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="d-flex align-items-center gap-3">
@@ -65,6 +66,7 @@
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Concern KPI Cards -->
     <div class="row g-3 mb-4">
@@ -126,10 +128,18 @@
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <div class="fw-bold text-dark"><i class="bi bi-lightning-charge text-warning me-1"></i> Operations Fast Track:</div>
             <div class="d-flex flex-wrap gap-2">
+                <?php if (\App\Core\Auth::can('inward', 'add')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/inward') ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down"></i> Receive Inward</a>
+                <?php endif; ?>
+                <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-success"><i class="bi bi-qr-code"></i> Generate Labels</a>
+                <?php endif; ?>
+                <?php if (\App\Core\Auth::can('billing', 'add')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/billing') ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-credit-card-2-front"></i> New Invoice</a>
+                <?php endif; ?>
+                <?php if (\App\Core\Auth::can('outward', 'add')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/outward') ?>" class="btn btn-sm btn-outline-danger"><i class="bi bi-box-arrow-up-right"></i> Outward Consignment</a>
+                <?php endif; ?>
                 <a href="<?= \App\Core\Controller::url('/scan') ?>" class="btn btn-sm btn-primary"><i class="bi bi-qr-code-scan"></i> Scan Barcode</a>
             </div>
         </div>

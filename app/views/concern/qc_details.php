@@ -128,9 +128,11 @@
                     When repaired by the tailor, re-inspect these items here to credit newly passed garments directly to Live Stock.
                 </div>
             </div>
+            <?php if (\App\Core\Auth::can('qc_stocks', 'edit') || \App\Core\Auth::can('qc_stocks', 'add')): ?>
             <button type="button" class="btn btn-dark fw-semibold px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalReinspect">
                 <i class="bi bi-arrow-repeat me-1"></i> Re-inspect Rework Garments
             </button>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 

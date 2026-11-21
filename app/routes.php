@@ -67,20 +67,20 @@ $router->get('/admin/reports/export', [AdminController::class, 'exportReports'],
 
 // Dashboard
 $router->get('/dashboard', [ConcernDashboardController::class, 'index']);
-$router->get('/dashboard/export', [ConcernDashboardController::class, 'exportDashboard']);
+$router->get('/dashboard/export', [ConcernDashboardController::class, 'exportDashboard'], 'concern_dashboard', 'export');
 $router->get('/m/concern_dashboard', [ConcernDashboardController::class, 'index']);
-$router->get('/m/concern_dashboard/export', [ConcernDashboardController::class, 'exportDashboard']);
+$router->get('/m/concern_dashboard/export', [ConcernDashboardController::class, 'exportDashboard'], 'concern_dashboard', 'export');
 
 // Variants Catalog
 $router->get('/m/variants', [VariantController::class, 'index'], 'stocks', 'view');
-$router->get('/m/variants/export', [VariantController::class, 'exportVariants'], 'stocks', 'view');
+$router->get('/m/variants/export', [VariantController::class, 'exportVariants'], 'stocks', 'export');
 $router->post('/m/variants/store', [VariantController::class, 'store'], 'stocks', 'add');
 $router->post('/m/variants/update', [VariantController::class, 'update'], 'stocks', 'edit');
 $router->post('/m/variants/delete', [VariantController::class, 'delete'], 'stocks', 'delete');
 
 // QR Label Generation & Barcode Scanning
 $router->get('/m/label_generation', [LabelController::class, 'index'], 'label_generation', 'view');
-$router->get('/m/label_generation/export', [LabelController::class, 'exportJobs'], 'label_generation', 'view');
+$router->get('/m/label_generation/export', [LabelController::class, 'exportJobs'], 'label_generation', 'export');
 $router->post('/m/label_generation/generate', [LabelController::class, 'generate'], 'label_generation', 'add');
 $router->post('/m/label_generation/map_variant', [LabelController::class, 'mapVariant'], 'label_generation', 'edit');
 $router->post('/m/label/add_to_stock', [LabelController::class, 'addToStock'], 'label_generation', 'edit');
@@ -94,9 +94,9 @@ $router->get('/m/stocks', [StockController::class, 'index'], 'stocks', 'view');
 $router->get('/m/stocks/view-label', [LabelController::class, 'previewPurchaseFinishedGoodLabel'], 'stocks', 'view');
 $router->post('/m/stocks/update-quantity', [StockController::class, 'updateQuantity'], 'stocks', 'edit');
 $router->post('/m/stocks/delete-line', [StockController::class, 'deleteStockLine'], 'stocks', 'edit');
-$router->get('/m/stocks/export', [StockController::class, 'exportStocks'], 'stocks', 'view');
+$router->get('/m/stocks/export', [StockController::class, 'exportStocks'], 'stocks', 'export');
 $router->get('/m/stock_ledger', [StockController::class, 'ledger'], 'stocks', 'view');
-$router->get('/m/stock_ledger/export', [StockController::class, 'exportLedger'], 'stocks', 'view');
+$router->get('/m/stock_ledger/export', [StockController::class, 'exportLedger'], 'stocks', 'export');
 
 // Inward & Warehouse Inward Operations
 $router->get('/m/inward', [InwardController::class, 'index'], 'inward', 'view');
@@ -107,20 +107,20 @@ $router->post('/m/inward/credit', [InwardController::class, 'creditStock'], 'inw
 $router->post('/warehouse/inward/credit', [InwardController::class, 'creditStock'], 'inward', 'add');
 $router->get('/m/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');
 $router->get('/warehouse/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');
-$router->get('/m/inward/export', [InwardController::class, 'exportInward'], 'inward', 'view');
+$router->get('/m/inward/export', [InwardController::class, 'exportInward'], 'inward', 'export');
 $router->post('/m/inward/store', [InwardController::class, 'store'], 'inward', 'add');
 $router->post('/m/inward/update', [InwardController::class, 'update'], 'inward', 'edit');
 $router->post('/m/inward/delete', [InwardController::class, 'delete'], 'inward', 'delete');
 
 // Purchase
 $router->get('/m/suppliers', [PurchaseController::class, 'suppliers'], 'suppliers', 'view');
-$router->get('/m/suppliers/export', [PurchaseController::class, 'exportSuppliers'], 'suppliers', 'view');
-$router->get('/suppliers/export', [PurchaseController::class, 'exportSuppliers'], 'suppliers', 'view');
+$router->get('/m/suppliers/export', [PurchaseController::class, 'exportSuppliers'], 'suppliers', 'export');
+$router->get('/suppliers/export', [PurchaseController::class, 'exportSuppliers'], 'suppliers', 'export');
 $router->post('/m/suppliers/store', [PurchaseController::class, 'storeSupplier'], 'suppliers', 'add');
 $router->post('/m/suppliers/update', [PurchaseController::class, 'updateSupplier'], 'suppliers', 'edit');
 $router->post('/m/suppliers/delete', [PurchaseController::class, 'deleteSupplier'], 'suppliers', 'delete');
 $router->get('/m/purchase_billing', [PurchaseController::class, 'billing'], 'purchase_billing', 'view');
-$router->get('/m/purchase_billing/export', [PurchaseController::class, 'exportBills'], 'purchase_billing', 'view');
+$router->get('/m/purchase_billing/export', [PurchaseController::class, 'exportBills'], 'purchase_billing', 'export');
 $router->get('/m/purchase_billing/create', [PurchaseController::class, 'createBill'], 'purchase_billing', 'add');
 $router->post('/m/purchase_billing/store', [PurchaseController::class, 'storeBill'], 'purchase_billing', 'add');
 $router->get('/m/purchase_billing/edit', [PurchaseController::class, 'editBill'], 'purchase_billing', 'edit');
@@ -130,16 +130,16 @@ $router->post('/m/purchase_billing/delete', [PurchaseController::class, 'deleteB
 $router->post('/m/purchase_billing/save_hsn', [PurchaseController::class, 'saveHsnAjax'], 'purchase_billing', 'add');
 $router->post('/m/purchase_billing/save_roll_spec', [PurchaseController::class, 'saveRollSpecAjax'], 'purchase_billing', 'add');
 $router->get('/m/purchase_billing/view', [PurchaseController::class, 'viewBill'], 'purchase_billing', 'view');
-$router->get('/m/purchase_billing/download_items', [PurchaseController::class, 'downloadItems'], 'purchase_billing', 'view');
+$router->get('/m/purchase_billing/download_items', [PurchaseController::class, 'downloadItems'], 'purchase_billing', 'export');
 
 // Purchase Stocks (3 Sections: Rolls, Trims/Other Garments, Finished Goods)
 $router->get('/m/purchase_stocks', [PurchaseStockController::class, 'index'], 'purchase_stocks', 'view');
 $router->post('/m/purchase_stocks/update_consolidated_roll', [PurchaseStockController::class, 'updateConsolidatedRoll'], 'purchase_stocks', 'edit');
 $router->post('/m/purchase_stocks/update_item', [PurchaseStockController::class, 'updateStockItem'], 'purchase_stocks', 'edit');
-$router->get('/m/purchase_stocks/export', [PurchaseStockController::class, 'export'], 'purchase_stocks', 'view');
+$router->get('/m/purchase_stocks/export', [PurchaseStockController::class, 'export'], 'purchase_stocks', 'export');
 
 $router->get('/m/purchase_damage', [PurchaseController::class, 'damage'], 'purchase_damage', 'view');
-$router->get('/m/purchase_damage/export', [PurchaseController::class, 'exportDamage'], 'purchase_damage', 'view');
+$router->get('/m/purchase_damage/export', [PurchaseController::class, 'exportDamage'], 'purchase_damage', 'export');
 $router->post('/m/purchase_damage/scan', [PurchaseController::class, 'scanPurchaseDamageTag'], 'purchase_damage', 'add');
 $router->post('/m/purchase_damage/reasons/add', [PurchaseController::class, 'addDamageReason'], 'purchase_damage', 'add');
 $router->post('/m/purchase_damage/store', [PurchaseController::class, 'storeDamage'], 'purchase_damage', 'add');
@@ -149,7 +149,7 @@ $router->post('/m/purchase_damage/delete', [PurchaseController::class, 'deleteDa
 // Concern Damage
 $router->get('/m/concern_damage', [DamageController::class, 'index'], 'concern_damage', 'view');
 $router->get('/m/concern_damage/new', [DamageController::class, 'entry'], 'concern_damage', 'add');
-$router->get('/m/concern_damage/export', [DamageController::class, 'exportConcernDamage'], 'concern_damage', 'view');
+$router->get('/m/concern_damage/export', [DamageController::class, 'exportConcernDamage'], 'concern_damage', 'export');
 $router->post('/m/concern_damage/scan', [DamageController::class, 'scan'], 'concern_damage', 'add');
 $router->post('/m/concern_damage/store', [DamageController::class, 'store'], 'concern_damage', 'add');
 $router->post('/m/concern_damage/update', [DamageController::class, 'update'], 'concern_damage', 'edit');
@@ -176,7 +176,7 @@ $router->post('/m/customers/update', [SalesController::class, 'updateCustomer'],
 $router->post('/shop/customers/update', [SalesController::class, 'updateCustomer'], 'customers', 'add');
 $router->post('/m/customers/delete', [SalesController::class, 'deleteCustomer'], 'customers', 'delete');
 $router->post('/shop/customers/delete', [SalesController::class, 'deleteCustomer'], 'customers', 'delete');
-$router->get('/m/customers/export', [SalesController::class, 'exportCustomers'], 'customers', 'view');
+$router->get('/m/customers/export', [SalesController::class, 'exportCustomers'], 'customers', 'export');
 $router->get('/api/customers/details', [SalesController::class, 'customerProfile'], 'customers', 'view');
 // Stock Requests & Inter-Module Movement
 $router->get('/production/stock-requests', [ProductionStockRequestController::class, 'index'], 'request', 'view');
@@ -189,7 +189,7 @@ $router->post('/production/stock-requests/reject', [ProductionStockRequestContro
 $router->post('/production/stock-requests/cancel', [ProductionStockRequestController::class, 'cancel'], 'request', 'delete');
 $router->get('/production/stock-requests/print/{id}', [ProductionStockRequestController::class, 'printChallan'], 'request', 'view');
 $router->get('/m/request', [SalesController::class, 'request'], 'request', 'view');
-$router->get('/m/request/export', [SalesController::class, 'exportRequests'], 'request', 'view');
+$router->get('/m/request/export', [SalesController::class, 'exportRequests'], 'request', 'export');
 $router->post('/m/request/store', [SalesController::class, 'storeRequest'], 'request', 'add');
 $router->post('/m/request/update', [SalesController::class, 'updateRequest'], 'request', 'edit');
 $router->post('/m/request/delete', [SalesController::class, 'deleteRequest'], 'request', 'delete');
@@ -210,9 +210,9 @@ $router->post('/m/batch/update', [BatchController::class, 'update'], 'batch', 'e
 $router->post('/production/batches/update', [BatchController::class, 'update'], 'batch', 'edit');
 $router->post('/m/batch/delete', [BatchController::class, 'delete'], 'batch', 'delete');
 $router->post('/production/batches/delete', [BatchController::class, 'delete'], 'batch', 'delete');
-$router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'view');
+$router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'export');
 $router->get('/m/billing', [SalesController::class, 'billing'], 'billing', 'view');
-$router->get('/m/billing/export', [SalesController::class, 'exportBilling'], 'billing', 'view');
+$router->get('/m/billing/export', [SalesController::class, 'exportBilling'], 'billing', 'export');
 $router->post('/m/billing/store', [SalesController::class, 'storeInvoice'], 'billing', 'add');
 $router->get('/shop/pos', [SalesController::class, 'billing'], 'billing', 'view');
 $router->post('/shop/pos/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
@@ -233,10 +233,10 @@ $router->post('/m/outward/dispatch', [OutwardController::class, 'dispatch'], 'ou
 $router->post('/production/outward/dispatch', [OutwardController::class, 'dispatch'], 'outward', 'edit');
 $router->get('/m/outward/traceability/{id}', [OutwardController::class, 'traceability'], 'outward', 'view');
 $router->get('/production/outward/traceability/{id}', [OutwardController::class, 'traceability'], 'outward', 'view');
-$router->get('/m/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'view');
-$router->get('/production/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'view');
+$router->get('/m/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'export');
+$router->get('/production/outward/export', [SalesController::class, 'exportOutward'], 'outward', 'export');
 $router->get('/m/dispatch', [SalesController::class, 'dispatch'], 'dispatch', 'view');
-$router->get('/m/dispatch/export', [SalesController::class, 'exportDispatch'], 'dispatch', 'view');
+$router->get('/m/dispatch/export', [SalesController::class, 'exportDispatch'], 'dispatch', 'export');
 $router->post('/m/dispatch/store', [SalesController::class, 'storeDispatch'], 'dispatch', 'add');
 $router->post('/m/dispatch/update', [SalesController::class, 'updateDispatch'], 'dispatch', 'edit');
 $router->post('/m/dispatch/delete', [SalesController::class, 'deleteDispatch'], 'dispatch', 'delete');
@@ -249,14 +249,14 @@ $router->get('/production/returns/print/{id}', [ProductionReturnController::clas
 $router->post('/production/returns/cancel', [ProductionReturnController::class, 'cancel'], 'return_exchange', 'delete');
 $router->get('/api/returns/lookup-bill', [ProductionReturnController::class, 'ajaxLookupBill'], 'return_exchange', 'view');
 $router->get('/m/return_exchange', [SalesController::class, 'returnExchange'], 'return_exchange', 'view');
-$router->get('/m/return_exchange/export', [SalesController::class, 'exportReturnExchange'], 'return_exchange', 'view');
+$router->get('/m/return_exchange/export', [SalesController::class, 'exportReturnExchange'], 'return_exchange', 'export');
 $router->post('/m/return_exchange/store', [SalesController::class, 'storeReturn'], 'return_exchange', 'add');
 $router->post('/m/return_exchange/update', [SalesController::class, 'updateReturn'], 'return_exchange', 'edit');
 $router->post('/m/return_exchange/delete', [SalesController::class, 'deleteReturn'], 'return_exchange', 'delete');
 
 // Production Line
 $router->get('/m/catalog_program', [ProductionController::class, 'catalogProgram'], 'catalog_program', 'view');
-$router->get('/m/catalog_program/export', [ProductionController::class, 'exportCatalogProgram'], 'catalog_program', 'view');
+$router->get('/m/catalog_program/export', [ProductionController::class, 'exportCatalogProgram'], 'catalog_program', 'export');
 $router->post('/m/catalog_program/store', [ProductionController::class, 'storeProgram'], 'catalog_program', 'add');
 $router->post('/m/catalog_program/update', [ProductionController::class, 'updateProgram'], 'catalog_program', 'edit');
 $router->post('/m/catalog_program/delete', [ProductionController::class, 'deleteProgram'], 'catalog_program', 'delete');
@@ -359,7 +359,7 @@ $router->get('/production/stitching/wastage', [ProductionController::class, 'sti
 $router->post('/production/stitching/wastage/sell', [ProductionController::class, 'storeStitchingWastageSale'], 'stitching_wastage', 'add');
 
 // Legacy routes fallback
-$router->get('/m/stitching_wastage/export', [ProductionController::class, 'exportStitching'], 'stitching_wastage', 'view');
+$router->get('/m/stitching_wastage/export', [ProductionController::class, 'exportStitching'], 'stitching_wastage', 'export');
 $router->post('/m/stitching_wastage/store', [ProductionController::class, 'storeStitchingBatch'], 'stitching_wastage', 'add');
 $router->post('/m/stitching_wastage/update', [ProductionController::class, 'updateStitchingBatch'], 'stitching_wastage', 'edit');
 $router->post('/m/stitching_wastage/delete', [ProductionController::class, 'deleteStitchingBatch'], 'stitching_wastage', 'delete');
@@ -369,7 +369,7 @@ $router->get('/production/qc/create', [ProductionController::class, 'createQc'],
 $router->get('/production/qc/view', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/production/qc/details', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/production/qc/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit');
-$router->get('/production/qc/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'view');
+$router->get('/production/qc/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'export');
 $router->post('/production/qc/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
 $router->post('/production/qc/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
 $router->post('/production/qc/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit');
@@ -384,7 +384,7 @@ $router->get('/m/qc_stocks/create', [ProductionController::class, 'createQc'], '
 $router->get('/m/qc_stocks/view', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/m/qc_stocks/details', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/m/qc_stocks/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit');
-$router->get('/m/qc_stocks/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'view');
+$router->get('/m/qc_stocks/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'export');
 $router->post('/m/qc_stocks/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
 $router->post('/m/qc_stocks/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
 $router->post('/m/qc_stocks/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit');
@@ -393,7 +393,7 @@ $router->post('/m/qc_stocks/reinspect', [ProductionController::class, 'reinspect
 
 // Finance & Accounts
 $router->get('/m/expense', [FinanceController::class, 'expense'], 'expense', 'view');
-$router->get('/m/expense/export', [FinanceController::class, 'exportExpenses'], 'expense', 'view');
+$router->get('/m/expense/export', [FinanceController::class, 'exportExpenses'], 'expense', 'export');
 $router->post('/m/expense/store', [FinanceController::class, 'storeExpense'], 'expense', 'add');
 $router->post('/m/expense/update', [FinanceController::class, 'updateExpense'], 'expense', 'edit');
 $router->post('/m/expense/delete', [FinanceController::class, 'deleteExpense'], 'expense', 'delete');
@@ -401,8 +401,8 @@ $router->post('/m/expense/category/store', [FinanceController::class, 'storeCate
 $router->get('/m/cash', [FinanceController::class, 'cash'], 'cash', 'view');
 $router->post('/m/cash/store', [FinanceController::class, 'storeAccount'], 'cash', 'add');
 $router->get('/m/cash_flow', [FinanceController::class, 'cashFlow'], 'cash_flow', 'view');
-$router->get('/m/cash_flow/export', [FinanceController::class, 'exportCashFlow'], 'cash_flow', 'view');
-$router->get('/m/cash/export', [FinanceController::class, 'exportCashFlow'], 'cash', 'view');
+$router->get('/m/cash_flow/export', [FinanceController::class, 'exportCashFlow'], 'cash_flow', 'export');
+$router->get('/m/cash/export', [FinanceController::class, 'exportCashFlow'], 'cash', 'export');
 $router->post('/m/cash_flow/store_account', [FinanceController::class, 'storeAccount'], 'cash_flow', 'add');
 $router->post('/m/cash_flow/account/update', [FinanceController::class, 'updateAccount'], 'cash_flow', 'edit');
 $router->post('/m/cash_flow/account/delete', [FinanceController::class, 'deleteAccount'], 'cash_flow', 'delete');
@@ -422,7 +422,7 @@ $router->post('/m/staff/toggle-status', [StaffController::class, 'toggleStatus']
 $router->post('/m/staff/create-role', [StaffController::class, 'createRole'], 'staff', 'add');
 $router->get('/api/staff/role-permissions', [StaffController::class, 'apiGetRolePermissions'], 'staff', 'view');
 $router->get('/api/staff/user-permissions', [StaffController::class, 'apiGetUserPermissions'], 'staff', 'view');
-$router->get('/m/staff/export', [StaffController::class, 'export'], 'staff', 'view');
+$router->get('/m/staff/export', [StaffController::class, 'export'], 'staff', 'export');
 $router->post('/m/staff/store', [StaffController::class, 'store'], 'staff', 'add');
 $router->post('/m/staff/update', [StaffController::class, 'update'], 'staff', 'edit');
 $router->post('/m/staff/delete', [StaffController::class, 'delete'], 'staff', 'delete');

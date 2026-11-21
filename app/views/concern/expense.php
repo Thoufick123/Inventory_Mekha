@@ -36,6 +36,7 @@
     </div>
 
     <!-- Executive Export Intelligence Toolbar (Excel, PDF, Single Day, Monthly, 3 Months, 6 Months) -->
+    <?php if (\App\Core\Auth::can('expense', 'export')): ?>
     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4" style="border: 1px solid #e2e8f0 !important;">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="d-flex align-items-center gap-3">
@@ -102,6 +103,7 @@
         </div>
     </div>
     </div>
+    <?php endif; ?>
 
     <!-- 4 KPI Stat Cards -->
     <div class="row g-3 mb-4">

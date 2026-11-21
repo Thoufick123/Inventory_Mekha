@@ -743,9 +743,11 @@ function showProgramDetails(id) {
             `;
 
             actionsContainer.innerHTML = `
+                <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
                 <a href="<?= \App\Core\Controller::url('/production/programs/edit?id=') ?>${p.id}" class="btn btn-primary btn-sm px-3 shadow-sm">
                     <i class="bi bi-pencil me-1"></i> Edit Program
                 </a>
+                <?php endif; ?>
             `;
         })
         .catch(err => {

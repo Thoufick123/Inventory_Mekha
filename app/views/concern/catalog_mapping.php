@@ -188,9 +188,11 @@
                                         <div class="text-muted mb-2"><i class="bi bi-inbox fs-2"></i></div>
                                         <h6 class="fw-semibold text-secondary">No Purchased Finished Goods Found</h6>
                                         <p class="small text-muted mb-3">Record purchases under the "Finished Goods" tab in Purchase Billing, and they will appear here for catalog mapping.</p>
+                                        <?php if (\App\Core\Auth::can('purchase_billing', 'add')): ?>
                                         <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn btn-sm btn-primary">
                                             <i class="bi bi-plus-circle me-1"></i> Record Purchase Bill
                                         </a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php else: ?>

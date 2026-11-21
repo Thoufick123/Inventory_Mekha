@@ -33,9 +33,11 @@
             <a href="<?= \App\Core\Controller::url('/production/catalog?tab=programs') ?>" class="btn btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1.5 shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left"></i> Back to Register
             </a>
+            <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
             <a href="<?= \App\Core\Controller::url('/production/programs/edit?id=' . $program['id']) ?>" class="btn btn-primary rounded-3 d-inline-flex align-items-center gap-1.5 shadow-sm fw-semibold">
                 <i class="bi bi-pencil"></i> Edit Program
             </a>
+            <?php endif; ?>
         </div>
     </div>
 

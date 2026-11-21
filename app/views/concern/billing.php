@@ -80,13 +80,13 @@
                         <div style="background: #2563eb; color: #ffffff; width: 48px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0;" id="qr_icon_box" title="Barcode / QR input">
                             <i class="bi bi-qr-code" id="active_input_icon"></i>
                         </div>
-                        <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="Point QR scanner or type SKU / name" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" autofocus>
+                        <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="<?= \App\Core\Auth::can('billing', 'create') ? 'Point QR scanner or type SKU / name' : 'View only access - billing terminal disabled' ?>" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" <?= \App\Core\Auth::can('billing', 'create') ? 'autofocus' : 'disabled' ?>>
                         <datalist id="pos_catalog_list">
                             <?php foreach ($variants as $v): ?>
                                 <option value="<?= htmlspecialchars($v['sku_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format($v['price'], 0) ?>)</option>
                             <?php endforeach; ?>
                         </datalist>
-                        <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;">
+                        <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;" <?= !\App\Core\Auth::can('billing', 'create') ? 'disabled' : '' ?>>
                             <i class="bi bi-arrow-right-circle"></i> Add
                         </button>
                     </div>
