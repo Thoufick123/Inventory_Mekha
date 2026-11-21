@@ -53,6 +53,11 @@ class Auth {
                 self::loadPermissions($userId, (int)($_SESSION['user']['role_id'] ?? 0));
                 self::$permissionsRefreshed = true;
             }
+
+            // Ensure Super Admin has super_admin_concern_id initialized to 0 (ALL CONCERNS) if not set
+            if (self::isSuperAdmin() && !isset($_SESSION['super_admin_concern_id'])) {
+                $_SESSION['super_admin_concern_id'] = 0;
+            }
         } catch (\Throwable $e) {
             // In case of DB disconnection during check, fall back to false
             return false;
@@ -157,7 +162,7 @@ class Auth {
     }
 
     public static function allConcerns(): array {
-        return DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' OR status IS NULL OR status = '' ORDER BY id ASC");
+        return DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' OR status IS NULL OR status = '' ORDER BY name ASC");
     }
 
     /**
