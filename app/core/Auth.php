@@ -92,11 +92,7 @@ class Auth {
         if (isset($_SESSION['super_admin_concern_id'])) {
             return $_SESSION['super_admin_concern_id'] > 0 ? (int)$_SESSION['super_admin_concern_id'] : null;
         }
-        // Auto-default to the first active concern for Super Admin if not explicitly switched to All Concerns
-        $all = self::allConcerns();
-        if (!empty($all)) {
-            return (int)$all[0]['id'];
-        }
+        // Super Admin default: null (ALL CONCERNS - consolidated view across all concerns)
         return null;
     }
 
@@ -161,7 +157,7 @@ class Auth {
     }
 
     public static function allConcerns(): array {
-        return DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
+        return DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' OR status IS NULL OR status = '' ORDER BY id ASC");
     }
 
     /**
@@ -385,6 +381,7 @@ class Auth {
             $_SESSION['enabled_modules'] = [];
             $_SESSION['role_permissions'] = [];
             $_SESSION['user_permissions'] = [];
+            $_SESSION['super_admin_concern_id'] = 0; // Default to ALL CONCERNS for Super Admin
         }
 
         // Update last login
