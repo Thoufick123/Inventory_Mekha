@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
+use App\Core\ModuleGuard;
 use App\Services\StockService;
 use App\Services\AuditLog;
 use App\Services\QrService;
@@ -164,6 +165,7 @@ class ProductionController extends Controller {
      * Display Production Catalog list view matching Image 1
      */
     public function catalogProgram(): void {
+        ModuleGuard::enforce('catalog_program', 'view');
         $this->ensureCatalogSchema();
         $cid = Auth::concernId();
 
@@ -267,6 +269,7 @@ class ProductionController extends Controller {
      * Create Product Style Form matching Image 2
      */
     public function createStyle(): void {
+        ModuleGuard::enforce('catalog_program', 'add');
         $this->ensureCatalogSchema();
         $cid = Auth::concernId();
 
@@ -349,6 +352,7 @@ class ProductionController extends Controller {
      * Store new Product Style with comprehensive field validations
      */
     public function storeStyle(): void {
+        ModuleGuard::enforce('catalog_program', 'add');
         $this->ensureCatalogSchema();
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 1);
@@ -1246,6 +1250,7 @@ class ProductionController extends Controller {
      * Legacy single-variant program store (backward compatibility)
      */
     public function storeProgram(): void {
+        ModuleGuard::enforce('catalog_program', 'add');
         $this->ensureCatalogSchema();
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
@@ -1290,6 +1295,7 @@ class ProductionController extends Controller {
      * Create Production Program Form matching Image 2 (Excluding Section 4)
      */
     public function createProgram(): void {
+        ModuleGuard::enforce('catalog_program', 'add');
         $this->ensureCatalogSchema();
         $cid = Auth::concernId();
 
@@ -1573,6 +1579,7 @@ class ProductionController extends Controller {
      * Store Production Program with Multi-Roll Allocation & "Out of Qty" Validations (Image 2)
      */
     public function storeProgramV2(): void {
+        ModuleGuard::enforce('catalog_program', 'add');
         $this->ensureCatalogSchema();
         $this->validateCsrf();
         $cid = Auth::concernId();
@@ -2695,6 +2702,7 @@ class ProductionController extends Controller {
      * Cutting Module Index (List of Cutting Batches + Wastage Selling Register)
      */
     public function cuttingIndex(): void {
+        ModuleGuard::enforce('cutting_wastage', 'view');
         $this->ensureCuttingSchema();
         $cid = Auth::concernId();
         $tab = $_GET['tab'] ?? 'batches';
@@ -2790,6 +2798,7 @@ class ProductionController extends Controller {
      * Create Cutting Batch Form (Matching UI Images 1 & 2)
      */
     public function createCutting(): void {
+        ModuleGuard::enforce('cutting_wastage', 'add');
         $this->ensureCuttingSchema();
         $cid = Auth::concernId();
 
@@ -3018,6 +3027,7 @@ class ProductionController extends Controller {
      * Store Cutting Batch & Dynamic Variant Breakdown (Images 1 & 2)
      */
     public function storeCuttingBatch(): void {
+        ModuleGuard::enforce('cutting_wastage', 'add');
         $this->ensureCuttingSchema();
         $this->validateCsrf();
         $cid = Auth::concernId();
@@ -3862,6 +3872,7 @@ class ProductionController extends Controller {
      * Stitching Module Index (List of Stitching Batches + Wastage Selling Register)
      */
     public function stitchingIndex(): void {
+        ModuleGuard::enforce('stitching_wastage', 'view');
         $this->ensureStitchingSchema();
         $cid = Auth::concernId();
         $tab = $_GET['tab'] ?? 'batches';
@@ -3954,6 +3965,7 @@ class ProductionController extends Controller {
      * Create Stitching Batch Form (Matching UI Image 1)
      */
     public function createStitching(): void {
+        ModuleGuard::enforce('stitching_wastage', 'add');
         $this->ensureStitchingSchema();
         $cid = Auth::concernId();
 
@@ -4193,6 +4205,7 @@ class ProductionController extends Controller {
      * Store Stitching Batch (Matching UI Image 1)
      */
     public function storeStitchingBatch(): void {
+        ModuleGuard::enforce('stitching_wastage', 'add');
         $this->ensureStitchingSchema();
         $this->validateCsrf();
         $cid = Auth::concernId();
@@ -5113,6 +5126,7 @@ class ProductionController extends Controller {
      * QC Inspections List (Image 1: /production/qc)
      */
     public function qc(): void {
+        ModuleGuard::enforce('qc_stocks', 'view');
         $this->ensureQcSchema();
         $cid = Auth::concernId() ?: 1;
 
@@ -5236,6 +5250,7 @@ class ProductionController extends Controller {
      * Initialize QC Inspection Batch (Image 3: /production/qc/create)
      */
     public function createQc(): void {
+        ModuleGuard::enforce('qc_stocks', 'add');
         $this->ensureQcSchema();
         $cid = Auth::concernId() ?: 1;
 
@@ -5320,6 +5335,7 @@ class ProductionController extends Controller {
      * Store QC Inspection (From Table Mode or Initialize Scanner)
      */
     public function storeQc(): void {
+        ModuleGuard::enforce('qc_stocks', 'add');
         $this->ensureQcSchema();
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 1);

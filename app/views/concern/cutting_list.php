@@ -27,6 +27,7 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <?php if (\App\Core\Auth::can('cutting_wastage', 'add')): ?>
             <button class="btn btn-outline-danger shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold" 
                     data-bs-toggle="modal" data-bs-target="#modalSellWastage">
                 <i class="bi bi-recycle"></i> Record Scrap Sale
@@ -35,6 +36,7 @@
                class="btn btn-primary shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold">
                 <i class="bi bi-plus-circle"></i> New Cutting Batch
             </a>
+            <?php endif; ?>
         </div>
     </div>
 

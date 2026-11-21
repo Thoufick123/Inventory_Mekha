@@ -37,9 +37,11 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                 </li>
             </ul>
 
+            <?php if (\App\Core\Auth::can('catalog_program', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/production/catalog/create') ?>" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm rounded-3 py-2 px-3 fw-semibold">
                 <i class="bi bi-plus-circle"></i> Add Product Style
             </a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -134,9 +136,11 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                         <div class="text-muted mb-3"><i class="bi bi-folder-x fs-1 text-secondary opacity-50"></i></div>
                                         <h6 class="fw-bold text-dark">No Product Styles Found</h6>
                                         <p class="text-secondary small mb-3">Get started by creating your first manufactured garment style.</p>
+                                        <?php if (\App\Core\Auth::can('catalog_program', 'add')): ?>
                                         <a href="<?= \App\Core\Controller::url('/production/catalog/create') ?>" class="btn btn-sm btn-primary">
                                             <i class="bi bi-plus-circle me-1"></i> Add Product Style
                                         </a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php else: ?>
@@ -250,9 +254,11 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-calendar-range text-primary me-2"></i> Scheduled Production Orders</h6>
+                    <?php if (\App\Core\Auth::can('catalog_program', 'add')): ?>
                     <a href="<?= \App\Core\Controller::url('/production/programs/create') ?>" class="btn btn-sm btn-primary shadow-sm">
                         <i class="bi bi-calendar-plus me-1"></i> New Production Program
                     </a>
+                    <?php endif; ?>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 table-custom">

@@ -39,9 +39,11 @@ $activeTab = $activeTab ?? 'staff';
             <a href="<?= \App\Core\Controller::url('/m/staff') ?>" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-people-fill me-1"></i> View All Staff
             </a>
+            <?php if (\App\Core\Auth::can('staff', 'add')): ?>
             <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCreateRole">
                 <i class="bi bi-plus-circle me-1"></i> Create New Role
             </button>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -257,6 +259,7 @@ $activeTab = $activeTab ?? 'staff';
                                         <td class="text-end pe-4">
                                             <div class="d-inline-flex align-items-center gap-1.5 flex-wrap justify-content-end">
                                                 <!-- 1. Quick Status Toggle -->
+                                                <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                                                 <form action="<?= \App\Core\Controller::url('/m/staff/toggle-status') ?>" method="POST" class="d-inline" onsubmit="return confirm('<?= $stf['status'] === 'active' ? 'Deactivate' : 'Activate' ?> <?= htmlspecialchars($stf['name']) ?>?');">
                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
                                                     <input type="hidden" name="id" value="<?= $stf['id'] ?>">
@@ -270,6 +273,7 @@ $activeTab = $activeTab ?? 'staff';
                                                         </button>
                                                     <?php endif; ?>
                                                 </form>
+                                                <?php endif; ?>
 
                                                 <!-- 2. Assign Role & Locations -->
                                                 <button type="button" class="btn btn-xs btn-primary shadow-xs" 
@@ -473,9 +477,11 @@ $activeTab = $activeTab ?? 'staff';
                             <span class="text-secondary small">
                                 <i class="bi bi-info-circle me-1"></i> Permissions update immediately in real-time upon saving.
                             </span>
+                            <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                             <button type="submit" class="btn btn-primary px-4 py-2 shadow-sm">
                                 <i class="bi bi-check2-circle me-1.5"></i> Save CRUD Permissions for Selected Role
                             </button>
+                            <?php endif; ?>
                         </div>
                     </form>
                 </div>

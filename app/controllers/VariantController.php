@@ -6,12 +6,14 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
+use App\Core\ModuleGuard;
 use App\Models\Variant;
 use App\Services\QrService;
 use Exception;
 
 class VariantController extends Controller {
     public function index(): void {
+        ModuleGuard::enforce('variants', 'view');
         $variantModel = new Variant();
         $variants = $variantModel->allWithDetails();
 
@@ -38,6 +40,7 @@ class VariantController extends Controller {
     }
 
     public function store(): void {
+        ModuleGuard::enforce('variants', 'add');
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
 
@@ -96,6 +99,7 @@ class VariantController extends Controller {
     }
 
     public function update(): void {
+        ModuleGuard::enforce('variants', 'edit');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $variant = DB::fetch("SELECT * FROM variants WHERE id = ?", [$id]);
@@ -138,6 +142,7 @@ class VariantController extends Controller {
     }
 
     public function delete(): void {
+        ModuleGuard::enforce('variants', 'delete');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $variant = DB::fetch("SELECT * FROM variants WHERE id = ?", [$id]);

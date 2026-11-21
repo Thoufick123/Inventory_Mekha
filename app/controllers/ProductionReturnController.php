@@ -8,6 +8,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\Auth;
 use App\Core\DB;
+use App\Core\ModuleGuard;
 use App\Services\StockService;
 use App\Services\DamageService;
 use App\Services\DocumentNumberService;
@@ -16,6 +17,7 @@ use Exception;
 
 class ProductionReturnController extends Controller {
     public function index(): void {
+        ModuleGuard::enforce('return_exchange', 'view');
         $cid = Auth::concernId();
 
         $search = trim($_GET['search'] ?? '');
@@ -79,6 +81,7 @@ class ProductionReturnController extends Controller {
     }
 
     public function create(): void {
+        ModuleGuard::enforce('return_exchange', 'add');
         $cid = Auth::concernId();
 
         $customers = DB::fetchAll("SELECT id, name, phone FROM customers WHERE (concern_id = ? OR ? IS NULL) AND status = 'active' ORDER BY name ASC", [$cid, $cid]);
@@ -131,6 +134,7 @@ class ProductionReturnController extends Controller {
     }
 
     public function store(): void {
+        ModuleGuard::enforce('return_exchange', 'add');
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
         if (!$cid) {
             $this->flash('error', 'Please select a valid business concern.');
@@ -430,6 +434,7 @@ class ProductionReturnController extends Controller {
     }
 
     public function cancel(): void {
+        ModuleGuard::enforce('return_exchange', 'delete');
         $id = (int)($_POST['id'] ?? 0);
         $reason = trim($_POST['cancel_reason'] ?? 'Cancelled by administrator');
         $cid = Auth::concernId();

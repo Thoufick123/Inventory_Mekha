@@ -315,10 +315,12 @@
                 <i class="bi bi-people-fill"></i>
                 <span>All Staff</span>
             </a>
+            <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="nav-link <?= (isset($currentModule) && $currentModule === 'staff' && isset($currentSubModule) && $currentSubModule === 'create') ? 'active' : '' ?>">
                 <i class="bi bi-person-plus-fill"></i>
                 <span>Add New Staff</span>
             </a>
+            <?php endif; ?>
             <?php endif; ?>
             <?php if ($isSuperAdmin): ?>
             <a href="<?= \App\Core\Controller::url('/admin/concerns') ?>" class="nav-link <?= (str_contains($activeRoute, 'admin/concerns') || (isset($currentModule) && $currentModule === 'admin_concerns')) ? 'active' : '' ?>">

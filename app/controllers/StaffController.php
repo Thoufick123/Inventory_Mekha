@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
+use App\Core\ModuleGuard;
 use App\Services\NumberSeries;
 use App\Services\ExportService;
 use App\Services\AuditLog;
@@ -96,6 +97,7 @@ class StaffController extends Controller {
     }
 
     public function index(): void {
+        ModuleGuard::enforce('staff', 'view');
         $this->ensureSchema();
         $allConcerns = DB::fetchAll(
             "SELECT c.id, c.name, c.code, c.status,
@@ -203,6 +205,7 @@ class StaffController extends Controller {
     }
 
     public function create(): void {
+        ModuleGuard::enforce('staff', 'create');
         $allConcerns = DB::fetchAll(
             "SELECT c.id, c.name, c.code, c.status
              FROM concerns c
@@ -270,6 +273,7 @@ class StaffController extends Controller {
     }
 
     public function store(): void {
+        ModuleGuard::enforce('staff', 'create');
         $this->validateCsrf();
         $concernIds = array_map('intval', (array)($_POST['concern_ids'] ?? []));
         $cid = (int)($_POST['concern_id'] ?? 0);
@@ -502,6 +506,7 @@ class StaffController extends Controller {
     }
 
     public function update(): void {
+        ModuleGuard::enforce('staff', 'edit');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $staff = DB::fetch("SELECT * FROM staff WHERE id = ?", [$id]);
@@ -642,6 +647,7 @@ class StaffController extends Controller {
     }
 
     public function toggleStatus(): void {
+        ModuleGuard::enforce('staff', 'edit');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $staff = DB::fetch("SELECT * FROM staff WHERE id = ?", [$id]);
@@ -695,6 +701,7 @@ class StaffController extends Controller {
     }
 
     public function delete(): void {
+        ModuleGuard::enforce('staff', 'delete');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $staff = DB::fetch("SELECT * FROM staff WHERE id = ?", [$id]);
@@ -715,6 +722,7 @@ class StaffController extends Controller {
     }
 
     public function export(): void {
+        ModuleGuard::enforce('staff', 'view');
         $selectedCid = !empty($_GET['concern_id']) ? (int)$_GET['concern_id'] : Auth::concernId();
         $format = strtolower($_GET['format'] ?? 'excel');
 
@@ -775,6 +783,7 @@ class StaffController extends Controller {
     }
 
     public function roles(): void {
+        ModuleGuard::enforce('staff', 'view');
         $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
         $allRoles = DB::fetchAll("SELECT id, name, description, concern_id FROM roles ORDER BY (concern_id IS NULL) DESC, id ASC");
 
@@ -1235,6 +1244,7 @@ class StaffController extends Controller {
     }
 
     public function saveRolePermissions(): void {
+        ModuleGuard::enforce('staff', 'edit');
         $this->validateCsrf();
         $roleId = (int)($_POST['role_id'] ?? 0);
         $permissions = $_POST['perms'] ?? [];
@@ -1292,6 +1302,7 @@ class StaffController extends Controller {
     }
 
     public function createRole(): void {
+        ModuleGuard::enforce('staff', 'create');
         $this->validateCsrf();
         $name = trim($_POST['name'] ?? '');
         $description = trim($_POST['description'] ?? '');

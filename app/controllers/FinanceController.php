@@ -6,12 +6,14 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
+use App\Core\ModuleGuard;
 use App\Services\CashService;
 use Exception;
 
 class FinanceController extends Controller {
     // 1. WAREHOUSE OPERATIONAL EXPENSES & PETTY CASH
     public function expense(): void {
+        ModuleGuard::enforce('expense', 'view');
         $cid = Auth::concernId();
 
         // 1. Filter Parameters
@@ -137,6 +139,7 @@ class FinanceController extends Controller {
     }
 
     public function storeExpense(): void {
+        ModuleGuard::enforce('expense', 'add');
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
 
@@ -209,6 +212,7 @@ class FinanceController extends Controller {
     }
 
     public function updateExpense(): void {
+        ModuleGuard::enforce('expense', 'edit');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $cid = Auth::concernId();
@@ -263,6 +267,7 @@ class FinanceController extends Controller {
     }
 
     public function deleteExpense(): void {
+        ModuleGuard::enforce('expense', 'delete');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $cid = Auth::concernId();
@@ -518,6 +523,7 @@ class FinanceController extends Controller {
 
     // 3. UNIFIED CASH & CASH FLOW MODULE
     public function cashFlow(): void {
+        ModuleGuard::enforce('cash_flow', 'view');
         $cid = Auth::concernId();
 
         // A. Cash Flow Metrics
