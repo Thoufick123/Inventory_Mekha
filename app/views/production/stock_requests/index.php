@@ -5,9 +5,11 @@
             <p class="text-secondary small mb-0">Role-scoped 4-step requisition flow (Request → Dispatch / In-Transit → Receive / Shortage) moving double-entry stock.</p>
         </div>
         <div class="d-flex gap-2">
+            <?php if (\App\Core\Auth::can('request', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/production/stock-requests/create') ?>" class="btn btn-primary shadow-sm fw-semibold">
                 <i class="bi bi-plus-lg me-1"></i> New Stock Requisition
             </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/request') ?>" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-clock-history me-1"></i> Legacy Requests
             </a>
