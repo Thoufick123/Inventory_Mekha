@@ -343,9 +343,14 @@
 
                     <!-- CONCERN SWITCHER FOR SUPER ADMIN -->
                     <?php
-                        $displayConcernName = $currentConcern 
-                            ? $currentConcern['name'] 
-                            : (!empty($allConcerns) ? $allConcerns[0]['name'] : 'All Concerns');
+                        $isConsolidated = ($currentConcern === null && isset($_SESSION['super_admin_concern_id']) && $_SESSION['super_admin_concern_id'] === 0);
+                        if ($isConsolidated) {
+                            $displayConcernName = 'All Concerns';
+                        } elseif ($currentConcern) {
+                            $displayConcernName = $currentConcern['name'];
+                        } else {
+                            $displayConcernName = !empty($allConcerns) ? $allConcerns[0]['name'] : 'All Concerns';
+                        }
                     ?>
                     <div class="dropdown">
                         <button class="btn btn-sm btn-primary dropdown-toggle d-flex align-items-center gap-1.5 fw-semibold shadow-sm concern-switcher-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="<?= htmlspecialchars($displayConcernName) ?>">
@@ -355,7 +360,7 @@
                         <ul class="dropdown-menu shadow">
                             <li class="dropdown-header text-uppercase small fw-bold">Select Active Concern Context</li>
                             <?php foreach ($allConcerns as $con): 
-                                $isSel = ($currentConcern && $currentConcern['id'] == $con['id']) || (!$currentConcern && !empty($allConcerns) && $allConcerns[0]['id'] == $con['id']);
+                                $isSel = !$isConsolidated && (($currentConcern && $currentConcern['id'] == $con['id']) || (!$currentConcern && !empty($allConcerns) && $allConcerns[0]['id'] == $con['id']));
                             ?>
                                 <li>
                                     <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isSel ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=' . $con['id']) ?>">
@@ -366,9 +371,9 @@
                             <?php endforeach; ?>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item d-flex align-items-center justify-content-between <?= ($currentConcern === null && isset($_SESSION['super_admin_concern_id']) && $_SESSION['super_admin_concern_id'] === 0) ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=0') ?>">
+                                <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isConsolidated ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=0') ?>">
                                     <span><i class="bi bi-globe me-2 text-primary"></i> All Concerns (Consolidated)</span>
-                                    <?php if ($currentConcern === null && isset($_SESSION['super_admin_concern_id']) && $_SESSION['super_admin_concern_id'] === 0): ?><i class="bi bi-check-lg"></i><?php endif; ?>
+                                    <?php if ($isConsolidated): ?><i class="bi bi-check-lg"></i><?php endif; ?>
                                 </a>
                             </li>
                         </ul>
