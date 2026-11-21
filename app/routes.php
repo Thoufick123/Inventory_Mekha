@@ -159,6 +159,7 @@ $router->post('/m/concern_damage/scan', [DamageController::class, 'scan'], 'conc
 $router->post('/m/concern_damage/store', [DamageController::class, 'store'], 'concern_damage', 'add');
 $router->post('/m/concern_damage/update', [DamageController::class, 'update'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/delete', [DamageController::class, 'delete'], 'concern_damage', 'delete');
+$router->post('/m/concern_damage/destroy', [DamageController::class, 'destroy'], 'concern_damage', 'delete');
 $router->post('/m/concern_damage/resolve', [DamageController::class, 'resolve'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/inward-replacement', [DamageController::class, 'inwardReplacement'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/cancel', [DamageController::class, 'cancel'], 'concern_damage', 'delete');
