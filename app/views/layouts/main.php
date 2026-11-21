@@ -224,6 +224,9 @@
         </div>
 
         <div class="py-2">
+            <?php
+            $activeRoute = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+            ?>
             <?php if (!$isSuperAdmin): ?>
                 <div class="nav-group-title">Dashboard</div>
                 <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="nav-link <?= (in_array($activeRoute, ['/dashboard', '/']) || (isset($currentModule) && $currentModule === 'concern_dashboard')) ? 'active' : '' ?>">
@@ -232,7 +235,6 @@
                 </a>
             <?php endif; ?>
             <?php
-            $activeRoute = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
             $grouped = [];
             foreach ($sidebarModules as $m) {
                 if ($m['code'] === 'variants' || $m['code'] === 'concern_dashboard' || $m['code'] === 'admin_concerns' || $m['code'] === 'dispatch' || $m['group_name'] === 'Masters') continue;
@@ -318,10 +320,6 @@
                 <i class="bi bi-person-plus-fill"></i>
                 <span>Add New Staff</span>
             </a>
-            <a href="<?= \App\Core\Controller::url('/m/staff/roles') ?>" class="nav-link <?= (isset($currentSubModule) && $currentSubModule === 'roles') ? 'active' : '' ?>">
-                <i class="bi bi-person-badge-fill"></i>
-                <span>Role Assign</span>
-            </a>
             <?php endif; ?>
             <?php if ($isSuperAdmin): ?>
             <a href="<?= \App\Core\Controller::url('/admin/concerns') ?>" class="nav-link <?= (str_contains($activeRoute, 'admin/concerns') || (isset($currentModule) && $currentModule === 'admin_concerns')) ? 'active' : '' ?>">
@@ -345,22 +343,20 @@
                     </span>
 
                     <!-- CONCERN SWITCHER FOR SUPER ADMIN -->
+                    <?php
+                        $displayConcernName = $currentConcern 
+                            ? $currentConcern['name'] 
+                            : (!empty($allConcerns) ? $allConcerns[0]['name'] : 'All Concerns');
+                    ?>
                     <div class="dropdown">
-                        <button class="btn btn-sm <?= $currentConcern ? 'btn-primary' : 'btn-outline-dark' ?> dropdown-toggle d-flex align-items-center gap-1.5 fw-semibold shadow-sm concern-switcher-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="<?= $currentConcern ? htmlspecialchars($currentConcern['name']) . ' (' . htmlspecialchars($currentConcern['code']) . ')' : 'All Concerns (Consolidated View)' ?>">
+                        <button class="btn btn-sm btn-primary dropdown-toggle d-flex align-items-center gap-1.5 fw-semibold shadow-sm concern-switcher-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="<?= htmlspecialchars($displayConcernName) ?>">
                             <i class="bi bi-building"></i>
-                            <span class="text-truncate" style="max-width: 155px;"><?= $currentConcern ? htmlspecialchars($currentConcern['name']) : 'All Concerns' ?></span>
+                            <span class="text-truncate" style="max-width: 155px;"><?= htmlspecialchars($displayConcernName) ?></span>
                         </button>
                         <ul class="dropdown-menu shadow">
                             <li class="dropdown-header text-uppercase small fw-bold">Select Active Concern Context</li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center justify-content-between <?= !$currentConcern ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=0') ?>">
-                                    <span><i class="bi bi-globe me-2 text-primary"></i> All Concerns (Consolidated)</span>
-                                    <?php if (!$currentConcern): ?><i class="bi bi-check-lg"></i><?php endif; ?>
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
                             <?php foreach ($allConcerns as $con): 
-                                $isSel = ($currentConcern && $currentConcern['id'] == $con['id']);
+                                $isSel = ($currentConcern && $currentConcern['id'] == $con['id']) || (!$currentConcern && !empty($allConcerns) && $allConcerns[0]['id'] == $con['id']);
                             ?>
                                 <li>
                                     <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isSel ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=' . $con['id']) ?>">
@@ -369,6 +365,13 @@
                                     </a>
                                 </li>
                             <?php endforeach; ?>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center justify-content-between <?= ($currentConcern === null && isset($_SESSION['super_admin_concern_id']) && $_SESSION['super_admin_concern_id'] === 0) ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=0') ?>">
+                                    <span><i class="bi bi-globe me-2 text-primary"></i> All Concerns (Consolidated)</span>
+                                    <?php if ($currentConcern === null && isset($_SESSION['super_admin_concern_id']) && $_SESSION['super_admin_concern_id'] === 0): ?><i class="bi bi-check-lg"></i><?php endif; ?>
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 <?php else: ?>

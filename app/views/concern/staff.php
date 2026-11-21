@@ -35,35 +35,8 @@
                 <span class="fw-bold text-dark"><?= htmlspecialchars($activeConcern['name']) ?></span>
                 <span class="text-muted small">&bull; Showing <?= count($staffMembers) ?> Staff Member(s)</span>
             </div>
-            <div>
-                <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalSelectConcern">
-                    <i class="bi bi-arrow-repeat me-1"></i> Switch Concern
-                </button>
-            </div>
-        </div>
-    <?php else: ?>
-        <div class="alert alert-info border shadow-xs rounded-3 d-flex justify-content-between align-items-center py-3 px-4 mb-4">
-            <div class="d-flex align-items-center gap-3">
-                <i class="bi bi-info-circle-fill fs-4 text-primary"></i>
-                <div>
-                    <h6 class="fw-bold mb-0 text-dark">Select a Business Concern</h6>
-                    <small class="text-secondary">Please pick an active business unit or concern to display its staff members.</small>
-                </div>
-            </div>
-            <button type="button" class="btn btn-sm btn-primary px-3" data-bs-toggle="modal" data-bs-target="#modalSelectConcern">
-                <i class="bi bi-building me-1"></i> Choose Concern Now
-            </button>
         </div>
     <?php endif; ?>
-
-    <!-- Export Intelligence Toolbar -->
-    <?php
-    $exportTitle = 'Export Staff Register (Excel & PDF)';
-    $exportSubtitle = 'Download complete employee roster, department designations, contact numbers & salary structures';
-    $exportUrl = \App\Core\Controller::url('/m/staff/export' . ($selectedCid ? '?concern_id=' . $selectedCid : ''));
-    $prefix = 'staff_exp';
-    include __DIR__ . '/../partials/export_card.php';
-    ?>
 
     <!-- Search & Filter Directory Toolbar -->
     <div class="card border-0 shadow-sm rounded-3 mb-4">
@@ -215,11 +188,6 @@
                                                 </button>
                                             <?php endif; ?>
                                         </form>
-
-                                        <!-- Roles & Custom Permissions Shortcut -->
-                                        <a href="<?= \App\Core\Controller::url('/m/staff/roles?search=' . urlencode($stf['staff_code'])) ?>" class="btn btn-sm btn-outline-secondary" title="Manage Role & Granular Access Matrix">
-                                            <i class="bi bi-shield-lock"></i>
-                                        </a>
 
                                         <!-- View Profile -->
                                         <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewStaffModal(<?= json_encode($stf, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Staff Profile">
@@ -497,14 +465,15 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-secondary text-uppercase mb-1">
-                            <i class="bi bi-lock me-1 text-primary"></i> Password (Optional)
+                            <i class="bi bi-lock me-1 text-primary"></i> Password
                         </label>
                         <div class="input-group">
-                            <input type="password" name="password" id="edit_staff_password" class="form-control border-end-0" placeholder="Leave blank to keep unchanged">
+                            <input type="password" name="password" id="edit_staff_password" class="form-control border-end-0" placeholder="•••••••• (Leave blank to keep current)">
                             <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePasswordVisibility('edit_staff_password', this)">
                                 <i class="bi bi-eye"></i>
                             </button>
                         </div>
+                        <small class="text-muted" style="font-size: 0.75rem;">Current password is saved and active. Enter only if changing it.</small>
                     </div>
                 </div>
 
@@ -558,12 +527,14 @@
             <div class="modal-body p-4">
                 <div class="d-flex justify-content-between align-items-center p-3 rounded-3 mb-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
                     <div>
-                        <span class="text-secondary small d-block">Base Salary / Pay</span>
-                        <span class="fw-bold fs-5 text-dark font-monospace" id="view_staff_salary">₹0.00</span>
+                        <span class="text-secondary small d-block">Account Status</span>
+                        <span class="badge" id="view_staff_status_badge">Active</span>
                     </div>
                     <div class="text-end">
-                        <span class="text-secondary small d-block">Status</span>
-                        <span class="badge" id="view_staff_status_badge">Active</span>
+                        <span class="text-secondary small d-block">Login Security</span>
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">
+                            <i class="bi bi-shield-check me-1"></i> Active Password
+                        </span>
                     </div>
                 </div>
 
@@ -571,10 +542,6 @@
                     <li class="list-group-item px-0 d-flex justify-content-between">
                         <span class="text-muted"><i class="bi bi-building text-primary me-2"></i>Concern:</span>
                         <strong class="text-dark" id="view_staff_concern">-</strong>
-                    </li>
-                    <li class="list-group-item px-0 d-flex justify-content-between">
-                        <span class="text-muted"><i class="bi bi-diagram-3 text-primary me-2"></i>Department:</span>
-                        <span class="badge bg-primary bg-opacity-10 text-primary border" id="view_staff_department">-</span>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between">
                         <span class="text-muted"><i class="bi bi-briefcase text-primary me-2"></i>Designation:</span>
@@ -589,20 +556,13 @@
                         <span class="text-dark" id="view_staff_email">-</span>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between">
-                        <span class="text-muted"><i class="bi bi-calendar-event text-primary me-2"></i>Joining Date:</span>
-                        <span class="font-monospace text-dark" id="view_staff_joining">-</span>
-                    </li>
-                    <li class="list-group-item px-0">
-                        <span class="text-muted d-block mb-1"><i class="bi bi-geo-alt text-primary me-2"></i>Address:</span>
-                        <div class="text-dark p-2 bg-light rounded" id="view_staff_address">None specified</div>
+                        <span class="text-muted"><i class="bi bi-key text-primary me-2"></i>Password:</span>
+                        <span class="text-secondary font-monospace">•••••••• (Encrypted in DB)</span>
                     </li>
                 </ul>
             </div>
-            <div class="modal-footer border-top px-4 py-2 bg-light d-flex justify-content-between">
+            <div class="modal-footer border-top px-4 py-2 bg-light d-flex justify-content-end">
                 <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="window.print()">
-                    <i class="bi bi-printer me-1"></i> Print Profile
-                </button>
             </div>
         </div>
     </div>

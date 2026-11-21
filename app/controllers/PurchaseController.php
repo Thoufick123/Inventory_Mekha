@@ -13,6 +13,7 @@ use App\Services\NumberSeries;
 use App\Services\CloudinaryService;
 use App\Services\RollRegistryService;
 use App\Services\PurchaseDamageService;
+use App\Services\ExportService;
 use Exception;
 
 class PurchaseController extends Controller {
@@ -351,6 +352,170 @@ class PurchaseController extends Controller {
         }
 
         $this->redirect('/m/suppliers');
+    }
+
+    public function exportSuppliers(): void {
+        ModuleGuard::enforce('suppliers', 'view');
+
+        $isSuperAdmin = Auth::isSuperAdmin();
+        $cid = $isSuperAdmin
+            ? (int)($_GET['concern_id'] ?? 0)
+            : Auth::concernId();
+        $format = strtolower(trim((string)($_GET['format'] ?? 'excel')));
+        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $dateScope = ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
+
+        $sql = "SELECT s.*, con.name AS concern_name, con.code AS concern_code
+                FROM suppliers s
+                LEFT JOIN concerns con ON s.concern_id = con.id";
+        $where = [];
+        $params = [];
+        if ($cid) {
+            $where[] = "s.concern_id = ?";
+            $params[] = $cid;
+        }
+        if ($dateScope['start_date'] && $dateScope['end_date']) {
+            $where[] = "DATE(s.created_at) BETWEEN ? AND ?";
+            $params[] = $dateScope['start_date'];
+            $params[] = $dateScope['end_date'];
+        }
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(' AND ', $where);
+        }
+        $sql .= " ORDER BY s.id DESC";
+        $suppliers = DB::fetchAll($sql, $params);
+
+        $headers = [
+            'Supplier Code', 'Contact Person', 'Company / Mill Name', 'Phone', 'Email', 
+            'GSTIN', 'Address', 'City / District', 'State', 'Status', 'Concern'
+        ];
+
+        $rows = [];
+        foreach ($suppliers as $sup) {
+            $rows[] = [
+                $sup['code'] ?? ('SUP-' . $sup['id']),
+                $sup['name'],
+                $sup['company_name'] ?: '-',
+                $sup['phone'] ?: '-',
+                $sup['email'] ?: '-',
+                $sup['gstin'] ?: '-',
+                $sup['address'] ?: '-',
+                $sup['city'] ?: ($sup['district'] ?: '-'),
+                $sup['state'] ?: '-',
+                strtoupper($sup['status'] ?? 'ACTIVE'),
+                $sup['concern_name'] ?? 'Consolidated'
+            ];
+        }
+
+        $totals = ['Total Suppliers: ' . count($suppliers), '', '', '', '', '', '', '', '', '', ''];
+
+        $metadata = [
+            'Report Title' => 'Supplier Directory Register Report',
+            'Generated At' => date('d M Y, h:i A'),
+            'Total Count'  => count($suppliers),
+            'Date Filter'  => $dateScope['label'] ?? 'All Time',
+            'Concern'      => $cid ? ($suppliers[0]['concern_name'] ?? 'Concern #' . $cid) : 'All Concerns'
+        ];
+
+        $filename = 'suppliers_register_' . date('Ymd_His');
+
+        if ($format === 'pdf') {
+            ExportService::renderPdfView('Supplier Directory Register Report', $metadata, $headers, $rows, $totals);
+        } elseif ($format === 'csv') {
+            ExportService::downloadCsv($filename, $headers, $rows, $totals);
+        } else {
+            ExportService::downloadExcel($filename, 'Supplier Directory Register Report', $metadata, $headers, $rows, $totals);
+        }
+    }
+
+    public function exportBills(): void {
+        ModuleGuard::enforce('purchase_billing', 'view');
+
+        $isSuperAdmin = Auth::isSuperAdmin();
+        $cid = $isSuperAdmin
+            ? (int)($_GET['concern_id'] ?? 0)
+            : Auth::concernId();
+        $format = strtolower(trim((string)($_GET['format'] ?? 'excel')));
+        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $dateScope = ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
+
+        $sql = "SELECT pb.*, s.name AS supplier_name, con.name AS concern_name, con.code AS concern_code,
+                       (SELECT COUNT(*) FROM purchase_bill_items pbi WHERE pbi.purchase_bill_id = pb.id) AS items_count
+                FROM purchase_bills pb
+                JOIN suppliers s ON pb.supplier_id = s.id
+                LEFT JOIN concerns con ON pb.concern_id = con.id";
+        $where = [];
+        $params = [];
+        if ($cid) {
+            $where[] = "pb.concern_id = ?";
+            $params[] = $cid;
+        }
+        if ($dateScope['start_date'] && $dateScope['end_date']) {
+            $where[] = "DATE(pb.bill_date) BETWEEN ? AND ?";
+            $params[] = $dateScope['start_date'];
+            $params[] = $dateScope['end_date'];
+        }
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(' AND ', $where);
+        }
+        $sql .= " ORDER BY pb.id DESC";
+        $bills = DB::fetchAll($sql, $params);
+
+        $headers = [
+            'Bill No.', 'Invoice No.', 'Date', 'Supplier', 'Items Qty', 
+            'Total (INR)', 'Tax (INR)', 'Net Amount (INR)', 'Paid (INR)', 
+            'Payment Status', 'Inward Status', 'Concern'
+        ];
+
+        $rows = [];
+        $sumNet = 0;
+        $sumPaid = 0;
+        foreach ($bills as $b) {
+            $net = (float)($b['net_amount'] ?? 0);
+            $paid = (float)($b['paid_amount'] ?? 0);
+            $sumNet += $net;
+            $sumPaid += $paid;
+            $rows[] = [
+                $b['bill_no'],
+                $b['supplier_invoice_no'] ?: '-',
+                $b['bill_date'] ? date('d M Y', strtotime($b['bill_date'])) : '-',
+                $b['supplier_name'],
+                (int)($b['items_count'] ?? 0),
+                number_format((float)($b['total_amount'] ?? 0), 2),
+                number_format((float)($b['tax_amount'] ?? 0), 2),
+                number_format($net, 2),
+                number_format($paid, 2),
+                strtoupper($b['payment_status'] ?? 'PENDING'),
+                strtoupper($b['inward_status'] ?? 'PENDING'),
+                $b['concern_name'] ?? 'Consolidated'
+            ];
+        }
+
+        $totals = ['Total Bills: ' . count($bills), '', '', '', '', '', 'Total Net / Paid:', number_format($sumNet, 2), number_format($sumPaid, 2), '', '', ''];
+
+        $metadata = [
+            'Report Title' => 'Purchase Invoices Register Report',
+            'Generated At' => date('d M Y, h:i A'),
+            'Total Bills'  => count($bills),
+            'Date Filter'  => $dateScope['label'] ?? 'All Time',
+            'Concern'      => $cid ? ($bills[0]['concern_name'] ?? 'Concern #' . $cid) : 'All Concerns'
+        ];
+
+        $filename = 'purchase_invoices_' . date('Ymd_His');
+
+        if ($format === 'pdf') {
+            ExportService::renderPdfView('Purchase Invoices Register Report', $metadata, $headers, $rows, $totals);
+        } elseif ($format === 'csv') {
+            ExportService::downloadCsv($filename, $headers, $rows, $totals);
+        } else {
+            ExportService::downloadExcel($filename, 'Purchase Invoices Register Report', $metadata, $headers, $rows, $totals);
+        }
     }
 
     // 2. PURCHASE BILLING

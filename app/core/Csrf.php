@@ -1,5 +1,5 @@
 <?php
-// app/core/Csrf.php
+// app/core/CSRF.php - Centralized CSRF Protection Helper
 
 declare(strict_types=1);
 
@@ -22,9 +22,26 @@ class Csrf {
     }
 
     /**
+     * Validate CSRF token for the current incoming request
+     */
+    public static function validateRequest(): bool {
+        $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+        if (!Auth::verifyCsrfToken($token)) {
+            http_response_code(419);
+            die("CSRF token validation failed. Please refresh and try again.");
+        }
+        return true;
+    }
+
+    /**
      * Verify submitted CSRF token
      */
     public static function verify(?string $token): bool {
         return Auth::verifyCsrfToken($token);
     }
+}
+
+// Support both naming conventions (Csrf and CSRF)
+if (!class_exists('App\Core\CSRF', false)) {
+    class_alias(Csrf::class, 'App\Core\CSRF');
 }

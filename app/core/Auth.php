@@ -81,11 +81,19 @@ class Auth {
             return (int)$u['concern_id'];
         }
         // Super admin selected concern
-        return !empty($_SESSION['super_admin_concern_id']) ? (int)$_SESSION['super_admin_concern_id'] : null;
+        if (isset($_SESSION['super_admin_concern_id'])) {
+            return $_SESSION['super_admin_concern_id'] > 0 ? (int)$_SESSION['super_admin_concern_id'] : null;
+        }
+        // Auto-default to the first active concern for Super Admin if not explicitly switched to All Concerns
+        $all = self::allConcerns();
+        if (!empty($all)) {
+            return (int)$all[0]['id'];
+        }
+        return null;
     }
 
     public static function superAdminSelectedConcernId(): ?int {
-        return !empty($_SESSION['super_admin_concern_id']) ? (int)$_SESSION['super_admin_concern_id'] : null;
+        return self::concernId();
     }
 
     /**
@@ -124,7 +132,7 @@ class Auth {
         if ($concernId && $concernId > 0) {
             $_SESSION['super_admin_concern_id'] = (int)$concernId;
         } else {
-            $_SESSION['super_admin_concern_id'] = null;
+            $_SESSION['super_admin_concern_id'] = 0;
         }
     }
 
