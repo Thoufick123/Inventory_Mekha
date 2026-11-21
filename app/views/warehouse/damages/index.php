@@ -1,3 +1,8 @@
+<?php
+$canAdd = \App\Core\Auth::can('warehouse_damage', 'add');
+$canEdit = \App\Core\Auth::can('warehouse_damage', 'edit');
+$canDelete = \App\Core\Auth::can('warehouse_damage', 'delete');
+?>
 <div class="container-fluid px-0">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
@@ -5,9 +10,11 @@
             <p class="text-secondary small mb-0">Track warehouse floor fabric and garment damages. Stock automatically moves to <code>DAMAGED</code> state until formal scrap, rework, or replacement inward.</p>
         </div>
         <div class="d-flex gap-2">
+            <?php if ($canAdd): ?>
             <button type="button" class="btn btn-danger shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#modalLogWarehouseDamage">
                 <i class="bi bi-plus-lg me-1"></i> Log Warehouse Damage
             </button>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/concern_damage') ?>" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-x-octagon me-1"></i> Concern Damage
             </a>
@@ -135,15 +142,19 @@
                                         </a>
 
                                         <?php if ($d['status'] !== 'RESOLVED' && $d['status'] !== 'CANCELLED'): ?>
+                                            <?php if ($canEdit): ?>
                                             <button type="button" class="btn btn-outline-success" title="Resolve Damage" onclick="openResolveModal(<?= htmlspecialchars(json_encode($d)) ?>)">
                                                 <i class="bi bi-check2-circle"></i>
                                             </button>
+                                            <?php endif; ?>
+                                            <?php if ($canDelete): ?>
                                             <button type="button" class="btn btn-outline-danger" title="Cancel Damage" onclick="openCancelModal(<?= $d['id'] ?>, '<?= htmlspecialchars($d['damage_no']) ?>')">
                                                 <i class="bi bi-x-circle"></i>
                                             </button>
+                                            <?php endif; ?>
                                         <?php endif; ?>
 
-                                        <?php if ($d['resolution_action'] === 'SUPPLIER_REPLACEMENT' && empty($d['replacement_inwarded_at'])): ?>
+                                        <?php if ($canEdit && $d['resolution_action'] === 'SUPPLIER_REPLACEMENT' && empty($d['replacement_inwarded_at'])): ?>
                                             <button type="button" class="btn btn-warning" title="Inward Replacement" onclick="openInwardModal(<?= $d['id'] ?>, '<?= htmlspecialchars($d['replacement_qr_code']) ?>', <?= $d['qty'] ?>)">
                                                 <i class="bi bi-box-arrow-in-down"></i> Inward
                                             </button>
@@ -159,6 +170,7 @@
     </div>
 </div>
 
+<?php if ($canAdd): ?>
 <!-- Modal: Log Warehouse Damage -->
 <div class="modal fade" id="modalLogWarehouseDamage" tabindex="-1">
     <div class="modal-dialog">
@@ -213,7 +225,9 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if ($canEdit): ?>
 <!-- Modal: Resolve Damage -->
 <div class="modal fade" id="modalResolveDamage" tabindex="-1">
     <div class="modal-dialog">
@@ -283,7 +297,9 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if ($canDelete): ?>
 <!-- Modal: Cancel Damage -->
 <div class="modal fade" id="modalCancelDamage" tabindex="-1">
     <div class="modal-dialog">
@@ -310,28 +326,36 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 function openResolveModal(damage) {
-    document.getElementById('resolveDamageId').value = damage.id;
-    document.getElementById('resolveReplacementQr').value = 'RPL-' + damage.damage_no;
-    new bootstrap.Modal(document.getElementById('modalResolveDamage')).show();
+    const modalEl = document.getElementById('modalResolveDamage');
+    if (!modalEl) return;
+    const elId = document.getElementById('resolveDamageId'); if (elId) elId.value = damage.id;
+    const elQr = document.getElementById('resolveReplacementQr'); if (elQr) elQr.value = 'RPL-' + damage.damage_no;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 function handleResolveActionChange(select) {
     const isRepl = select.value === 'SUPPLIER_REPLACEMENT';
-    document.getElementById('resolveReplacementRow').style.display = isRepl ? 'block' : 'none';
+    const row = document.getElementById('resolveReplacementRow');
+    if (row) row.style.display = isRepl ? 'block' : 'none';
 }
 
 function openInwardModal(id, qr, qty) {
-    document.getElementById('inwardDamageId').value = id;
-    document.getElementById('inwardScannedQr').value = qr || '';
-    document.getElementById('inwardQty').value = qty || 1;
-    new bootstrap.Modal(document.getElementById('modalInwardReplacement')).show();
+    const modalEl = document.getElementById('modalInwardReplacement');
+    if (!modalEl) return;
+    const elId = document.getElementById('inwardDamageId'); if (elId) elId.value = id;
+    const elQr = document.getElementById('inwardScannedQr'); if (elQr) elQr.value = qr || '';
+    const elQty = document.getElementById('inwardQty'); if (elQty) elQty.value = qty || 1;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 function openCancelModal(id, num) {
-    document.getElementById('cancelDamageId').value = id;
-    new bootstrap.Modal(document.getElementById('modalCancelDamage')).show();
+    const modalEl = document.getElementById('modalCancelDamage');
+    if (!modalEl) return;
+    const elId = document.getElementById('cancelDamageId'); if (elId) elId.value = id;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 </script>

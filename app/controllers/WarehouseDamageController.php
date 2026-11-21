@@ -8,11 +8,13 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\Auth;
 use App\Core\DB;
+use App\Core\ModuleGuard;
 use App\Services\DamageService;
 use Exception;
 
 class WarehouseDamageController extends Controller {
     public function index(): void {
+        ModuleGuard::enforce('warehouse_damage', 'view');
         $cid = Auth::concernId();
 
         $search = trim($_GET['search'] ?? '');
@@ -84,6 +86,7 @@ class WarehouseDamageController extends Controller {
     }
 
     public function store(): void {
+        ModuleGuard::enforce('warehouse_damage', 'add');
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
         if (!$cid) {
             $this->flash('error', 'Please select a concern.');
@@ -130,6 +133,7 @@ class WarehouseDamageController extends Controller {
     }
 
     public function resolve(): void {
+        ModuleGuard::enforce('warehouse_damage', 'edit');
         $id = (int)($_POST['id'] ?? 0);
         $action = strtoupper(trim($_POST['resolution_action'] ?? ''));
         $reason = trim($_POST['resolution_reason'] ?? '');
@@ -166,6 +170,7 @@ class WarehouseDamageController extends Controller {
     }
 
     public function inwardReplacement(): void {
+        ModuleGuard::enforce('warehouse_damage', 'edit');
         $id = (int)($_POST['id'] ?? 0);
         $scannedQr = trim($_POST['scanned_qr'] ?? '');
         $qty = (float)($_POST['inward_qty'] ?? 1);
@@ -187,6 +192,7 @@ class WarehouseDamageController extends Controller {
     }
 
     public function cancel(): void {
+        ModuleGuard::enforce('warehouse_damage', 'delete');
         $id = (int)($_POST['id'] ?? 0);
         $reason = trim($_POST['cancel_reason'] ?? 'Cancelled by user');
 
@@ -201,6 +207,7 @@ class WarehouseDamageController extends Controller {
     }
 
     public function print(int $id): void {
+        ModuleGuard::enforce('warehouse_damage', 'view');
         $cid = Auth::concernId();
 
         $damage = DB::fetch(
