@@ -1,72 +1,11 @@
 -- ========================================================
--- GRM Inventory: System Seed Data
--- Modules and Super Admin only
--- Compatible with Local & Live Hosting (Hostinger/cPanel)
+-- INVENTO: Live-safe baseline seed
+-- Preserves all concern, inventory, sales and operational data.
+-- HSN/GST details and operational sequences are seeded by
+-- database/seed_live.php for environments that use PHP seeding.
 -- ========================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
-
--- 1. CLEAN ALL CONCERN DATA (keep only modules and Super Admin)
-DELETE FROM `user_permissions`;
-DELETE FROM `user_concerns`;
-DELETE FROM `role_permissions`;
-DELETE FROM `concern_modules`;
-DELETE FROM `users` WHERE `concern_id` IS NOT NULL OR `role_id` <> 1;
-DELETE FROM `roles` WHERE `id` <> 1 OR `concern_id` IS NOT NULL;
-
-DELETE FROM `cutting_wastage_sales`;
-DELETE FROM `cutting_items`;
-DELETE FROM `cutting_masters`;
-DELETE FROM `cutting_logs`;
-DELETE FROM `stitching_wastage_sales`;
-DELETE FROM `stitching_items`;
-DELETE FROM `stitching_masters`;
-DELETE FROM `stitching_logs`;
-DELETE FROM `catalog_mappings`;
-DELETE FROM `program_rolls`;
-DELETE FROM `production_programs`;
-DELETE FROM `catalogs`;
-DELETE FROM `product_attributes`;
-DELETE FROM `qc_inspections`;
-DELETE FROM `purchase_damage_quarantine`;
-DELETE FROM `purchase_damage_reasons`;
-DELETE FROM `purchase_damages`;
-DELETE FROM `concern_damages`;
-DELETE FROM `inward_items`;
-DELETE FROM `inwards`;
-DELETE FROM `purchase_stock_item_overrides`;
-DELETE FROM `fabric_roll_spec_overrides`;
-DELETE FROM `fabric_roll_specs`;
-DELETE FROM `purchase_bill_items`;
-DELETE FROM `purchase_bills`;
-DELETE FROM `outward_items`;
-DELETE FROM `outwards`;
-DELETE FROM `dispatches`;
-DELETE FROM `sales_invoice_items`;
-DELETE FROM `sales_invoices`;
-DELETE FROM `customer_requests`;
-DELETE FROM `batches`;
-DELETE FROM `returns_exchanges`;
-DELETE FROM `stock_ledger`;
-DELETE FROM `stocks`;
-DELETE FROM `label_jobs`;
-DELETE FROM `doc_series`;
-DELETE FROM `cash_transactions`;
-DELETE FROM `cashier_shifts`;
-DELETE FROM `cash_accounts`;
-DELETE FROM `expenses`;
-DELETE FROM `assets` WHERE `concern_id` IS NOT NULL;
-DELETE FROM `audit_log` WHERE `concern_id` IS NOT NULL;
-DELETE FROM `suppliers`;
-DELETE FROM `customers`;
-DELETE FROM `hsn_masters`;
-DELETE FROM `variants`;
-DELETE FROM `sub_subcategories`;
-DELETE FROM `subcategories`;
-DELETE FROM `categories`;
-DELETE FROM `brands`;
-DELETE FROM `staff`;
-DELETE FROM `concerns`;
 
 -- 2. MASTER MODULE REGISTRY
 INSERT INTO `modules` (`code`, `name`, `icon`, `sort_order`, `group_name`, `is_super_admin_only`) VALUES

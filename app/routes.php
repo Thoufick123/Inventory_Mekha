@@ -158,15 +158,6 @@ $router->post('/m/concern_damage/resolve', [DamageController::class, 'resolve'],
 $router->post('/m/concern_damage/inward-replacement', [DamageController::class, 'inwardReplacement'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/cancel', [DamageController::class, 'cancel'], 'concern_damage', 'delete');
 
-// Warehouse Damage
-$router->get('/warehouse/damages', [WarehouseDamageController::class, 'index'], 'warehouse_damage', 'view');
-$router->get('/m/warehouse_damage', [WarehouseDamageController::class, 'index'], 'warehouse_damage', 'view');
-$router->post('/warehouse/damages/store', [WarehouseDamageController::class, 'store'], 'warehouse_damage', 'add');
-$router->post('/warehouse/damages/resolve', [WarehouseDamageController::class, 'resolve'], 'warehouse_damage', 'edit');
-$router->post('/warehouse/damages/inward-replacement', [WarehouseDamageController::class, 'inwardReplacement'], 'warehouse_damage', 'edit');
-$router->post('/warehouse/damages/cancel', [WarehouseDamageController::class, 'cancel'], 'warehouse_damage', 'delete');
-$router->get('/warehouse/damages/print/{id}', [WarehouseDamageController::class, 'print'], 'warehouse_damage', 'view');
-
 // Sales & Distribution / Shop
 $router->get('/m/customers', [SalesController::class, 'customers'], 'customers', 'view');
 $router->get('/shop/customers', [SalesController::class, 'customers'], 'customers', 'view');

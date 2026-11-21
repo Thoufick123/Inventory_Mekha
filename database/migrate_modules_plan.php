@@ -75,11 +75,8 @@ foreach ($columnsToAdd as $col => $definition) {
     }
 }
 
-// Ensure warehouse_damage exists in modules table
-echo "\nRegistering modules in 'modules' table...\n";
-$modulesToRegister = [
-    ['code' => 'warehouse_damage', 'name' => 'Warehouse Damage', 'icon' => 'bi-shield-slash', 'sort_order' => 43, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
-];
+// Modules registration
+$modulesToRegister = [];
 
 foreach ($modulesToRegister as $m) {
     $exists = DB::fetchValue("SELECT id FROM modules WHERE code = ?", [$m['code']]);
