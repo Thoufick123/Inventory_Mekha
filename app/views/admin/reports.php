@@ -1,11 +1,6 @@
 <div class="container-fluid px-0">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div>
-            <div class="text-secondary small mb-1">
-                <a href="<?= \App\Core\Controller::url('/admin/dashboard') ?>" class="text-decoration-none text-muted">Super Admin</a>
-                <span class="mx-1">/</span>
-                <span class="text-dark fw-semibold">Consolidated Reports</span>
-            </div>
             <h4 class="fw-bold mb-1 text-dark">Consolidated Multi-Concern Performance Report</h4>
             <p class="text-secondary small mb-0">Cross-tenant inventory valuation, revenue volume, and procurement metrics aggregated across all concerns.</p>
         </div>
