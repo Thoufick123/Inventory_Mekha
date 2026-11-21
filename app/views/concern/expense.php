@@ -27,9 +27,11 @@
 
         <div class="d-flex align-items-center gap-2">
             <!-- Record Expense Button -->
+            <?php if (\App\Core\Auth::can('expense', 'add')): ?>
             <button class="btn text-white fw-bold shadow-sm d-flex align-items-center gap-2 px-3 py-2" style="background: #4f46e5; border-radius: 8px; font-size: 0.88rem;" data-bs-toggle="modal" data-bs-target="#modalAddExpense">
                 <i class="bi bi-plus-circle"></i> Record Warehouse Expense
             </button>
+            <?php endif; ?>
         </div>
     </div>
 

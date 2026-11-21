@@ -4,9 +4,11 @@
             <h4 class="fw-bold mb-1 text-dark">Customer Product Requests</h4>
             <p class="text-secondary small mb-0">Track order inquiries, customer sample requests, and advance bookings.</p>
         </div>
+        <?php if (\App\Core\Auth::can('request', 'add')): ?>
         <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddRequest">
             <i class="bi bi-file-earmark-plus me-1"></i> New Product Request
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->

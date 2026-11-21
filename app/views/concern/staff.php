@@ -13,14 +13,16 @@
                 <?= $activeConcern ? 'Concern: ' . htmlspecialchars($activeConcern['name']) : 'Choose Concern' ?>
                 <i class="bi bi-chevron-down ms-1 small"></i>
             </button>
-            <?php if ($activeConcern): ?>
-                <a href="<?= \App\Core\Controller::url('/m/staff/create?concern_id=' . $selectedCid) ?>" class="btn btn-primary shadow-sm">
-                    <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
-                </a>
-            <?php else: ?>
-                <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="btn btn-primary shadow-sm">
-                    <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
-                </a>
+            <?php if (\App\Core\Auth::can('staff', 'add')): ?>
+                <?php if ($activeConcern): ?>
+                    <a href="<?= \App\Core\Controller::url('/m/staff/create?concern_id=' . $selectedCid) ?>" class="btn btn-primary shadow-sm">
+                        <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
+                    </a>
+                <?php else: ?>
+                    <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="btn btn-primary shadow-sm">
+                        <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
+                    </a>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
@@ -124,7 +126,7 @@
                             <td colspan="9" class="text-center py-5 text-muted">
                                 <i class="bi bi-people display-6 d-block mb-2 text-secondary opacity-50"></i>
                                 <?= $activeConcern ? 'No staff members recorded for this concern yet.' : 'Please select a concern above to load staff records.' ?>
-                                <?php if ($activeConcern): ?>
+                                <?php if ($activeConcern && \App\Core\Auth::can('staff', 'add')): ?>
                                     <div class="mt-2">
                                         <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddStaff">
                                             <i class="bi bi-person-plus-fill me-1"></i> Add First Staff Member
@@ -174,6 +176,7 @@
                                 </td>
                                 <td class="text-end pe-3">
                                     <div class="d-inline-flex align-items-center gap-1">
+                                        <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                                         <!-- Quick Status Toggle (Activate/Deactivate) -->
                                         <form action="<?= \App\Core\Controller::url('/m/staff/toggle-status') ?>" method="POST" class="d-inline" onsubmit="return confirm('<?= $stf['status'] === 'active' ? 'Deactivate' : 'Activate' ?> staff member <?= htmlspecialchars($stf['name']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -188,17 +191,21 @@
                                                 </button>
                                             <?php endif; ?>
                                         </form>
+                                        <?php endif; ?>
 
                                         <!-- View Profile -->
                                         <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewStaffModal(<?= json_encode($stf, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Staff Profile">
                                             <i class="bi bi-eye"></i>
                                         </button>
 
+                                        <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                                         <!-- Edit Staff -->
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditStaffModal(<?= json_encode($stf, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Staff Details">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
 
+                                        <?php if (\App\Core\Auth::can('staff', 'delete')): ?>
                                         <!-- Delete Staff -->
                                         <form action="<?= \App\Core\Controller::url('/m/staff/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete staff member <?= htmlspecialchars($stf['name']) ?> (<?= htmlspecialchars($stf['staff_code']) ?>)? Note: Deactivation is usually preferred over permanent deletion.');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -207,6 +214,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

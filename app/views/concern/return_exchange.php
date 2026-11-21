@@ -4,9 +4,11 @@
             <h4 class="fw-bold mb-1 text-dark">Customer Returns & Exchanges</h4>
             <p class="text-secondary small mb-0">Process customer returns and replacement exchanges. Re-enters returned stock into warehouse balance via <code>StockService::move()</code>.</p>
         </div>
+        <?php if (\App\Core\Auth::can('return_exchange', 'add')): ?>
         <button class="btn btn-warning shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddReturn">
             <i class="bi bi-arrow-left-right me-1"></i> New Return / Exchange
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->

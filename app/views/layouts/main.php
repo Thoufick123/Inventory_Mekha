@@ -337,6 +337,10 @@
                 <span class="navbar-page-title" title="<?= htmlspecialchars($pageTitle ?? 'Inventory') ?>"><?= htmlspecialchars($pageTitle ?? 'Inventory') ?></span>
                 
                 <?php if ($isSuperAdmin): ?>
+                    <span class="super-pill">
+                        <i class="bi bi-shield-check"></i> Super Admin
+                    </span>
+
                     <!-- CONCERN SWITCHER FOR SUPER ADMIN -->
                     <?php
                         $isConsolidated = ($currentConcern === null && isset($_SESSION['super_admin_concern_id']) && $_SESSION['super_admin_concern_id'] === 0);

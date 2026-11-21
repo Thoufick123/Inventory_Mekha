@@ -4,9 +4,11 @@
             <h4 class="fw-bold mb-1 text-dark">Product Variants Catalog</h4>
             <p class="text-secondary small mb-0">Master catalog holding all attributes (size, weight, fabric, GSM, prices) with strict concern isolation.</p>
         </div>
+        <?php if (\App\Core\Auth::can('variants', 'add')): ?>
         <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddVariant">
             <i class="bi bi-plus-circle me-1"></i> Add New Variant
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->

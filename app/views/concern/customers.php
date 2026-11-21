@@ -30,9 +30,11 @@
             </h4>
         </div>
         <div>
+            <?php if (\App\Core\Auth::can('customers', 'add')): ?>
             <button type="button" id="btnAddCustomer" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalAddCustomer" style="background: #4f46e5; border-color: #4f46e5;">
                 <i class="bi bi-person-plus-fill"></i> + Add Customer
             </button>
+            <?php endif; ?>
         </div>
     </div>
 
