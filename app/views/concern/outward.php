@@ -20,6 +20,7 @@
             </h4>
             <p class="text-secondary small mb-0">Dispatch finished production boxes and scanned finishing goods with vehicle tracking</p>
         </div>
+        <?php if (\App\Core\Auth::can('outward', 'create')): ?>
         <div class="d-flex align-items-center gap-2">
             <button type="button" class="btn btn-outline-primary fw-semibold shadow-sm px-3 py-2" onclick="openNewDispatchModal('batch')">
                 <i class="bi bi-boxes me-1"></i> New Batch Outward
@@ -28,6 +29,7 @@
                 <i class="bi bi-upc-scan me-1"></i> Scan Finishing Goods
             </button>
         </div>
+        <?php endif; ?>
     </div>
 
     <!-- Main Card -->
@@ -209,11 +211,14 @@
                                         </button>
 
                                         <!-- 2. Edit Dispatch Modal -->
+                                        <?php if (\App\Core\Auth::can('outward', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary p-1 px-1.5" title="Edit Dispatch" onclick='openEditOutwardModal(<?= json_encode($o, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
 
                                         <!-- 3. Delete Outward -->
+                                        <?php if (\App\Core\Auth::can('outward', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/m/outward/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete outward dispatch <?= htmlspecialchars($o['outward_no']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                                             <input type="hidden" name="id" value="<?= (int)$o['id'] ?>">
@@ -221,6 +226,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

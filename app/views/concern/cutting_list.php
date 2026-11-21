@@ -177,14 +177,18 @@
                                                     onclick="showScrapSaleDetails(<?= $s['id'] ?>)">
                                                 <i class="bi bi-eye"></i>
                                             </button>
+                                            <?php if (\App\Core\Auth::can('cutting_wastage', 'edit')): ?>
                                             <button type="button" class="btn btn-sm btn-outline-primary p-1.5 rounded-3" title="Edit Scrap Sale"
                                                     onclick='openEditScrapSaleModal(<?= json_encode($s, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
                                                 <i class="bi bi-pencil"></i>
                                             </button>
+                                            <?php endif; ?>
+                                            <?php if (\App\Core\Auth::can('cutting_wastage', 'delete')): ?>
                                             <button type="button" class="btn btn-sm btn-outline-danger p-1.5 rounded-3" title="Delete Scrap Sale"
                                                     onclick="confirmDeleteScrapSale(<?= $s['id'] ?>, '<?= htmlspecialchars(addslashes($s['sale_no'])) ?>', '<?= number_format($s['total_price'], 2) ?>')">
                                                 <i class="bi bi-trash"></i>
                                             </button>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -295,17 +299,19 @@
                                                class="btn btn-outline-secondary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <?php if ($availScrap > 0.01): ?>
+                                            <?php if ($availScrap > 0.01 && \App\Core\Auth::can('cutting_wastage', 'add')): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sell-scrap" 
                                                         data-batch-id="<?= $b['id'] ?>"
                                                         title="Sell Wastage Scrap">
                                                     <i class="bi bi-recycle"></i>
                                                 </button>
                                             <?php endif; ?>
+                                            <?php if (\App\Core\Auth::can('cutting_wastage', 'delete')): ?>
                                             <button type="button" class="btn btn-outline-danger" title="Delete Cutting Batch"
                                                     onclick="confirmDeleteCutting(<?= $b['id'] ?>, '<?= htmlspecialchars(addslashes($bNo)) ?>', <?= (float)($b['sold_wastage_qty'] ?? 0) ?>)">
                                                 <i class="bi bi-trash"></i>
                                             </button>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>

@@ -30,9 +30,11 @@
             <a href="<?= \App\Core\Controller::url('/m/label_generation?tab=' . match($activeTab) { 'rolls' => 'purchase_raw', 'garment_other' => 'purchase_raw', 'finished_goods' => 'purchase_fg', default => 'purchase_raw' }) ?>" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
                 <i class="bi bi-qr-code"></i> Print Labels
             </a>
+            <?php if (\App\Core\Auth::can('purchase_billing', 'create')): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn btn-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
                 <i class="bi bi-bag-plus"></i> Record Purchase
             </a>
+            <?php endif; ?>
         </div>
     </div>
 

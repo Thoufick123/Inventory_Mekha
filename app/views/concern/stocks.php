@@ -8,9 +8,11 @@
             <a href="<?= \App\Core\Controller::url('/m/stock_ledger') ?>" class="btn btn-outline-secondary">
                 <i class="bi bi-clock-history me-1"></i> Stock Ledger
             </a>
+            <?php if (\App\Core\Auth::can('inward', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/m/inward') ?>" class="btn btn-primary">
                 <i class="bi bi-box-arrow-in-down me-1"></i> Inward Entry
             </a>
+            <?php endif; ?>
         </div>
     </div>
 

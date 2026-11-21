@@ -20,6 +20,7 @@
             </h4>
             <p class="text-secondary small mb-0">Finished goods packing boxes, destination warehouse assignment & approval</p>
         </div>
+        <?php if (\App\Core\Auth::can('batch', 'create')): ?>
         <div class="d-flex gap-2">
             <a href="<?= \App\Core\Controller::url('/production/batches/create') ?>" class="btn btn-outline-success fw-semibold shadow-sm px-3 py-2">
                 <i class="bi bi-file-earmark-plus me-1"></i> New Production Bill
@@ -28,6 +29,7 @@
                 <i class="bi bi-box-seam me-1"></i> Pack New Batch
             </a>
         </div>
+        <?php endif; ?>
     </div>
 
     <!-- Filter Bar Card -->
@@ -151,9 +153,11 @@
                                         </button>
 
                                         <!-- 2. Edit Batch Modal -->
+                                        <?php if (\App\Core\Auth::can('batch', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary p-1 px-1.5" title="Edit Batch" onclick='openEditBatchModal(<?= json_encode($b, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
 
                                         <!-- 3. Print Production Bill / Invoice -->
                                         <a href="<?= \App\Core\Controller::url('/production/batches/label/' . $b['id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary p-1 px-1.5" title="Print Production Bill">
@@ -166,18 +170,20 @@
                                         </a>
 
                                         <!-- 5. Supervisor Approve / Gatepass -->
-                                        <?php if (strtoupper($b['status'] ?? '') === 'PREPARING' || strtoupper($b['status'] ?? '') === 'DRAFT'): ?>
-                                            <form action="<?= \App\Core\Controller::url('/m/batch/approve') ?>" method="POST" class="d-inline" onsubmit="return confirm('Supervisor Approval: Approve batch <?= htmlspecialchars($b['batch_no']) ?> and credit live inventory?');">
-                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
-                                                <input type="hidden" name="id" value="<?= (int)$b['id'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-warning p-1 px-1.5 text-dark" title="Supervisor Approve Batch">
-                                                    <i class="bi bi-check2-circle"></i>
-                                                </button>
-                                            </form>
-                                        <?php else: ?>
-                                            <span class="btn btn-sm btn-outline-secondary p-1 px-1.5 disabled" title="Already Processed">
-                                                <i class="bi bi-truck"></i>
-                                            </span>
+                                        <?php if (\App\Core\Auth::can('batch', 'edit')): ?>
+                                            <?php if (strtoupper($b['status'] ?? '') === 'PREPARING' || strtoupper($b['status'] ?? '') === 'DRAFT'): ?>
+                                                <form action="<?= \App\Core\Controller::url('/m/batch/approve') ?>" method="POST" class="d-inline" onsubmit="return confirm('Supervisor Approval: Approve batch <?= htmlspecialchars($b['batch_no']) ?> and credit live inventory?');">
+                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
+                                                    <input type="hidden" name="id" value="<?= (int)$b['id'] ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning p-1 px-1.5 text-dark" title="Supervisor Approve Batch">
+                                                        <i class="bi bi-check2-circle"></i>
+                                                    </button>
+                                                </form>
+                                            <?php else: ?>
+                                                <span class="btn btn-sm btn-outline-secondary p-1 px-1.5 disabled" title="Already Processed">
+                                                    <i class="bi bi-truck"></i>
+                                                </span>
+                                            <?php endif; ?>
                                         <?php endif; ?>
 
                                         <!-- 6. View Piece QR Codes Modal -->
@@ -186,6 +192,7 @@
                                         </button>
 
                                         <!-- 7. Delete Batch -->
+                                        <?php if (\App\Core\Auth::can('batch', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/m/batch/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete batch <?= htmlspecialchars($b['batch_no']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                                             <input type="hidden" name="id" value="<?= (int)$b['id'] ?>">
@@ -193,6 +200,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

@@ -210,12 +210,16 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-3 p-1.5" title="Quick View" onclick="showStyleDetails(<?= $s['id'] ?>)">
                                                     <i class="bi bi-eye"></i>
                                                 </button>
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
                                                 <a href="<?= \App\Core\Controller::url('/production/catalog/edit?id=' . $s['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Style">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
+                                                <?php endif; ?>
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'delete')): ?>
                                                 <button type="button" class="btn btn-sm btn-outline-danger rounded-3 p-1.5" title="Delete Style" onclick="confirmDeleteStyle(<?= $s['id'] ?>, '<?= htmlspecialchars(addslashes($s['name'])) ?>', '<?= htmlspecialchars($s['style_code']) ?>')">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                     </tr>
@@ -317,12 +321,16 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-3 p-1.5" title="Quick View Program" onclick="showProgramDetails(<?= $p['id'] ?>)">
                                                     <i class="bi bi-eye"></i>
                                                 </button>
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
                                                 <a href="<?= \App\Core\Controller::url('/production/programs/edit?id=' . $p['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Program">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
+                                                <?php endif; ?>
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'delete')): ?>
                                                 <button type="button" class="btn btn-sm btn-outline-danger rounded-3 p-1.5" title="Delete Program" onclick="confirmDeleteProgram(<?= $p['id'] ?>, '<?= htmlspecialchars(addslashes($p['program_no'])) ?>', '<?= htmlspecialchars(addslashes($p['program_name'] ?? '')) ?>')">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                     </tr>

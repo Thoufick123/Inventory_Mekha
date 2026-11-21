@@ -530,6 +530,7 @@
                 </div>
 
                 <!-- Complete Sale Action Button & Version (Image 2 Bottom) -->
+                <?php if (\App\Core\Auth::can('billing', 'create')): ?>
                 <button type="submit" id="btn_complete_sale" class="btn btn-secondary w-100 py-3 rounded-4 fw-bold fs-6 shadow-sm d-flex align-items-center justify-content-center gap-2 mb-1" style="border: none; transition: all 0.2s; background: #94a3b8; color: #ffffff;">
                     <i class="bi bi-printer fs-5"></i> Complete Sale & Print Invoice 
                     <span class="badge bg-white bg-opacity-25 px-2 py-1 font-monospace">F2</span>
@@ -537,6 +538,11 @@
                 <div id="checkout_helper_hint" class="text-center small py-1 mb-2" style="font-size: 0.76rem;">
                     <span class="text-muted"><i class="bi bi-info-circle me-1"></i> Scan or select products above to begin billing.</span>
                 </div>
+                <?php else: ?>
+                <div class="alert alert-warning py-2 px-3 small rounded-3 text-center mb-2">
+                    <i class="bi bi-lock-fill me-1"></i> View Only Access - Billing is disabled for this account.
+                </div>
+                <?php endif; ?>
 
                 <div class="text-end text-muted small" style="font-size: 0.74rem;">
                     v1.0

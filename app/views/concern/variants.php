@@ -102,9 +102,12 @@
                                         <a href="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $v['id']) ?>" class="btn btn-sm btn-outline-secondary" title="Print Labels">
                                             <i class="bi bi-qr-code"></i>
                                         </a>
+                                        <?php if (\App\Core\Auth::can('variants', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditVariantModal(<?= json_encode($v, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Variant">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::can('variants', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/m/variants/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete variant <?= htmlspecialchars(addslashes($v['name'])) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="id" value="<?= $v['id'] ?>">
@@ -112,6 +115,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

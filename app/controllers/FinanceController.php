@@ -444,6 +444,7 @@ class FinanceController extends Controller {
     }
 
     public function storeAccount(): void {
+        ModuleGuard::enforce('cash_flow', 'add');
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
 
@@ -473,6 +474,7 @@ class FinanceController extends Controller {
     }
 
     public function updateAccount(): void {
+        ModuleGuard::enforce('cash_flow', 'edit');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $account = DB::fetch("SELECT * FROM cash_accounts WHERE id = ?", [$id]);
@@ -501,6 +503,7 @@ class FinanceController extends Controller {
     }
 
     public function deleteAccount(): void {
+        ModuleGuard::enforce('cash_flow', 'delete');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $account = DB::fetch("SELECT * FROM cash_accounts WHERE id = ?", [$id]);
@@ -678,6 +681,7 @@ class FinanceController extends Controller {
 
     // 4. OPEN CASHIER SHIFT REGISTER
     public function openShift(): void {
+        ModuleGuard::enforce('cash_flow', 'add');
         $this->validateCsrf();
         $cid = (int)($_POST['concern_id'] ?? 0) ?: Auth::concernId();
 
@@ -803,6 +807,7 @@ class FinanceController extends Controller {
 
     // 5. CLOSE CASHIER SHIFT REGISTER
     public function closeShift(): void {
+        ModuleGuard::enforce('cash_flow', 'add');
         $this->validateCsrf();
         $cid = (int)($_POST['concern_id'] ?? 0) ?: Auth::concernId();
         if (!$cid && Auth::isSuperAdmin()) {

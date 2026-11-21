@@ -223,6 +223,7 @@
                                                 data-id="<?= (int)$c['id'] ?>" style="font-size: 0.78rem;">
                                             <i class="bi bi-eye"></i> View
                                         </button>
+                                        <?php if (\App\Core\Auth::can('customers', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 px-2 py-1 btn-edit-customer"
                                                 data-id="<?= (int)$c['id'] ?>"
                                                 data-name="<?= htmlspecialchars($c['name']) ?>"
@@ -235,6 +236,8 @@
                                                 style="font-size: 0.78rem;">
                                             <i class="bi bi-pencil-square"></i> Edit
                                         </button>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::can('customers', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/m/customers/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete customer <?= htmlspecialchars(addslashes($c['name'])) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="id" value="<?= $c['id'] ?>">
@@ -242,6 +245,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

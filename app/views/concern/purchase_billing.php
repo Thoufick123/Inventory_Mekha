@@ -6,9 +6,11 @@
             <p class="text-secondary small mb-0">Record vendor purchase bills, fabric rolls, trims/accessories and finished goods with GST calculation.</p>
         </div>
         <div class="d-flex gap-2">
+            <?php if (\App\Core\Auth::can('purchase_billing', 'create')): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background: #4f46e5;">
                 <i class="bi bi-bag-plus fs-6"></i> Record Production Purchase
             </a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -230,14 +232,18 @@
                                         <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . $b['id']) ?>" class="btn btn-outline-primary py-1 px-2" title="View Full Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        <?php if (\App\Core\Auth::can('purchase_billing', 'edit')): ?>
                                         <a href="<?= \App\Core\Controller::url('/m/purchase_billing/edit?id=' . $b['id']) ?>" class="btn btn-outline-secondary py-1 px-2" title="Edit Purchase Bill">
                                             <i class="bi bi-pencil-square"></i>
                                         </a>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::can('purchase_billing', 'delete')): ?>
                                         <button type="button" class="btn btn-outline-danger py-1 px-2"
                                                 title="Delete Bill"
                                                 onclick="openDeleteBillModal(<?= (int)$b['id'] ?>, '<?= htmlspecialchars(addslashes($b['bill_no'])) ?>', '<?= htmlspecialchars(addslashes($b['supplier_name'])) ?>', <?= (float)$b['net_amount'] ?>)">
                                             <i class="bi bi-trash3"></i>
                                         </button>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

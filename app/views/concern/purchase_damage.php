@@ -21,7 +21,7 @@
 
     <?php if (empty($selectedCid)): ?>
         <div class="alert alert-info border-0 shadow-sm">Select a concern above before scanning purchase labels.</div>
-    <?php else: ?>
+    <?php elseif (!empty($canAddDamage)): ?>
         <form action="<?= \App\Core\Controller::url('/m/purchase_damage/store') ?>" method="POST" id="purchaseDamageForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <?php if ($isSuperAdmin): ?>

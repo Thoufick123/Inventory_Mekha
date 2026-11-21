@@ -202,15 +202,19 @@
                                             </td>
                                             <td class="text-end pe-3 py-3">
                                                 <div class="btn-group btn-group-sm">
+                                                    <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
                                                     <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $b['id']) ?>" 
                                                        class="btn btn-outline-secondary" title="Edit Batch">
                                                         <i class="bi bi-pencil"></i>
                                                     </a>
+                                                    <?php endif; ?>
+                                                    <?php if (\App\Core\Auth::can('stitching_wastage', 'delete')): ?>
                                                     <button type="button" class="btn btn-outline-danger" 
                                                             title="Delete Batch"
                                                             onclick="confirmDeleteBatch(<?= $b['id'] ?>, '<?= htmlspecialchars($b['display_batch_no']) ?>')">
                                                         <i class="bi bi-trash"></i>
                                                     </button>
+                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                         </tr>

@@ -4,9 +4,11 @@
             <h4 class="fw-bold mb-1 text-dark">Stitching & Assembly Tracking</h4>
             <p class="text-secondary small mb-0">Record garment assembly, sewing line output, and needle breakage / stitching reject wastage.</p>
         </div>
+        <?php if (\App\Core\Auth::can('stitching_wastage', 'add')): ?>
         <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddStitching">
             <i class="bi bi-layers me-1"></i> Log Stitching Batch
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->

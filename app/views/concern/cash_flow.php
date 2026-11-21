@@ -14,18 +14,24 @@
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
             <?php if ($activeShift): ?>
+                <?php if (\App\Core\Auth::can('cash_flow', 'edit') || \App\Core\Auth::can('cash_flow', 'add')): ?>
                 <button class="btn btn-warning shadow-sm fw-semibold d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalCloseShift">
                     <i class="bi bi-lock-fill"></i> Close Shift (#<?= htmlspecialchars($activeShift['shift_no']) ?>)
                 </button>
+                <?php endif; ?>
             <?php else: ?>
+                <?php if (\App\Core\Auth::can('cash_flow', 'add')): ?>
                 <button class="btn text-white shadow-sm fw-semibold d-flex align-items-center gap-2" style="background: #4f46e5; border-radius: 8px;" data-bs-toggle="modal" data-bs-target="#modalOpenShift">
                     <i class="bi bi-door-open"></i> Open Shift Register
                 </button>
+                <?php endif; ?>
             <?php endif; ?>
             
+            <?php if (\App\Core\Auth::can('cash_flow', 'add')): ?>
             <button class="btn btn-outline-primary shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalAddAccount">
                 <i class="bi bi-bank"></i> Add Account
             </button>
+            <?php endif; ?>
             <button class="btn btn-outline-secondary shadow-sm d-flex align-items-center gap-1" onclick="window.print()">
                 <i class="bi bi-printer"></i> Print Statement
             </button>
@@ -81,9 +87,11 @@
                             <span class="text-secondary small d-block">Expected Till Cash</span>
                             <span class="fw-bold text-primary font-monospace fs-5">₹<?= number_format($shiftExpectedFloat, 2) ?></span>
                         </div>
+                        <?php if (\App\Core\Auth::can('cash_flow', 'edit') || \App\Core\Auth::can('cash_flow', 'add')): ?>
                         <button class="btn btn-sm btn-outline-danger ms-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalCloseShift">
                             <i class="bi bi-lock me-1"></i> Close Shift
                         </button>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -99,9 +107,11 @@
                     <small class="text-muted">No active shift is open. Open a cashier shift to record starting cash float and count denominations.</small>
                 </div>
             </div>
+            <?php if (\App\Core\Auth::can('cash_flow', 'add')): ?>
             <button class="btn btn-sm text-white px-3 py-2 fw-semibold" style="background: #4f46e5; border-radius: 6px;" data-bs-toggle="modal" data-bs-target="#modalOpenShift">
                 <i class="bi bi-door-open me-1"></i> Open Cashier Shift Register
             </button>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 
@@ -282,9 +292,12 @@
                                 <button type="button" class="btn btn-sm btn-outline-info px-2 py-1" onclick='openViewAccountModal(<?= json_encode($acc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Account Details">
                                     <i class="bi bi-eye me-1"></i> View
                                 </button>
+                                <?php if (\App\Core\Auth::can('cash_flow', 'edit')): ?>
                                 <button type="button" class="btn btn-sm btn-outline-primary px-2 py-1" onclick='openEditAccountModal(<?= json_encode($acc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Account">
                                     <i class="bi bi-pencil me-1"></i> Edit
                                 </button>
+                                <?php endif; ?>
+                                <?php if (\App\Core\Auth::can('cash_flow', 'delete')): ?>
                                 <form action="<?= \App\Core\Controller::url('/m/cash_flow/account/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete account <?= htmlspecialchars(addslashes($acc['name'])) ?>?');">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                     <input type="hidden" name="id" value="<?= $acc['id'] ?>">
@@ -292,6 +305,7 @@
                                         <i class="bi bi-trash me-1"></i> Delete
                                     </button>
                                 </form>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -302,9 +316,11 @@
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-clock-history me-2 text-primary"></i> Account Transactions Log</h6>
+                    <?php if (\App\Core\Auth::can('cash_flow', 'add')): ?>
                     <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddAccount">
                         <i class="bi bi-plus-lg me-1"></i> Add Account
                     </button>
+                    <?php endif; ?>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 table-custom">
