@@ -1608,6 +1608,56 @@ class ProductionController extends Controller {
             $this->redirect('/production/programs/create');
         }
 
+        // Group and validate total requested allocated quantities per roll item across all cards
+        $rollAllocationsByItem = [];
+        foreach ($rolls as $idx => $r) {
+            $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
+            $allocatedQty = (float)($r['allocated_qty'] ?? 0);
+            if ($rollItemId > 0) {
+                if (!isset($rollAllocationsByItem[$rollItemId])) {
+                    $rollAllocationsByItem[$rollItemId] = [
+                        'total_requested' => 0.0,
+                        'card_numbers'    => [],
+                    ];
+                }
+                $rollAllocationsByItem[$rollItemId]['total_requested'] += $allocatedQty;
+                $rollAllocationsByItem[$rollItemId]['card_numbers'][] = ($idx + 1);
+            }
+        }
+
+        foreach ($rollAllocationsByItem as $rollItemId => $allocData) {
+            $rollSql = "SELECT pbi.*, 
+                               COALESCE((
+                                   SELECT SUM(pr.allocated_qty) 
+                                   FROM program_rolls pr 
+                                   JOIN production_programs pp ON pr.program_id = pp.id 
+                                   WHERE pr.purchase_bill_item_id = pbi.id 
+                                     AND pp.status != 'cancelled'
+                               ), 0.00) AS used_qty
+                        FROM purchase_bill_items pbi 
+                        JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
+                        WHERE pbi.id = ?
+                          AND (pbi.inward_status = 'completed' OR (pbi.inward_status IS NULL AND pb.inward_status = 'completed'))" . ($cid ? " AND pbi.concern_id = ?" : "");
+            $rollItem = DB::fetch($rollSql, $cid ? [$rollItemId, $cid] : [$rollItemId]);
+
+            if (!$rollItem) {
+                $this->flash('error', "Invalid purchased roll (Item #{$rollItemId}) or roll has not been added to stock yet.");
+                $this->redirect('/production/programs/create');
+            }
+
+            $totalRollQty = (float)$rollItem['qty'];
+            $usedQty = (float)$rollItem['used_qty'];
+            $availableQty = max(0.00, $totalRollQty - $usedQty);
+
+            if ($allocData['total_requested'] > ($availableQty + 0.001)) {
+                $tag = $rollItem['item_code'] ?: ('Item #' . $rollItem['id']);
+                $cardsStr = implode(', ', array_map(fn($num) => "Roll #{$num}", $allocData['card_numbers']));
+                $unit = $rollItem['unit'] ?: 'kg';
+                $this->flash('error', "Total allocated quantity ({$allocData['total_requested']} {$unit}) across {$cardsStr} for [{$tag}] exceeds available stock balance ({$availableQty} {$unit} out of {$totalRollQty} {$unit}).");
+                $this->redirect('/production/programs/create');
+            }
+        }
+
         $validatedRolls = [];
         $totalPlannedQty = 0.00;
         $catalogScopeSql = $cid ? " AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)" : "";
@@ -2131,6 +2181,59 @@ class ProductionController extends Controller {
         if (!is_array($rolls) || empty($rolls)) {
             $this->flash('error', 'Please assign at least one raw material fabric roll.');
             $this->redirect('/production/programs/edit?id=' . $id);
+        }
+
+        // Group and validate total requested allocated quantities per roll item across all cards
+        $rollAllocationsByItem = [];
+        foreach ($rolls as $idx => $r) {
+            $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
+            $allocatedQty = (float)($r['allocated_qty'] ?? 0);
+            if ($rollItemId > 0) {
+                if (!isset($rollAllocationsByItem[$rollItemId])) {
+                    $rollAllocationsByItem[$rollItemId] = [
+                        'total_requested' => 0.0,
+                        'card_numbers'    => [],
+                    ];
+                }
+                $rollAllocationsByItem[$rollItemId]['total_requested'] += $allocatedQty;
+                $rollAllocationsByItem[$rollItemId]['card_numbers'][] = ($idx + 1);
+            }
+        }
+
+        foreach ($rollAllocationsByItem as $rollItemId => $allocData) {
+            $rollItem = DB::fetch(
+                "SELECT pbi.*, 
+                        COALESCE((
+                            SELECT SUM(pr.allocated_qty) 
+                            FROM program_rolls pr 
+                            JOIN production_programs pp ON pr.program_id = pp.id 
+                            WHERE pr.purchase_bill_item_id = pbi.id 
+                              AND pp.status != 'cancelled'
+                              AND pp.id != ?
+                        ), 0.00) AS used_qty_other
+                 FROM purchase_bill_items pbi 
+                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
+                 WHERE pbi.id = ?
+                   AND (pbi.inward_status = 'completed' OR (pbi.inward_status IS NULL AND pb.inward_status = 'completed'))" . ($cid ? " AND pbi.concern_id = ?" : ""),
+                $cid ? [$id, $rollItemId, $cid] : [$id, $rollItemId]
+            );
+
+            if (!$rollItem) {
+                $this->flash('error', "Invalid purchased roll (Item #{$rollItemId}) or roll has not been added to stock yet.");
+                $this->redirect('/production/programs/edit?id=' . $id);
+            }
+
+            $totalRollQty = (float)$rollItem['qty'];
+            $usedQtyOther = (float)$rollItem['used_qty_other'];
+            $availableQty = max(0.00, $totalRollQty - $usedQtyOther);
+
+            if ($allocData['total_requested'] > ($availableQty + 0.001)) {
+                $tag = $rollItem['item_code'] ?: ('Item #' . $rollItem['id']);
+                $cardsStr = implode(', ', array_map(fn($num) => "Roll #{$num}", $allocData['card_numbers']));
+                $unit = $rollItem['unit'] ?: 'kg';
+                $this->flash('error', "Total allocated quantity ({$allocData['total_requested']} {$unit}) across {$cardsStr} for [{$tag}] exceeds available stock balance ({$availableQty} {$unit} out of {$totalRollQty} {$unit}).");
+                $this->redirect('/production/programs/edit?id=' . $id);
+            }
         }
 
         // Keep existing allocation IDs stable so cutting/stitching links and
@@ -4102,12 +4205,17 @@ class ProductionController extends Controller {
         $notes         = trim($_POST['notes'] ?? '');
 
         if (empty($stitchingName)) {
-            $this->flash('error', 'Stitching Name is required.');
+            $this->flash('error', 'Stitching Name is required. Please fill the empty input field.');
             $this->redirect('/production/stitching/create');
         }
 
         if (!$cuttingId) {
             $this->flash('error', 'Please choose a valid Source Cutting Batch.');
+            $this->redirect('/production/stitching/create');
+        }
+
+        if (empty($tailorId)) {
+            $this->flash('error', 'Tailor / Stitching Master is required. Please select a Tailor.');
             $this->redirect('/production/stitching/create');
         }
 
@@ -4154,6 +4262,29 @@ class ProductionController extends Controller {
 
         // Process submitted items breakdown
         $submittedItems = $_POST['items'] ?? [];
+        if (empty($submittedItems) || !is_array($submittedItems)) {
+            $this->flash('error', 'Please select a cutting batch with valid items.');
+            $this->redirect('/production/stitching/create');
+        }
+
+        // Validate that no item input fields are empty
+        foreach ($submittedItems as $it) {
+            $stitchQStr = trim((string)($it['stitching_qty'] ?? ''));
+            $perWtStr   = trim((string)($it['per_pc_weight'] ?? ''));
+            $totWtStr   = trim((string)($it['total_weight'] ?? ''));
+            $basePrStr  = trim((string)($it['base_price'] ?? ''));
+            $discPrStr  = trim((string)($it['discount_price'] ?? ''));
+
+            if ($stitchQStr === '' || !is_numeric($stitchQStr) || (int)$stitchQStr < 0 ||
+                $perWtStr === '' || !is_numeric($perWtStr) || (float)$perWtStr <= 0 ||
+                $totWtStr === '' || !is_numeric($totWtStr) || (float)$totWtStr <= 0 ||
+                $basePrStr === '' || !is_numeric($basePrStr) || (float)$basePrStr < 0 ||
+                $discPrStr === '' || !is_numeric($discPrStr) || (float)$discPrStr < 0) {
+                $this->flash('error', 'Please fill all empty input fields (Quantity, Weights, and Prices) for all variant items.');
+                $this->redirect('/production/stitching/create');
+            }
+        }
+
         $validatedItems = [];
         $totalCutQty = 0;
         $totalStitchedQty = 0;
@@ -4417,10 +4548,44 @@ class ProductionController extends Controller {
             $this->redirect('/production/stitching');
         }
 
-        $stitchingName = trim($_POST['stitching_name'] ?? $batch['stitching_name']);
+        $stitchingName = trim($_POST['stitching_name'] ?? '');
         $tailorId      = !empty($_POST['tailor_id']) ? (int)$_POST['tailor_id'] : null;
         $status        = in_array($_POST['status'] ?? '', ['in_progress', 'planned', 'completed']) ? $_POST['status'] : $batch['status'];
         $notes         = trim($_POST['notes'] ?? '');
+
+        if (empty($stitchingName)) {
+            $this->flash('error', 'Stitching Name is required. Please fill the empty input field.');
+            $this->redirect('/production/stitching/edit?id=' . $id);
+        }
+
+        if (empty($tailorId)) {
+            $this->flash('error', 'Tailor / Stitching Master is required. Please select a Tailor.');
+            $this->redirect('/production/stitching/edit?id=' . $id);
+        }
+
+        $submittedItems = $_POST['items'] ?? [];
+        if (empty($submittedItems) || !is_array($submittedItems)) {
+            $this->flash('error', 'No variant items found in batch.');
+            $this->redirect('/production/stitching/edit?id=' . $id);
+        }
+
+        // Validate that no item input fields are empty
+        foreach ($submittedItems as $itemId => $it) {
+            $stitchQStr = trim((string)($it['stitching_qty'] ?? ''));
+            $perWtStr   = trim((string)($it['per_pc_weight'] ?? ''));
+            $totWtStr   = trim((string)($it['total_weight'] ?? ''));
+            $basePrStr  = trim((string)($it['base_price'] ?? ''));
+            $discPrStr  = trim((string)($it['discount_price'] ?? ''));
+
+            if ($stitchQStr === '' || !is_numeric($stitchQStr) || (int)$stitchQStr < 0 ||
+                $perWtStr === '' || !is_numeric($perWtStr) || (float)$perWtStr <= 0 ||
+                $totWtStr === '' || !is_numeric($totWtStr) || (float)$totWtStr <= 0 ||
+                $basePrStr === '' || !is_numeric($basePrStr) || (float)$basePrStr < 0 ||
+                $discPrStr === '' || !is_numeric($discPrStr) || (float)$discPrStr < 0) {
+                $this->flash('error', 'Please fill all empty input fields (Quantity, Weights, and Prices) for all variant items.');
+                $this->redirect('/production/stitching/edit?id=' . $id);
+            }
+        }
 
         $tailorName = null;
         if ($tailorId) {
@@ -4781,93 +4946,926 @@ class ProductionController extends Controller {
     // ========================================================
     // 5. QC STOCKS INSPECTION
     // ========================================================
-    public function qc(): void {
-        $cid = Auth::concernId();
+    // ========================================================
+    // ========================================================
+    // 5. QC STOCKS INSPECTION (Full Production QC Flow)
+    // ========================================================
 
-        $sql = "SELECT qi.*, v.name AS variant_name, v.sku_code, u.name AS inspector_name,
-                       con.name AS concern_name, con.code AS concern_code
+    protected function ensureQcSchema(): void {
+        try {
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `qc_inspections` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `concern_id` INT NULL,
+                    `qc_no` VARCHAR(50) NOT NULL,
+                    `batch_no` VARCHAR(50) NULL,
+                    `variant_id` INT NULL,
+                    `program_id` INT NULL,
+                    `stitching_batch_id` INT NULL,
+                    `cutting_batch_id` INT NULL,
+                    `inspected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `passed_qty` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `location` VARCHAR(100) NULL DEFAULT 'Main Store',
+                    `defect_notes` TEXT NULL,
+                    `rework_notes` TEXT NULL,
+                    `status` VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+                    `inspector_id` INT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`concern_id`),
+                    INDEX (`stitching_batch_id`),
+                    INDEX (`status`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `qc_inspection_items` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `qc_id` INT NOT NULL,
+                    `catalog_id` INT NULL,
+                    `variant_id` INT NULL,
+                    `stitching_item_id` INT NULL,
+                    `size` VARCHAR(50) NULL,
+                    `color` VARCHAR(50) NULL,
+                    `sku_code` VARCHAR(100) NULL,
+                    `variant_name` VARCHAR(255) NULL,
+                    `inspected_qty` INT NOT NULL DEFAULT 0,
+                    `passed_qty` INT NOT NULL DEFAULT 0,
+                    `rejected_qty` INT NOT NULL DEFAULT 0,
+                    `rework_qty` INT NOT NULL DEFAULT 0,
+                    `defect_notes` TEXT NULL,
+                    `rework_notes` TEXT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`qc_id`),
+                    INDEX (`variant_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `qc_piece_items` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `qc_id` INT NOT NULL,
+                    `qc_item_id` INT NULL,
+                    `variant_id` INT NULL,
+                    `stitching_item_id` INT NULL,
+                    `tag_code` VARCHAR(100) NOT NULL,
+                    `piece_number` INT NOT NULL DEFAULT 1,
+                    `total_variant_pieces` INT NOT NULL DEFAULT 1,
+                    `size` VARCHAR(50) NULL,
+                    `color` VARCHAR(50) NULL,
+                    `catalog_name` VARCHAR(255) NULL,
+                    `verdict` ENUM('PENDING','PASSED','REJECTED','REWORK') NOT NULL DEFAULT 'PENDING',
+                    `defect_reason` TEXT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`qc_id`),
+                    INDEX (`tag_code`),
+                    INDEX (`verdict`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            $cols = array_column(DB::fetchAll("DESCRIBE `qc_inspections`"), 'Field');
+            if (!in_array('stitching_batch_id', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `stitching_batch_id` INT NULL AFTER `program_id`");
+            }
+            if (!in_array('rework_notes', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_notes` TEXT NULL AFTER `defect_notes`");
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    /**
+     * Inward passed QC garment quantity directly into live stocks & stock ledger
+     */
+    protected function inwardVariantToStock(int $variantId, float $qty, int $cid, int $qcId, string $qcNo, string $batchNo, string $location = 'Main Store', ?int $programId = null, ?int $stitchingBatchId = null, string $inspectorName = 'System Administrator'): void {
+        if ($qty <= 0) return;
+
+        $location = $location ?: 'Main Store';
+
+        // 1. Credit stocks table (stocks table primary key is (concern_id, variant_id, location))
+        $existing = DB::fetch(
+            "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ?",
+            [$cid, $variantId, $location]
+        );
+
+        if ($existing) {
+            DB::query(
+                "UPDATE stocks SET qty = qty + ?, updated_at = NOW() WHERE concern_id = ? AND variant_id = ? AND location = ?",
+                [$qty, $cid, $variantId, $location]
+            );
+        } else {
+            DB::query(
+                "INSERT INTO stocks (concern_id, variant_id, location, qty, updated_at)
+                 VALUES (?, ?, ?, ?, NOW())",
+                [$cid, $variantId, $location, $qty]
+            );
+        }
+
+        // 2. Immutable Stock Ledger Entry
+        DB::query(
+            "INSERT INTO stock_ledger (concern_id, variant_id, qty_in, qty_out, location, ref_module, ref_id, note, created_by, created_at)
+             VALUES (?, ?, ?, 0, ?, 'Production QC', ?, ?, ?, NOW())",
+            [
+                $cid,
+                $variantId,
+                $qty,
+                $location,
+                $qcId,
+                "QC Passed ({$qcNo}) for Stitching Batch {$batchNo}",
+                Auth::id() ?: 1
+            ]
+        );
+
+        // 3. Batches register entry for Finished Goods Inventory
+        try {
+            $existingBatch = DB::fetch(
+                "SELECT id FROM batches WHERE qc_batch_id = ? AND variant_id = ?",
+                [$qcId, $variantId]
+            );
+            if ($existingBatch) {
+                DB::query("UPDATE batches SET batch_qty = batch_qty + ? WHERE id = ?", [$qty, $existingBatch['id']]);
+            } else {
+                $today = date('Ymd');
+                $countToday = (int)DB::fetchValue("SELECT COUNT(*) FROM batches WHERE batch_no LIKE ?", ["BAT-{$today}-%"]);
+                $bSeq = str_pad((string)($countToday + 1), 4, '0', STR_PAD_LEFT);
+                $batNo = "BAT-{$today}-{$bSeq}";
+
+                DB::query("
+                    INSERT INTO batches (
+                        concern_id, production_unit_id, program_id, qc_batch_id, stitching_batch_id, batch_no,
+                        variant_id, batch_qty, total_boxes, warehouse_id, warehouse_name, packed_by_name,
+                        rework_included, status, mfg_date, created_at
+                    ) VALUES (
+                        ?, 1, ?, ?, ?, ?,
+                        ?, ?, 1, 1, ?, ?,
+                        0, 'APPROVED', CURDATE(), NOW()
+                    )
+                ", [
+                    $cid, $programId, $qcId, $stitchingBatchId, $batNo,
+                    $variantId, $qty, $location, $inspectorName
+                ]);
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    /**
+     * QC Inspections List (Image 1: /production/qc)
+     */
+    public function qc(): void {
+        $this->ensureQcSchema();
+        $cid = Auth::concernId() ?: 1;
+
+        $statusFilter = trim($_GET['status'] ?? '');
+        $search       = trim($_GET['search'] ?? '');
+        $page         = max(1, (int)($_GET['page'] ?? 1));
+        $perPage      = max(5, (int)($_GET['per_page'] ?? 10));
+        $offset       = ($page - 1) * $perPage;
+
+        $sql = "SELECT qi.*, 
+                       v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                       sl.batch_no AS stitching_batch_no, sl.stitching_name,
+                       COALESCE(p.program_no, sl.batch_no, qi.batch_no, 'PRG') AS program_no,
+                       COALESCE(cat.name, p.program_name, sl.stitching_name, v.name, 'Garment Product') AS product_name,
+                       COALESCE(u.name, 'System Administrator') AS inspector_name,
+                       con.name AS concern_name, con.code AS concern_code,
+                       (SELECT COUNT(*) FROM qc_inspection_items WHERE qc_id = qi.id) AS variant_count
                 FROM qc_inspections qi
-                JOIN variants v ON qi.variant_id = v.id
+                LEFT JOIN variants v ON qi.variant_id = v.id
+                LEFT JOIN stitching_logs sl ON qi.stitching_batch_id = sl.id
+                LEFT JOIN production_programs p ON (qi.program_id = p.id OR sl.program_id = p.id OR p.target_variant_id = v.id)
+                LEFT JOIN catalogs cat ON p.catalog_id = cat.id
                 LEFT JOIN users u ON qi.inspector_id = u.id
-                LEFT JOIN concerns con ON qi.concern_id = con.id";
+                LEFT JOIN concerns con ON qi.concern_id = con.id
+                WHERE 1=1";
         $params = [];
+
         if ($cid) {
-            $sql .= " WHERE qi.concern_id = ?";
+            $sql .= " AND (qi.concern_id = ? OR qi.concern_id IS NULL)";
             $params[] = $cid;
         }
-        $sql .= " ORDER BY qi.id DESC";
-        $inspections = DB::fetchAll($sql, $params);
 
-        if ($cid) {
-            $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
-        } else {
-            $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE status = 'active'");
+        if ($statusFilter !== '' && $statusFilter !== 'All Statuses') {
+            $sql .= " AND UPPER(qi.status) = ?";
+            $params[] = strtoupper($statusFilter);
         }
 
+        if ($search !== '') {
+            $sql .= " AND (qi.qc_no LIKE ? OR p.program_no LIKE ? OR sl.batch_no LIKE ? OR v.name LIKE ? OR v.sku_code LIKE ? OR u.name LIKE ?)";
+            $term = "%{$search}%";
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+        }
+
+        $countSql = "SELECT COUNT(*) FROM (" . $sql . ") AS cnt_tbl";
+        $totalCount = (int)DB::fetchValue($countSql, $params);
+        $totalPages = max(1, (int)ceil($totalCount / $perPage));
+
+        $sql .= " ORDER BY qi.id DESC LIMIT {$perPage} OFFSET {$offset}";
+        $inspections = DB::fetchAll($sql, $params);
+
         $this->render('concern/qc_stocks', [
-            'pageTitle'     => 'Quality Control & Stock Approval',
+            'pageTitle'     => 'Quality Control (QC) Inspections',
             'currentModule' => 'qc_stocks',
             'inspections'   => $inspections,
-            'variants'      => $variants,
+            'totalCount'    => $totalCount,
+            'page'          => $page,
+            'perPage'       => $perPage,
+            'totalPages'    => $totalPages,
+            'statusFilter'  => $statusFilter,
+            'search'        => $search,
             'selectedCid'   => $cid,
         ]);
     }
 
+    /**
+     * API to fetch Stitching Batch variants & details for QC create
+     */
+    public function apiStitchingDetailsForQc(): void {
+        $cid = Auth::concernId();
+        $stitchingId = (int)($_GET['stitching_id'] ?? 0);
+        if (!$stitchingId) {
+            echo json_encode(['success' => false, 'message' => 'Invalid stitching ID']);
+            return;
+        }
+
+        $batch = DB::fetch("
+            SELECT sl.*,
+                   COALESCE(sl.batch_no, sl.log_no) AS display_batch_no,
+                   pp.program_no, pp.program_name
+            FROM stitching_logs sl
+            LEFT JOIN production_programs pp ON sl.program_id = pp.id
+            WHERE sl.id = ?" . ($cid ? " AND (sl.concern_id = ? OR sl.concern_id IS NULL)" : ""),
+            $cid ? [$stitchingId, $cid] : [$stitchingId]
+        );
+
+        if (!$batch) {
+            echo json_encode(['success' => false, 'message' => 'Stitching batch not found']);
+            return;
+        }
+
+        $items = DB::fetchAll("
+            SELECT si.*,
+                   COALESCE(cat.id, pp.catalog_id) AS catalog_id,
+                   COALESCE(cat.name, 'Catalog Item') AS catalog_name,
+                   cat.hierarchy_path,
+                   cat.style_code,
+                   COALESCE(v.sku_code, si.sku_code) AS variant_sku,
+                   COALESCE(v.name, si.variant_name, CONCAT(si.size, ' - ', si.color)) AS variant_full_name
+            FROM stitching_items si
+            JOIN stitching_logs sl ON si.stitching_id = sl.id
+            LEFT JOIN production_programs pp ON sl.program_id = pp.id
+            LEFT JOIN catalogs cat ON si.catalog_id = cat.id
+            LEFT JOIN variants v ON si.variant_id = v.id
+            WHERE si.stitching_id = ?
+            ORDER BY si.id ASC
+        ", [$stitchingId]);
+
+        echo json_encode([
+            'success' => true,
+            'batch'   => $batch,
+            'items'   => $items
+        ]);
+    }
+
+    /**
+     * Initialize QC Inspection Batch (Image 3: /production/qc/create)
+     */
+    public function createQc(): void {
+        $this->ensureQcSchema();
+        $cid = Auth::concernId() ?: 1;
+
+        // Fetch completed or in-progress stitching batches ready for QC
+        $stitchingBatches = DB::fetchAll("
+            SELECT sl.*,
+                   COALESCE(sl.batch_no, sl.log_no) AS display_batch_no,
+                   pp.program_no, pp.program_name,
+                   (SELECT COUNT(*) FROM stitching_items WHERE stitching_id = sl.id) AS variant_count,
+                   COALESCE((SELECT SUM(stitching_qty) FROM stitching_items WHERE stitching_id = sl.id), sl.stitched_pieces, 0) AS total_pieces
+            FROM stitching_logs sl
+            LEFT JOIN production_programs pp ON sl.program_id = pp.id
+            WHERE (sl.concern_id = ? OR sl.concern_id IS NULL)
+              AND (sl.status != 'cancelled' OR sl.status IS NULL)
+            ORDER BY sl.id DESC
+        ", [$cid]);
+
+        // Preselected stitching batch
+        $selectedStitchingId = (int)($_GET['stitching_batch_id'] ?? ($stitchingBatches[0]['id'] ?? 0));
+        $selectedBatch = null;
+        foreach ($stitchingBatches as $b) {
+            if ($b['id'] == $selectedStitchingId) {
+                $selectedBatch = $b;
+                break;
+            }
+        }
+        if (!$selectedBatch && !empty($stitchingBatches)) {
+            $selectedBatch = $stitchingBatches[0];
+            $selectedStitchingId = (int)$selectedBatch['id'];
+        }
+
+        // Fetch variants for selected stitching batch
+        $batchItems = [];
+        if ($selectedStitchingId > 0) {
+            $batchItems = DB::fetchAll("
+                SELECT si.*,
+                       COALESCE(cat.id, pp.catalog_id) AS catalog_id,
+                       COALESCE(cat.name, 'Catalog Item') AS catalog_name,
+                       cat.hierarchy_path,
+                       cat.style_code,
+                       COALESCE(v.sku_code, si.sku_code) AS variant_sku,
+                       COALESCE(v.name, si.variant_name, CONCAT(si.size, ' - ', si.color)) AS variant_full_name
+                FROM stitching_items si
+                JOIN stitching_logs sl ON si.stitching_id = sl.id
+                LEFT JOIN production_programs pp ON sl.program_id = pp.id
+                LEFT JOIN catalogs cat ON si.catalog_id = cat.id
+                LEFT JOIN variants v ON si.variant_id = v.id
+                WHERE si.stitching_id = ?
+                ORDER BY si.id ASC
+            ", [$selectedStitchingId]);
+        }
+
+        // Inspectors list
+        $inspectors = DB::fetchAll("
+            SELECT u.id, u.name, r.name AS role, u.email 
+            FROM users u
+            LEFT JOIN roles r ON u.role_id = r.id
+            WHERE u.status = 'active'" . ($cid ? " AND (u.concern_id = ? OR u.concern_id IS NULL)" : "") . "
+            ORDER BY u.name ASC
+        ", $cid ? [$cid] : []);
+
+        $warehouses = [
+            ['id' => 1, 'name' => 'Main Store (WH-01)', 'code' => 'WH-01'],
+            ['id' => 2, 'name' => 'Finished Goods Warehouse', 'code' => 'WH-02'],
+        ];
+
+        $this->render('concern/qc_create', [
+            'pageTitle'           => 'Initialize QC Inspection Batch',
+            'currentModule'       => 'qc_stocks',
+            'stitchingBatches'    => $stitchingBatches,
+            'selectedBatch'       => $selectedBatch,
+            'selectedStitchingId' => $selectedStitchingId,
+            'batchItems'          => $batchItems,
+            'inspectors'          => $inspectors,
+            'warehouses'          => $warehouses,
+            'csrfToken'           => Auth::csrfToken(),
+            'selectedCid'         => $cid,
+        ]);
+    }
+
+    /**
+     * Store QC Inspection (From Table Mode or Initialize Scanner)
+     */
     public function storeQc(): void {
+        $this->ensureQcSchema();
         $this->validateCsrf();
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 1);
 
-        if (!$cid) {
-            $this->flash('error', 'Please choose a concern.');
-            $this->redirect('/m/qc_stocks');
+        $stitchingBatchId = (int)($_POST['stitching_batch_id'] ?? 0);
+        $inspectorId      = (int)($_POST['inspector_id'] ?? Auth::id() ?: 1);
+        $location         = trim($_POST['location'] ?? 'Main Store');
+        $generalNotes     = trim($_POST['notes'] ?? '');
+        $submitAction     = trim($_POST['submit_action'] ?? 'direct_inward');
+
+        if (!$stitchingBatchId) {
+            $this->flash('error', 'Please select a valid Stitching Production Batch.');
+            $this->redirect('/production/qc/create');
+            return;
         }
 
-        $variantId    = (int)($_POST['variant_id'] ?? 0);
-        $inspectedQty = (float)($_POST['inspected_qty'] ?? 0);
-        $passedQty    = (float)($_POST['passed_qty'] ?? 0);
-        $rejectedQty  = (float)($_POST['rejected_qty'] ?? 0);
-        $location     = trim($_POST['location'] ?? 'Main Store');
-        $defectNotes  = trim($_POST['defect_notes'] ?? '');
+        $batch = DB::fetch(
+            "SELECT sl.*, COALESCE(sl.batch_no, sl.log_no) AS display_batch_no, pp.program_no, pp.program_name 
+             FROM stitching_logs sl 
+             LEFT JOIN production_programs pp ON sl.program_id = pp.id 
+             WHERE sl.id = ?" . ($cid ? " AND (sl.concern_id = ? OR sl.concern_id IS NULL)" : ""),
+            $cid ? [$stitchingBatchId, $cid] : [$stitchingBatchId]
+        );
 
-        if (!$variantId || $inspectedQty <= 0 || $passedQty < 0) {
-            $this->flash('error', 'Variant, Inspected Qty, and Passed Qty are required.');
-            $this->redirect('/m/qc_stocks');
+        if (!$batch) {
+            $this->flash('error', 'Selected stitching batch not found.');
+            $this->redirect('/production/qc/create');
+            return;
         }
+
+        $inspector = DB::fetch("SELECT name FROM users WHERE id = ?", [$inspectorId]);
+        $inspectorName = $inspector['name'] ?? 'System Administrator';
+
+        $submittedItems = $_POST['items'] ?? [];
+        if (empty($submittedItems) || !is_array($submittedItems)) {
+            $this->flash('error', 'No variant items available in this batch for inspection.');
+            $this->redirect('/production/qc/create?stitching_batch_id=' . $stitchingBatchId);
+            return;
+        }
+
+        // Sequential QC number: QC #X
+        $qcCount = (int)DB::fetchValue("SELECT COUNT(*) FROM qc_inspections WHERE (concern_id = ? OR concern_id IS NULL)", [$cid]);
+        $qcNo = 'QC #' . ($qcCount + 1);
+
+        $totInspected = 0;
+        $totPassed = 0;
+        $totRejected = 0;
+        $totRework = 0;
+
+        foreach ($submittedItems as $it) {
+            $totInspected += (int)($it['total_qty'] ?? 0);
+            $totPassed    += (int)($it['passed_qty'] ?? 0);
+            $totRejected  += (int)($it['rejected_qty'] ?? 0);
+            $totRework    += (int)($it['rework_qty'] ?? 0);
+        }
+
+        if ($totInspected <= 0) {
+            $totInspected = (int)$batch['stitched_pieces'];
+        }
+
+        // Status calculation
+        if ($submitAction === 'save_and_inspect') {
+            $status = 'PENDING';
+        } elseif ($totRework > 0) {
+            $status = 'REWORK';
+        } elseif ($totRejected > 0 && $totPassed > 0) {
+            $status = 'PARTIAL';
+        } elseif ($totRejected > 0 && $totPassed == 0) {
+            $status = 'REJECTED';
+        } else {
+            $status = 'PASSED';
+        }
+
+        $firstVariantId = !empty($submittedItems[0]['variant_id']) ? (int)$submittedItems[0]['variant_id'] : null;
 
         DB::beginTransaction();
         try {
-            $qcNo = 'QC-' . date('Ymd') . '-' . rand(100, 999);
-
             DB::query(
-                "INSERT INTO qc_inspections (concern_id, qc_no, variant_id, inspected_qty, passed_qty, rejected_qty, location, defect_notes, inspector_id, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                [$cid, $qcNo, $variantId, $inspectedQty, $passedQty, $rejectedQty, $location, $defectNotes, Auth::id()]
+                "INSERT INTO qc_inspections (
+                    concern_id, qc_no, batch_no, variant_id, program_id, stitching_batch_id, cutting_batch_id,
+                    inspected_qty, passed_qty, rework_qty, rejected_qty, location, defect_notes, rework_notes,
+                    status, inspector_id, created_at
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                [
+                    $cid, $qcNo, $batch['display_batch_no'], $firstVariantId, (int)$batch['program_id'], $stitchingBatchId, (int)$batch['cutting_id'],
+                    $totInspected, $totPassed, $totRework, $totRejected, $location, $generalNotes, '',
+                    $status, $inspectorId
+                ]
             );
+
             $qcId = (int)DB::lastInsertId();
 
-            if ($passedQty > 0) {
-                StockService::move(
-                    $cid,
-                    $variantId,
-                    $location,
-                    $passedQty,
-                    0.00,
-                    'QC Stocks',
-                    $qcId,
-                    "QC Inspection Passed [{$qcNo}]: {$passedQty} units approved",
-                    Auth::id()
-                );
+            // Insert variant-wise inspection items & generate piece items
+            $batchCode = preg_replace('/[^A-Z0-9]/i', '', $batch['display_batch_no']);
+            $tagSeq = 1;
+
+            foreach ($submittedItems as $it) {
+                $stitchingItemId = (int)($it['stitching_item_id'] ?? 0);
+                $catalogId       = !empty($it['catalog_id']) ? (int)$it['catalog_id'] : null;
+                $variantId       = !empty($it['variant_id']) ? (int)$it['variant_id'] : null;
+                $size            = trim($it['size'] ?? '');
+                $color           = trim($it['color'] ?? '');
+                $sku             = trim($it['sku_code'] ?? '');
+                $variantName     = trim($it['variant_name'] ?? '');
+                $inspectedQ      = max(0, (int)($it['total_qty'] ?? 0));
+                $passedQ         = max(0, (int)($it['passed_qty'] ?? 0));
+                $rejectedQ       = max(0, (int)($it['rejected_qty'] ?? 0));
+                $reworkQ         = max(0, (int)($it['rework_qty'] ?? 0));
+                $defectNote      = trim($it['defect_notes'] ?? '');
+                $reworkNote      = trim($it['rework_notes'] ?? '');
+
+                DB::query("
+                    INSERT INTO qc_inspection_items (
+                        qc_id, catalog_id, variant_id, stitching_item_id, size, color, sku_code, variant_name,
+                        inspected_qty, passed_qty, rejected_qty, rework_qty, defect_notes, rework_notes, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                ", [
+                    $qcId, $catalogId, $variantId, $stitchingItemId, $size, $color, $sku, $variantName,
+                    $inspectedQ, $passedQ, $rejectedQ, $reworkQ, $defectNote, $reworkNote
+                ]);
+
+                $qcItemId = (int)DB::lastInsertId();
+
+                // Generate piece records for the QR scanner
+                $skuPrefix = preg_replace('/[^A-Z0-9]/i', '', strtoupper(substr($sku ?: ($size . $color), 0, 3)));
+                for ($p = 1; $p <= $inspectedQ; $p++) {
+                    $pieceCode = ($skuPrefix ?: 'GAR') . date('md') . str_pad((string)$tagSeq, 3, '0', STR_PAD_LEFT);
+                    
+                    if ($submitAction === 'save_and_inspect') {
+                        $pVerdict = 'PENDING';
+                    } else {
+                        if ($p <= $passedQ) {
+                            $pVerdict = 'PASSED';
+                        } elseif ($p <= ($passedQ + $rejectedQ)) {
+                            $pVerdict = 'REJECTED';
+                        } else {
+                            $pVerdict = 'REWORK';
+                        }
+                    }
+
+                    DB::query("
+                        INSERT INTO qc_piece_items (
+                            qc_id, qc_item_id, variant_id, stitching_item_id, tag_code, piece_number,
+                            total_variant_pieces, size, color, catalog_name, verdict, defect_reason, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ", [
+                        $qcId, $qcItemId, $variantId, $stitchingItemId, $pieceCode, $p,
+                        $inspectedQ, $size, $color, $variantName, $pVerdict, ($pVerdict === 'REJECTED' ? $defectNote : ($pVerdict === 'REWORK' ? $reworkNote : null))
+                    ]);
+
+                    $tagSeq++;
+                }
+
+                // If Direct Inward: credit passed quantities directly to stocks!
+                if ($submitAction === 'direct_inward' && $passedQ > 0 && $variantId > 0) {
+                    $this->inwardVariantToStock(
+                        $variantId,
+                        (float)$passedQ,
+                        $cid,
+                        $qcId,
+                        $qcNo,
+                        $batch['display_batch_no'],
+                        $location,
+                        (int)$batch['program_id'],
+                        $stitchingBatchId,
+                        $inspectorName
+                    );
+                }
+            }
+
+            // If direct inward and all finished, mark stitching log inwarded
+            if ($submitAction === 'direct_inward') {
+                DB::query("UPDATE stitching_logs SET inward_status = 'completed' WHERE id = ?", [$stitchingBatchId]);
             }
 
             DB::commit();
 
-            $this->flash('success', "QC Inspection '{$qcNo}' approved! {$passedQty} units moved to live stock.");
-        } catch (Exception $e) {
+            if ($submitAction === 'save_and_inspect') {
+                $this->flash('success', "QC Inspection Batch {$qcNo} initialized! Please scan or mark garment pieces.");
+                $this->redirect("/production/qc/inspect?id={$qcId}");
+                return;
+            } else {
+                $this->flash('success', "Quality Control {$qcNo} completed! {$totPassed} pcs passed and credited directly to Live Stock ({$totRejected} rejected, {$totRework} rework).");
+                $this->redirect("/production/qc/details?id={$qcId}");
+                return;
+            }
+        } catch (\Throwable $e) {
             DB::rollBack();
-            $this->flash('error', 'QC processing error: ' . $e->getMessage());
+            $this->flash('error', 'Failed to save QC inspection: ' . $e->getMessage());
+            $this->redirect('/production/qc/create?stitching_batch_id=' . $stitchingBatchId);
+        }
+    }
+
+    /**
+     * Interactive 2D QR Garment Scanner Inspection View (Image 4: /production/qc/inspect?id=X)
+     */
+    public function inspectQc(): void {
+        $this->ensureQcSchema();
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_GET['id'] ?? 0);
+
+        $qc = DB::fetch("
+            SELECT qi.*, 
+                   sl.batch_no AS stitching_batch_no, sl.stitching_name,
+                   pp.program_no, pp.program_name,
+                   u.name AS inspector_name
+            FROM qc_inspections qi
+            LEFT JOIN stitching_logs sl ON qi.stitching_batch_id = sl.id
+            LEFT JOIN production_programs pp ON (qi.program_id = pp.id OR sl.program_id = pp.id)
+            LEFT JOIN users u ON qi.inspector_id = u.id
+            WHERE qi.id = ?" . ($cid ? " AND (qi.concern_id = ? OR qi.concern_id IS NULL)" : ""),
+            $cid ? [$id, $cid] : [$id]
+        );
+
+        if (!$qc) {
+            $this->flash('error', 'QC Inspection batch not found or access denied.');
+            $this->redirect('/production/qc');
+            return;
         }
 
-        $this->redirect('/m/qc_stocks');
+        $pieces = DB::fetchAll("
+            SELECT qp.*, qii.sku_code, qii.variant_name
+            FROM qc_piece_items qp
+            LEFT JOIN qc_inspection_items qii ON qp.qc_item_id = qii.id
+            WHERE qp.qc_id = ?
+            ORDER BY qp.id ASC
+        ", [$id]);
+
+        $this->render('concern/qc_inspect', [
+            'pageTitle'     => "2D QR Garment Scanner — {$qc['qc_no']}",
+            'currentModule' => 'qc_stocks',
+            'qc'            => $qc,
+            'pieces'        => $pieces,
+            'csrfToken'     => Auth::csrfToken(),
+        ]);
+    }
+
+    /**
+     * AJAX piece verdict update (Pass, Reject, Rework from Image 4)
+     */
+    public function updateQcPiece(): void {
+        header('Content-Type: application/json');
+        $this->ensureQcSchema();
+        $pieceId = (int)($_POST['piece_id'] ?? 0);
+        $verdict = strtoupper(trim($_POST['verdict'] ?? ''));
+        $reason  = trim($_POST['defect_reason'] ?? '');
+
+        if (!in_array($verdict, ['PASSED', 'REJECTED', 'REWORK', 'PENDING'], true)) {
+            echo json_encode(['success' => false, 'message' => 'Invalid verdict']);
+            return;
+        }
+
+        $piece = DB::fetch("SELECT * FROM qc_piece_items WHERE id = ?", [$pieceId]);
+        if (!$piece) {
+            echo json_encode(['success' => false, 'message' => 'Piece not found']);
+            return;
+        }
+
+        try {
+            DB::query("UPDATE qc_piece_items SET verdict = ?, defect_reason = ? WHERE id = ?", [$verdict, $reason ?: null, $pieceId]);
+            
+            // Recalculate tally for this QC inspection
+            $counts = DB::fetch("
+                SELECT 
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                    SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                    SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework,
+                    SUM(CASE WHEN verdict = 'PENDING' THEN 1 ELSE 0 END) AS pending
+                FROM qc_piece_items WHERE qc_id = ?
+            ", [$piece['qc_id']]);
+
+            echo json_encode([
+                'success' => true,
+                'piece_id' => $pieceId,
+                'verdict' => $verdict,
+                'counts' => $counts
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * AJAX Pass All pending pieces
+     */
+    public function passAllQcPieces(): void {
+        header('Content-Type: application/json');
+        $this->ensureQcSchema();
+        $qcId = (int)($_POST['qc_id'] ?? 0);
+
+        try {
+            DB::query("UPDATE qc_piece_items SET verdict = 'PASSED' WHERE qc_id = ? AND verdict = 'PENDING'", [$qcId]);
+            $counts = DB::fetch("
+                SELECT 
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                    SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                    SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework,
+                    SUM(CASE WHEN verdict = 'PENDING' THEN 1 ELSE 0 END) AS pending
+                FROM qc_piece_items WHERE qc_id = ?
+            ", [$qcId]);
+
+            echo json_encode(['success' => true, 'counts' => $counts]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Complete QC inspection from 2D scanner and inward passed garments directly to stock
+     */
+    public function completeQcInspection(): void {
+        $this->ensureQcSchema();
+        $this->validateCsrf();
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['qc_id'] ?? 0);
+
+        $qc = DB::fetch("
+            SELECT qi.*, sl.batch_no AS stitching_batch_no, sl.stitching_name, sl.program_id AS sl_prog_id,
+                   u.name AS inspector_name
+            FROM qc_inspections qi
+            LEFT JOIN stitching_logs sl ON qi.stitching_batch_id = sl.id
+            LEFT JOIN users u ON qi.inspector_id = u.id
+            WHERE qi.id = ?" . ($cid ? " AND (qi.concern_id = ? OR qi.concern_id IS NULL)" : ""),
+            $cid ? [$id, $cid] : [$id]
+        );
+
+        if (!$qc) {
+            $this->flash('error', 'QC inspection record not found.');
+            $this->redirect('/production/qc');
+            return;
+        }
+
+        $location = trim($_POST['location'] ?? ($qc['location'] ?: 'Main Store'));
+
+        DB::beginTransaction();
+        try {
+            // Group pieces by variant and verdict
+            $items = DB::fetchAll("SELECT * FROM qc_inspection_items WHERE qc_id = ?", [$id]);
+            $totalPassed = 0;
+            $totalRejected = 0;
+            $totalRework = 0;
+
+            foreach ($items as $it) {
+                $pCounts = DB::fetch("
+                    SELECT 
+                        SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                        SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                        SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework
+                    FROM qc_piece_items WHERE qc_item_id = ?
+                ", [$it['id']]);
+
+                $pPassed = (int)($pCounts['passed'] ?? 0);
+                $pRejected = (int)($pCounts['rejected'] ?? 0);
+                $pRework = (int)($pCounts['rework'] ?? 0);
+
+                DB::query("
+                    UPDATE qc_inspection_items 
+                    SET passed_qty = ?, rejected_qty = ?, rework_qty = ?
+                    WHERE id = ?
+                ", [$pPassed, $pRejected, $pRework, $it['id']]);
+
+                $totalPassed += $pPassed;
+                $totalRejected += $pRejected;
+                $totalRework += $pRework;
+
+                // Credit passed pieces to Live Stocks!
+                if ($pPassed > 0 && !empty($it['variant_id'])) {
+                    $this->inwardVariantToStock(
+                        (int)$it['variant_id'],
+                        (float)$pPassed,
+                        $cid,
+                        $id,
+                        $qc['qc_no'],
+                        $qc['batch_no'] ?: 'STCH',
+                        $location,
+                        (int)($qc['program_id'] ?: $qc['sl_prog_id']),
+                        (int)$qc['stitching_batch_id'],
+                        $qc['inspector_name'] ?? 'System Administrator'
+                    );
+                }
+            }
+
+            // Determine status
+            if ($totalRework > 0) {
+                $newStatus = 'REWORK';
+            } elseif ($totalRejected > 0 && $totalPassed > 0) {
+                $newStatus = 'PARTIAL';
+            } elseif ($totalRejected > 0 && $totalPassed == 0) {
+                $newStatus = 'REJECTED';
+            } else {
+                $newStatus = 'PASSED';
+            }
+
+            DB::query("
+                UPDATE qc_inspections 
+                SET passed_qty = ?, rejected_qty = ?, rework_qty = ?, status = ?, location = ?
+                WHERE id = ?
+            ", [$totalPassed, $totalRejected, $totalRework, $newStatus, $location, $id]);
+
+            if ($qc['stitching_batch_id']) {
+                DB::query("UPDATE stitching_logs SET inward_status = 'completed' WHERE id = ?", [$qc['stitching_batch_id']]);
+            }
+
+            DB::commit();
+            $this->flash('success', "QC Inspection {$qc['qc_no']} completed! {$totalPassed} pcs passed and added to Live Stock ({$totalRejected} rejected, {$totalRework} rework).");
+            $this->redirect("/production/qc/details?id={$id}");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->flash('error', 'Failed to complete QC inspection: ' . $e->getMessage());
+            $this->redirect("/production/qc/inspect?id={$id}");
+        }
+    }
+
+    /**
+     * Read-Only QC Details View (Image 2: /production/qc/details?id=X)
+     */
+    public function viewQc(): void {
+        $this->ensureQcSchema();
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_GET['id'] ?? 0);
+
+        $qc = DB::fetch("
+            SELECT qi.*, 
+                   v.name AS variant_name, v.sku_code, v.size,
+                   sl.batch_no AS stitching_batch_no, sl.stitching_name,
+                   pp.program_no, pp.program_name,
+                   cat.name AS catalog_name, cat.hierarchy_path,
+                   u.name AS inspector_name,
+                   con.name AS concern_name, con.code AS concern_code
+            FROM qc_inspections qi
+            LEFT JOIN variants v ON qi.variant_id = v.id
+            LEFT JOIN stitching_logs sl ON qi.stitching_batch_id = sl.id
+            LEFT JOIN production_programs pp ON (qi.program_id = pp.id OR sl.program_id = pp.id OR pp.target_variant_id = v.id)
+            LEFT JOIN catalogs cat ON pp.catalog_id = cat.id
+            LEFT JOIN users u ON qi.inspector_id = u.id
+            LEFT JOIN concerns con ON qi.concern_id = con.id
+            WHERE qi.id = ?" . ($cid ? " AND (qi.concern_id = ? OR qi.concern_id IS NULL)" : ""),
+            $cid ? [$id, $cid] : [$id]
+        );
+
+        if (!$qc) {
+            $this->flash('error', 'QC inspection record not found.');
+            $this->redirect('/production/qc');
+            return;
+        }
+
+        $items = DB::fetchAll("
+            SELECT qii.*, cat.name AS catalog_name, cat.hierarchy_path
+            FROM qc_inspection_items qii
+            LEFT JOIN catalogs cat ON qii.catalog_id = cat.id
+            WHERE qii.qc_id = ?
+            ORDER BY qii.id ASC
+        ", [$id]);
+
+        $this->render('concern/qc_details', [
+            'pageTitle'     => "QC Inspection Details — {$qc['qc_no']}",
+            'currentModule' => 'qc_stocks',
+            'qc'            => $qc,
+            'items'         => $items,
+            'csrfToken'     => Auth::csrfToken(),
+        ]);
+    }
+
+    /**
+     * Re-inspect Rework Garments and credit newly passed pieces to stock
+     */
+    public function reinspectQc(): void {
+        $this->ensureQcSchema();
+        $this->validateCsrf();
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+
+        $qc = DB::fetch("
+            SELECT qi.*, sl.batch_no AS stitching_batch_no, u.name AS inspector_name
+            FROM qc_inspections qi
+            LEFT JOIN stitching_logs sl ON qi.stitching_batch_id = sl.id
+            LEFT JOIN users u ON qi.inspector_id = u.id
+            WHERE qi.id = ?", [$id]
+        );
+
+        if (!$qc) {
+            $this->flash('error', 'QC inspection record not found.');
+            $this->redirect('/production/qc');
+            return;
+        }
+
+        $passedAdd   = max(0, (float)($_POST['passed_add'] ?? 0));
+        $rejectedAdd = max(0, (float)($_POST['rejected_add'] ?? 0));
+        $notes       = trim($_POST['rework_notes'] ?? '');
+        $reworkQty   = (float)$qc['rework_qty'];
+        $variantId   = (int)($_POST['variant_id'] ?? $qc['variant_id']);
+
+        if ($passedAdd + $rejectedAdd <= 0) {
+            $this->flash('error', 'Please specify how many rework pieces were repaired and passed or rejected.');
+            $this->redirect('/production/qc/details?id=' . $id);
+            return;
+        }
+
+        if (($passedAdd + $rejectedAdd) > $reworkQty) {
+            $this->flash('error', "Cannot cycle {$passedAdd} + {$rejectedAdd} pieces; only {$reworkQty} pieces are currently in rework.");
+            $this->redirect('/production/qc/details?id=' . $id);
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            $newPassed   = (float)$qc['passed_qty'] + $passedAdd;
+            $newRejected = (float)$qc['rejected_qty'] + $rejectedAdd;
+            $newRework   = max(0.00, $reworkQty - ($passedAdd + $rejectedAdd));
+            $newStatus   = ($newRework > 0) ? 'REWORK' : ($newRejected > 0 && $newPassed > 0 ? 'PARTIAL' : 'PASSED');
+
+            $reworkLog = date('Y-m-d H:i') . " Re-inspected: +{$passedAdd} passed to stock, +{$rejectedAdd} rejected. " . ($notes ? "Notes: {$notes}" : "");
+            $existingLog = trim($qc['rework_notes'] ?? '');
+            $updatedLog = $existingLog ? ($existingLog . "\n" . $reworkLog) : $reworkLog;
+
+            DB::query(
+                "UPDATE qc_inspections SET passed_qty = ?, rework_qty = ?, rejected_qty = ?, rework_notes = ?, status = ? WHERE id = ?",
+                [$newPassed, $newRework, $newRejected, $updatedLog, $newStatus, $id]
+            );
+
+            // Credit newly passed garments to stock immediately!
+            if ($passedAdd > 0 && $variantId > 0) {
+                $this->inwardVariantToStock(
+                    $variantId,
+                    $passedAdd,
+                    $cid,
+                    $id,
+                    $qc['qc_no'],
+                    $qc['stitching_batch_no'] ?: 'REWORK',
+                    $qc['location'] ?: 'Main Store',
+                    (int)$qc['program_id'],
+                    (int)$qc['stitching_batch_id'],
+                    $qc['inspector_name'] ?? 'System Administrator'
+                );
+            }
+
+            DB::commit();
+            $this->flash('success', "Re-inspection complete! +{$passedAdd} repaired pieces passed & credited directly to Live Stock. Remaining rework: {$newRework}.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->flash('error', 'Re-inspection failed: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/qc/details?id=' . $id);
     }
 
     public function updateQc(): void {
@@ -4876,39 +5874,34 @@ class ProductionController extends Controller {
         $qc = DB::fetch("SELECT * FROM qc_inspections WHERE id = ?", [$id]);
         if (!$qc) {
             $this->flash('error', 'QC inspection not found.');
-            $this->redirect('/m/qc_stocks');
+            $this->redirect('/production/qc');
+            return;
         }
 
         $inspectedQty = (float)($_POST['inspected_qty'] ?? $qc['inspected_qty']);
         $newPassed    = (float)($_POST['passed_qty'] ?? $qc['passed_qty']);
+        $reworkQty    = (float)($_POST['rework_qty'] ?? $qc['rework_qty']);
         $rejectedQty  = (float)($_POST['rejected_qty'] ?? $qc['rejected_qty']);
         $location     = trim($_POST['location'] ?? $qc['location']);
         $defectNotes  = trim($_POST['defect_notes'] ?? $qc['defect_notes']);
 
+        $status = ($reworkQty > 0) ? 'REWORK' : (($rejectedQty > 0 && $newPassed == 0) ? 'REJECTED' : ($rejectedQty > 0 ? 'PARTIAL' : 'PASSED'));
+
         DB::beginTransaction();
         try {
-            $diff = $newPassed - (float)$qc['passed_qty'];
-            if ($diff != 0) {
-                if ($diff > 0) {
-                    StockService::move($qc['concern_id'], $qc['variant_id'], $location, $diff, 0.00, 'QC Stocks', $id, "Updated QC Inspection [{$qc['qc_no']}]: Additional approved units", Auth::id());
-                } else {
-                    StockService::move($qc['concern_id'], $qc['variant_id'], $location, 0.00, abs($diff), 'QC Stocks', $id, "Updated QC Inspection [{$qc['qc_no']}]: Reduced approved units", Auth::id());
-                }
-            }
-
             DB::query(
-                "UPDATE qc_inspections SET inspected_qty = ?, passed_qty = ?, rejected_qty = ?, location = ?, defect_notes = ? WHERE id = ?",
-                [$inspectedQty, $newPassed, $rejectedQty, $location, $defectNotes, $id]
+                "UPDATE qc_inspections SET inspected_qty = ?, passed_qty = ?, rework_qty = ?, rejected_qty = ?, location = ?, defect_notes = ?, status = ? WHERE id = ?",
+                [$inspectedQty, $newPassed, $reworkQty, $rejectedQty, $location, $defectNotes, $status, $id]
             );
 
             DB::commit();
             $this->flash('success', "QC Inspection '{$qc['qc_no']}' updated successfully.");
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Failed to update QC inspection: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/qc_stocks');
+        $this->redirect('/production/qc');
     }
 
     public function deleteQc(): void {
@@ -4917,35 +5910,23 @@ class ProductionController extends Controller {
         $qc = DB::fetch("SELECT * FROM qc_inspections WHERE id = ?", [$id]);
         if (!$qc) {
             $this->flash('error', 'QC inspection not found.');
-            $this->redirect('/m/qc_stocks');
+            $this->redirect('/production/qc');
+            return;
         }
 
         DB::beginTransaction();
         try {
-            // Reverse approved stock
-            if ((float)$qc['passed_qty'] > 0) {
-                StockService::move(
-                    $qc['concern_id'],
-                    $qc['variant_id'],
-                    $qc['location'],
-                    0.00,
-                    (float)$qc['passed_qty'],
-                    'QC Stocks',
-                    $id,
-                    "Reversal of deleted QC Inspection [{$qc['qc_no']}]",
-                    Auth::id()
-                );
-            }
-
+            DB::query("DELETE FROM qc_piece_items WHERE qc_id = ?", [$id]);
+            DB::query("DELETE FROM qc_inspection_items WHERE qc_id = ?", [$id]);
             DB::query("DELETE FROM qc_inspections WHERE id = ?", [$id]);
             DB::commit();
-            $this->flash('success', "QC Inspection '{$qc['qc_no']}' deleted and stock reversed.");
-        } catch (Exception $e) {
+            $this->flash('success', "QC Inspection '{$qc['qc_no']}' deleted successfully.");
+        } catch (\Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Failed to delete QC inspection: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/qc_stocks');
+        $this->redirect('/production/qc');
     }
 
     public function exportCatalogProgram(): void {

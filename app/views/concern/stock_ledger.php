@@ -68,14 +68,14 @@
                                 </td>
                                 <td>
                                     <?php if ($l['qty_in'] > 0): ?>
-                                        <span class="text-success fw-bold fs-6">+<?= number_format($l['qty_in'], 2) ?></span>
+                                        <span class="text-success fw-bold fs-6">+<?= ((float)$l['qty_in'] == (int)$l['qty_in']) ? number_format((float)$l['qty_in'], 0) : number_format((float)$l['qty_in'], 2) ?></span>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
                                     <?php if ($l['qty_out'] > 0): ?>
-                                        <span class="text-danger fw-bold fs-6">-<?= number_format($l['qty_out'], 2) ?></span>
+                                        <span class="text-danger fw-bold fs-6">-<?= ((float)$l['qty_out'] == (int)$l['qty_out']) ? number_format((float)$l['qty_out'], 0) : number_format((float)$l['qty_out'], 2) ?></span>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>

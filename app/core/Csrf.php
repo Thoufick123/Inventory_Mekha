@@ -1,5 +1,5 @@
 <?php
-// app/core/Csrf.php
+// app/core/Csrf.php - Centralized CSRF Protection Helper
 
 declare(strict_types=1);
 
@@ -40,4 +40,8 @@ class Csrf {
     public static function verify(?string $token): bool {
         return Auth::verifyCsrfToken($token);
     }
+}
+
+if (!class_exists('App\Core\CSRF', false)) {
+    class_alias(Csrf::class, 'App\Core\CSRF');
 }

@@ -409,19 +409,7 @@ class LabelController extends Controller {
         }
 
         foreach ($productionItems as &$pItem) {
-            $isInStock = false;
-            if (($pItem['inward_status'] ?? '') === 'completed') {
-                $isInStock = true;
-            } elseif (!empty($pItem['variant_id'])) {
-                $stk = DB::fetchValue("SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND qty > 0 LIMIT 1", [
-                    $pItem['concern_id'] ?: ($cid ?: 1),
-                    $pItem['variant_id']
-                ]);
-                if ($stk !== false && (float)$stk > 0) {
-                    $isInStock = true;
-                }
-            }
-            $pItem['is_in_stock'] = $isInStock;
+            $pItem['is_in_stock'] = (($pItem['inward_status'] ?? '') === 'completed');
         }
         unset($pItem);
 
@@ -1831,18 +1819,23 @@ class LabelController extends Controller {
             $itemId = (int)$rawItemId;
         }
 
-        // Handle Production Stitched Items Inward
+        // Handle Production Stitched Items Inward - Must be inspected in QC first
         if ($preferredTab === 'production' || $stitchingId > 0) {
-            $this->inwardProductionToStock($itemId, $stitchingId, $cid);
+            $batchParam = $stitchingId > 0 ? "?stitching_batch_id={$stitchingId}" : "";
+            $this->flash('info', 'Production garments must be inspected in Quality Control (QC) before entering live stock.');
+            $this->redirect("/production/qc/create{$batchParam}");
             return;
         }
 
         // Auto-detect if itemId belongs to stitching_items (only if not explicitly a purchase tab)
         if ($itemId > 0 && empty($billId) && ($preferredTab === 'production' || empty($preferredTab))) {
             $this->ensureStitchingInwardSchema();
-            $isStitching = DB::fetch("SELECT id FROM stitching_items WHERE id = ?", [$itemId]);
+            $isStitching = DB::fetch("SELECT id, stitching_log_id FROM stitching_items WHERE id = ?", [$itemId]);
             if ($isStitching) {
-                $this->inwardProductionToStock($itemId, 0, $cid);
+                $stLogId = (int)($isStitching['stitching_log_id'] ?? 0);
+                $batchParam = $stLogId > 0 ? "?stitching_batch_id={$stLogId}" : "";
+                $this->flash('info', 'Production garments must be inspected in Quality Control (QC) before entering live stock.');
+                $this->redirect("/production/qc/create{$batchParam}");
                 return;
             }
         }

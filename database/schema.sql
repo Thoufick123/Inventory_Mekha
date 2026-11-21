@@ -544,7 +544,7 @@ CREATE TABLE IF NOT EXISTS `purchase_damage_reasons` (
     CONSTRAINT `fk_pdr_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 19. CONCERN DAMAGE (Internal Stock Damage)
+-- 19. CONCERN DAMAGE (Internal Stock Damage & Resolution Lifecycle)
 CREATE TABLE IF NOT EXISTS `concern_damages` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
@@ -553,9 +553,25 @@ CREATE TABLE IF NOT EXISTS `concern_damages` (
     `qty` DECIMAL(12,2) NOT NULL,
     `location` VARCHAR(50) NOT NULL DEFAULT 'Main Store',
     `reason` TEXT NULL,
+    `status` ENUM('LOGGED', 'INSPECTED', 'RESOLVED', 'CANCELLED') NOT NULL DEFAULT 'LOGGED',
+    `severity` ENUM('MINOR', 'MODERATE', 'SEVERE', 'SCRAP') NOT NULL DEFAULT 'MODERATE',
+    `resolution_action` ENUM('SCRAP', 'WRITE_OFF', 'SALVAGE', 'REPAIR', 'REWORK', 'RETURN_TO_SUPPLIER', 'SUPPLIER_REPLACEMENT') NULL,
+    `resolution_reason` VARCHAR(255) NULL,
+    `resolution_notes` TEXT NULL,
+    `loss_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `photo_url` VARCHAR(255) NULL,
+    `replacement_variant_id` INT NULL,
+    `replacement_qr_code` VARCHAR(100) NULL,
+    `replacement_inwarded_at` DATETIME NULL,
+    `resolved_by` INT NULL,
+    `resolved_at` DATETIME NULL,
+    `cancelled_by` INT NULL,
+    `cancelled_at` DATETIME NULL,
+    `cancel_reason` TEXT NULL,
     `created_by` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_cd_concern` (`concern_id`),
+    INDEX `idx_cd_status` (`status`),
     CONSTRAINT `fk_cd_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_cd_variant` FOREIGN KEY (`variant_id`) REFERENCES `variants`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -742,6 +758,7 @@ CREATE TABLE IF NOT EXISTS `qc_inspections` (
     `qc_no` VARCHAR(50) NOT NULL,
     `batch_no` VARCHAR(50) NULL,
     `variant_id` INT NOT NULL,
+    `program_id` INT NULL,
     `cutting_batch_id` INT NULL,
     `stitching_batch_id` INT NULL,
     `inspected_qty` DECIMAL(12,2) NOT NULL,
@@ -1061,20 +1078,23 @@ CREATE TABLE IF NOT EXISTS `user_concerns` (
     CONSTRAINT `fk_uc_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 35. USER PERMISSIONS (Direct user-level module permission overrides)
+-- 35. USER PERMISSIONS (Direct user-level module permission overrides with multi-tenant concern scoping)
 CREATE TABLE IF NOT EXISTS `user_permissions` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `user_id` INT NOT NULL,
+    `concern_id` INT NULL,
     `module_id` INT NOT NULL,
     `can_view` TINYINT(1) NOT NULL DEFAULT 1,
     `can_add` TINYINT(1) NOT NULL DEFAULT 0,
     `can_edit` TINYINT(1) NOT NULL DEFAULT 0,
     `can_delete` TINYINT(1) NOT NULL DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY `uk_user_module` (`user_id`, `module_id`),
+    UNIQUE KEY `uk_user_concern_module` (`user_id`, `concern_id`, `module_id`),
     INDEX `idx_up_user` (`user_id`),
+    INDEX `idx_up_concern` (`concern_id`),
     INDEX `idx_up_module` (`module_id`),
     CONSTRAINT `fk_up_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_up_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_up_module` FOREIGN KEY (`module_id`) REFERENCES `modules`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -1408,6 +1428,52 @@ CREATE TABLE IF NOT EXISTS `shop_damages` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_shd_concern` (`concern_id`),
     INDEX `idx_shd_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 46. EXPENSE CATEGORIES (Multi-tenant dynamic classification)
+CREATE TABLE IF NOT EXISTS `expense_categories` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `concern_id` INT NOT NULL,
+    `name` VARCHAR(100) NOT NULL,
+    `status` ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_concern_exp_cat` (`concern_id`, `name`),
+    INDEX `idx_exp_cat_concern` (`concern_id`),
+    CONSTRAINT `fk_exp_cat_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 47. DOCUMENT SEQUENCES (Gap-free chronological series per concern & year)
+CREATE TABLE IF NOT EXISTS `doc_sequences` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `concern_id` INT NOT NULL,
+    `doc_type` VARCHAR(50) NOT NULL,
+    `doc_year` INT NOT NULL,
+    `prefix` VARCHAR(20) NOT NULL,
+    `current_seq` INT NOT NULL DEFAULT 0,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uq_concern_doc_year` (`concern_id`, `doc_type`, `doc_year`),
+    INDEX `idx_ds_concern` (`concern_id`),
+    CONSTRAINT `fk_ds_seq_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 48. RETURN & EXCHANGE ITEMS (Returns & exchanges multi-line item tracking)
+CREATE TABLE IF NOT EXISTS `return_exchange_items` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `return_id` INT NOT NULL,
+    `direction` ENUM('IN', 'OUT') NOT NULL,
+    `variant_id` INT NOT NULL,
+    `tag_code` VARCHAR(50) NULL,
+    `qty` DECIMAL(12,2) NOT NULL,
+    `unit_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `tax_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `total_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `condition_state` VARCHAR(50) NULL DEFAULT 'Good',
+    `restock_action` ENUM('RESTOCK', 'REWORK', 'SCRAP') NULL DEFAULT 'RESTOCK',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_rei_return` (`return_id`),
+    INDEX `idx_rei_variant` (`variant_id`),
+    INDEX `idx_rei_direction` (`direction`),
+    CONSTRAINT `fk_rei_return` FOREIGN KEY (`return_id`) REFERENCES `returns_exchanges`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
