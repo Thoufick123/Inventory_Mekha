@@ -166,15 +166,6 @@ $router->post('/warehouse/damages/inward-replacement', [WarehouseDamageControlle
 $router->post('/warehouse/damages/cancel', [WarehouseDamageController::class, 'cancel'], 'warehouse_damage', 'delete');
 $router->get('/warehouse/damages/print/{id}', [WarehouseDamageController::class, 'print'], 'warehouse_damage', 'view');
 
-// Shop Damage
-$router->get('/shop/damages', [ShopDamageController::class, 'index'], 'shop_damage', 'view');
-$router->get('/m/shop_damage', [ShopDamageController::class, 'index'], 'shop_damage', 'view');
-$router->post('/shop/damages/store', [ShopDamageController::class, 'store'], 'shop_damage', 'add');
-$router->post('/shop/damages/resolve', [ShopDamageController::class, 'resolve'], 'shop_damage', 'edit');
-$router->post('/shop/damages/inward-replacement', [ShopDamageController::class, 'inwardReplacement'], 'shop_damage', 'edit');
-$router->post('/shop/damages/cancel', [ShopDamageController::class, 'cancel'], 'shop_damage', 'delete');
-$router->get('/shop/damages/print/{id}', [ShopDamageController::class, 'print'], 'shop_damage', 'view');
-
 // Sales & Distribution / Shop
 $router->get('/m/customers', [SalesController::class, 'customers'], 'customers', 'view');
 $router->get('/shop/customers', [SalesController::class, 'customers'], 'customers', 'view');
@@ -227,6 +218,7 @@ $router->post('/shop/pos/complete', [SalesController::class, 'completePosSale'],
 $router->post('/m/billing/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->get('/api/pos/variant-lookup', [SalesController::class, 'variantLookup'], 'billing', 'view');
 $router->get('/api/pos/customer-lookup', [SalesController::class, 'customerLookup'], 'billing', 'view');
+$router->get('/api/pos/production-batches', [SalesController::class, 'productionBatchLookup'], 'billing', 'view');
 // Production Outward & Dispatch (Image 1)
 $router->get('/m/outward', [OutwardController::class, 'index'], 'outward', 'view');
 $router->get('/production/outward', [OutwardController::class, 'index'], 'outward', 'view');

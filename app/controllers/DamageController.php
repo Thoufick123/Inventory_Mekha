@@ -133,10 +133,14 @@ class DamageController extends Controller {
         ModuleGuard::enforce('concern_damage', 'add');
         $cid = $this->requestConcernId();
         $locations = $cid ? $this->getAvailableLocations($cid) : [];
+        $concernName = $cid
+            ? (string)DB::fetchValue("SELECT name FROM concerns WHERE id = ?", [$cid])
+            : '';
         $this->render('concern/concern_damage_entry', [
             'pageTitle' => 'Log Concern Damage',
             'currentModule' => 'concern_damage',
             'selectedCid' => $cid,
+            'concernName' => $concernName,
             'locations' => $locations,
         ]);
     }
@@ -158,6 +162,27 @@ class DamageController extends Controller {
             $variant = $this->resolveConcernDamageTag($concernId, $tagCode);
             $availableQty = StockService::getQty($concernId, (int)$variant['id'], $location);
             if ($availableQty <= 0) {
+                $otherLocations = DB::fetchAll(
+                    "SELECT location, qty FROM stocks
+                     WHERE concern_id = ? AND variant_id = ? AND qty > 0
+                       AND location NOT LIKE '%:DAMAGED'
+                       AND location NOT LIKE '%:RESERVED'
+                       AND location NOT LIKE '%:IN_TRANSIT'
+                     ORDER BY location ASC",
+                    [$concernId, (int)$variant['id']]
+                );
+                if ($otherLocations) {
+                    $availableAt = array_map(
+                        static function (array $stock): string {
+                            $qty = rtrim(rtrim(number_format((float)$stock['qty'], 2, '.', ''), '0'), '.');
+                            return $stock['location'] . ' (' . $qty . ' pcs)';
+                        },
+                        $otherLocations
+                    );
+                    throw new \RuntimeException(
+                        "No stock at '{$location}'. Available at: " . implode(', ', $availableAt) . '.'
+                    );
+                }
                 throw new \RuntimeException('No available stock for this label at the selected location.');
             }
             $this->renderJson([
@@ -278,6 +303,27 @@ class DamageController extends Controller {
     }
 
     private function resolveConcernDamageTag(int $concernId, string $tagCode): array {
+        if (QrService::parseFinishedGoodsCode($tagCode)) {
+            $variant = QrService::lookupVariant($tagCode, $concernId);
+            if ($variant && ($variant['status'] ?? '') === 'active') {
+                return $variant;
+            }
+        }
+
+        $variantId = QrService::parseVariantId($tagCode);
+        if ($variantId) {
+            $variant = DB::fetch(
+                "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name
+                 FROM variants v
+                 LEFT JOIN categories c ON c.id = v.category_id
+                 WHERE v.id = ? AND v.concern_id = ? AND v.status = 'active'",
+                [$variantId, $concernId]
+            );
+            if ($variant) {
+                return $variant;
+            }
+        }
+
         $parsed = QrService::parsePayload($tagCode);
         if ($parsed) {
             $variant = DB::fetch(

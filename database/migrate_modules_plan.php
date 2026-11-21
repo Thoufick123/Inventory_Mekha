@@ -75,11 +75,10 @@ foreach ($columnsToAdd as $col => $definition) {
     }
 }
 
-// Ensure warehouse_damage and shop_damage exist in modules table
+// Ensure warehouse_damage exists in modules table
 echo "\nRegistering modules in 'modules' table...\n";
 $modulesToRegister = [
     ['code' => 'warehouse_damage', 'name' => 'Warehouse Damage', 'icon' => 'bi-shield-slash', 'sort_order' => 43, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
-    ['code' => 'shop_damage', 'name' => 'Shop Damage', 'icon' => 'bi-exclamation-octagon', 'sort_order' => 44, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
 ];
 
 foreach ($modulesToRegister as $m) {

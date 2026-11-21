@@ -22,6 +22,19 @@ class Csrf {
     }
 
     /**
+     * Validate the CSRF token submitted with the current request
+     */
+    public static function validateRequest(): bool {
+        $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+        if (!self::verify(is_string($token) ? $token : null)) {
+            http_response_code(419);
+            die('CSRF token validation failed. Please refresh and try again.');
+        }
+
+        return true;
+    }
+
+    /**
      * Verify submitted CSRF token
      */
     public static function verify(?string $token): bool {

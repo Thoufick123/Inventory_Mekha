@@ -58,7 +58,7 @@
             <!-- ============================================== -->
             <div class="col-lg-4 col-md-5">
                 <!-- Scan Product QR Code Card -->
-                <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-3" style="border: 1px solid #e2e8f0 !important;">
+                <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-3" id="pos_scanner_card" style="border: 1px solid #e2e8f0 !important;">
                     <!-- Header with Title & Scanner Options Buttons -->
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
                         <div class="d-flex align-items-center gap-2">
@@ -186,7 +186,61 @@
                         </div>
                     </div>
 
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-secondary small fw-bold mb-1">BILLING FOR</label>
+                            <div class="d-flex gap-2" id="billing_party_buttons" role="group" aria-label="Billing party type">
+                                <button type="button" class="btn btn-primary flex-fill active" data-billing-party="customer">
+                                    <i class="bi bi-person me-1"></i> Customer
+                                </button>
+                                <button type="button" class="btn btn-outline-primary flex-fill" data-billing-party="company">
+                                    <i class="bi bi-buildings me-1"></i> Company / Bulk
+                                </button>
+                            </div>
+                            <select name="billing_party_type" id="billing_party_type" class="d-none" required aria-hidden="true">
+                                <option value="customer" selected>Customer</option>
+                                <option value="company">Company / Bulk</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-none" id="company_customer_wrap">
+                            <label for="company_customer_id" class="form-label text-secondary small fw-bold mb-1">COMPANY</label>
+                            <select name="company_customer_id" id="company_customer_id" class="form-select" disabled>
+                                <option value="">Select a company</option>
+                                <?php foreach ($customers as $customer): ?>
+                                    <option value="<?= (int)$customer['id'] ?>"
+                                            data-name="<?= htmlspecialchars($customer['name'], ENT_QUOTES) ?>"
+                                            data-phone="<?= htmlspecialchars($customer['phone'] ?? '', ENT_QUOTES) ?>"
+                                            data-address="<?= htmlspecialchars($customer['address'] ?? $customer['city'] ?? '', ENT_QUOTES) ?>"
+                                            data-gstin="<?= htmlspecialchars($customer['gstin'] ?? '', ENT_QUOTES) ?>">
+                                        <?= htmlspecialchars($customer['name']) ?><?= !empty($customer['gstin']) ? ' (' . htmlspecialchars($customer['gstin']) . ')' : '' ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3 d-none" id="company_batch_wrap">
+                        <div class="col-md-8">
+                            <label for="company_batch_select" class="form-label text-secondary small fw-bold mb-1">APPROVED PRODUCTION BATCHES</label>
+                            <select id="company_batch_select" class="form-select" multiple size="4" disabled aria-describedby="company_batch_hint">
+                                <option value="">Load batches to select</option>
+                            </select>
+                            <small id="company_batch_hint" class="text-muted">Only approved batches with available stock are shown. Select one or more batches.</small>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="d-grid gap-2 w-100">
+                                <button type="button" class="btn btn-outline-secondary" id="btn_load_company_batches" disabled>
+                                    <i class="bi bi-arrow-clockwise me-1"></i> Load Batches
+                                </button>
+                                <button type="button" class="btn btn-primary" id="btn_add_selected_batches" disabled>
+                                    <i class="bi bi-boxes me-1"></i> Add Selected
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 2x2 Form Inputs Grid + GST Type -->
+                    <div id="customer_contact_fields">
                     <div class="row g-2 mb-2">
                         <div class="col-md-6">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
@@ -216,6 +270,7 @@
                             <input type="text" class="form-control bg-light text-muted" value="<?= htmlspecialchars($staffName) ?>" readonly style="border-radius: 8px; font-size: 0.88rem;">
                         </div>
                     </div>
+                    </div>
 
                     <div class="row g-2">
                         <div class="col-md-6">
@@ -228,6 +283,15 @@
                                 <option value="exempt">None / Exempt (0%)</option>
                             </select>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
+                                <i class="bi bi-percent text-muted me-1"></i> GST PRICE MODE
+                            </label>
+                            <select name="gst_price_mode" id="gst_price_mode" class="form-select" style="border-radius: 8px; font-size: 0.88rem;">
+                                <option value="exclude" selected>Exclude GST (Add GST)</option>
+                                <option value="include">Include GST (Extract GST)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -238,13 +302,14 @@
                             <thead>
                                 <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-size: 0.75rem; text-transform: uppercase;">
                                     <th style="width: 4%;">#</th>
-                                    <th style="width: 32%;">ITEM DETAILS</th>
-                                    <th style="width: 14%;">HSN CODE</th>
-                                    <th style="width: 13%;">BASE PRICE</th>
-                                    <th style="width: 11%;">GST %</th>
-                                    <th style="width: 11%;">DISCOUNT</th>
-                                    <th style="width: 12%;" class="text-end">BILLED PRICE</th>
-                                    <th style="width: 3%;" class="text-center"></th>
+                                    <th style="width: 28%;">ITEM DETAILS</th>
+                                    <th style="width: 12%;">HSN CODE</th>
+                                    <th style="width: 8%;">QTY</th>
+                                    <th style="width: 12%;">BASE PRICE</th>
+                                    <th style="width: 9%;">GST %</th>
+                                    <th style="width: 10%;">DISCOUNT</th>
+                                    <th style="width: 13%;" class="text-end">BILLED PRICE</th>
+                                    <th style="width: 4%;" class="text-center"></th>
                                 </tr>
                             </thead>
                             <tbody id="cart_table_body">
@@ -280,8 +345,8 @@
                     <div class="col-md-6">
                         <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border: 1px solid #e2e8f0 !important;">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="fw-bold text-dark small"><i class="bi bi-receipt text-primary me-1"></i> GST (Inclusive)</span>
-                                <span class="badge rounded-pill px-2 py-1 fw-bold" id="badge_gst_incl" style="background: #dcfce7; color: #15803d; font-size: 0.74rem;">Incl. ₹0.00</span>
+                                <span class="fw-bold text-dark small"><i class="bi bi-receipt text-primary me-1"></i> GST Amount</span>
+                                <span class="badge rounded-pill px-2 py-1 fw-bold" id="badge_gst_incl" style="background: #dcfce7; color: #15803d; font-size: 0.74rem;">Added ₹0.00</span>
                             </div>
                             <div class="small d-flex justify-content-between text-muted mb-1 font-monospace">
                                 <span>CGST: <strong id="display_cgst" class="text-dark">₹0.00</strong></span>
@@ -559,6 +624,8 @@
                     <div><strong>Date:</strong> <?= date('d M Y, h:i A', strtotime($printInvoice['created_at'])) ?></div>
                     <div><strong>Customer:</strong> <?= htmlspecialchars($printInvoice['customer_name']) ?> (<?= htmlspecialchars($printInvoice['customer_phone'] ?: '-') ?>)</div>
                     <div><strong>Payment:</strong> <?= strtoupper($printInvoice['payment_method']) ?> (PAID)</div>
+                    <div><strong>Billing For:</strong> <?= stripos((string)($printInvoice['notes'] ?? ''), 'Billing For: company') !== false ? 'Company' : 'Customer' ?></div>
+                    <div><strong>GST Pricing:</strong> <?= stripos((string)($printInvoice['notes'] ?? ''), 'GST Price Mode: include') !== false ? 'GST Included' : 'GST Excluded' ?></div>
                 </div>
 
                 <div class="py-2 border-bottom">
@@ -567,14 +634,17 @@
                             <tr class="text-muted border-bottom">
                                 <th>Item</th>
                                 <th class="text-center">Qty</th>
-                                <th class="text-end">Price</th>
-                                <th class="text-end">Total</th>
+                                <th class="text-end">Base/Unit</th>
+                                <th class="text-end">Taxable</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($printItems as $it): ?>
                                 <tr>
-                                    <td><?= htmlspecialchars($it['item_name']) ?> <small>(<?= htmlspecialchars($it['size'] ?: '-') ?>)</small></td>
+                                    <td>
+                                        <?= htmlspecialchars($it['item_name']) ?> <small>(<?= htmlspecialchars($it['size'] ?: '-') ?>)</small>
+                                        <?php if (!empty($it['batch_no'])): ?><small class="d-block">Batch <?= htmlspecialchars($it['batch_no']) ?></small><?php endif; ?>
+                                    </td>
                                     <td class="text-center"><?= (int)$it['qty'] ?></td>
                                     <td class="text-end">₹<?= number_format($it['unit_price'], 2) ?></td>
                                     <td class="text-end">₹<?= number_format($it['total_price'], 2) ?></td>
@@ -854,6 +924,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const checkoutHelperHint = document.getElementById('checkout_helper_hint');
     const inputPaymentMethod = document.getElementById('input_payment_method');
     const gstTypeSelect = document.getElementById('gst_type');
+    const gstPriceModeSelect = document.getElementById('gst_price_mode');
 
     // Display fields
     const displayItemsCount = document.getElementById('display_items_count');
@@ -878,6 +949,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const custName = document.getElementById('cust_name');
     const custAddress = document.getElementById('cust_address');
     const btnWalkin = document.getElementById('btn_walkin');
+    const billingPartyType = document.getElementById('billing_party_type');
+    const billingPartyButtons = document.getElementById('billing_party_buttons');
+    const companyCustomerSelect = document.getElementById('company_customer_id');
+    const companyCustomerWrap = document.getElementById('company_customer_wrap');
+    const companyBatchWrap = document.getElementById('company_batch_wrap');
+    const companyBatchSelect = document.getElementById('company_batch_select');
+    const btnLoadCompanyBatches = document.getElementById('btn_load_company_batches');
+    const btnAddSelectedBatches = document.getElementById('btn_add_selected_batches');
+    const customerContactFields = document.getElementById('customer_contact_fields');
+    const posScannerCard = document.getElementById('pos_scanner_card');
+    const batchById = new Map();
 
     // 1. Walk-in Customer Auto-Fill
     if (btnWalkin) {
@@ -887,6 +969,172 @@ document.addEventListener('DOMContentLoaded', function() {
             custAddress.value = 'Counter Walk-in / Local Store';
         });
     }
+
+    function updateBillingPartyFields() {
+        const isCompany = billingPartyType && billingPartyType.value === 'company';
+        billingPartyButtons.querySelectorAll('[data-billing-party]').forEach(button => {
+            const isActive = button.dataset.billingParty === billingPartyType.value;
+            button.classList.toggle('active', isActive);
+            button.classList.toggle('btn-primary', isActive);
+            button.classList.toggle('btn-outline-primary', !isActive);
+        });
+        companyCustomerWrap.classList.toggle('d-none', !isCompany);
+        companyBatchWrap.classList.toggle('d-none', !isCompany);
+        customerContactFields.classList.toggle('d-none', isCompany);
+        posScannerCard.classList.toggle('d-none', isCompany);
+
+        companyCustomerSelect.disabled = !isCompany;
+        companyCustomerSelect.required = isCompany;
+        companyBatchSelect.disabled = !isCompany || !companyCustomerSelect.value;
+        btnLoadCompanyBatches.disabled = !isCompany || !companyCustomerSelect.value;
+        btnAddSelectedBatches.disabled = true;
+        customerContactFields.querySelectorAll('input').forEach(input => {
+            input.disabled = isCompany;
+        });
+        if (btnWalkin) btnWalkin.classList.toggle('d-none', isCompany);
+
+        if (!isCompany) {
+            custMobile.value = '';
+            custName.value = '';
+            custAddress.value = '';
+            companyCustomerSelect.value = '';
+            companyBatchSelect.innerHTML = '<option value="">Select a company first</option>';
+            batchById.clear();
+        }
+    }
+
+    billingPartyType.addEventListener('change', updateBillingPartyFields);
+    billingPartyButtons.querySelectorAll('[data-billing-party]').forEach(button => {
+        button.addEventListener('click', function() {
+            billingPartyType.value = this.dataset.billingParty;
+            billingPartyType.dispatchEvent(new Event('change'));
+        });
+    });
+    companyCustomerSelect.addEventListener('change', function() {
+        const option = this.options[this.selectedIndex];
+        const selected = this.value !== '';
+        companyBatchSelect.disabled = !selected;
+        btnLoadCompanyBatches.disabled = !selected;
+        btnAddSelectedBatches.disabled = true;
+        companyBatchSelect.innerHTML = '<option value="">Load batches to select</option>';
+        batchById.clear();
+        if (selected) {
+            custName.value = option.dataset.name || '';
+            custMobile.value = option.dataset.phone || '';
+            custAddress.value = option.dataset.address || '';
+        }
+    });
+
+    if (billingPartyType) updateBillingPartyFields();
+
+    function getVariantCartQuantity(variantId, skipIndex = -1) {
+        return cart.reduce((total, item, index) => {
+            return index !== skipIndex && String(item.id) === String(variantId)
+                ? total + (parseInt(item.qty, 10) || 0)
+                : total;
+        }, 0);
+    }
+
+    btnLoadCompanyBatches.addEventListener('click', async function() {
+        if (!companyCustomerSelect.value) {
+            alert('Select a company first.');
+            return;
+        }
+        this.disabled = true;
+        companyBatchSelect.innerHTML = '<option value="">Loading approved batches...</option>';
+        try {
+            const response = await fetch('<?= \App\Core\Controller::url('/api/pos/production-batches') ?>');
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Could not load production batches.');
+            }
+            batchById.clear();
+            companyBatchSelect.innerHTML = '';
+            data.batches.forEach(batch => {
+                if (Number(batch.available_qty) <= 0 || Number(batch.batch_remaining_qty) <= 0) return;
+                batchById.set(String(batch.id), batch);
+                const option = document.createElement('option');
+                option.value = batch.id;
+                option.textContent = batch.batch_no + ' - ' + batch.product_name + ' / ' + (batch.size || '-') +
+                    ' | batch remaining: ' + Math.floor(batch.batch_remaining_qty) +
+                    ' | stock: ' + Math.floor(batch.available_qty);
+                companyBatchSelect.appendChild(option);
+            });
+            if (!companyBatchSelect.options.length) {
+                companyBatchSelect.innerHTML = '<option value="">No approved batches with available stock</option>';
+            }
+            btnAddSelectedBatches.disabled = true;
+        } catch (error) {
+            companyBatchSelect.innerHTML = '<option value="">Batch loading failed</option>';
+            alert(error.message || 'Could not load production batches.');
+        } finally {
+            this.disabled = !companyCustomerSelect.value;
+        }
+    });
+
+    companyBatchSelect.addEventListener('change', function() {
+        btnAddSelectedBatches.disabled = !Array.from(this.selectedOptions).some(option => batchById.has(option.value));
+    });
+
+    function addSelectedProductionBatches() {
+        const selectedIds = Array.from(companyBatchSelect.selectedOptions).map(option => option.value).filter(Boolean);
+        if (!selectedIds.length) {
+            alert('Select one or more production batches.');
+            return;
+        }
+
+        let addedCount = 0;
+        let skipped = [];
+        selectedIds.forEach(batchId => {
+            const batch = batchById.get(String(batchId));
+            if (!batch) return;
+            if (batch.gst_pct === null || !Number.isFinite(Number(batch.gst_pct))) {
+                skipped.push(batch.batch_no + ' (GST rate not set)');
+                return;
+            }
+            if (cart.some(item => String(item.batch_id || '') === String(batch.id))) {
+                skipped.push(batch.batch_no + ' (already added)');
+                return;
+            }
+
+            const remainingStock = Math.max(0, Math.floor(Number(batch.available_qty) - getVariantCartQuantity(batch.variant_id)));
+            const addQty = Math.min(
+                Math.floor(Number(batch.batch_qty)),
+                Math.floor(Number(batch.batch_remaining_qty)),
+                remainingStock
+            );
+            if (addQty <= 0) {
+                skipped.push(batch.batch_no + ' (no remaining stock)');
+                return;
+            }
+            cart.push({
+                id: batch.variant_id,
+                batch_id: batch.id,
+                batch_no: batch.batch_no,
+                name: batch.product_name,
+                sku_code: batch.sku_code,
+                size: batch.size || '-',
+                hsn_code: batch.hsn_code || '',
+                price: Number(batch.price),
+                mrp: Number(batch.mrp),
+                gst_pct: Number(batch.gst_pct),
+                discount: 0,
+                qty: addQty,
+                available_qty: Number(batch.available_qty),
+                batch_remaining_qty: Number(batch.batch_remaining_qty)
+            });
+            addedCount++;
+        });
+
+        if (!addedCount) {
+            alert(skipped.length ? 'No batches were added: ' + skipped.join(', ') : 'No eligible batches selected.');
+            return;
+        }
+        renderCart();
+        if (skipped.length) alert('Some batches were skipped: ' + skipped.join(', '));
+    }
+
+    btnAddSelectedBatches.addEventListener('click', addSelectedProductionBatches);
 
     // 2. Mobile Number Auto-Lookup
     if (custMobile) {
@@ -1275,6 +1523,13 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success && data.variant) {
                     const v = data.variant;
+                    const availableQty = Math.max(0, Math.floor(Number(v.available_qty) || 0));
+                    if (availableQty <= 0) {
+                        playPosBeep('error');
+                        if (scannerStatus) scannerStatus.textContent = 'Out of stock at Main Store.';
+                        alert('No available stock for this product at Main Store.');
+                        return;
+                    }
                     if (v.gst_pct === null || !Number.isFinite(Number(v.gst_pct))) {
                         alert('Set and verify this product\'s GST rate in the catalog before billing it.');
                         return;
@@ -1288,9 +1543,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     // Check if already in cart
-                    const existingIndex = cart.findIndex(item => item.id === v.id);
+                    const existingIndex = cart.findIndex(item => String(item.id) === String(v.id) && !item.batch_id);
+                    const currentQty = getVariantCartQuantity(v.id);
+                    if (currentQty + qtyToAdd > availableQty) {
+                        const remainingQty = Math.max(0, availableQty - currentQty);
+                        playPosBeep('error');
+                        if (scannerStatus) {
+                            scannerStatus.textContent = remainingQty > 0
+                                ? 'Only ' + remainingQty + ' more available.'
+                                : 'Available stock already in cart.';
+                        }
+                        alert('Available at Main Store: ' + availableQty + '. Already in cart: ' + currentQty + '. You can add only ' + remainingQty + ' more.');
+                        return;
+                    }
                     if (existingIndex > -1) {
                         cart[existingIndex].qty += qtyToAdd;
+                        cart[existingIndex].available_qty = availableQty;
                     } else {
                         cart.push({
                             id: v.id,
@@ -1302,7 +1570,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             mrp: v.mrp,
                             gst_pct: Number(v.gst_pct),
                             discount: 0.00,
-                            qty: qtyToAdd
+                            qty: qtyToAdd,
+                            available_qty: availableQty
                         });
                     }
 
@@ -1369,6 +1638,44 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 4. Render Cart Function
+    function calculateLineAmounts(item) {
+        const gstType = gstTypeSelect ? gstTypeSelect.value : 'both';
+        const priceMode = gstPriceModeSelect ? gstPriceModeSelect.value : 'exclude';
+        const gstRate = gstType === 'exempt' ? 0 : (parseFloat(item.gst_pct) || 0);
+        const unitPrice = parseFloat(item.price) || 0;
+        const qty = Math.max(1, parseInt(item.qty, 10) || 1);
+        const grossAmount = Math.round(unitPrice * qty * 100) / 100;
+        const discount = Math.min(grossAmount, Math.max(0, parseFloat(item.discount) || 0));
+        const discountedAmount = Math.round(Math.max(0, grossAmount - discount) * 100) / 100;
+
+        if (priceMode === 'include' && gstRate > 0) {
+            const baseUnitPrice = Math.round((unitPrice / (1 + gstRate / 100)) * 100) / 100;
+            const taxableAmount = Math.round((discountedAmount / (1 + gstRate / 100)) * 100) / 100;
+            const gstAmount = Math.round((discountedAmount - taxableAmount) * 100) / 100;
+            return { baseUnitPrice, taxableAmount, gstAmount, discount, billedAmount: discountedAmount, gstRate };
+        }
+
+        const taxableAmount = discountedAmount;
+        const gstAmount = Math.round((taxableAmount * gstRate / 100) * 100) / 100;
+        return {
+            baseUnitPrice: Math.round(unitPrice * 100) / 100,
+            taxableAmount,
+            gstAmount,
+            discount,
+            billedAmount: Math.round((taxableAmount + gstAmount) * 100) / 100,
+            gstRate
+        };
+    }
+
+    function maxQuantityForCartLine(index) {
+        const item = cart[index];
+        const otherVariantQty = getVariantCartQuantity(item.id, index);
+        const stockLimit = Math.max(0, Math.floor(Number(item.available_qty) - otherVariantQty));
+        return item.batch_id
+            ? Math.min(stockLimit, Math.floor(Number(item.batch_remaining_qty) || 0))
+            : stockLimit;
+    }
+
     window.renderCart = function() {
         if (!cartTableBody) return;
 
@@ -1393,35 +1700,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 checkoutHelperHint.innerHTML = '<span class="text-success fw-semibold"><i class="bi bi-check-circle me-1"></i> Ready to checkout. Press F2 or click above.</span>';
             }
 
-            const gstType = gstTypeSelect ? gstTypeSelect.value : 'both';
-
             cart.forEach((item, index) => {
                 const tr = document.createElement('tr');
-                const effectiveGstPct = gstType === 'exempt' ? 0.00 : item.gst_pct;
-                const unitPrice = parseFloat(item.price) || 0;
-                const qty = item.qty || 1;
+                const line = calculateLineAmounts(item);
+                const qty = Math.max(1, parseInt(item.qty, 10) || 1);
                 const discount = parseFloat(item.discount) || 0;
-                const itemBaseSubtotal = Math.max(0, (unitPrice * qty) - discount);
-                const itemGst = (itemBaseSubtotal * effectiveGstPct) / 100.0;
-                const billedPrice = itemBaseSubtotal + itemGst;
+                const qtyMax = maxQuantityForCartLine(index);
+                tr.dataset.index = index;
 
                 tr.innerHTML = `
                     <td class="text-muted fw-bold">${index + 1}</td>
                     <td>
                         <strong class="text-dark d-block">${escapeHtml(item.name)}</strong>
-                        <small class="text-muted font-monospace">${escapeHtml(item.sku_code)} &bull; Size: ${escapeHtml(item.size)}</small>
+                        <small class="text-muted font-monospace">${escapeHtml(item.sku_code)} &bull; Size: ${escapeHtml(item.size)}${item.batch_no ? ' &bull; Batch: ' + escapeHtml(item.batch_no) : ''}</small>
                     </td>
                     <td><span class="badge bg-light text-dark border font-monospace">${escapeHtml(item.hsn_code)}</span></td>
-                    <td class="fw-bold font-monospace">₹${unitPrice.toFixed(2)}</td>
                     <td>
-                        <span class="badge bg-light text-primary border">${effectiveGstPct}%</span>
+                        <input type="number" min="1" max="${qtyMax}" step="1" class="form-control form-control-sm text-center font-monospace item-qty-input"
+                               value="${qty}" data-index="${index}" aria-label="Quantity for ${escapeHtml(item.name)}" style="width: 64px; font-size: 0.8rem; padding: 0.2rem;">
+                    </td>
+                    <td class="fw-bold font-monospace item-base-price">₹${line.baseUnitPrice.toFixed(2)}</td>
+                    <td>
+                        <span class="badge bg-light text-primary border">${line.gstRate}%</span>
                     </td>
                     <td>
                         <input type="number" min="0" step="1" class="form-control form-control-sm text-end font-monospace item-discount-input" 
                                value="${discount.toFixed(0)}" data-index="${index}" style="width: 75px; font-size: 0.8rem; padding: 0.2rem 0.4rem;">
                     </td>
-                    <td class="text-end fw-bold font-monospace text-dark fs-6">
-                        ₹${billedPrice.toFixed(2)}
+                    <td class="text-end fw-bold font-monospace text-dark fs-6 item-billed-price">
+                        ₹${line.billedAmount.toFixed(2)}
                     </td>
                     <td class="text-center">
                         <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="removeCartItem(${index})" title="Remove item">
@@ -1434,10 +1741,44 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Attach discount change listeners
             document.querySelectorAll('.item-discount-input').forEach(input => {
+                input.addEventListener('change', function() {
+                    const idx = parseInt(this.getAttribute('data-index'));
+                    const qty = Math.max(1, parseInt(cart[idx].qty, 10) || 1);
+                    const maxDiscount = Math.max(0, (parseFloat(cart[idx].price) || 0) * qty);
+                    cart[idx].discount = Math.min(maxDiscount, Math.max(0, parseFloat(this.value) || 0));
+                    renderCart();
+                });
+            });
+
+            document.querySelectorAll('.item-qty-input').forEach(input => {
                 input.addEventListener('input', function() {
                     const idx = parseInt(this.getAttribute('data-index'));
-                    cart[idx].discount = parseFloat(this.value) || 0;
-                    calculateCartTotals();
+                    const maxQty = maxQuantityForCartLine(idx);
+                    const enteredQty = parseInt(this.value, 10);
+                    if (Number.isFinite(enteredQty) && enteredQty > maxQty) {
+                        this.value = maxQty;
+                    }
+                    if (maxQty > 0) {
+                        cart[idx].qty = Math.min(maxQty, Math.max(1, parseInt(this.value, 10) || 1));
+                        calculateCartTotals();
+                    }
+                });
+                input.addEventListener('change', function() {
+                    const idx = parseInt(this.getAttribute('data-index'));
+                    const maxQty = maxQuantityForCartLine(idx);
+                    const requestedQty = Math.max(1, parseInt(this.value, 10) || 1);
+                    if (requestedQty > maxQty) {
+                        alert('Only ' + maxQty + ' units are available for this item at Main Store.');
+                    }
+                    cart[idx].qty = Math.min(requestedQty, maxQty);
+                    if (cart[idx].qty < 1) {
+                        cart.splice(idx, 1);
+                        renderCart();
+                        return;
+                    }
+                    const maxDiscount = Math.max(0, (parseFloat(cart[idx].price) || 0) * cart[idx].qty);
+                    cart[idx].discount = Math.min(maxDiscount, Math.max(0, parseFloat(cart[idx].discount) || 0));
+                    renderCart();
                 });
             });
         }
@@ -1459,34 +1800,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 5. Calculate Cart Totals
     function calculateCartTotals() {
-        const gstType = gstTypeSelect ? gstTypeSelect.value : 'both';
         let taxableSubtotal = 0.00;
         let totalGst = 0.00;
         let totalDiscount = 0.00;
         let totalItemsCount = 0;
 
         cart.forEach(item => {
-            const qty = item.qty || 1;
-            const unitPrice = parseFloat(item.price) || 0;
-            const discount = parseFloat(item.discount) || 0;
-            const effectiveGstPct = gstType === 'exempt' ? 0.00 : item.gst_pct;
-
-            const itemSub = Math.max(0, (unitPrice * qty) - discount);
-            const itemTax = (itemSub * effectiveGstPct) / 100.0;
-
-            taxableSubtotal += itemSub;
-            totalGst += itemTax;
-            totalDiscount += discount;
-            totalItemsCount += qty;
+            const line = calculateLineAmounts(item);
+            taxableSubtotal += line.taxableAmount;
+            totalGst += line.gstAmount;
+            totalDiscount += line.discount;
+            totalItemsCount += Math.max(1, parseInt(item.qty, 10) || 1);
         });
 
-        const netPayable = taxableSubtotal + totalGst;
+        const netPayable = Math.round((taxableSubtotal + totalGst) * 100) / 100;
 
         // Update displays
         if (displayItemsCount) displayItemsCount.textContent = totalItemsCount;
         if (displayTaxableSubtotal) displayTaxableSubtotal.textContent = '₹' + taxableSubtotal.toFixed(2);
         
-        if (badgeGstIncl) badgeGstIncl.textContent = 'Incl. ₹' + totalGst.toFixed(2);
+        if (badgeGstIncl) {
+            const priceMode = gstPriceModeSelect ? gstPriceModeSelect.value : 'exclude';
+            const gstType = gstTypeSelect ? gstTypeSelect.value : 'both';
+            const badgePrefix = gstType === 'exempt' ? 'Exempt ₹' : (priceMode === 'include' ? 'Included ₹' : 'Added ₹');
+            badgeGstIncl.textContent = badgePrefix + totalGst.toFixed(2);
+        }
         if (displayCgst) displayCgst.textContent = '₹' + (totalGst / 2.0).toFixed(2);
         if (displaySgst) displaySgst.textContent = '₹' + (totalGst / 2.0).toFixed(2);
 
@@ -1504,6 +1842,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (gstTypeSelect) {
         gstTypeSelect.addEventListener('change', () => renderCart());
+    }
+    if (gstPriceModeSelect) {
+        gstPriceModeSelect.addEventListener('change', () => renderCart());
     }
 
     // 6. Payment Method Selection (Cards)

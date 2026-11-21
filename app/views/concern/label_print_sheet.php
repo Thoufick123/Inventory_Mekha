@@ -218,6 +218,39 @@ $tagCode     = $labelData['tag_code'] ?? ($labelData['item_code'] ?? 'SKU');
 $qrText      = $qrCodeText ?? ($labelData['qr_payload'] ?? $tagCode);
 $badge       = $labelData['section_badge'] ?? 'STANDARD';
 $viewOnly    = !empty($viewOnly);
+$isFinishedGoods = in_array((string)($labelType ?? ''), ['purchase_fg', 'production'], true)
+    || in_array((string)($labelData['stock_tab'] ?? ''), ['finished_goods', 'production'], true);
+$finishedGoodsCode = static function (array $data): string {
+    $variantId = (int)($data['variant_id'] ?? 0);
+    if ($variantId <= 0) {
+        return '';
+    }
+
+    $currentCode = trim((string)($data['tag_code'] ?? $data['qr_payload'] ?? ''));
+    $parsedCode = \App\Services\QrService::parseFinishedGoodsCode($currentCode);
+    if ($parsedCode && (int)$parsedCode['variant_id'] === $variantId) {
+        return strtoupper($currentCode);
+    }
+
+    $code = \App\Services\QrService::generateFinishedGoodsCode($variantId);
+    if ($code !== null) {
+        return $code;
+    }
+
+    return \App\Services\QrService::formatFinishedGoodsCode(
+        $variantId,
+        $data['main_category_code'] ?? $data['category_code'] ?? null,
+        $data['sub_category_code'] ?? $data['subcategory_code'] ?? null,
+        $data['sub_sub_category_code'] ?? $data['sub_subcategory_code'] ?? null,
+        $data['category_name'] ?? null,
+        $data['subcategory_name'] ?? null,
+        $data['sub_subcategory_name'] ?? null
+    );
+};
+if ($isFinishedGoods && !empty($labelData['variant_id'])) {
+    $tagCode = $finishedGoodsCode($labelData);
+    $qrText = $tagCode;
+}
 $isProduction = ($labelType === 'production') 
     || (($labelData['section_title'] ?? '') === 'PRODUCTION FINISHED GARMENT')
     || (($labelData['stock_tab'] ?? '') === 'production');
@@ -313,8 +346,12 @@ if (!empty($multiLabels)) {
             $lblVariantAttributes = $lbl['variant_attributes'] ?? [];
             $lblVariantAttributes = is_array($lblVariantAttributes) ? $lblVariantAttributes : [];
             $pVal      = (float)($lbl['price'] ?? ($lbl['price_mrp'] ?? 0));
-            $tCode     = $lbl['tag_code'] ?? ($lbl['item_code'] ?? 'SKU');
-            $iQr       = $lbl['qr_payload'] ?? $tCode;
+            $tCode     = $isFinishedGoods && !empty($lbl['variant_id'])
+                ? $finishedGoodsCode($lbl)
+                : ($lbl['tag_code'] ?? ($lbl['item_code'] ?? 'SKU'));
+            $iQr       = $isFinishedGoods && !empty($lbl['variant_id'])
+                ? $tCode
+                : ($lbl['qr_payload'] ?? $tCode);
             $vSize     = !empty($lbl['variant_size']) ? $lbl['variant_size'] : preg_replace('/^SIZE:\s*/i', '', $dVal);
             if (empty($vSize) || $vSize === 'STANDARD') {
                 $vSize = 'Free';
@@ -351,7 +388,7 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($pVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">Code:</span>
+                                <span class="detail-label"><?= $isFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tCode) ?></span>
                             </div>
                         <?php else: ?>
@@ -380,7 +417,7 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($pVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">Code:</span>
+                                <span class="detail-label"><?= $isFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tCode) ?></span>
                             </div>
                         <?php endif; ?>
@@ -435,7 +472,7 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($priceVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">Code:</span>
+                                <span class="detail-label"><?= $isFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tagCode) ?></span>
                             </div>
                         <?php else: ?>
@@ -464,7 +501,7 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($priceVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">Code:</span>
+                                <span class="detail-label"><?= $isFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tagCode) ?></span>
                             </div>
                         <?php endif; ?>

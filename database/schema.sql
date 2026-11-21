@@ -838,13 +838,16 @@ CREATE TABLE IF NOT EXISTS `sales_invoice_items` (
     `concern_id` INT NOT NULL,
     `sales_invoice_id` INT NOT NULL,
     `variant_id` INT NOT NULL,
+    `production_batch_id` INT NULL,
     `qty` DECIMAL(12,2) NOT NULL,
     `unit_price` DECIMAL(12,2) NOT NULL,
     `total_price` DECIMAL(12,2) NOT NULL,
     INDEX `idx_sii_concern` (`concern_id`),
+    INDEX `idx_sii_production_batch` (`production_batch_id`),
     CONSTRAINT `fk_sii_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_sii_inv` FOREIGN KEY (`sales_invoice_id`) REFERENCES `sales_invoices`(`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_sii_var` FOREIGN KEY (`variant_id`) REFERENCES `variants`(`id`)
+    CONSTRAINT `fk_sii_var` FOREIGN KEY (`variant_id`) REFERENCES `variants`(`id`),
+    CONSTRAINT `fk_sii_batch` FOREIGN KEY (`production_batch_id`) REFERENCES `batches`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 27. OUTWARD & ITEMS (Triggers stock deduction via StockService)

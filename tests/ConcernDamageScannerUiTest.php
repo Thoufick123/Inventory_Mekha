@@ -7,6 +7,7 @@ $canEditDamage = true;
 $canDeleteDamage = true;
 $selectedCid = 1;
 $csrfToken = 'concern-damage-test-token';
+$concernName = 'GRM Garments';
 $allConcerns = [];
 $search = '';
 $sourceType = '';
@@ -71,7 +72,7 @@ $checks['Damage list hides actions the user cannot access'] =
     && strpos($restrictedListHtml, '/m/concern_damage/delete') === false
     && strpos($restrictedListHtml, 'openViewConcernDamageModal') !== false;
 
-$locations = ['Main Store', 'WAREHOUSE:1:AVAILABLE'];
+$locations = ['1', 'Main Store', 'WAREHOUSE:1:AVAILABLE'];
 ob_start();
 include __DIR__ . '/../app/views/concern/concern_damage_entry.php';
 $entryHtml = ob_get_clean();
@@ -80,9 +81,29 @@ $checks['Damage entry provides location-scoped QR scanning and a queue'] =
     && strpos($entryHtml, 'Source Warehouse / Location') !== false
     && strpos($entryHtml, 'data-scan-url=') !== false
     && strpos($entryHtml, 'Damaged / Rework Items Queue') !== false
+    && strpos($entryHtml, 'GRMAPSHRL01') !== false
     && strpos($entryHtml, 'Damage Reason *') !== false
     && strpos($entryHtml, 'Available') !== false
-    && strpos($entryHtml, 'scanned_items') !== false;
+    && strpos($entryHtml, 'scanned_items') !== false
+    && strpos($entryHtml, 'value="Main Store" selected') !== false
+    && strpos($entryHtml, 'value="1" selected') === false;
+$checks['Concern users see their fixed concern name instead of a concern selector'] =
+    strpos($entryHtml, 'GRM Garments') !== false
+    && strpos($entryHtml, 'id="entryConcernId"') === false;
+
+$isSuperAdmin = true;
+$allConcerns = [
+    ['id' => 1, 'name' => 'GRM Garments'],
+    ['id' => 2, 'name' => 'Apex Fashion'],
+];
+ob_start();
+include __DIR__ . '/../app/views/concern/concern_damage_entry.php';
+$adminEntryHtml = ob_get_clean();
+$checks['Super admins can select a concern and scan on the same entry page'] =
+    strpos($adminEntryHtml, 'id="entryConcernId"') !== false
+    && strpos($adminEntryHtml, 'value="1" selected') !== false
+    && strpos($adminEntryHtml, 'Live Concern QR Scanner') !== false
+    && strpos($adminEntryHtml, 'Continue') === false;
 
 $locationMethod = new ReflectionMethod(App\Services\DamageService::class, 'locationWithState');
 $locationMethod->setAccessible(true);

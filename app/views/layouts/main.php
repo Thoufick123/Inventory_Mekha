@@ -224,6 +224,9 @@
         </div>
 
         <div class="py-2">
+            <?php
+            $activeRoute = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+            ?>
             <?php if (!$isSuperAdmin): ?>
                 <div class="nav-group-title">Dashboard</div>
                 <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="nav-link <?= (in_array($activeRoute, ['/dashboard', '/']) || (isset($currentModule) && $currentModule === 'concern_dashboard')) ? 'active' : '' ?>">
@@ -232,7 +235,6 @@
                 </a>
             <?php endif; ?>
             <?php
-            $activeRoute = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
             $grouped = [];
             foreach ($sidebarModules as $m) {
                 if ($m['code'] === 'variants' || $m['code'] === 'concern_dashboard' || $m['code'] === 'admin_concerns' || $m['code'] === 'dispatch' || $m['group_name'] === 'Masters') continue;
@@ -284,7 +286,6 @@
                     if ($m['code'] === 'cutting_wastage') $href = \App\Core\Controller::url('/production/cutting');
                     if ($m['code'] === 'stitching_wastage') $href = \App\Core\Controller::url('/production/stitching');
                     if ($m['code'] === 'warehouse_damage') $href = \App\Core\Controller::url('/warehouse/damages');
-                    if ($m['code'] === 'shop_damage') $href = \App\Core\Controller::url('/shop/damages');
                     if ($m['code'] === 'return_exchange') $href = \App\Core\Controller::url('/production/returns');
                     if ($m['code'] === 'request') $href = \App\Core\Controller::url('/production/stock-requests');
                     if ($m['code'] === 'batch') $href = \App\Core\Controller::url('/production/batches');

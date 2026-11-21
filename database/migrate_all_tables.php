@@ -71,6 +71,21 @@ if (!in_array('inward_type', $cols)) {
     echo "  . `inward_type` already exists\n";
 }
 
+if (!in_array('po_id', $cols)) {
+    DB::query("ALTER TABLE `inwards` ADD COLUMN `po_id` INT NULL AFTER `grn_number`");
+    echo "  + Added `po_id` to `inwards`\n";
+    $cols[] = 'po_id';
+} else {
+    echo "  . `po_id` already exists\n";
+}
+
+if (!in_array('received_by', $cols)) {
+    DB::query("ALTER TABLE `inwards` ADD COLUMN `received_by` INT NULL AFTER `vehicle_number`");
+    echo "  + Added `received_by` to `inwards`\n";
+} else {
+    echo "  . `received_by` already exists\n";
+}
+
 // 4. CASHIER_SHIFTS
 echo "\n4. Checking `cashier_shifts`...\n";
 $cols = array_column(DB::fetchAll("SHOW COLUMNS FROM `cashier_shifts`"), 'Field');
@@ -163,6 +178,35 @@ DB::query("ALTER TABLE `catalogs` MODIFY COLUMN `gst_rate` DECIMAL(5,2) NULL DEF
 require_once __DIR__ . '/hsn_gst_master.php';
 ensureHsnGstMaster();
 echo "  + HSN/SAC master schema and textile classifications are up to date\n";
+
+// 10. BATCHES
+echo "\n10. Checking `batches` status...\n";
+DB::query("ALTER TABLE `batches` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'active'");
+echo "  + Ensured flexible `status` on `batches`\n";
+
+echo "\n11. Checking POS production batch traceability...\n";
+$salesItemCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `sales_invoice_items`"), 'Field');
+if (!in_array('production_batch_id', $salesItemCols, true)) {
+    DB::query("ALTER TABLE `sales_invoice_items` ADD COLUMN `production_batch_id` INT NULL AFTER `variant_id`");
+    echo "  + Added `production_batch_id` to `sales_invoice_items`\n";
+} else {
+    echo "  . `production_batch_id` already exists\n";
+}
+$salesItemIndexes = array_column(DB::fetchAll("SHOW INDEX FROM `sales_invoice_items`"), 'Key_name');
+if (!in_array('idx_sii_production_batch', $salesItemIndexes, true)) {
+    DB::query("ALTER TABLE `sales_invoice_items` ADD INDEX `idx_sii_production_batch` (`production_batch_id`)");
+}
+$batchForeignKey = DB::fetchValue(
+    "SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales_invoice_items'
+       AND CONSTRAINT_NAME = 'fk_sii_batch' LIMIT 1"
+);
+if (!$batchForeignKey) {
+    DB::query("ALTER TABLE `sales_invoice_items`
+               ADD CONSTRAINT `fk_sii_batch` FOREIGN KEY (`production_batch_id`)
+               REFERENCES `batches` (`id`) ON DELETE SET NULL");
+}
+echo "  + Production batch traceability is ready\n";
 
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";

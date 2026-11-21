@@ -132,6 +132,11 @@ class PurchaseStockController extends Controller {
                     c.name AS concern_name, c.code AS concern_code,
                     v.sku_code AS variant_sku, v.name AS variant_name, v.size AS variant_size, v.mrp AS variant_mrp,
                     cat.name AS category_name,
+                    subcat.name AS subcategory_name,
+                    COALESCE(NULLIF(variant_catalog.main_category_code, ''), cat.code) AS main_category_code,
+                    COALESCE(NULLIF(variant_catalog.sub_category_code, ''), subcat.code) AS sub_category_code,
+                    COALESCE(NULLIF(variant_catalog.sub_sub_category_code, ''), subsub.code) AS sub_sub_category_code,
+                    subsub.name AS sub_subcategory_name,
                     (SELECT st.qty FROM stocks st WHERE st.variant_id = pbi.variant_id AND st.concern_id = pbi.concern_id AND st.location = 'Main Store' LIMIT 1) AS live_variant_stock,
                     COALESCE(label_jobs.generated_qty, 0) AS label_generated_qty,
                     label_jobs.label_latest_job_id AS label_latest_job_id,
@@ -162,6 +167,9 @@ class PurchaseStockController extends Controller {
              LEFT JOIN concerns c ON pbi.concern_id = c.id
              LEFT JOIN variants v ON pbi.variant_id = v.id
              LEFT JOIN categories cat ON v.category_id = cat.id
+             LEFT JOIN subcategories subcat ON v.subcategory_id = subcat.id
+             LEFT JOIN catalogs variant_catalog ON variant_catalog.id = v.catalog_id
+             LEFT JOIN sub_subcategories subsub ON subsub.id = variant_catalog.sub_sub_category_id
              LEFT JOIN (
                  SELECT lj.concern_id, lj.ref_id, SUM(lj.qty) AS generated_qty,
                         MAX(lj.id) AS label_latest_job_id
