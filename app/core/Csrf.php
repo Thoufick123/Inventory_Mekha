@@ -42,6 +42,10 @@ class Csrf {
     }
 }
 
+// Support both naming conventions (Csrf and CSRF)
 if (!class_exists('App\Core\CSRF', false)) {
     class_alias(Csrf::class, 'App\Core\CSRF');
+}
+if (!class_exists('App\Core\Csrf', false)) {
+    class_alias(CSRF::class, 'App\Core\Csrf');
 }
