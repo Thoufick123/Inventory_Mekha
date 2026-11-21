@@ -1,6 +1,12 @@
 <?php
 // app/views/concern/batch_create.php
-// Pack Finished Production Batch View (Image 2)
+// Pack Finished Production Batch View (Matches Image 1: /production/batches/create)
+
+$initialCount = count($approvedQrTags ?? []);
+$unitPrice = (float)($variant['price'] ?: 700.00);
+$initialTotal = $initialCount * $unitPrice;
+$initialTaxable = $initialTotal > 0 ? round($initialTotal / 1.05, 2) : 0.00;
+$initialGst = round($initialTotal - $initialTaxable, 2);
 ?>
 <div class="container-fluid px-3 py-2">
     <!-- Breadcrumb -->
@@ -18,13 +24,13 @@
         <i class="bi bi-box-seam text-success"></i> Pack Finished Production Batch
     </h4>
 
-    <form action="<?= \App\Core\Controller::url('/m/batch/store') ?>" method="POST" id="formPackBatch" onsubmit="return validateBatchForm(event)">
+    <form action="<?= \App\Core\Controller::url('/production/batches/store') ?>" method="POST" id="formPackBatch" onsubmit="return validateBatchForm(event)">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
-        <input type="hidden" name="program_no" value="<?= htmlspecialchars($programStats['program_no']) ?>">
-        <input type="hidden" name="variant_id" value="<?= (int)$variant['id'] ?>">
-        <input type="hidden" name="taxable_value" id="inputTaxable" value="16666.67">
-        <input type="hidden" name="gst_amount" id="inputGst" value="833.33">
-        <input type="hidden" name="total_amount" id="inputTotal" value="17500.00">
+        <input type="hidden" name="program_no" value="<?= htmlspecialchars($programStats['program_no'] ?? 'PRG-GEN') ?>">
+        <input type="hidden" name="variant_id" value="<?= (int)($variant['id'] ?? 0) ?>">
+        <input type="hidden" name="taxable_value" id="inputTaxable" value="<?= number_format($initialTaxable, 2, '.', '') ?>">
+        <input type="hidden" name="gst_amount" id="inputGst" value="<?= number_format($initialGst, 2, '.', '') ?>">
+        <input type="hidden" name="total_amount" id="inputTotal" value="<?= number_format($initialTotal, 2, '.', '') ?>">
 
         <div class="row g-4">
             <!-- Left Column: Packing Details -->
@@ -43,7 +49,7 @@
                             <select name="qc_batch_id" id="qcBatchSelect" class="form-select form-select-sm" required onchange="handleQcChange(this)">
                                 <?php foreach ($qcList as $q): ?>
                                     <option value="<?= $q['id'] ?>" <?= ((int)$q['id'] === $selectedQcId) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($q['qc_no']) ?> (<?= htmlspecialchars($q['program_no'] ?? 'PRG-20261113-0001') ?> — <?= htmlspecialchars($q['program_name'] ?? 'KIDS - BABY - DRESS') ?>) [25 pcs rem]
+                                        <?= htmlspecialchars($q['qc_no']) ?> (<?= htmlspecialchars($q['program_no'] ?? 'PRG-20261113-0001') ?> — <?= htmlspecialchars($q['program_name'] ?? 'KIDS - BABY - DRESS') ?>) [<?= (int)($q['passed_rem'] ?? $q['passed_qty']) ?> pcs rem]
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -51,7 +57,7 @@
 
                         <!-- Combine with Reworked Checkbox -->
                         <div class="form-check mb-4">
-                            <input class="form-check-input" type="checkbox" name="combine_rework" id="combineRework">
+                            <input class="form-check-input" type="checkbox" name="combine_rework" id="combineRework" onchange="handleCombineRework(this)">
                             <label class="form-check-label small text-secondary" for="combineRework">
                                 Combine with Reworked / Re-inspected Batch
                             </label>
@@ -74,19 +80,19 @@
                                 <div class="col-3">
                                     <div class="bg-white p-2 rounded border">
                                         <div class="text-muted" style="font-size:0.7rem;">Packed</div>
-                                        <div class="fw-bold text-dark fs-6" id="statPacked"><?= (int)$programStats['packed'] ?></div>
+                                        <div class="fw-bold fs-6" id="statPacked" style="color: #ef4444;"><?= (int)$programStats['packed'] ?></div>
                                     </div>
                                 </div>
                                 <div class="col-3">
                                     <div class="bg-white p-2 rounded border">
                                         <div class="text-muted" style="font-size:0.7rem;">Passed Rem.</div>
-                                        <div class="fw-bold text-success fs-6" id="statPassedRem"><?= (int)$programStats['passed_rem'] ?></div>
+                                        <div class="fw-bold fs-6" id="statPassedRem" style="color: #10b981;"><?= (int)$programStats['passed_rem'] ?></div>
                                     </div>
                                 </div>
                                 <div class="col-3">
                                     <div class="bg-white p-2 rounded border">
                                         <div class="text-muted" style="font-size:0.7rem;">Rework</div>
-                                        <div class="fw-bold text-warning fs-6" id="statRework"><?= (int)$programStats['rework'] ?></div>
+                                        <div class="fw-bold fs-6" id="statRework" style="color: #f59e0b;"><?= (int)$programStats['rework'] ?></div>
                                     </div>
                                 </div>
                             </div>
@@ -98,9 +104,9 @@
                                 Destination Warehouse <span class="text-danger">*</span>
                             </label>
                             <select name="warehouse_name" id="destWarehouse" class="form-select form-select-sm" required>
-                                <option value="">-- Select Warehouse --</option>
+                                <option value="" disabled selected>-- Select Warehouse --</option>
                                 <?php foreach ($warehouses as $wh): ?>
-                                    <option value="<?= htmlspecialchars($wh['name']) ?>" selected>
+                                    <option value="<?= htmlspecialchars($wh['name']) ?>">
                                         <?= htmlspecialchars($wh['name']) ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -128,11 +134,11 @@
                             <h6 class="mb-0 fw-bold text-dark">Packed Quantities</h6>
                         </div>
                         <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-outline-success btn-sm fw-semibold">
+                            <button type="button" class="btn btn-outline-success btn-sm fw-semibold" onclick="openBillPreviewModal()">
                                 <i class="bi bi-receipt me-1"></i> Bill Generation
                             </button>
-                            <span class="badge bg-success px-2.5 py-1.5 fw-bold" id="badgeHeaderPacked">
-                                <?= (int)$variant['passed_avail'] ?> pcs Packed
+                            <span class="badge px-2.5 py-1.5 fw-bold" id="badgeHeaderPacked" style="background:#10b981; color:#fff;">
+                                <?= $initialCount ?> pcs Packed
                             </span>
                         </div>
                     </div>
@@ -142,11 +148,11 @@
                             <div class="form-check form-switch mb-0">
                                 <input class="form-check-input" type="checkbox" name="rework_included" id="reworkToggle" onchange="toggleReworkOption(this)">
                                 <label class="form-check-label small fw-semibold text-dark" for="reworkToggle">
-                                    Include Reworked / Repaired Garments in this Batch (Admin Option)
+                                    <i class="bi bi-tools text-warning me-1"></i> Include Reworked / Repaired Garments in this Batch (Admin Option)
                                 </label>
                             </div>
-                            <span class="badge bg-warning text-dark px-2 py-1 fw-bold" style="font-size:0.75rem;">
-                                9 Rework Pcs in this QC Batch
+                            <span class="badge px-2 py-1 fw-bold" id="badgeReworkBanner" style="background:#fef08a; color:#854d0e; font-size:0.75rem;">
+                                <?= (int)$programStats['rework'] ?> Rework Pcs in this QC Batch
                             </span>
                         </div>
 
@@ -164,12 +170,12 @@
                                 <tbody>
                                     <tr>
                                         <td class="align-top py-3">
-                                            <div class="fw-bold text-dark"><?= htmlspecialchars($variant['size']) ?> / <?= htmlspecialchars($variant['color']) ?></div>
-                                            <small class="text-muted font-monospace"><?= htmlspecialchars($variant['sku_code']) ?></small>
+                                            <div class="fw-bold text-dark"><?= htmlspecialchars($variant['size'] ?? 'L') ?> / <?= htmlspecialchars($variant['color'] ?? 'GREEN') ?></div>
+                                            <small class="text-muted font-monospace"><?= htmlspecialchars($variant['sku_code'] ?? '') ?></small>
                                         </td>
                                         <td class="align-top py-3">
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-semibold mb-1 d-inline-block">
-                                                <?= (int)$variant['passed_avail'] ?> pcs Passed Available
+                                            <span class="badge px-2 py-1 fw-semibold mb-1 d-inline-block" style="background:#d1fae5; color:#065f46;">
+                                                <i class="bi bi-box me-1"></i> <span id="labelPassedAvail"><?= (int)$variant['passed_avail'] ?></span> pcs Passed Available
                                             </span>
                                             <div class="small text-muted" style="font-size:0.75rem;">
                                                 Total Passed: <?= (int)$variant['total_passed'] ?> pcs (<?= (int)$variant['already_packed'] ?> already packed)
@@ -178,11 +184,13 @@
                                         <td class="align-top py-3">
                                             <!-- Approved & Excluded Info -->
                                             <div class="small text-success fw-semibold mb-0.5 d-flex align-items-center gap-1">
-                                                <i class="bi bi-check-circle-fill"></i> 25 approved QR code(s) available
+                                                <i class="bi bi-check-circle-fill"></i> <span id="textAvailCount"><?= $initialCount ?></span> approved QR code(s) available
                                             </div>
-                                            <div class="small text-danger mb-2" style="font-size:0.72rem; line-height: 1.3;">
-                                                5 rejected QR code(s) excluded. Re-inspect and pass them in QC before packing.
-                                            </div>
+                                            <?php if ((int)$programStats['rejected'] > 0): ?>
+                                                <div class="small text-danger mb-2" style="font-size:0.72rem; line-height: 1.3;">
+                                                    <?= (int)$programStats['rejected'] ?> rejected QR code(s) excluded. Re-inspect and pass them in QC before packing.
+                                                </div>
+                                            <?php endif; ?>
 
                                             <!-- QR Code Search Bar -->
                                             <div class="input-group input-group-sm mb-2">
@@ -192,71 +200,73 @@
                                             <!-- Selection Counter & Buttons -->
                                             <div class="d-flex justify-content-between align-items-center mb-2 small">
                                                 <span class="text-muted fw-semibold">
-                                                    <span id="selectedCount">25</span> selected / 25 qty
+                                                    <span id="selectedCount"><?= $initialCount ?></span> selected / <span id="totalAvailable"><?= $initialCount ?></span> qty
                                                 </span>
-                                                <div class="btn-group btn-group-sm">
-                                                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:0.72rem;" onclick="selectAllQr(true)">Select All</button>
-                                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.72rem;" onclick="selectAllQr(false)">Clear</button>
+                                                <div class="d-flex align-items-center">
+                                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill py-0 px-2" style="font-size:0.75rem;" onclick="selectAllQr(true)">
+                                                        <i class="bi bi-check2 me-1"></i>Select All
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill py-0 px-2 ms-1" style="font-size:0.75rem;" onclick="selectAllQr(false)">
+                                                        Clear
+                                                    </button>
                                                 </div>
                                             </div>
 
-                                            <!-- Scrollable QR Code Checkbox List -->
-                                            <div class="border rounded p-2 bg-light overflow-auto" id="qrListContainer" style="max-height: 160px;">
-                                                <div class="row g-1" id="qrCheckboxesRow">
+                                            <!-- Scrollable QR Code Checkbox List (Single Column in Image 1) -->
+                                            <div class="border rounded p-2 bg-light overflow-auto" id="qrListContainer" style="max-height: 180px;">
+                                                <div class="d-flex flex-column gap-1" id="qrCheckboxesRow">
                                                     <?php foreach ($approvedQrTags as $item): ?>
-                                                        <div class="col-6 qr-item-col" data-code="<?= htmlspecialchars($item['tag']) ?>">
-                                                            <div class="form-check small mb-1">
-                                                                <input class="form-check-input qr-checkbox" type="checkbox" name="selected_tags[]" value="<?= htmlspecialchars($item['tag']) ?>" id="qr_<?= htmlspecialchars($item['tag']) ?>" checked onchange="updateQrSelection()">
-                                                                <label class="form-check-label font-monospace" for="qr_<?= htmlspecialchars($item['tag']) ?>">
-                                                                    <?= htmlspecialchars($item['tag']) ?>
-                                                                </label>
-                                                            </div>
+                                                        <div class="form-check small mb-1 qr-item-col" data-code="<?= htmlspecialchars($item['tag']) ?>">
+                                                            <input class="form-check-input qr-checkbox" type="checkbox" name="selected_tags[]" value="<?= htmlspecialchars($item['tag']) ?>" id="qr_<?= htmlspecialchars($item['tag']) ?>" checked onchange="updateQrSelection()">
+                                                            <label class="form-check-label font-monospace fw-semibold text-dark" for="qr_<?= htmlspecialchars($item['tag']) ?>">
+                                                                <?= htmlspecialchars($item['tag']) ?>
+                                                            </label>
                                                         </div>
                                                     <?php endforeach; ?>
                                                 </div>
                                             </div>
-                                            <div class="form-text small text-muted" style="font-size: 0.72rem;">
+                                            <div class="form-text small text-muted mt-1" style="font-size: 0.72rem;">
                                                 Check QR codes to pack. The quantity updates to match your selection.
                                             </div>
                                         </td>
                                         <td class="align-top py-3 text-end">
                                             <div class="d-inline-flex align-items-center gap-1 justify-content-end">
-                                                <input type="number" name="quantity_to_pack" id="qtyToPack" class="form-control form-control-sm text-end fw-bold" style="width: 75px;" value="25" min="1" max="25" required oninput="handleManualQtyChange(this)">
+                                                <input type="number" name="quantity_to_pack" id="qtyToPack" class="form-control form-control-sm text-end fw-bold" style="width: 75px;" value="<?= $initialCount ?>" min="1" max="<?= $initialCount ?>" required oninput="handleManualQtyChange(this)">
                                                 <span class="small text-muted">pcs</span>
                                             </div>
-                                            <div class="small text-muted mt-1" style="font-size:0.72rem;">Max: 25 pcs</div>
+                                            <div class="small text-muted mt-1" id="subtextMax">Max: <?= $initialCount ?> pcs</div>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
 
-                        <!-- Horizontal Invoice & Financial Summary Bar -->
+                        <!-- Horizontal Invoice & Financial Summary Bar (Image 1) -->
                         <div class="p-3 bg-light rounded-3 border mt-4">
                             <div class="row g-3 text-center align-items-center">
                                 <div class="col-6 col-md-3">
-                                    <div class="small text-muted text-uppercase mb-0.5" style="font-size: 0.72rem;">
+                                    <div class="small text-muted text-uppercase mb-0.5 fw-semibold" style="font-size: 0.72rem;">
                                         <i class="bi bi-box me-1"></i> PRODUCT COUNT
                                     </div>
-                                    <div class="fw-bold text-dark fs-5" id="footerCount">25 pcs</div>
+                                    <div class="fw-bold text-dark fs-5" id="footerCount"><?= $initialCount ?> pcs</div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="small text-muted text-uppercase mb-0.5" style="font-size: 0.72rem;">
+                                    <div class="small text-muted text-uppercase mb-0.5 fw-semibold" style="font-size: 0.72rem;">
                                         <i class="bi bi-currency-rupee me-0.5"></i> TAXABLE VALUE
                                     </div>
-                                    <div class="fw-bold text-dark fs-5">₹<span id="footerTaxable">16,666.67</span></div>
+                                    <div class="fw-bold text-dark fs-5">₹<span id="footerTaxable"><?= number_format($initialTaxable, 2) ?></span></div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="small text-muted text-uppercase mb-0.5" style="font-size: 0.72rem;">
+                                    <div class="small text-muted text-uppercase mb-0.5 fw-semibold" style="font-size: 0.72rem;">
                                         <i class="bi bi-percent me-0.5"></i> % GST AMOUNT (INCL.)
                                     </div>
-                                    <div class="fw-bold text-primary fs-5">₹<span id="footerGst">833.33</span></div>
+                                    <div class="fw-bold fs-5" style="color: #2563eb;">₹<span id="footerGst"><?= number_format($initialGst, 2) ?></span></div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="small text-muted text-uppercase mb-0.5" style="font-size: 0.72rem;">
+                                    <div class="small text-muted text-uppercase mb-0.5 fw-semibold" style="font-size: 0.72rem;">
                                         <i class="bi bi-file-earmark-check me-0.5"></i> TOTAL BILL & INVOICE
                                     </div>
-                                    <div class="fw-bold text-success fs-5">₹<span id="footerTotal">17,500.00</span></div>
+                                    <div class="fw-bold fs-5" style="color: #10b981;">₹<span id="footerTotal"><?= number_format($initialTotal, 2) ?></span></div>
                                 </div>
                             </div>
                         </div>
@@ -266,7 +276,7 @@
                             <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
                                 <i class="bi bi-x-circle me-1"></i> Cancel
                             </a>
-                            <button type="button" class="btn btn-outline-success btn-sm px-3 fw-semibold" onclick="handleGenerateBillOnly()">
+                            <button type="button" class="btn btn-outline-success btn-sm px-3 fw-semibold" onclick="openBillPreviewModal()">
                                 <i class="bi bi-receipt me-1"></i> Generate Bill & Invoice
                             </button>
                             <button type="submit" class="btn btn-primary btn-sm px-4 fw-semibold shadow-sm" style="background:#4f46e5; border-color:#4f46e5;">
@@ -280,8 +290,77 @@
     </form>
 </div>
 
+<!-- Modal: Bill & Invoice Draft Preview -->
+<div class="modal fade" id="modalBillPreview" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background:#10b981;">
+                <h6 class="modal-title fw-bold"><i class="bi bi-receipt me-2"></i> Packing Slip & Invoice Draft Preview</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <span class="text-muted small">Program & Style</span>
+                    <span class="fw-bold text-dark font-monospace"><?= htmlspecialchars($programStats['program_no']) ?></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <span class="text-muted small">Product Variant</span>
+                    <span class="fw-bold text-dark"><?= htmlspecialchars($variant['name']) ?> (<?= htmlspecialchars($variant['size']) ?>)</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <span class="text-muted small">Target Warehouse</span>
+                    <span class="fw-semibold text-primary" id="previewWarehouse">-</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <span class="text-muted small">Pieces to Pack</span>
+                    <span class="fw-bold fs-6 text-dark" id="previewPieces">0 pcs</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <span class="text-muted small">Unit Price</span>
+                    <span class="fw-semibold text-secondary">₹<?= number_format($unitPrice, 2) ?> / pc</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <span class="text-muted small">Taxable Value</span>
+                    <span class="fw-bold text-dark">₹<span id="previewTaxable">0.00</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <span class="text-muted small">GST (5% Inclusive)</span>
+                    <span class="fw-bold text-primary">₹<span id="previewGst">0.00</span></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center py-2 bg-light rounded px-3">
+                    <span class="fw-bold text-dark">Total Net Bill & Invoice</span>
+                    <span class="fw-bold fs-5 text-success">₹<span id="previewTotal">0.00</span></span>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success btn-sm px-3" onclick="document.getElementById('formPackBatch').submit();">
+                    <i class="bi bi-check2-circle me-1"></i> Confirm & Save Packed Batch
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-var piecePrice = 700.00; // Rs 700 per pc
+var piecePrice = <?= json_encode($unitPrice) ?>;
+var passedPieces = <?= (int)$initialCount ?>;
+var maxPieces = <?= (int)$initialCount ?>;
+var reworkTagsList = <?= json_encode($reworkTags ?? []) ?>;
+
+function handleQcChange(select) {
+    if (select.value) {
+        window.location.href = '<?= \App\Core\Controller::url('/production/batches/create') ?>?qc_batch_id=' + select.value;
+    }
+}
+
+function handleCombineRework(checkbox) {
+    var toggle = document.getElementById('reworkToggle');
+    if (toggle) {
+        toggle.checked = checkbox.checked;
+        toggleReworkOption(toggle);
+    }
+}
 
 function updateQrSelection() {
     var checkboxes = document.querySelectorAll('.qr-checkbox');
@@ -301,14 +380,18 @@ function updateQrSelection() {
 function selectAllQr(state) {
     var checkboxes = document.querySelectorAll('.qr-checkbox');
     checkboxes.forEach(function(cb) {
-        cb.checked = state;
+        // Only modify if parent row is visible (not filtered out by search)
+        var row = cb.closest('.qr-item-col');
+        if (!row || row.style.display !== 'none') {
+            cb.checked = state;
+        }
     });
     updateQrSelection();
 }
 
 function handleManualQtyChange(input) {
     var val = parseInt(input.value) || 0;
-    val = Math.max(0, Math.min(25, val));
+    val = Math.max(0, Math.min(maxPieces, val));
     input.value = val;
 
     var checkboxes = document.querySelectorAll('.qr-checkbox');
@@ -324,10 +407,10 @@ function handleManualQtyChange(input) {
 }
 
 function calculateFinancials(qty) {
-    var totalAmount = qty * piecePrice; // e.g. 25 * 700 = 17500.00
+    var totalAmount = qty * piecePrice;
     var gstRate = 0.05; // 5% GST included
-    var taxable = totalAmount / (1 + gstRate); // 16666.67
-    var gst = totalAmount - taxable; // 833.33
+    var taxable = totalAmount > 0 ? (totalAmount / (1 + gstRate)) : 0;
+    var gst = totalAmount - taxable;
 
     document.getElementById('footerTaxable').innerText = taxable.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     document.getElementById('footerGst').innerText = gst.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -339,7 +422,7 @@ function calculateFinancials(qty) {
 }
 
 function filterQrCheckboxes() {
-    var query = document.getElementById('qrSearchInput').value.toLowerCase();
+    var query = document.getElementById('qrSearchInput').value.toLowerCase().trim();
     var cols = document.querySelectorAll('.qr-item-col');
     cols.forEach(function(col) {
         var code = col.getAttribute('data-code').toLowerCase();
@@ -352,13 +435,52 @@ function filterQrCheckboxes() {
 }
 
 function toggleReworkOption(toggle) {
+    var container = document.getElementById('qrCheckboxesRow');
+    var existingReworkElements = container.querySelectorAll('.rework-qr-item');
+
     if (toggle.checked) {
-        alert("Reworked / Repaired garments will be bundled into this dispatch batch.");
+        // Add rework tags dynamically if not already added
+        if (existingReworkElements.length === 0 && reworkTagsList.length > 0) {
+            reworkTagsList.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'form-check small mb-1 qr-item-col rework-qr-item';
+                div.setAttribute('data-code', item.tag);
+                div.innerHTML = `
+                    <input class="form-check-input qr-checkbox" type="checkbox" name="selected_tags[]" value="${item.tag}" id="qr_${item.tag}" checked onchange="updateQrSelection()">
+                    <label class="form-check-label font-monospace fw-semibold text-warning" for="qr_${item.tag}">
+                        ${item.tag} <span class="badge bg-warning text-dark py-0 px-1" style="font-size:0.65rem;">REWORK</span>
+                    </label>
+                `;
+                container.appendChild(div);
+            });
+        }
+        maxPieces = passedPieces + reworkTagsList.length;
+    } else {
+        // Remove rework tags
+        existingReworkElements.forEach(function(el) {
+            el.remove();
+        });
+        maxPieces = passedPieces;
     }
+
+    document.getElementById('totalAvailable').innerText = maxPieces;
+    document.getElementById('textAvailCount').innerText = maxPieces;
+    document.getElementById('qtyToPack').max = maxPieces;
+    document.getElementById('subtextMax').innerText = 'Max: ' + maxPieces + ' pcs';
+    updateQrSelection();
 }
 
-function handleGenerateBillOnly() {
-    alert("Bill & Invoice Draft calculated successfully! Click 'Save Packed Batch & Generate Bill / Invoice' to save.");
+function openBillPreviewModal() {
+    var qty = parseInt(document.getElementById('qtyToPack').value) || 0;
+    var wh = document.getElementById('destWarehouse').value || 'Main Warehouse';
+
+    document.getElementById('previewWarehouse').innerText = wh;
+    document.getElementById('previewPieces').innerText = qty + ' pcs';
+    document.getElementById('previewTaxable').innerText = document.getElementById('footerTaxable').innerText;
+    document.getElementById('previewGst').innerText = document.getElementById('footerGst').innerText;
+    document.getElementById('previewTotal').innerText = document.getElementById('footerTotal').innerText;
+
+    new bootstrap.Modal(document.getElementById('modalBillPreview')).show();
 }
 
 function validateBatchForm(event) {

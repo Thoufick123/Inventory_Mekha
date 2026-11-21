@@ -1036,19 +1036,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                             <i class="bi bi-printer-fill me-1"></i> Generate All Labels
                                         </button>
                                     </form>
-                                    <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" id="prod_batch_stock_form">
-                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                                        <input type="hidden" name="item_id" id="hidden_batch_stock_id" value="">
-                                        <input type="hidden" name="tab" value="production">
-                                        <button type="submit" class="btn btn-success py-2 px-3 fw-semibold shadow-sm text-nowrap"
-                                                id="prod_batch_stock_btn" disabled onclick="return validateBatchStockSelect()">
-                                            <i class="bi bi-box-arrow-in-down me-1"></i> Add Batch to Stock
-                                        </button>
-                                    </form>
-                                    <a href="<?= \App\Core\Controller::url('/m/stocks?tab=live_stock') ?>"
+                                    <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>"
+                                       class="btn btn-primary py-2 px-3 fw-semibold shadow-sm text-nowrap disabled"
+                                       id="prod_batch_qc_btn" title="Send this batch to Quality Control (QC)">
+                                        <i class="bi bi-shield-check me-1"></i> Move to Quality Control (QC)
+                                    </a>
+                                    <a href="<?= \App\Core\Controller::url('/production/batches') ?>"
                                        class="btn btn-outline-success py-2 px-3 fw-semibold shadow-sm text-nowrap d-none"
-                                       id="prod_batch_in_stock_btn" title="All variants already in stock - Click to view in Live Stocks">
-                                        <i class="bi bi-check-circle-fill me-1"></i> In Stock &bull; View Stocks
+                                       id="prod_batch_in_stock_btn" title="All variants inspected and in stock - Click to view in Finished Goods">
+                                        <i class="bi bi-check-circle-fill me-1"></i> In Stock &bull; View Batches
                                     </a>
                                 </div>
                                 <small class="text-muted mt-2 d-block" id="prod_batch_stock_note"></small>
@@ -1144,11 +1140,11 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         <button type="submit" class="btn btn-warning text-dark flex-grow-1 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet (N Labels)
                                         </button>
-                                        <button type="button" class="btn btn-success py-2 px-3 fw-semibold shadow-sm text-nowrap" id="prod_add_stock_btn" onclick="submitProdToStock()">
-                                            <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
-                                        </button>
-                                        <a href="<?= \App\Core\Controller::url('/m/stocks?tab=live_stock') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="prod_in_stock_badge">
-                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock
+                                        <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>" class="btn btn-primary py-2 px-3 fw-semibold shadow-sm text-nowrap" id="prod_add_stock_btn" title="Inspect production garments in Quality Control (QC)">
+                                            <i class="bi bi-shield-check me-1"></i> Move to QC
+                                        </a>
+                                        <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="prod_in_stock_badge">
+                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock &bull; Batches
                                         </a>
                                     </div>
                                 </form>
@@ -1240,17 +1236,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                     </button>
                                                 </form>
                                                 <?php if (!$bAllStock): ?>
-                                                <form action="<?= \App\Core\Controller::url('/m/label/add_to_stock') ?>" method="POST" class="d-inline" onsubmit="event.stopPropagation()">
-                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                                                    <input type="hidden" name="item_id" value="batch_<?= (int)$batch['stitching_id'] ?>">
-                                                    <input type="hidden" name="tab" value="production">
-                                                    <button type="submit" class="btn btn-sm btn-success py-1 px-2 fw-semibold" title="Inward all pending variants into stock" onclick="event.stopPropagation()">
-                                                        <i class="bi bi-box-arrow-in-down me-1"></i>Add All
-                                                    </button>
-                                                </form>
+                                                <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>?stitching_batch_id=<?= (int)$batch['stitching_id'] ?>"
+                                                   class="btn btn-sm btn-primary py-1 px-2 fw-semibold text-nowrap"
+                                                   title="Send batch to Quality Control Inspection"
+                                                   onclick="event.stopPropagation()">
+                                                    <i class="bi bi-shield-check me-1"></i>QC
+                                                </a>
                                                 <?php else: ?>
-                                                <a href="<?= \App\Core\Controller::url('/m/stocks') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" onclick="event.stopPropagation()">
-                                                    <i class="bi bi-eye me-1"></i>View Stock
+                                                <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" onclick="event.stopPropagation()">
+                                                    <i class="bi bi-eye me-1"></i>Batches
                                                 </a>
                                                 <?php endif; ?>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2"
@@ -1986,7 +1980,7 @@ function onBatchSelect() {
     const opt = sel.options[sel.selectedIndex];
 
     const printBtn    = document.getElementById('prod_batch_print_btn');
-    const stockBtn    = document.getElementById('prod_batch_stock_btn');
+    const qcBtn       = document.getElementById('prod_batch_qc_btn');
     const inStockBtn  = document.getElementById('prod_batch_in_stock_btn');
     const hiddenBatch = document.getElementById('hidden_batch_id');
     const hiddenStock = document.getElementById('hidden_batch_stock_id');
@@ -1998,7 +1992,7 @@ function onBatchSelect() {
 
     if (!opt || !opt.value) {
         if (printBtn)   printBtn.disabled = true;
-        if (stockBtn)   { stockBtn.disabled = true; stockBtn.classList.remove('d-none'); }
+        if (qcBtn)      { qcBtn.classList.add('disabled'); qcBtn.classList.remove('d-none'); qcBtn.href = '#'; }
         if (inStockBtn) inStockBtn.classList.add('d-none');
         if (summary)    summary.classList.add('d-none');
         if (tableWrap)  tableWrap.classList.add('d-none');
@@ -2021,15 +2015,16 @@ function onBatchSelect() {
     // Enable print always
     if (printBtn) printBtn.disabled = false;
 
-    // Toggle Add to Stock vs In Stock View button
+    // Toggle QC vs In Stock View button
     if (isAllInStock) {
-        if (stockBtn)   stockBtn.classList.add('d-none');
+        if (qcBtn)      qcBtn.classList.add('d-none');
         if (inStockBtn) inStockBtn.classList.remove('d-none');
     } else {
-        if (stockBtn) {
-            stockBtn.classList.remove('d-none');
-            stockBtn.disabled = false;
-            stockBtn.title = 'Inward ' + pendingCount + ' pending variants into stock';
+        if (qcBtn) {
+            qcBtn.classList.remove('d-none');
+            qcBtn.classList.remove('disabled');
+            qcBtn.href = '<?= \App\Core\Controller::url('/production/qc/create') ?>?stitching_batch_id=' + encodeURIComponent(batchId);
+            qcBtn.title = 'Inspect batch #' + batchNo + ' in Quality Control (QC)';
         }
         if (inStockBtn) inStockBtn.classList.add('d-none');
     }

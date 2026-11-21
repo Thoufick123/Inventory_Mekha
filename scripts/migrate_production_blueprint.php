@@ -14,9 +14,12 @@ echo "=== GRM Inventory ERP: Production Unit Blueprint Migration ===\n\n";
 $pdo = DB::pdo();
 
 function columnExists(PDO $pdo, string $table, string $column): bool {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?");
-    $stmt->execute([$table, $column]);
-    return (int)$stmt->fetchColumn() > 0;
+    try {
+        $cols = $pdo->query("DESCRIBE `{$table}`")->fetchAll(PDO::FETCH_COLUMN);
+        return in_array($column, $cols, true);
+    } catch (\Throwable $e) {
+        return false;
+    }
 }
 
 // 1. Create `production_units` table

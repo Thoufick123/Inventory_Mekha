@@ -23,7 +23,7 @@
         </p>
     </div>
 
-    <form action="<?= \App\Core\Controller::url('/production/stitching/update') ?>" method="POST" id="formEditStitching">
+    <form action="<?= \App\Core\Controller::url('/production/stitching/update') ?>" method="POST" id="formEditStitching" novalidate>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
         <input type="hidden" name="id" value="<?= (int)$batch['id'] ?>">
 
@@ -49,6 +49,7 @@
                             <input type="text" name="stitching_name" id="stitchingName" 
                                    class="form-control text-uppercase fw-semibold" 
                                    value="<?= htmlspecialchars($batch['stitching_name'] ?? '') ?>" required>
+                            <div class="invalid-feedback">Please enter a Stitching Name.</div>
                             <div class="form-text small text-muted">Identifies this stitching production batch.</div>
                         </div>
 
@@ -101,8 +102,10 @@
 
                         <!-- Tailor / Stitching Master -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold text-dark mb-1">Tailor / Stitching Master</label>
-                            <select name="tailor_id" id="selectTailor" class="form-select">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Tailor / Stitching Master <span class="text-danger">*</span>
+                            </label>
+                            <select name="tailor_id" id="selectTailor" class="form-select" required>
                                 <option value="">Select Tailor / Stitching Master</option>
                                 <?php foreach ($tailors as $t): ?>
                                     <option value="<?= $t['id'] ?>" <?= ($batch['tailor_id'] == $t['id']) ? 'selected' : '' ?>>
@@ -110,6 +113,7 @@
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <div class="invalid-feedback">Please select a Tailor / Stitching Master.</div>
                         </div>
 
                         <!-- Notes & Remarks -->
@@ -206,9 +210,9 @@
                                         <th class="text-center py-2.5" style="width: 100px;">Cut Qty</th>
                                         <th class="text-center py-2.5" style="width: 120px;">Stitching Qty (Pcs) <span class="text-danger">*</span></th>
                                         <th class="text-center py-2.5" style="width: 110px;">Per Pc Wt (kg) <span class="text-danger">*</span></th>
-                                        <th class="text-center py-2.5" style="width: 110px;">Total Wt (kg) *</th>
-                                        <th class="text-center py-2.5" style="width: 110px;">Base Price (₹)</th>
-                                        <th class="text-center pe-3 py-2.5" style="width: 110px;">Discount Price (₹)</th>
+                                        <th class="text-center py-2.5" style="width: 110px;">Total Wt (kg) <span class="text-danger">*</span></th>
+                                        <th class="text-center py-2.5" style="width: 125px;">Base Price (₹) <span class="text-danger">*</span></th>
+                                        <th class="text-center pe-3 py-2.5" style="width: 125px;">Discount Price (₹) <span class="text-danger">*</span></th>
                                     </tr>
                                 </thead>
                                 <tbody id="tbodyStitchingItems">
@@ -237,32 +241,37 @@
                                             <td class="text-center py-2">
                                                 <input type="number" name="items[<?= (int)$it['id'] ?>][stitching_qty]" 
                                                        class="form-control form-control-sm text-center fw-bold input-stitch-qty" 
-                                                       value="<?= (int)$it['stitching_qty'] ?>" min="0" required>
+                                                       value="<?= (int)$it['stitching_qty'] ?>" min="0" required placeholder="0">
+                                                <div class="invalid-feedback">Required</div>
                                             </td>
                                             <td class="text-center py-2">
                                                 <input type="number" step="0.001" name="items[<?= (int)$it['id'] ?>][per_pc_weight]" 
                                                        class="form-control form-control-sm text-center font-monospace input-per-pc-wt" 
-                                                       value="<?= number_format((float)$it['per_pc_weight'], 3, '.', '') ?>" min="0" required>
+                                                       value="<?= number_format((float)$it['per_pc_weight'], 3, '.', '') ?>" min="0.001" required placeholder="0.000">
+                                                <div class="invalid-feedback">Required</div>
                                             </td>
                                             <td class="text-center py-2">
                                                 <input type="number" step="0.01" name="items[<?= (int)$it['id'] ?>][total_weight]" 
                                                        class="form-control form-control-sm text-center font-monospace bg-light fw-bold input-row-total-wt" 
-                                                       value="<?= number_format((float)$it['total_weight'], 2, '.', '') ?>" min="0" required>
+                                                       value="<?= number_format((float)$it['total_weight'], 2, '.', '') ?>" min="0.01" required placeholder="0.00">
+                                                <div class="invalid-feedback">Required</div>
                                             </td>
                                             <td class="text-center py-2">
-                                                <div class="input-group input-group-sm">
+                                                <div class="input-group input-group-sm has-validation">
                                                     <span class="input-group-text">₹</span>
                                                     <input type="number" step="0.01" name="items[<?= (int)$it['id'] ?>][base_price]" 
                                                            class="form-control form-control-sm text-end input-base-price" 
-                                                           value="<?= number_format((float)$it['base_price'], 2, '.', '') ?>">
+                                                           value="<?= number_format((float)$it['base_price'], 2, '.', '') ?>" min="0" required placeholder="0.00">
+                                                    <div class="invalid-feedback">Required</div>
                                                 </div>
                                             </td>
                                             <td class="text-center pe-3 py-2">
-                                                <div class="input-group input-group-sm">
+                                                <div class="input-group input-group-sm has-validation">
                                                     <span class="input-group-text">₹</span>
                                                     <input type="number" step="0.01" name="items[<?= (int)$it['id'] ?>][discount_price]" 
                                                            class="form-control form-control-sm text-end input-disc-price" 
-                                                           value="<?= number_format((float)$it['discount_price'], 2, '.', '') ?>">
+                                                           value="<?= number_format((float)$it['discount_price'], 2, '.', '') ?>" min="0" required placeholder="0.00">
+                                                    <div class="invalid-feedback">Required</div>
                                                 </div>
                                             </td>
                                         </tr>
@@ -271,6 +280,12 @@
                             </table>
                         </div>
                     </div>
+                </div>
+
+                <!-- VALIDATION ERROR ALERT -->
+                <div id="stitchingValidationError" class="alert alert-danger align-items-center gap-2 mb-3 py-2 px-3 shadow-sm rounded-3" style="display: none;">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 text-danger flex-shrink-0"></i>
+                    <div class="fw-semibold small" id="stitchingValidationMessage">Please fill in all empty required fields before saving.</div>
                 </div>
 
                 <!-- BOTTOM ACTIONS BAR -->
@@ -402,5 +417,110 @@ document.addEventListener('DOMContentLoaded', function () {
 
     attachRowEvents();
     recalculateTotals();
+
+    // ==========================================
+    // CLIENT-SIDE FORM VALIDATION
+    // ==========================================
+    const form = document.getElementById('formEditStitching');
+    const errorAlert = document.getElementById('stitchingValidationError');
+    const errorMessage = document.getElementById('stitchingValidationMessage');
+
+    function clearErrors() {
+        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        if (errorAlert) errorAlert.style.display = 'none';
+    }
+
+    form.addEventListener('input', function (e) {
+        if (e.target.classList.contains('is-invalid')) {
+            e.target.classList.remove('is-invalid');
+            if (form.querySelectorAll('.is-invalid').length === 0 && errorAlert) {
+                errorAlert.style.display = 'none';
+            }
+        }
+    });
+
+    form.addEventListener('change', function (e) {
+        if (e.target.classList.contains('is-invalid')) {
+            e.target.classList.remove('is-invalid');
+            if (form.querySelectorAll('.is-invalid').length === 0 && errorAlert) {
+                errorAlert.style.display = 'none';
+            }
+        }
+    });
+
+    form.addEventListener('submit', function (e) {
+        clearErrors();
+        let hasError = false;
+        let firstInvalid = null;
+        let missingFieldNames = [];
+
+        function markInvalid(elem, fieldName) {
+            if (!elem) return;
+            elem.classList.add('is-invalid');
+            if (!firstInvalid) firstInvalid = elem;
+            if (fieldName && !missingFieldNames.includes(fieldName)) {
+                missingFieldNames.push(fieldName);
+            }
+            hasError = true;
+        }
+
+        const stitchingName = document.getElementById('stitchingName');
+        if (!stitchingName || !stitchingName.value.trim()) {
+            markInvalid(stitchingName, 'Stitching Name');
+        }
+
+        const selectTailor = document.getElementById('selectTailor');
+        if (!selectTailor || !selectTailor.value) {
+            markInvalid(selectTailor, 'Tailor / Stitching Master');
+        }
+
+        const rows = tbody.querySelectorAll('tr');
+        if (rows.length === 0) {
+            hasError = true;
+            missingFieldNames.push('Variant Items');
+        }
+
+        rows.forEach(tr => {
+            const stitchQty = tr.querySelector('.input-stitch-qty');
+            const perPcWt = tr.querySelector('.input-per-pc-wt');
+            const totalWt = tr.querySelector('.input-row-total-wt');
+            const basePrice = tr.querySelector('.input-base-price');
+            const discPrice = tr.querySelector('.input-disc-price');
+
+            if (!stitchQty || stitchQty.value.trim() === '' || isNaN(stitchQty.value) || Number(stitchQty.value) < 0) {
+                markInvalid(stitchQty, 'Stitching Qty');
+            }
+            if (!perPcWt || perPcWt.value.trim() === '' || isNaN(perPcWt.value) || Number(perPcWt.value) <= 0) {
+                markInvalid(perPcWt, 'Per Pc Wt');
+            }
+            if (!totalWt || totalWt.value.trim() === '' || isNaN(totalWt.value) || Number(totalWt.value) <= 0) {
+                markInvalid(totalWt, 'Total Wt');
+            }
+            if (!basePrice || basePrice.value.trim() === '' || isNaN(basePrice.value) || Number(basePrice.value) < 0) {
+                markInvalid(basePrice, 'Base Price');
+            }
+            if (!discPrice || discPrice.value.trim() === '' || isNaN(discPrice.value) || Number(discPrice.value) < 0) {
+                markInvalid(discPrice, 'Discount Price');
+            }
+        });
+
+        if (hasError) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (errorAlert) {
+                errorAlert.style.display = 'flex';
+                if (missingFieldNames.length > 0) {
+                    errorMessage.textContent = 'Please fill the empty input fields: ' + missingFieldNames.join(', ');
+                } else {
+                    errorMessage.textContent = 'Please fill in all empty required fields before saving.';
+                }
+            }
+            if (firstInvalid) {
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                firstInvalid.focus();
+            }
+            return false;
+        }
+    });
 });
 </script>

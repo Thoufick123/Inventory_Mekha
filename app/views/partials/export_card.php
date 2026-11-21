@@ -15,18 +15,22 @@ $prefix = $prefix ?? ('exp_' . substr(md5($exportUrl ?? 'def'), 0, 8));
 $defaultPeriod = $defaultPeriod ?? 'all';
 ?>
 
-<div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4" style="border: 1px solid #e2e8f0 !important;">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+<div class="card border-0 shadow-sm rounded-4 <?= !empty($exportTitle) ? 'p-3' : 'p-2' ?> bg-white mb-4" style="border: 1px solid #e2e8f0 !important;">
+    <div class="d-flex flex-wrap <?= !empty($exportTitle) ? 'justify-content-between' : 'justify-content-end' ?> align-items-center gap-3">
+        <?php if (!empty($exportTitle)): ?>
         <!-- Card Icon & Title Header -->
         <div class="d-flex align-items-center gap-3">
             <div style="width: 44px; height: 44px; background: #ecfdf5; color: #16a34a; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0; border: 1px solid #bbf7d0;">
                 <i class="bi bi-file-earmark-excel"></i>
             </div>
             <div>
-                <h6 class="fw-bold text-dark mb-0"><?= htmlspecialchars($exportTitle ?? 'Export Enterprise Reports (Excel & PDF)') ?></h6>
-                <small class="text-muted"><?= htmlspecialchars($exportSubtitle ?? 'Generate consolidated reports, valuations, records & audit summaries as per date period') ?></small>
+                <h6 class="fw-bold text-dark mb-0"><?= htmlspecialchars($exportTitle) ?></h6>
+                <?php if (!empty($exportSubtitle)): ?>
+                <small class="text-muted"><?= htmlspecialchars($exportSubtitle) ?></small>
+                <?php endif; ?>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Period Select & Export Action Buttons -->
         <div class="d-flex flex-wrap align-items-center gap-2">

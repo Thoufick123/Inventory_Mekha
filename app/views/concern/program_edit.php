@@ -216,6 +216,40 @@ const EXISTING_ROLLS = <?= json_encode($existingRolls) ?>;
 
 let rollCardCounter = 0;
 
+// Dynamic effective balance calculation across all roll cards for a given roll
+function getEffectiveRollStock(rollItemId, currentCardIndex = null) {
+    const roll = AVAILABLE_ROLLS.find(r => String(r.id) === String(rollItemId));
+    if (!roll) return { totalAvailable: 0, allocatedInOthers: 0, remainingForCard: 0, unit: 'pcs' };
+
+    const totalAvailable = parseFloat(roll.remaining_qty || 0);
+    const unit = roll.unit || 'kg';
+
+    let allocatedInOthers = 0;
+    const cards = document.querySelectorAll('.roll-card');
+    cards.forEach(card => {
+        const idx = card.getAttribute('data-index');
+        if (currentCardIndex !== null && currentCardIndex !== undefined && String(idx) === String(currentCardIndex)) {
+            return; // skip current card
+        }
+        const sel = card.querySelector('.select-roll-item');
+        const qtyInp = card.querySelector('.input-allocated-qty');
+        if (sel && String(sel.value) === String(rollItemId) && qtyInp) {
+            const val = parseFloat(qtyInp.value);
+            if (!isNaN(val) && val > 0) {
+                allocatedInOthers += val;
+            }
+        }
+    });
+
+    const remainingForCard = Math.max(0, totalAvailable - allocatedInOthers);
+    return {
+        totalAvailable,
+        allocatedInOthers,
+        remainingForCard,
+        unit
+    };
+}
+
 function createRollCardHtml(index, rollData = null) {
     const cardId = `rollCard_${index}`;
     const selectedRollId = rollData ? rollData.purchase_bill_item_id : '';
@@ -305,7 +339,21 @@ function createRollCardHtml(index, rollData = null) {
         catalogOptionsHtml += `<option value="${cat.id}" ${sel}>${cat.style_code ? `[${cat.style_code}] ` : ''}${cat.name}</option>`;
     });
 
-    const initialStock = selectedRollObject ? parseFloat(selectedRollObject.remaining_qty).toFixed(2) + ' ' + (selectedRollObject.unit || 'kg') : '0 pcs';
+    let initialStock = '0 pcs';
+    if (selectedRollObject) {
+        const stockInfo = getEffectiveRollStock(selectedRollObject.id, index);
+        const rem = stockInfo.remainingForCard;
+        const u = selectedRollObject.unit || 'kg';
+        if (rem > 0) {
+            if (stockInfo.allocatedInOthers > 0) {
+                initialStock = `${rem.toFixed(2)} ${u} (${stockInfo.allocatedInOthers.toFixed(2)} in other rolls)`;
+            } else {
+                initialStock = `${rem.toFixed(2)} ${u}`;
+            }
+        } else {
+            initialStock = `0.00 ${u} (Fully Allocated)`;
+        }
+    }
 
     return `
     <div class="card border rounded-3 p-3 bg-white roll-card shadow-xs mb-3" id="${cardId}" data-index="${index}">
@@ -334,7 +382,7 @@ function createRollCardHtml(index, rollData = null) {
                 </div>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light text-muted"><i class="bi bi-box-seam"></i></span>
-                    <input type="number" step="0.01" min="0.01" name="rolls[${index}][allocated_qty]" id="allocatedQty_${index}" class="form-control input-allocated-qty" value="${allocatedQtyVal}" placeholder="Select Roll" oninput="validateRollAllocatedQty(${index})" required>
+                    <input type="number" step="0.01" min="0.01" name="rolls[${index}][allocated_qty]" id="allocatedQty_${index}" class="form-control input-allocated-qty" value="${allocatedQtyVal}" placeholder="Select Roll" oninput="handleRollAllocatedQtyInput(${index})" required>
                     <span class="input-group-text bg-light text-muted roll-unit-text" id="unitText_${index}">${selectedRollObject ? selectedRollObject.unit : 'pcs'}</span>
                 </div>
                 <div class="text-danger small mt-0.5 d-none qty-error-feedback" id="qtyError_${index}" style="font-size: 0.70rem;"></div>
@@ -439,6 +487,7 @@ function addRollCard(rollData = null) {
     
     recalcSummary();
     renumberCards();
+    updateAllRollCardsStock();
 }
 
 function calculateEditCardWeightAndPrice(index) {
@@ -490,6 +539,7 @@ function removeRollCard(cardId) {
     }
     el.remove();
     renumberCards();
+    updateAllRollCardsStock();
     recalcSummary();
 }
 
@@ -503,7 +553,7 @@ function renumberCards() {
 
 function handleRollSelectionChange(index) {
     const select = document.getElementById(`rollSelect_${index}`);
-    const selectedOption = select.options[select.selectedIndex];
+    const selectedOption = select ? select.options[select.selectedIndex] : null;
     const stockBadge = document.getElementById(`stockBadge_${index}`);
     const unitLabel = document.getElementById(`unitLabel_${index}`);
     const unitText = document.getElementById(`unitText_${index}`);
@@ -515,44 +565,56 @@ function handleRollSelectionChange(index) {
     const subcatSelect = document.getElementById(`subcatSelect_${index}`);
     const subsubSelect = document.getElementById(`subsubSelect_${index}`);
     const catalogSelect = document.getElementById(`catalogSelect_${index}`);
+    const errorDiv = document.getElementById(`qtyError_${index}`);
 
     if (!selectedOption || !selectedOption.value) {
         if (stockBadge) stockBadge.textContent = 'Stock: 0 pcs';
         if (unitLabel) unitLabel.textContent = 'pcs';
         if (unitText) unitText.textContent = 'pcs';
-        if (input) input.value = '';
+        if (input) {
+            input.value = '';
+            input.removeAttribute('max');
+            input.classList.remove('is-invalid');
+        }
         if (weightInput) weightInput.value = '0.00';
         if (priceInput) priceInput.value = '0.00';
         if (catalogBadge) {
             catalogBadge.textContent = 'No Catalog Selected';
             catalogBadge.className = 'badge bg-white text-secondary border roll-catalog-badge';
         }
+        if (errorDiv) errorDiv.classList.add('d-none');
+        updateAllRollCardsStock(index);
         recalcSummary();
         return;
     }
 
-    const remaining = parseFloat(selectedOption.dataset.remaining || 0);
-    const total = parseFloat(selectedOption.dataset.total || 0);
-    const unit = selectedOption.dataset.unit || 'kg';
-    const weight = parseFloat(selectedOption.dataset.weight || 0);
-    const price = parseFloat(selectedOption.dataset.price || 0);
+    const rollItemId = selectedOption.value;
+    const stockInfo = getEffectiveRollStock(rollItemId, index);
+    const unit = stockInfo.unit || selectedOption.dataset.unit || 'kg';
+    const effectiveStock = stockInfo.remainingForCard;
 
     if (unitLabel) unitLabel.textContent = unit;
     if (unitText) unitText.textContent = unit;
 
+    // 1. Update Stock Badge with dynamic remaining balance
     if (stockBadge) {
-        if (remaining > 0) {
-            stockBadge.innerHTML = `Stock: <strong class="text-success">${remaining.toFixed(2)} ${unit}</strong>`;
+        if (effectiveStock > 0) {
+            if (stockInfo.allocatedInOthers > 0) {
+                stockBadge.innerHTML = `Stock: <strong class="text-success">${effectiveStock.toFixed(2)} ${unit}</strong> <span class="text-muted small">(${stockInfo.allocatedInOthers.toFixed(2)} in other rolls)</span>`;
+            } else {
+                stockBadge.innerHTML = `Stock: <strong class="text-success">${effectiveStock.toFixed(2)} ${unit}</strong>`;
+            }
         } else {
-            stockBadge.innerHTML = `Stock: <strong class="text-danger">0 ${unit} (Out of Stock)</strong>`;
+            stockBadge.innerHTML = `Stock: <strong class="text-danger">0.00 ${unit} (Fully Allocated)</strong>`;
         }
     }
 
+    // 2. Set Allocated Qty to available balance if empty, or cap to max
     if (input) {
         if (!input.value || parseFloat(input.value) <= 0) {
-            input.value = remaining > 0 ? remaining.toFixed(2) : '0.00';
+            input.value = effectiveStock > 0 ? effectiveStock.toFixed(2) : '0.00';
         }
-        input.setAttribute('max', remaining);
+        input.setAttribute('max', effectiveStock.toFixed(2));
     }
 
     calculateEditCardWeightAndPrice(index);
@@ -586,78 +648,15 @@ function handleRollSelectionChange(index) {
     }
 
     validateRollAllocatedQty(index);
+    updateAllRollCardsStock(index);
     recalcSummary();
 }
 
-function handleCatalogSelectChange(index) {
-    const catalogSelect = document.getElementById(`catalogSelect_${index}`);
-    const catalogBadge = document.getElementById(`catalogBadge_${index}`);
-    const opt = catalogSelect ? catalogSelect.selectedOptions[0] : null;
-
-    if (opt && opt.value) {
-        if (catalogBadge) {
-            catalogBadge.textContent = opt.textContent.trim();
-            catalogBadge.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
-        }
-    } else {
-        updateHierarchyBadgeFromCats(index);
-    }
-}
-
-function updateHierarchyBadgeFromCats(index) {
-    const catalogSelect = document.getElementById(`catalogSelect_${index}`);
-    const catalogBadge = document.getElementById(`catalogBadge_${index}`);
-
-    const catSelect = document.getElementById(`catSelect_${index}`);
-    const subcatSelect = document.getElementById(`subcatSelect_${index}`);
-    const subsubSelect = document.getElementById(`subsubSelect_${index}`);
-
-    if (catalogSelect && catalogSelect.value) {
-        const selOpt = catalogSelect.options[catalogSelect.selectedIndex];
-        if (catalogBadge && selOpt) {
-            catalogBadge.textContent = selOpt.text.trim();
-            catalogBadge.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
-        }
-        return;
-    }
-
-    // Auto-match catalog from CATALOGS if 3-tier hierarchy matches
-    const subsubId = subsubSelect ? subsubSelect.value : '';
-    const subcatId = subcatSelect ? subcatSelect.value : '';
-    const catId = catSelect ? catSelect.value : '';
-
-    if (catalogSelect && typeof CATALOGS !== 'undefined' && CATALOGS.length > 0) {
-        let matched = null;
-        if (subsubId) {
-            matched = CATALOGS.find(c => String(c.sub_sub_category_id) === String(subsubId));
-        }
-        if (!matched && subcatId && catId) {
-            matched = CATALOGS.find(c => String(c.subcategory_id) === String(subcatId) && String(c.category_id) === String(catId));
-        }
-        if (matched) {
-            catalogSelect.value = matched.id;
-            if (catalogBadge) {
-                catalogBadge.textContent = `${matched.style_code ? '[' + matched.style_code + '] ' : ''}${matched.name}`;
-                catalogBadge.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
-            }
-            return;
-        }
-    }
-
-    const c1 = catSelect && catSelect.selectedIndex > 0 ? catSelect.options[catSelect.selectedIndex].text : '';
-    const c2 = subcatSelect && subcatSelect.selectedIndex > 0 ? subcatSelect.options[subcatSelect.selectedIndex].text : '';
-    const c3 = subsubSelect && subsubSelect.selectedIndex > 0 ? subsubSelect.options[subsubSelect.selectedIndex].text : '';
-
-    const parts = [c1, c2, c3].filter(p => Boolean(p) && !p.startsWith('--'));
-    if (catalogBadge) {
-        if (parts.length > 0) {
-            catalogBadge.textContent = parts.join(' > ');
-            catalogBadge.className = 'badge bg-info-subtle text-info-emphasis border border-info-subtle roll-catalog-badge';
-        } else {
-            catalogBadge.textContent = 'No Catalog Selected';
-            catalogBadge.className = 'badge bg-white text-secondary border roll-catalog-badge';
-        }
-    }
+function handleRollAllocatedQtyInput(index) {
+    calculateEditCardWeightAndPrice(index);
+    validateRollAllocatedQty(index);
+    updateAllRollCardsStock(index);
+    recalcSummary();
 }
 
 function validateRollAllocatedQty(index) {
@@ -665,35 +664,122 @@ function validateRollAllocatedQty(index) {
     const select = document.getElementById(`rollSelect_${index}`);
     const errorDiv = document.getElementById(`qtyError_${index}`);
 
-    if (!input || !select) return;
+    if (!input || !select) return false;
 
     calculateEditCardWeightAndPrice(index);
 
-    const val = parseFloat(input.value) || 0;
     const selectedOption = select.options[select.selectedIndex];
-    if (!selectedOption || !selectedOption.value) return;
+    if (!selectedOption || !selectedOption.value) return false;
 
-    const remaining = parseFloat(selectedOption.dataset.remaining || 0);
-    const unit = selectedOption.dataset.unit || 'kg';
+    const rollItemId = selectedOption.value;
+    const stockInfo = getEffectiveRollStock(rollItemId, index);
+    const maxAllowed = stockInfo.remainingForCard;
+    const unit = stockInfo.unit || 'kg';
+    const val = parseFloat(input.value);
 
-    if (val <= 0) {
+    if (isNaN(val) || val <= 0) {
         input.classList.add('is-invalid');
         if (errorDiv) {
             errorDiv.classList.remove('d-none');
             errorDiv.textContent = 'Allocated quantity must be greater than zero.';
         }
-    } else if (val > (remaining + 0.001)) {
+        return false;
+    } else if (val > (maxAllowed + 0.001)) {
         input.classList.add('is-invalid');
         if (errorDiv) {
             errorDiv.classList.remove('d-none');
-            errorDiv.textContent = `Allocated qty (${val} ${unit}) exceeds available stock balance (${remaining.toFixed(2)} ${unit})!`;
+            errorDiv.textContent = `Allocated qty (${val.toFixed(2)} ${unit}) exceeds available stock balance (${maxAllowed.toFixed(2)} ${unit})!`;
         }
+        return false;
     } else {
         input.classList.remove('is-invalid');
         if (errorDiv) errorDiv.classList.add('d-none');
+        return true;
     }
+}
 
-    recalcSummary();
+function updateAllRollCardsStock(skipIndex = null) {
+    const cards = document.querySelectorAll('.roll-card');
+    cards.forEach(card => {
+        const idx = card.getAttribute('data-index');
+        const select = card.querySelector('.select-roll-item');
+        const input = card.querySelector('.input-allocated-qty');
+        const stockBadge = card.querySelector('.roll-stock-badge');
+        const errorDiv = card.querySelector('.qty-error-feedback');
+
+        if (!select || !select.value) return;
+
+        const rollItemId = select.value;
+        const stockInfo = getEffectiveRollStock(rollItemId, idx);
+        const rem = stockInfo.remainingForCard;
+        const unit = stockInfo.unit;
+
+        if (stockBadge) {
+            if (rem > 0) {
+                if (stockInfo.allocatedInOthers > 0) {
+                    stockBadge.innerHTML = `Stock: <strong class="text-success">${rem.toFixed(2)} ${unit}</strong> <span class="text-muted small">(${stockInfo.allocatedInOthers.toFixed(2)} in other rolls)</span>`;
+                } else {
+                    stockBadge.innerHTML = `Stock: <strong class="text-success">${rem.toFixed(2)} ${unit}</strong>`;
+                }
+            } else {
+                stockBadge.innerHTML = `Stock: <strong class="text-danger">0.00 ${unit} (Fully Allocated)</strong>`;
+            }
+        }
+
+        if (input) {
+            input.setAttribute('max', rem.toFixed(2));
+        }
+
+        if (skipIndex === null || String(idx) !== String(skipIndex)) {
+            if (input && input.value !== '') {
+                const val = parseFloat(input.value);
+                if (!isNaN(val) && val > (rem + 0.001)) {
+                    input.classList.add('is-invalid');
+                    if (errorDiv) {
+                        errorDiv.classList.remove('d-none');
+                        errorDiv.textContent = `Allocated qty (${val.toFixed(2)} ${unit}) exceeds available balance (${rem.toFixed(2)} ${unit})!`;
+                    }
+                } else if (!isNaN(val) && val > 0) {
+                    input.classList.remove('is-invalid');
+                    if (errorDiv) errorDiv.classList.add('d-none');
+                }
+            }
+        }
+    });
+
+    // Update option labels in all select dropdowns
+    cards.forEach(card => {
+        const idx = card.getAttribute('data-index');
+        const select = card.querySelector('.select-roll-item');
+        if (select) {
+            Array.from(select.options).forEach(opt => {
+                if (!opt.value) return;
+                const optRollId = opt.value;
+                const baseRoll = AVAILABLE_ROLLS.find(r => String(r.id) === String(optRollId));
+                if (!baseRoll) return;
+
+                const info = getEffectiveRollStock(optRollId, idx);
+                opt.dataset.remaining = info.remainingForCard;
+
+                const tagText = baseRoll.tag_code ? `[${baseRoll.tag_code}] ` : (baseRoll.item_code ? `[${baseRoll.item_code}] ` : `Roll #${baseRoll.id} `);
+                const colorText = baseRoll.color ? ` - ${baseRoll.color}` : '';
+                const priceText = baseRoll.unit_price > 0 ? ` • ₹${parseFloat(baseRoll.unit_price).toFixed(2)}` : '';
+                const billInfo = baseRoll.bill_no ? ` • Bill #${baseRoll.bill_no}` : '';
+                const supInfo = baseRoll.supplier_display ? ` • ${baseRoll.supplier_display}` : '';
+
+                let stockStr = '';
+                if (info.remainingForCard <= 0) {
+                    stockStr = ` • OUT OF STOCK (0.00 ${baseRoll.unit || 'kg'})`;
+                } else if (info.allocatedInOthers > 0) {
+                    stockStr = ` • Stock: ${info.remainingForCard.toFixed(2)} ${baseRoll.unit || 'kg'} (Bal)`;
+                } else {
+                    stockStr = ` • Stock: ${info.remainingForCard.toFixed(2)} ${baseRoll.unit || 'kg'}`;
+                }
+
+                opt.text = `${tagText}${baseRoll.item_name}${colorText}${stockStr}${priceText}${billInfo}${supInfo}`;
+            });
+        }
+    });
 }
 
 function recalcSummary() {
@@ -833,6 +919,48 @@ document.getElementById('btnFocusScanner').addEventListener('click', () => {
     input.select();
 });
 
+// Form submission validation
+const formEdit = document.getElementById('formEditProgram');
+if (formEdit) {
+    formEdit.addEventListener('submit', (e) => {
+        const cards = document.querySelectorAll('.roll-card');
+        if (cards.length === 0) {
+            e.preventDefault();
+            alert('Please assign at least one raw material fabric roll.');
+            return;
+        }
+
+        let isValid = true;
+        let firstInvalid = null;
+
+        cards.forEach(card => {
+            const idx = card.getAttribute('data-index');
+            const sel = card.querySelector('.select-roll-item');
+            const qtyInp = card.querySelector('.input-allocated-qty');
+
+            if (!sel || !sel.value) {
+                isValid = false;
+                if (sel) sel.classList.add('is-invalid');
+                if (!firstInvalid) firstInvalid = sel;
+            }
+
+            if (!validateRollAllocatedQty(idx)) {
+                isValid = false;
+                if (!firstInvalid) firstInvalid = qtyInp;
+            }
+        });
+
+        if (!isValid) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    });
+}
+
 // Initialize existing rolls from server
 document.addEventListener('DOMContentLoaded', () => {
     if (EXISTING_ROLLS && EXISTING_ROLLS.length > 0) {
@@ -842,5 +970,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         addRollCard();
     }
+    updateAllRollCardsStock();
 });
 </script>

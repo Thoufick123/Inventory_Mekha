@@ -14,6 +14,10 @@ use Exception;
 class StaffController extends Controller {
     private static bool $schemaEnsured = false;
 
+    public function __construct() {
+        $this->ensureSchema();
+    }
+
     protected function ensureSchema(): void {
         if (self::$schemaEnsured) {
             return;
@@ -33,16 +37,28 @@ class StaffController extends Controller {
             DB::query("CREATE TABLE IF NOT EXISTS `user_permissions` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
                 `user_id` INT NOT NULL,
+                `concern_id` INT NULL,
                 `module_id` INT NOT NULL,
                 `can_view` TINYINT(1) NOT NULL DEFAULT 1,
                 `can_add` TINYINT(1) NOT NULL DEFAULT 0,
                 `can_edit` TINYINT(1) NOT NULL DEFAULT 0,
                 `can_delete` TINYINT(1) NOT NULL DEFAULT 0,
                 `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY `uk_user_module` (`user_id`, `module_id`),
+                UNIQUE KEY `uk_user_concern_module` (`user_id`, `concern_id`, `module_id`),
                 INDEX `idx_up_user` (`user_id`),
+                INDEX `idx_up_concern` (`concern_id`),
                 INDEX `idx_up_module` (`module_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            try {
+                $upCols = array_column(DB::fetchAll("DESCRIBE `user_permissions`"), 'Field');
+                if (!in_array('concern_id', $upCols)) {
+                    DB::query("ALTER TABLE `user_permissions` ADD COLUMN `concern_id` INT NULL AFTER `user_id`");
+                    try { DB::query("ALTER TABLE `user_permissions` DROP INDEX `uk_user_module`"); } catch (\Throwable $e) {}
+                    try { DB::query("ALTER TABLE `user_permissions` ADD UNIQUE KEY `uk_user_concern_module` (`user_id`, `concern_id`, `module_id`)"); } catch (\Throwable $e) {}
+                    try { DB::query("ALTER TABLE `user_permissions` ADD INDEX `idx_up_concern` (`concern_id`)"); } catch (\Throwable $e) {}
+                }
+            } catch (\Throwable $e) {}
 
             DB::query("CREATE TABLE IF NOT EXISTS `staff` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,

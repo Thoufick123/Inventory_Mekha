@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
-class Csrf {
+class CSRF {
     /**
      * Get or generate the current session CSRF token
      */
@@ -42,6 +42,9 @@ class Csrf {
 }
 
 // Support both naming conventions (Csrf and CSRF)
+if (!class_exists('App\Core\Csrf', false)) {
+    class_alias(CSRF::class, 'App\Core\Csrf');
+}
 if (!class_exists('App\Core\CSRF', false)) {
     class_alias(Csrf::class, 'App\Core\CSRF');
 }
