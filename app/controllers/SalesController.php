@@ -8,6 +8,7 @@ use App\Core\DB;
 use App\Core\Auth;
 use App\Services\StockService;
 use App\Services\NumberSeries;
+use App\Services\AuditLog;
 use App\Services\CashService;
 use App\Services\QrService;
 use App\Services\PosBillingCalculator;
@@ -157,9 +158,7 @@ class SalesController extends Controller {
         $name    = trim($_POST['name'] ?? '');
         $phone   = trim($_POST['phone'] ?? '');
         $email   = trim($_POST['email'] ?? '');
-        $gstin   = trim($_POST['gstin'] ?? '');
         $address = trim($_POST['address'] ?? '');
-        $city    = trim($_POST['city'] ?? '');
         $status  = $_POST['status'] ?? 'active';
 
         if (empty($name)) {
@@ -167,8 +166,8 @@ class SalesController extends Controller {
             $this->redirect($redirectUrl);
         }
 
-        $sql = "UPDATE customers SET name = ?, phone = ?, email = ?, gstin = ?, address = ?, city = ?, status = ? WHERE id = ?";
-        $params = [$name, $phone, $email, $gstin, $address, $city, $status, $id];
+        $sql = "UPDATE customers SET name = ?, phone = ?, email = ?, address = ?, status = ? WHERE id = ?";
+        $params = [$name, $phone, $email, $address, $status, $id];
         if ($cid) {
             $sql .= " AND concern_id = ?";
             $params[] = $cid;
@@ -386,42 +385,7 @@ class SalesController extends Controller {
 
     // 2. REQUEST
     public function request(): void {
-        $cid = Auth::concernId();
-
-        $sql = "SELECT cr.*, c.name AS customer_name, v.name AS variant_name, v.sku_code,
-                       con.name AS concern_name, con.code AS concern_code,
-                       COALESCE(stk.total_qty, 0) AS current_stock
-                FROM customer_requests cr
-                JOIN customers c ON cr.customer_id = c.id
-                JOIN variants v ON cr.variant_id = v.id
-                LEFT JOIN concerns con ON cr.concern_id = con.id
-                LEFT JOIN (
-                    SELECT variant_id, SUM(qty) AS total_qty FROM stocks GROUP BY variant_id
-                ) stk ON v.id = stk.variant_id";
-        $params = [];
-        if ($cid) {
-            $sql .= " WHERE cr.concern_id = ?";
-            $params[] = $cid;
-        }
-        $sql .= " ORDER BY cr.id DESC";
-        $requests = DB::fetchAll($sql, $params);
-
-        if ($cid) {
-            $customers = DB::fetchAll("SELECT id, name FROM customers WHERE concern_id = ? AND status = 'active'", [$cid]);
-            $variants  = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
-        } else {
-            $customers = DB::fetchAll("SELECT id, name FROM customers WHERE status = 'active'");
-            $variants  = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE status = 'active'");
-        }
-
-        $this->render('concern/request', [
-            'pageTitle'     => 'Customer Product Requests',
-            'currentModule' => 'request',
-            'requests'      => $requests,
-            'customers'     => $customers,
-            'variants'      => $variants,
-            'selectedCid'   => $cid,
-        ]);
+        $this->redirect('/production/stock-requests');
     }
 
     public function storeRequest(): void {
@@ -640,11 +604,225 @@ class SalesController extends Controller {
         $this->redirect('/m/batch');
     }
 
-    // 4. POS BILLING TERMINAL (Shop Module)
-    public function billing(): void {
+    public function billingOverview(): void {
         $cid = Auth::concernId();
         if (!$cid && Auth::isSuperAdmin()) {
             $cid = Auth::superAdminSelectedConcernId();
+        }
+
+        $scopeSql = '';
+        $scopeParams = [];
+        if ($cid) {
+            $scopeSql = ' WHERE concern_id = ?';
+            $scopeParams[] = $cid;
+        }
+        $summary = DB::fetch(
+            "SELECT COUNT(CASE WHEN is_direct_bill = 0 THEN 1 END) AS invoice_count,
+                    COUNT(DISTINCT CASE WHEN is_direct_bill = 0 THEN customer_id END) AS customer_count,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 THEN net_amount ELSE 0 END), 0) AS total_revenue,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 THEN paid_amount ELSE 0 END), 0) AS paid_revenue,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND payment_status = 'paid' THEN 1 ELSE 0 END), 0) AS paid_count,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND payment_status <> 'paid' THEN 1 ELSE 0 END), 0) AS pending_count,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND payment_method = 'cash'
+                        AND (notes IS NULL OR notes NOT LIKE '%[Online Channel]%')
+                        THEN paid_amount ELSE 0 END), 0) AS cash_revenue,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND payment_method = 'cash'
+                        AND (notes IS NULL OR notes NOT LIKE '%[Online Channel]%')
+                        THEN 1 ELSE 0 END), 0) AS cash_count,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND (payment_method <> 'cash'
+                        OR notes LIKE '%[Online Channel]%'
+                        ) THEN net_amount ELSE 0 END), 0) AS online_revenue,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND (payment_method <> 'cash'
+                        OR notes LIKE '%[Online Channel]%'
+                        ) THEN 1 ELSE 0 END), 0) AS online_count,
+                    COALESCE(SUM(CASE WHEN is_direct_bill = 1 THEN net_amount ELSE 0 END), 0) AS direct_revenue,
+                    COUNT(CASE WHEN is_direct_bill = 1 THEN 1 END) AS direct_count
+             FROM sales_invoices{$scopeSql}",
+            $scopeParams
+        ) ?: [
+            'invoice_count' => 0,
+            'customer_count' => 0,
+            'total_revenue' => 0,
+            'paid_revenue' => 0,
+            'paid_count' => 0,
+            'pending_count' => 0,
+            'cash_revenue' => 0,
+            'cash_count' => 0,
+            'online_revenue' => 0,
+            'online_count' => 0,
+            'direct_revenue' => 0,
+            'direct_count' => 0,
+        ];
+
+        $statusInput = $_GET['status'] ?? 'all';
+        $status = is_string($statusInput) ? trim($statusInput) : 'all';
+        if (!in_array($status, ['all', 'paid', 'pending'], true)) {
+            $status = 'all';
+        }
+        $channelInput = $_GET['channel'] ?? 'all';
+        $channel = is_string($channelInput) ? trim($channelInput) : 'all';
+        if (!in_array($channel, ['all', 'cash', 'online', 'direct'], true)) {
+            $channel = 'all';
+        }
+        $searchInput = $_GET['q'] ?? '';
+        $search = is_string($searchInput) ? trim($searchInput) : '';
+        $search = function_exists('mb_substr') ? mb_substr($search, 0, 100) : substr($search, 0, 100);
+        $dateInput = static function ($value): string {
+            if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                return '';
+            }
+            [$year, $month, $day] = array_map('intval', explode('-', $value));
+            return checkdate($month, $day, $year) ? $value : '';
+        };
+        $dateFrom = $dateInput($_GET['from'] ?? '');
+        $dateTo = $dateInput($_GET['to'] ?? '');
+        $categoryInput = $_GET['category_id'] ?? '';
+        $categoryId = is_scalar($categoryInput) && ctype_digit((string)$categoryInput) && (int)$categoryInput > 0
+            ? (int)$categoryInput
+            : 0;
+        $paymentInput = $_GET['payment'] ?? '';
+        $payment = is_string($paymentInput) ? trim($paymentInput) : '';
+        if (!in_array($payment, ['', 'cash', 'upi', 'card', 'split', 'bank_transfer', 'credit', 'online'], true)) {
+            $payment = '';
+        }
+        $gstInput = $_GET['gst'] ?? '';
+        $gst = is_string($gstInput) ? trim($gstInput) : '';
+        if (!in_array($gst, ['', 'both', 'igst', 'exempt'], true)) {
+            $gst = '';
+        }
+
+        $where = [];
+        $params = [];
+        if ($cid) {
+            $where[] = 'si.concern_id = ?';
+            $params[] = $cid;
+        }
+        $where[] = $channel === 'direct' ? 'si.is_direct_bill = 1' : 'si.is_direct_bill = 0';
+        if ($channel === 'cash') {
+            $where[] = "si.payment_method = 'cash'
+                        AND (si.notes IS NULL OR si.notes NOT LIKE '%[Online Channel]%')";
+        } elseif ($channel === 'online') {
+            $where[] = "(si.payment_method <> 'cash' OR si.notes LIKE '%[Online Channel]%')";
+        }
+        if ($status === 'paid') {
+            $where[] = "si.payment_status = 'paid'";
+        } elseif ($status === 'pending') {
+            $where[] = "si.payment_status <> 'paid'";
+        }
+        if ($dateFrom !== '') {
+            $where[] = 'si.invoice_date >= ?';
+            $params[] = $dateFrom;
+        }
+        if ($dateTo !== '') {
+            $where[] = 'si.invoice_date <= ?';
+            $params[] = $dateTo;
+        }
+        if ($categoryId > 0) {
+            $where[] = 'EXISTS (
+                SELECT 1
+                FROM sales_invoice_items category_sii
+                JOIN variants category_v ON category_v.id = category_sii.variant_id
+                WHERE category_sii.sales_invoice_id = si.id
+                  AND category_v.concern_id = si.concern_id
+                  AND category_v.category_id = ?
+            )';
+            $params[] = $categoryId;
+        }
+        if ($payment !== '') {
+            if ($payment === 'online') {
+                $where[] = "(si.payment_method <> 'cash' OR si.notes LIKE '%[Online Channel]%')";
+            } else {
+                $where[] = 'si.payment_method = ?';
+                $params[] = $payment;
+            }
+        }
+        if ($gst !== '') {
+            $where[] = 'si.notes LIKE ?';
+            $params[] = '%GST Type: ' . $gst . '%';
+        }
+        if ($search !== '') {
+            $where[] = "(si.invoice_no LIKE ? OR COALESCE(si.billing_company_name, c.name) LIKE ?
+                         OR COALESCE(si.billing_company_phone, c.phone, '') LIKE ? OR CAST(si.net_amount AS CHAR) LIKE ?
+                         OR EXISTS (
+                             SELECT 1
+                             FROM sales_invoice_items search_sii
+                             JOIN variants search_v ON search_v.id = search_sii.variant_id
+                             WHERE search_sii.sales_invoice_id = si.id
+                               AND (search_v.sku_code LIKE ? OR search_v.name LIKE ?)
+                         ))";
+            $term = '%' . $search . '%';
+            array_push($params, $term, $term, $term, $term, $term, $term);
+        }
+        $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+
+        $totalInvoices = (int)DB::fetchValue(
+            "SELECT COUNT(*)
+             FROM sales_invoices si
+             JOIN customers c ON c.id = si.customer_id{$whereSql}",
+            $params
+        );
+        $pageSize = 25;
+        $totalPages = max(1, (int)ceil($totalInvoices / $pageSize));
+        $pageInput = $_GET['page'] ?? 1;
+        $requestedPage = is_scalar($pageInput) ? (int)$pageInput : 1;
+        $page = min(max(1, $requestedPage), $totalPages);
+        $offset = ($page - 1) * $pageSize;
+        $invoices = DB::fetchAll(
+            "SELECT si.id, si.invoice_no, si.invoice_date, si.net_amount, si.payment_method, si.payment_status, si.is_direct_bill,
+            COALESCE(si.billing_company_name, c.name) AS customer_name,
+            COALESCE(si.billing_company_phone, c.phone) AS customer_phone,
+                    (SELECT COUNT(*) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS items_count
+             FROM sales_invoices si
+             JOIN customers c ON c.id = si.customer_id{$whereSql}
+             ORDER BY si.id DESC
+             LIMIT {$pageSize} OFFSET {$offset}",
+            $params
+        );
+        $categorySql = "SELECT DISTINCT cat.id, cat.name
+                        FROM categories cat
+                        JOIN variants v ON v.category_id = cat.id AND v.concern_id = cat.concern_id
+                        WHERE cat.status = 'active'";
+        $categoryParams = [];
+        if ($cid) {
+            $categorySql .= ' AND cat.concern_id = ?';
+            $categoryParams[] = $cid;
+        }
+        $categorySql .= ' ORDER BY cat.name ASC';
+        $categories = DB::fetchAll($categorySql, $categoryParams);
+
+        $collectionRate = (float)$summary['total_revenue'] > 0
+            ? ((float)$summary['paid_revenue'] / (float)$summary['total_revenue']) * 100
+            : 0;
+        $this->render('concern/billing_overview', [
+            'pageTitle' => 'POS Billing',
+            'currentModule' => 'billing',
+            'summary' => $summary,
+            'collectionRate' => $collectionRate,
+            'invoices' => $invoices,
+            'status' => $status,
+            'channel' => $channel,
+            'search' => $search,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'categoryId' => $categoryId,
+            'payment' => $payment,
+            'gst' => $gst,
+            'categories' => $categories,
+            'page' => $page,
+            'totalPages' => $totalPages,
+            'totalInvoices' => $totalInvoices,
+            'hasFilters' => $channel !== 'all' || $status !== 'all' || $search !== '' || $dateFrom !== '' || $dateTo !== '' || $categoryId > 0 || $payment !== '' || $gst !== '',
+        ]);
+    }
+
+    // POS billing terminal (Shop module).
+    public function billing(): void {
+        $cid = Auth::concernId();
+        if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            $cid = null;
+        }
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: null;
         }
 
         // Concern display details
@@ -659,7 +837,8 @@ class SalesController extends Controller {
         $staffName = Auth::user()['name'] ?? 'System Administrator';
 
         // Load Sales Invoices for History / Print
-        $sql = "SELECT si.*, c.name AS customer_name, c.phone AS customer_phone, con.name AS concern_name, con.code AS concern_code,
+        $sql = "SELECT si.*, COALESCE(si.billing_company_name, c.name) AS customer_name,
+                       COALESCE(si.billing_company_phone, c.phone) AS customer_phone, con.name AS concern_name, con.code AS concern_code,
                        (SELECT COUNT(*) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS items_count
                 FROM sales_invoices si
                 JOIN customers c ON si.customer_id = c.id
@@ -673,7 +852,6 @@ class SalesController extends Controller {
         $invoices = DB::fetchAll($sql, $params);
 
         if ($cid) {
-            $customers = DB::fetchAll("SELECT id, name, phone, email, gstin, address, city FROM customers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $variants  = DB::fetchAll(
                 "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, COALESCE(s.qty, 0) as available_qty
                  FROM variants v
@@ -683,7 +861,6 @@ class SalesController extends Controller {
                 [$cid, $cid]
             );
         } else {
-            $customers = DB::fetchAll("SELECT id, name, phone, email, gstin, address, city FROM customers WHERE status = 'active' ORDER BY name ASC LIMIT 50");
             $variants  = DB::fetchAll(
                 "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, COALESCE(s.qty, 0) as available_qty
                  FROM variants v
@@ -699,7 +876,12 @@ class SalesController extends Controller {
         $printId = !empty($_GET['print_id']) ? (int)$_GET['print_id'] : 0;
         if ($printId > 0) {
             $printInvoice = DB::fetch(
-                "SELECT si.*, c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address, 
+                "SELECT si.*,
+                        COALESCE(si.billing_company_name, c.name) AS customer_name,
+                        COALESCE(si.billing_company_phone, c.phone) AS customer_phone,
+                        COALESCE(si.billing_company_email, c.email) AS customer_email,
+                        COALESCE(si.billing_company_gstin, c.gstin) AS customer_gstin,
+                        COALESCE(si.billing_company_address, c.address) AS customer_address,
                         con.name AS concern_name, con.gstin AS concern_gstin, con.address AS concern_address, con.phone AS concern_phone
                  FROM sales_invoices si
                  JOIN customers c ON si.customer_id = c.id
@@ -725,7 +907,6 @@ class SalesController extends Controller {
             'concernName'   => $concernName,
             'staffName'     => $staffName,
             'invoices'      => $invoices,
-            'customers'     => $customers,
             'variants'      => $variants,
             'selectedCid'   => $cid,
             'printInvoice'  => $printInvoice,
@@ -816,26 +997,58 @@ class SalesController extends Controller {
     }
 
     public function customerLookup(): void {
-        $phone = trim($_GET['phone'] ?? '');
-        if (empty($phone)) {
-            $this->renderJson(['found' => false]);
+        $phone = trim($_GET['phone'] ?? $_GET['q'] ?? '');
+        $cleanPhone = preg_replace('/[^\d]/', '', $phone);
+        if (empty($cleanPhone) && empty($phone)) {
+            $this->renderJson(['found' => false, 'customers' => []]);
             return;
         }
 
+        $searchQuery = !empty($cleanPhone) ? $cleanPhone : $phone;
         $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
-        $sql = "SELECT id, name, phone, email, gstin, address, city FROM customers WHERE phone = ?";
-        $params = [$phone];
-        if ($cid) {
-            $sql .= " AND concern_id = ?";
-            $params[] = $cid;
-        }
-        $sql .= " LIMIT 1";
 
-        $cust = DB::fetch($sql, $params);
-        if ($cust) {
-            $this->renderJson(['found' => true, 'customer' => $cust]);
+        $sql = "SELECT c.id, c.concern_id, c.code, c.name, c.phone, c.email, c.gstin, c.address, c.city,
+                       (SELECT COUNT(*) FROM sales_invoices si WHERE si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone))) AS order_count,
+                       (SELECT COALESCE(SUM(si.net_amount), 0) FROM sales_invoices si WHERE si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone))) AS total_spent,
+                       (SELECT MAX(si.invoice_date) FROM sales_invoices si WHERE si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone))) AS last_order_date
+                FROM customers c
+                WHERE (c.phone = ? OR c.phone LIKE ? OR c.name LIKE ?)";
+        $params = [$searchQuery, $searchQuery . '%', '%' . $phone . '%'];
+        if ($cid) {
+            $sql .= " ORDER BY (c.concern_id = ?) DESC, (c.phone = ?) DESC, order_count DESC, c.id DESC LIMIT 5";
+            $params[] = $cid;
+            $params[] = $searchQuery;
         } else {
-            $this->renderJson(['found' => false]);
+            $sql .= " ORDER BY (c.phone = ?) DESC, order_count DESC, c.id DESC LIMIT 5";
+            $params[] = $searchQuery;
+        }
+
+        $list = DB::fetchAll($sql, $params);
+        if (!empty($list)) {
+            $formattedList = array_map(function($c) {
+                return [
+                    'id' => (int)$c['id'],
+                    'concern_id' => (int)$c['concern_id'],
+                    'name' => $c['name'],
+                    'phone' => $c['phone'],
+                    'address' => $c['address'] ?: ($c['city'] ?: ''),
+                    'city' => $c['city'] ?: '',
+                    'gstin' => $c['gstin'] ?: '',
+                    'order_count' => (int)$c['order_count'],
+                    'total_spent' => (float)$c['total_spent'],
+                    'last_order_date' => $c['last_order_date'] ?: null,
+                ];
+            }, $list);
+
+            $best = $formattedList[0];
+
+            $this->renderJson([
+                'found' => true,
+                'customer' => $best,
+                'customers' => $formattedList,
+            ]);
+        } else {
+            $this->renderJson(['found' => false, 'customers' => []]);
         }
     }
 
@@ -899,38 +1112,143 @@ class SalesController extends Controller {
 
     public function completePosSale(): void {
         $this->validateCsrf();
-        $cid = (int)($_POST['concern_id'] ?? 0) ?: Auth::concernId();
-        if (!$cid && Auth::isSuperAdmin()) {
-            $cid = Auth::superAdminSelectedConcernId();
+        $cid = Auth::concernId();
+        if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            $cid = null;
         }
-        if (!$cid) {
-            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 1;
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: null;
+        }
+        if (!$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            $this->flash('error', 'No active concern is available for POS billing. Select an active concern before completing a sale.');
+            $this->redirect('/m/billing/create');
+            return;
         }
 
         $custMobile  = trim($_POST['customer_mobile'] ?? '');
         $custName    = trim($_POST['customer_name'] ?? 'Walk-in Customer');
         $custAddress = trim($_POST['customer_address'] ?? 'Counter Walk-in / Local Store');
         $billingPartyType = $_POST['billing_party_type'] ?? 'customer';
-        $companyCustomerId = (int)($_POST['company_customer_id'] ?? 0);
+        $companyName = $_POST['company_name'] ?? '';
+        $companyAddress = $_POST['company_address'] ?? '';
+        $companyPhone = $_POST['company_phone'] ?? '';
+        $companyEmail = $_POST['company_email'] ?? '';
+        $companyGstin = $_POST['company_gstin'] ?? '';
+        $invoiceDateRaw = $_POST['invoice_date'] ?? date('Y-m-d');
+        $directBillRaw = $_POST['is_direct_bill'] ?? '0';
         $gstType     = $_POST['gst_type'] ?? 'both'; // 'both', 'igst', 'exempt'
         $gstPriceMode = $_POST['gst_price_mode'] ?? 'exclude';
         $payMethod   = $_POST['payment_method'] ?? 'cash';
-        $isOnline    = !empty($_POST['is_online']) ? 1 : 0;
+        $paymentStatus = $_POST['payment_status'] ?? 'paid';
+        $isOnline    = $payMethod !== 'cash' || !empty($_POST['is_online']);
+        $shippingRaw = $_POST['shipping_amount'] ?? '0';
 
+        if (!is_string($payMethod) || !in_array($payMethod, ['cash', 'bank_transfer', 'upi', 'credit', 'card', 'split'], true)) {
+            $this->flash('error', 'Choose a valid payment method.');
+            $this->redirect('/m/billing/create');
+            return;
+        }
+        if (!is_string($paymentStatus) || !in_array($paymentStatus, ['paid', 'partial', 'unpaid'], true)) {
+            $this->flash('error', 'Choose a valid payment status.');
+            $this->redirect('/m/billing/create');
+            return;
+        }
+        if (!is_scalar($shippingRaw)) {
+            $this->flash('error', 'Enter a valid shipping amount.');
+            $this->redirect('/m/billing/create');
+            return;
+        }
+        $shippingRaw = trim((string)$shippingRaw);
+        if ($shippingRaw === '') {
+            $shippingRaw = '0';
+        }
+        if (!preg_match('/^\d+(?:\.\d{1,2})?$/D', $shippingRaw) || (float)$shippingRaw > 9999999999.99) {
+            $this->flash('error', 'Shipping must be a non-negative amount with up to two decimal places.');
+            $this->redirect('/m/billing/create');
+            return;
+        }
+        $shippingAmount = (float)$shippingRaw;
+        $advancePaid = 0.00;
+        if ($paymentStatus === 'partial') {
+            $advanceRaw = $_POST['advance_paid'] ?? '0';
+            if (!is_scalar($advanceRaw)) {
+                $this->flash('error', 'Enter a valid advance payment.');
+                $this->redirect('/m/billing/create');
+                return;
+            }
+            $advanceRaw = trim((string)$advanceRaw);
+            if (!preg_match('/^\d+(?:\.\d{1,2})?$/D', $advanceRaw) || (float)$advanceRaw > 9999999999.99) {
+                $this->flash('error', 'Advance paid must be a non-negative amount with up to two decimal places.');
+                $this->redirect('/m/billing/create');
+                return;
+            }
+            $advancePaid = (float)$advanceRaw;
+        }
         if (!in_array($gstType, ['both', 'igst', 'exempt'], true)) {
             $this->flash('error', 'Choose a valid GST type.');
-            $this->redirect('/m/billing');
+            $this->redirect('/m/billing/create');
             return;
         }
         if (!in_array($gstPriceMode, ['include', 'exclude'], true)) {
             $this->flash('error', 'Choose whether the item prices include or exclude GST.');
-            $this->redirect('/m/billing');
+            $this->redirect('/m/billing/create');
             return;
         }
         if (!in_array($billingPartyType, ['customer', 'company'], true)) {
             $this->flash('error', 'Choose whether this bill is for a customer or company.');
-            $this->redirect('/m/billing');
+            $this->redirect('/m/billing/create');
             return;
+        }
+        if (!is_string($invoiceDateRaw)
+            || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $invoiceDateRaw)
+            || !checkdate((int)substr($invoiceDateRaw, 5, 2), (int)substr($invoiceDateRaw, 8, 2), (int)substr($invoiceDateRaw, 0, 4))) {
+            $this->flash('error', 'Enter a valid bill date.');
+            $this->redirect('/m/billing/create');
+            return;
+        }
+        if (!is_scalar($directBillRaw) || !in_array((string)$directBillRaw, ['0', '1'], true)) {
+            $this->flash('error', 'Choose a valid bill classification.');
+            $this->redirect('/m/billing/create');
+            return;
+        }
+        $isDirectBill = (string)$directBillRaw === '1';
+        if ($isDirectBill && $billingPartyType !== 'company') {
+            $this->flash('error', 'Only company bills can be separated as direct bills.');
+            $this->redirect('/m/billing/create');
+            return;
+        }
+        if ($billingPartyType === 'company') {
+            $companyFields = [
+                'Company name' => $companyName,
+                'Company address' => $companyAddress,
+                'Company phone' => $companyPhone,
+                'Company email' => $companyEmail,
+                'Company GSTIN' => $companyGstin,
+            ];
+            foreach ($companyFields as $label => $value) {
+                if (!is_string($value)) {
+                    $this->flash('error', $label . ' must be valid text.');
+                    $this->redirect('/m/billing/create');
+                    return;
+                }
+            }
+            $companyName = trim($companyName);
+            $companyAddress = trim($companyAddress);
+            $companyPhone = trim($companyPhone);
+            $companyEmail = trim($companyEmail);
+            $companyGstin = strtoupper(trim($companyGstin));
+            if ($companyName === '' || strlen($companyName) > 150
+                || strlen($companyAddress) > 255 || strlen($companyPhone) > 30
+                || strlen($companyEmail) > 100 || strlen($companyGstin) > 15) {
+                $this->flash('error', 'Check the company name, address, phone, email, and GSTIN lengths.');
+                $this->redirect('/m/billing/create');
+                return;
+            }
+            if ($companyEmail !== '' && !filter_var($companyEmail, FILTER_VALIDATE_EMAIL)) {
+                $this->flash('error', 'Enter a valid company email address.');
+                $this->redirect('/m/billing/create');
+                return;
+            }
         }
 
         $cartItemsJson = $_POST['cart_items_json'] ?? '[]';
@@ -938,7 +1256,7 @@ class SalesController extends Controller {
 
         if (empty($items) || !is_array($items)) {
             $this->flash('error', 'Cannot complete sale: Billing cart is empty.');
-            $this->redirect('/m/billing');
+            $this->redirect('/m/billing/create');
         }
 
         DB::beginTransaction();
@@ -946,14 +1264,35 @@ class SalesController extends Controller {
             // 1. Resolve or create the invoice customer.
             $customerId = null;
             if ($billingPartyType === 'company') {
-                $company = DB::fetch(
-                    "SELECT id, name, phone, address FROM customers WHERE id = ? AND concern_id = ? AND status = 'active' LIMIT 1",
-                    [$companyCustomerId, $cid]
-                );
-                if (!$company) {
-                    throw new \RuntimeException('Choose an active company from this concern.');
+                $company = null;
+                if ($companyGstin !== '') {
+                    $company = DB::fetch(
+                        "SELECT id FROM customers
+                         WHERE concern_id = ? AND status = 'active' AND gstin = ?
+                         ORDER BY id ASC LIMIT 1",
+                        [$cid, $companyGstin]
+                    );
+                } elseif ($companyPhone !== '' || $companyEmail !== '') {
+                    $company = DB::fetch(
+                        "SELECT id FROM customers
+                         WHERE concern_id = ? AND status = 'active' AND name = ?
+                           AND COALESCE(phone, '') = ? AND COALESCE(email, '') = ?
+                           AND COALESCE(gstin, '') = ''
+                         ORDER BY id ASC LIMIT 1",
+                        [$cid, $companyName, $companyPhone, $companyEmail]
+                    );
                 }
-                $customerId = (int)$company['id'];
+                if (!$company) {
+                    $companyCode = 'CUST-' . random_int(10000, 99999);
+                    DB::query(
+                        "INSERT INTO customers (concern_id, code, name, phone, email, gstin, address, city, status, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, '', 'active', NOW())",
+                        [$cid, $companyCode, $companyName, $companyPhone, $companyEmail, $companyGstin, $companyAddress]
+                    );
+                    $customerId = (int)DB::lastInsertId();
+                } else {
+                    $customerId = (int)$company['id'];
+                }
             } else {
                 if (!empty($custMobile)) {
                     $existingCust = DB::fetch(
@@ -996,9 +1335,6 @@ class SalesController extends Controller {
                 $unitPrice = (float)$priceInput;
                 $itemDiscount = (float)$discountInput;
                 $productionBatchId = (int)($item['batch_id'] ?? 0);
-                if ($billingPartyType === 'company' && $productionBatchId <= 0) {
-                    throw new \RuntimeException('Company bulk billing items must come from an approved production batch.');
-                }
                 if ($productionBatchId > 0) {
                     $batch = DB::fetch(
                         "SELECT id, batch_qty FROM batches
@@ -1068,17 +1404,34 @@ class SalesController extends Controller {
                 }
             }
 
-            $netPayable = round($taxableSubtotal + $taxTotal, 2);
+            $paymentTotals = PosBillingCalculator::calculateCheckoutPayment(
+                $taxableSubtotal + $taxTotal,
+                $shippingAmount,
+                $paymentStatus,
+                $advancePaid
+            );
+            $netPayable = $paymentTotals['net_amount'];
+            $paidAmount = $paymentTotals['paid_amount'];
+            $balanceDue = $paymentTotals['balance_due'];
 
             // 3. Generate Sequential Invoice Number
             $invoiceNo = NumberSeries::getNext($cid, 'INVOICE');
-            $invDate = date('Y-m-d');
-            $notes = "POS Terminal Sale. Billing For: {$billingPartyType}. GST Type: {$gstType}. GST Price Mode: {$gstPriceMode}" . ($isOnline ? " [Online Channel]" : "");
+            $invDate = $invoiceDateRaw;
+            $notes = "POS Terminal Sale. Billing For: {$billingPartyType}. GST Type: {$gstType}. GST Price Mode: {$gstPriceMode}. Payment Status: {$paymentStatus}" . ($isOnline ? " [Online Channel]" : "");
 
             DB::query(
-                "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, net_amount, payment_method, payment_status, notes, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?, ?, NOW())",
-                [$cid, $invoiceNo, $customerId, $invDate, $taxableSubtotal, $taxTotal, $discountTotal, $netPayable, $payMethod, $notes, Auth::id()]
+                "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, net_amount, shipping_amount, paid_amount, payment_method, payment_status, is_direct_bill, billing_company_name, billing_company_address, billing_company_phone, billing_company_email, billing_company_gstin, notes, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                [
+                    $cid, $invoiceNo, $customerId, $invDate, $taxableSubtotal, $taxTotal, $discountTotal, $netPayable,
+                    $shippingAmount, $paidAmount, $payMethod, $paymentStatus, $isDirectBill ? 1 : 0,
+                    $billingPartyType === 'company' ? $companyName : null,
+                    $billingPartyType === 'company' ? $companyAddress : null,
+                    $billingPartyType === 'company' ? $companyPhone : null,
+                    $billingPartyType === 'company' ? $companyEmail : null,
+                    $billingPartyType === 'company' ? $companyGstin : null,
+                    $notes, Auth::id()
+                ]
             );
             $invoiceId = (int)DB::lastInsertId();
 
@@ -1105,7 +1458,7 @@ class SalesController extends Controller {
             }
 
             // 5. Post to Cash Accounts / Cash Flow Ledger
-            if ($netPayable > 0 && in_array($payMethod, ['cash', 'upi', 'card', 'split'])) {
+            if ($paidAmount > 0 && in_array($payMethod, ['cash', 'upi', 'card', 'split'])) {
                 $cashAccount = DB::fetch(
                     "SELECT id FROM cash_accounts WHERE concern_id = ? AND account_type IN ('cash', 'petty_cash') ORDER BY id ASC LIMIT 1",
                     [$cid]
@@ -1117,7 +1470,7 @@ class SalesController extends Controller {
                         (int)$cashAccount['id'],
                         $invDate,
                         'credit',
-                        $netPayable,
+                        $paidAmount,
                         'Billing',
                         $invoiceId,
                         "POS Sale Invoice #{$invoiceNo} [{$payMethod}]",
@@ -1130,6 +1483,11 @@ class SalesController extends Controller {
             AuditLog::log('POS_SALE', 'sales_invoices', $invoiceId, null, [
                 'invoice_no'  => $invoiceNo,
                 'net_payable' => $netPayable,
+                'shipping_amount' => $shippingAmount,
+                'paid_amount' => $paidAmount,
+                'balance_due' => $balanceDue,
+                'payment_status' => $paymentStatus,
+                'is_direct_bill' => $isDirectBill,
                 'items_count' => count($items),
                 'cashier'     => Auth::user()['name'] ?? 'Staff',
             ]);
@@ -1137,11 +1495,11 @@ class SalesController extends Controller {
             DB::commit();
 
             $this->flash('success', "Sale Completed! Invoice #{$invoiceNo} generated for ₹" . number_format($netPayable, 2) . ".");
-            $this->redirect("/m/billing?print_id={$invoiceId}");
+            $this->redirect("/m/billing/create?print_id={$invoiceId}");
         } catch (\Throwable $e) {
             DB::rollBack();
             $this->flash('error', "POS Transaction failed: " . $e->getMessage());
-            $this->redirect('/m/billing');
+            $this->redirect('/m/billing/create');
         }
     }
 
@@ -1496,16 +1854,181 @@ class SalesController extends Controller {
     }
 
     // 7. RETURN & EXCHANGE
+    public function lookupShopReturnInvoices(): void {
+        $phone = trim((string)($_GET['phone'] ?? ''));
+        if ($phone === '') {
+            $this->renderJson(['success' => false, 'message' => 'Enter the customer phone number.'], 400);
+            return;
+        }
+
+        $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        $sql = "SELECT si.id AS invoice_id, si.concern_id, si.invoice_no, si.invoice_date, si.created_at, si.net_amount,
+                       c.id AS customer_id, c.name AS customer_name, c.phone AS customer_phone,
+                       con.name AS concern_name,
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM returns_exchanges re WHERE re.sales_invoice_id = si.id
+                       ) OR EXISTS (
+                           SELECT 1 FROM production_returns pr WHERE pr.sales_invoice_id = si.id
+                       ) THEN 1 ELSE 0 END AS already_used
+                FROM customers c
+                JOIN sales_invoices si ON si.customer_id = c.id
+                LEFT JOIN concerns con ON con.id = si.concern_id
+                WHERE c.phone = ?";
+        $params = [$phone];
+        if ($cid) {
+            $sql .= ' AND si.concern_id = ?';
+            $params[] = $cid;
+        }
+        $sql .= ' ORDER BY si.invoice_date DESC, si.id DESC';
+
+        $this->renderJson(['success' => true, 'invoices' => DB::fetchAll($sql, $params)]);
+    }
+
+    public function lookupShopReturnInvoice(): void {
+        $invoiceId = (int)($_GET['invoice_id'] ?? 0);
+        $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        if ($invoiceId <= 0) {
+            $this->renderJson(['success' => false, 'message' => 'Select a valid invoice.'], 400);
+            return;
+        }
+
+        $sql = "SELECT si.id, si.concern_id, si.customer_id, si.invoice_no, si.invoice_date,
+                       si.total_amount, si.tax_amount, si.net_amount, c.name AS customer_name, c.phone AS customer_phone
+                FROM sales_invoices si
+                JOIN customers c ON c.id = si.customer_id
+                WHERE si.id = ?";
+        $params = [$invoiceId];
+        if ($cid) {
+            $sql .= ' AND si.concern_id = ?';
+            $params[] = $cid;
+        }
+        $invoice = DB::fetch($sql, $params);
+        if (!$invoice) {
+            $this->renderJson(['success' => false, 'message' => 'Invoice not found for this concern.'], 404);
+            return;
+        }
+
+        $used = DB::fetchValue(
+            "SELECT id FROM returns_exchanges WHERE sales_invoice_id = ?
+             UNION ALL
+             SELECT id FROM production_returns WHERE sales_invoice_id = ?
+             LIMIT 1",
+            [$invoiceId, $invoiceId]
+        );
+        if ($used) {
+            $this->renderJson(['success' => false, 'already_used' => true, 'message' => 'This invoice has already been used for a return or exchange.'], 409);
+            return;
+        }
+
+        $items = DB::fetchAll(
+            "SELECT sii.id AS invoice_item_id, sii.variant_id, sii.qty AS sold_qty, sii.unit_price,
+                    sii.total_price, v.sku_code, v.name AS product_name, v.size,
+                    COALESCE(NULLIF(cat.main_category_code, ''), c.code) AS qr_category_code,
+                    COALESCE(NULLIF(cat.sub_category_code, ''), sc.code) AS qr_subcategory_code,
+                    COALESCE(NULLIF(cat.sub_sub_category_code, ''), ssc.code) AS qr_sub_subcategory_code,
+                    c.name AS qr_category_name, sc.name AS qr_subcategory_name, ssc.name AS qr_sub_subcategory_name,
+                    ROUND(
+                        (sii.total_price + CASE WHEN si.total_amount > 0
+                            THEN si.tax_amount * sii.total_price / si.total_amount
+                            ELSE 0 END) / NULLIF(sii.qty, 0),
+                        2
+                    ) AS paid_unit_price
+             FROM sales_invoice_items sii
+             JOIN sales_invoices si ON si.id = sii.sales_invoice_id
+             JOIN variants v ON v.id = sii.variant_id
+             LEFT JOIN catalogs cat ON cat.id = v.catalog_id
+             LEFT JOIN categories c ON c.id = v.category_id
+             LEFT JOIN subcategories sc ON sc.id = v.subcategory_id
+             LEFT JOIN sub_subcategories ssc ON ssc.id = cat.sub_sub_category_id
+             WHERE sii.sales_invoice_id = ?
+             ORDER BY sii.id ASC",
+            [$invoiceId]
+        );
+        foreach ($items as &$item) {
+            $item['tag_code'] = QrService::formatFinishedGoodsCode(
+                (int)$item['variant_id'],
+                $item['qr_category_code'] ?? null,
+                $item['qr_subcategory_code'] ?? null,
+                $item['qr_sub_subcategory_code'] ?? null,
+                $item['qr_category_name'] ?? null,
+                $item['qr_subcategory_name'] ?? null,
+                $item['qr_sub_subcategory_name'] ?? null
+            );
+        }
+        unset($item);
+
+        $this->renderJson(['success' => true, 'invoice' => $invoice, 'items' => $items]);
+    }
+
+    public function lookupShopReturnReplacement(): void {
+        $invoiceId = (int)($_GET['invoice_id'] ?? 0);
+        $sku = trim((string)($_GET['sku'] ?? ''));
+        $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        if ($invoiceId <= 0 || $sku === '') {
+            $this->renderJson(['success' => false, 'message' => 'Scan or enter a replacement SKU.'], 400);
+            return;
+        }
+
+        $invoiceSql = 'SELECT concern_id FROM sales_invoices WHERE id = ?';
+        $invoiceParams = [$invoiceId];
+        if ($cid) {
+            $invoiceSql .= ' AND concern_id = ?';
+            $invoiceParams[] = $cid;
+        }
+        $invoiceConcernId = (int)DB::fetchValue($invoiceSql, $invoiceParams);
+        if (!$invoiceConcernId) {
+            $this->renderJson(['success' => false, 'message' => 'Invoice not found for this concern.'], 404);
+            return;
+        }
+
+        $variantId = (int)DB::fetchValue(
+            "SELECT id FROM variants
+             WHERE concern_id = ? AND status = 'active' AND sku_code = ?
+             LIMIT 1",
+            [$invoiceConcernId, $sku]
+        );
+        if (!$variantId) {
+            $scannedVariant = QrService::lookupVariant($sku, $invoiceConcernId);
+            $variantId = (int)($scannedVariant['id'] ?? 0);
+        }
+        if (!$variantId) {
+            $this->renderJson(['success' => false, 'message' => 'Replacement SKU or product tag was not found for this shop.'], 404);
+            return;
+        }
+
+        $variant = DB::fetch(
+            "SELECT v.id, v.sku_code, v.name, v.size, v.price,
+                    COALESCE(s.qty, 0) AS available_qty
+             FROM variants v
+             LEFT JOIN stocks s ON s.concern_id = v.concern_id
+                               AND s.variant_id = v.id
+                               AND s.location = 'Main Store'
+             WHERE v.concern_id = ? AND v.status = 'active' AND v.id = ?
+               AND COALESCE(s.qty, 0) > 0
+             LIMIT 1",
+            [$invoiceConcernId, $variantId]
+        );
+        if (!$variant) {
+            $this->renderJson(['success' => false, 'message' => 'Replacement product has no available Main Store stock.'], 404);
+            return;
+        }
+
+        $this->renderJson(['success' => true, 'variant' => $variant]);
+    }
+
     public function returnExchange(): void {
         $cid = Auth::concernId();
 
         $sql = "SELECT re.*, c.name AS customer_name, v1.name AS returned_variant_name, v1.sku_code AS returned_sku,
                        v2.name AS exchange_variant_name, v2.sku_code AS exchange_sku,
-                       con.name AS concern_name, con.code AS concern_code
+                       con.name AS concern_name, con.code AS concern_code, si.invoice_no,
+                       pr.id AS production_return_id
                 FROM returns_exchanges re
                 JOIN customers c ON re.customer_id = c.id
                 JOIN variants v1 ON re.returned_variant_id = v1.id
                 LEFT JOIN variants v2 ON re.exchange_variant_id = v2.id
+                LEFT JOIN sales_invoices si ON si.id = re.sales_invoice_id
+                LEFT JOIN production_returns pr ON pr.return_no = re.return_no AND pr.concern_id = re.concern_id
                 LEFT JOIN concerns con ON re.concern_id = con.id";
         $params = [];
         if ($cid) {
@@ -1515,20 +2038,10 @@ class SalesController extends Controller {
         $sql .= " ORDER BY re.id DESC";
         $returns = DB::fetchAll($sql, $params);
 
-        if ($cid) {
-            $customers = DB::fetchAll("SELECT id, name FROM customers WHERE concern_id = ? AND status = 'active'", [$cid]);
-            $variants  = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
-        } else {
-            $customers = DB::fetchAll("SELECT id, name FROM customers WHERE status = 'active'");
-            $variants  = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE status = 'active'");
-        }
-
         $this->render('concern/return_exchange', [
-            'pageTitle'     => 'Customer Returns & Exchanges',
+            'pageTitle'     => 'Shop Returns & Exchanges',
             'currentModule' => 'return_exchange',
             'returns'       => $returns,
-            'customers'     => $customers,
-            'variants'      => $variants,
             'selectedCid'   => $cid,
         ]);
     }
@@ -1699,6 +2212,11 @@ class SalesController extends Controller {
             $this->flash('error', 'Return/Exchange record not found.');
             $this->redirect('/m/return_exchange');
         }
+        if (!empty($return['sales_invoice_id']) || DB::fetchValue("SELECT id FROM production_returns WHERE return_no = ? AND concern_id = ? LIMIT 1", [$return['return_no'], $return['concern_id']])) {
+            $this->flash('error', 'Invoice-based returns are locked to preserve their full item and stock history.');
+            $this->redirect('/m/return_exchange');
+            return;
+        }
 
         $returnDate = $_POST['return_date'] ?: $return['return_date'];
         $reason     = trim($_POST['reason'] ?? '');
@@ -1731,6 +2249,12 @@ class SalesController extends Controller {
         if (!$return) {
             $this->flash('error', 'Return/Exchange record not found.');
             $this->redirect('/m/return_exchange');
+            return;
+        }
+        if (!empty($return['sales_invoice_id']) || DB::fetchValue("SELECT id FROM production_returns WHERE return_no = ? AND concern_id = ? LIMIT 1", [$return['return_no'], $return['concern_id']])) {
+            $this->flash('error', 'Invoice-based returns are locked to preserve their full item and stock history.');
+            $this->redirect('/m/return_exchange');
+            return;
         }
 
         DB::beginTransaction();

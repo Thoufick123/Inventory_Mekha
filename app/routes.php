@@ -185,9 +185,10 @@ $router->post('/production/stock-requests/receive', [ProductionStockRequestContr
 $router->post('/production/stock-requests/reject', [ProductionStockRequestController::class, 'reject'], 'request', 'edit');
 $router->post('/production/stock-requests/cancel', [ProductionStockRequestController::class, 'cancel'], 'request', 'delete');
 $router->get('/production/stock-requests/print/{id}', [ProductionStockRequestController::class, 'printChallan'], 'request', 'view');
-$router->get('/m/request', [SalesController::class, 'request'], 'request', 'view');
+$router->get('/api/stock-requests/variant-stocks', [ProductionStockRequestController::class, 'variantStocks'], 'request', 'view');
+$router->get('/m/request', [ProductionStockRequestController::class, 'index'], 'request', 'view');
 $router->get('/m/request/export', [SalesController::class, 'exportRequests'], 'request', 'view');
-$router->post('/m/request/store', [SalesController::class, 'storeRequest'], 'request', 'add');
+$router->post('/m/request/store', [ProductionStockRequestController::class, 'store'], 'request', 'add');
 $router->post('/m/request/update', [SalesController::class, 'updateRequest'], 'request', 'edit');
 $router->post('/m/request/delete', [SalesController::class, 'deleteRequest'], 'request', 'delete');
 // Finished Production Batches & Carton Packaging (Image 1, 2, 3)
@@ -240,13 +241,16 @@ $router->post('/m/dispatch/update', [SalesController::class, 'updateDispatch'], 
 $router->post('/m/dispatch/delete', [SalesController::class, 'deleteDispatch'], 'dispatch', 'delete');
 // Return & Exchange (RMA)
 $router->get('/production/returns', [ProductionReturnController::class, 'index'], 'return_exchange', 'view');
-$router->get('/production/returns/create', [ProductionReturnController::class, 'create'], 'return_exchange', 'add');
+$router->get('/production/returns/create', [SalesController::class, 'returnExchange'], 'return_exchange', 'add');
 $router->post('/production/returns/store', [ProductionReturnController::class, 'store'], 'return_exchange', 'add');
 $router->get('/production/returns/view/{id}', [ProductionReturnController::class, 'view'], 'return_exchange', 'view');
 $router->get('/production/returns/print/{id}', [ProductionReturnController::class, 'print'], 'return_exchange', 'view');
 $router->post('/production/returns/cancel', [ProductionReturnController::class, 'cancel'], 'return_exchange', 'delete');
 $router->get('/api/returns/lookup-bill', [ProductionReturnController::class, 'ajaxLookupBill'], 'return_exchange', 'view');
 $router->get('/m/return_exchange', [SalesController::class, 'returnExchange'], 'return_exchange', 'view');
+$router->get('/api/shop-returns/customer-invoices', [SalesController::class, 'lookupShopReturnInvoices'], 'return_exchange', 'view');
+$router->get('/api/shop-returns/invoice', [SalesController::class, 'lookupShopReturnInvoice'], 'return_exchange', 'view');
+$router->get('/api/shop-returns/replacement', [SalesController::class, 'lookupShopReturnReplacement'], 'return_exchange', 'view');
 $router->get('/m/return_exchange/export', [SalesController::class, 'exportReturnExchange'], 'return_exchange', 'view');
 $router->post('/m/return_exchange/store', [SalesController::class, 'storeReturn'], 'return_exchange', 'add');
 $router->post('/m/return_exchange/update', [SalesController::class, 'updateReturn'], 'return_exchange', 'edit');

@@ -32,6 +32,7 @@ class OutwardController extends Controller {
             self::ensureBaseTables();
 
             $outCols = array_column(DB::fetchAll("DESCRIBE `outwards`"), 'Field');
+            if (!in_array('sales_invoice_id', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `sales_invoice_id` INT NULL AFTER `outward_no`");
             if (!in_array('warehouse_name', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `warehouse_name` VARCHAR(150) DEFAULT 'wareouse (WH-01)' AFTER `warehouse_id`");
             if (!in_array('dispatched_by_name', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `dispatched_by_name` VARCHAR(150) DEFAULT 'System Administrator' AFTER `driver_contact`");
             if (!in_array('total_boxes', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `total_boxes` INT DEFAULT 1 AFTER `warehouse_name`");
@@ -95,6 +96,62 @@ class OutwardController extends Controller {
     public function index(): void {
         $cid = Auth::concernId();
         $selectedConcernId = !empty($_GET['concern_id']) ? (int)$_GET['concern_id'] : $cid;
+        $posInvoiceId = max(0, (int)($_GET['pos_invoice_id'] ?? 0));
+        $posInvoiceTransfer = null;
+        $posInvoiceItems = [];
+
+        if ($posInvoiceId > 0) {
+            $invoiceScopeId = $cid ?: $selectedConcernId;
+            $invoiceSql = "
+                SELECT si.id, si.concern_id, si.invoice_no, si.customer_id, c.name AS customer_name
+                FROM sales_invoices si
+                JOIN customers c ON c.id = si.customer_id
+                WHERE si.id = ?";
+            $invoiceParams = [$posInvoiceId];
+            if ($invoiceScopeId) {
+                $invoiceSql .= " AND si.concern_id = ?";
+                $invoiceParams[] = $invoiceScopeId;
+            } elseif (!Auth::isSuperAdmin()) {
+                $this->flash('error', 'Select a concern before transferring a POS invoice to Outward.');
+                $this->redirect('/production/outward?tab=fg');
+                return;
+            }
+
+            $posInvoiceTransfer = DB::fetch($invoiceSql, $invoiceParams);
+            if (!$posInvoiceTransfer) {
+                $this->flash('error', 'The POS invoice was not found for the selected concern.');
+                $this->redirect('/production/outward?tab=fg');
+                return;
+            }
+            if (!$selectedConcernId) {
+                $selectedConcernId = (int)$posInvoiceTransfer['concern_id'];
+            }
+
+            $existingInvoiceOutward = DB::fetch(
+                "SELECT id, outward_no FROM outwards WHERE sales_invoice_id = ? LIMIT 1",
+                [$posInvoiceId]
+            );
+            if ($existingInvoiceOutward) {
+                $this->flash('warning', "Invoice {$posInvoiceTransfer['invoice_no']} is already linked to outward {$existingInvoiceOutward['outward_no']}.");
+                $this->redirect('/production/outward?tab=fg');
+                return;
+            }
+
+            $posInvoiceItems = DB::fetchAll(
+                "SELECT sii.variant_id, SUM(sii.qty) AS qty, v.sku_code, v.name, v.size
+                 FROM sales_invoice_items sii
+                 JOIN variants v ON v.id = sii.variant_id
+                 WHERE sii.sales_invoice_id = ?
+                 GROUP BY sii.variant_id, v.sku_code, v.name, v.size
+                 ORDER BY sii.variant_id",
+                [$posInvoiceId]
+            );
+            if (!$posInvoiceItems) {
+                $this->flash('error', "Invoice {$posInvoiceTransfer['invoice_no']} has no items to transfer.");
+                $this->redirect('/production/outward?tab=fg');
+                return;
+            }
+        }
 
         $search       = trim($_GET['search'] ?? '');
         $typeFilter   = trim($_GET['type'] ?? '');
@@ -126,7 +183,7 @@ class OutwardController extends Controller {
             $activeTab = 'fg';
         }
 
-        $sql = "SELECT o.*, 
+        $sql = "SELECT o.*, si.invoice_no AS sales_invoice_no,
                        con.name AS source_concern_name, con.code AS source_concern_code,
                        dest_con.name AS dest_concern_name, dest_con.code AS dest_concern_code,
                        c.name AS customer_name,
@@ -146,6 +203,7 @@ class OutwardController extends Controller {
                 LEFT JOIN concerns con ON o.concern_id = con.id
                 LEFT JOIN concerns dest_con ON o.destination_concern_id = dest_con.id
                 LEFT JOIN customers c ON o.customer_id = c.id
+                LEFT JOIN sales_invoices si ON si.id = o.sales_invoice_id
                 LEFT JOIN production_outward_batches pob ON pob.outward_id = o.id
                 LEFT JOIN batches b ON pob.batch_id = b.id
                 LEFT JOIN variants v ON (b.variant_id = v.id OR (SELECT oi.variant_id FROM outward_items oi WHERE oi.outward_id = o.id LIMIT 1) = v.id)
@@ -240,6 +298,8 @@ class OutwardController extends Controller {
             'stockVariants'     => $stockVariants,
             'customers'         => $customers,
             'warehouses'        => $warehouses,
+            'posInvoiceTransfer' => $posInvoiceTransfer,
+            'posInvoiceItems' => $posInvoiceItems,
         ]);
     }
 
@@ -250,6 +310,7 @@ class OutwardController extends Controller {
     public function store(): void {
         $this->validateCsrf();
         $cid = (int)($_POST['source_concern_id'] ?? ($_POST['source_concern_id_fg'] ?? (Auth::concernId() ?: 1)));
+        $posInvoiceId = max(0, (int)($_POST['pos_invoice_id'] ?? 0));
 
         $dispatchMode    = trim($_POST['dispatch_mode'] ?? 'batch'); // batch, finished_goods
         $destConcernId   = !empty($_POST['destination_concern_id']) 
@@ -272,6 +333,7 @@ class OutwardController extends Controller {
         $seq = str_pad((string)($countToday + 1), 4, '0', STR_PAD_LEFT);
         $outwardNo = "OUT-{$today}-{$seq}";
         $gatePassNo = "GP-{$today}-{$seq}";
+        $handoffCompleted = false;
 
         DB::beginTransaction();
         try {
@@ -366,24 +428,77 @@ class OutwardController extends Controller {
                     throw new Exception('Please scan or select at least one finishing good product to dispatch.');
                 }
 
+                if ($posInvoiceId > 0) {
+                    if ($dispatchMode !== 'finished_goods') {
+                        throw new Exception('A POS invoice can only be transferred as finishing goods.');
+                    }
+                    $authConcernId = Auth::concernId();
+                    if ($authConcernId && $authConcernId !== $cid) {
+                        throw new Exception('The POS invoice belongs to a different concern.');
+                    }
+                    $posInvoice = DB::fetch(
+                        "SELECT id, concern_id, invoice_no, customer_id
+                         FROM sales_invoices
+                         WHERE id = ? AND concern_id = ?
+                         LIMIT 1 FOR UPDATE",
+                        [$posInvoiceId, $cid]
+                    );
+                    if (!$posInvoice) {
+                        throw new Exception('The POS invoice was not found for this concern.');
+                    }
+                    if (DB::fetchValue("SELECT id FROM outwards WHERE sales_invoice_id = ? LIMIT 1", [$posInvoiceId])) {
+                        throw new Exception("Invoice {$posInvoice['invoice_no']} is already linked to an outward.");
+                    }
+
+                    $expectedItems = [];
+                    foreach (DB::fetchAll(
+                        "SELECT variant_id, SUM(qty) AS qty
+                         FROM sales_invoice_items
+                         WHERE sales_invoice_id = ?
+                         GROUP BY variant_id
+                         ORDER BY variant_id",
+                        [$posInvoiceId]
+                    ) as $invoiceItem) {
+                        $expectedItems[(int)$invoiceItem['variant_id']] = (float)$invoiceItem['qty'];
+                    }
+                    $submittedItems = [];
+                    foreach ($items as $item) {
+                        $variantId = (int)$item['variant_id'];
+                        $submittedItems[$variantId] = ($submittedItems[$variantId] ?? 0) + (float)$item['qty'];
+                    }
+                    ksort($expectedItems);
+                    ksort($submittedItems);
+                    if (array_keys($expectedItems) !== array_keys($submittedItems)) {
+                        throw new Exception('The outward items must match the POS invoice items.');
+                    }
+                    foreach ($expectedItems as $variantId => $expectedQty) {
+                        if (abs($expectedQty - $submittedItems[$variantId]) > 0.0001) {
+                            throw new Exception('The outward quantities must match the POS invoice quantities.');
+                        }
+                    }
+
+                    $customerId = (int)$posInvoice['customer_id'];
+                    $notes = trim($notes . ' POS invoice ' . $posInvoice['invoice_no'] . '; stock was deducted during billing.');
+                }
+
                 $boxes = max(1, (int)($_POST['total_boxes'] ?? 1));
                 $transferType = ($dispatchMode === 'customer' || !empty($customerId)) ? 'customer' : 'concern';
                 $puId = (int)DB::fetchValue("SELECT id FROM production_units WHERE concern_id = ? LIMIT 1", [$cid]) ?: 1;
 
                 DB::query("
                     INSERT INTO outwards (
-                        concern_id, production_unit_id, outward_no, gate_pass_no, customer_id, transfer_type,
+                        concern_id, production_unit_id, outward_no, sales_invoice_id, gate_pass_no, customer_id, transfer_type,
                         destination_concern_id, outward_date, location, warehouse_name, total_boxes,
                         vehicle_number, driver_name, driver_contact, transporter_name, dispatched_by_name,
                         notes, status, dispatched_at, created_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?, ?,
                         ?, CURDATE(), 'Main Store', ?, ?,
                         ?, ?, ?, ?, 'System Administrator',
                         ?, 'DISPATCHED', NOW(), NOW()
                     )
                 ", [
-                    $cid, $puId, $outwardNo, $gatePassNo, $customerId, $transferType,
+                    $cid, $puId, $outwardNo, $posInvoiceId ?: null, $gatePassNo, $customerId, $transferType,
                     $destConcernId, $warehouseName, $boxes,
                     $vehicleNumber, $driverName, $driverContact, $transporter, $notes
                 ]);
@@ -401,21 +516,29 @@ class OutwardController extends Controller {
                         VALUES (?, ?, ?, ?)
                     ", [$cid, $outwardId, $vId, $iQty]);
 
-                    // Deduct stock via StockService (qtyIn = 0.00, qtyOut = $iQty)
-                    StockService::move($cid, $vId, 'Main Store', 0.00, $iQty, 'Outward', $outwardId, "Outward FG dispatch {$outwardNo}");
+                    if ($posInvoiceId === 0) {
+                        StockService::move($cid, $vId, 'Main Store', 0.00, $iQty, 'Outward', $outwardId, "Outward FG dispatch {$outwardNo}");
+                    }
                 }
 
                 $qty = $totalPiecesDispatched;
             }
 
             DB::commit();
+            $handoffCompleted = $posInvoiceId > 0;
             $this->flash('success', "Outward Manifest {$outwardNo} successfully dispatched via {$vehicleNumber}! ({$qty} pcs, {$boxes} box)");
         } catch (\Throwable $e) {
             DB::rollBack();
             $this->flash('error', "Dispatch failed: " . $e->getMessage());
         }
 
-        $this->redirect('/production/outward');
+        $redirectPath = '/production/outward';
+        if ($posInvoiceId > 0) {
+            $redirectPath = $handoffCompleted
+                ? '/production/outward?tab=fg'
+                : "/production/outward?tab=fg&pos_invoice_id={$posInvoiceId}";
+        }
+        $this->redirect($redirectPath);
     }
 
     /**
@@ -481,8 +604,10 @@ class OutwardController extends Controller {
 
             // Restore deducted items if stock transfer
             $items = DB::fetchAll("SELECT * FROM outward_items WHERE outward_id = ?", [$id]);
-            foreach ($items as $item) {
-                StockService::move((int)$out['concern_id'], (int)$item['variant_id'], 'Main Store', (float)$item['qty'], 0.00, 'inward', $id, "Reverted outward deletion {$out['outward_no']}");
+            if (empty($out['sales_invoice_id'])) {
+                foreach ($items as $item) {
+                    StockService::move((int)$out['concern_id'], (int)$item['variant_id'], 'Main Store', (float)$item['qty'], 0.00, 'inward', $id, "Reverted outward deletion {$out['outward_no']}");
+                }
             }
 
             DB::query("DELETE FROM production_outward_batches WHERE outward_id = ?", [$id]);

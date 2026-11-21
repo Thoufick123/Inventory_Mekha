@@ -109,7 +109,8 @@
                             <td><span class="badge bg-danger">RETURN (IN)</span></td>
                             <td>
                                 <div class="fw-bold text-dark"><?= htmlspecialchars($item['variant_name']) ?></div>
-                                <small class="text-muted font-monospace"><?= htmlspecialchars($item['sku_code']) ?> (<?= htmlspecialchars($item['size'] ?? 'Standard') ?>)</small>
+                                <small class="badge bg-light text-dark border font-monospace">SKU: <?= htmlspecialchars($item['sku_code']) ?></small>
+                                <small class="text-muted">Size: <?= htmlspecialchars($item['size'] ?? 'Standard') ?></small>
                             </td>
                             <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($item['condition_state'] ?? 'Good') ?></span></td>
                             <td>
@@ -132,7 +133,8 @@
                             <td><span class="badge bg-success">EXCHANGE (OUT)</span></td>
                             <td>
                                 <div class="fw-bold text-dark"><?= htmlspecialchars($item['variant_name']) ?></div>
-                                <small class="text-muted font-monospace"><?= htmlspecialchars($item['sku_code']) ?> (<?= htmlspecialchars($item['size'] ?? 'Standard') ?>)</small>
+                                <small class="badge bg-light text-dark border font-monospace">SKU: <?= htmlspecialchars($item['sku_code']) ?></small>
+                                <small class="text-muted">Size: <?= htmlspecialchars($item['size'] ?? 'Standard') ?></small>
                             </td>
                             <td><span class="badge bg-light text-dark border">Brand New</span></td>
                             <td><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-box-arrow-up-right me-1"></i> Delivered to Customer</span></td>

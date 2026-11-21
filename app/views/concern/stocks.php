@@ -63,6 +63,11 @@
             'description' => 'Mapped finished goods from purchase inward',
             'items' => [],
         ],
+        'other' => [
+            'title' => 'Other Sources',
+            'description' => 'Stock with no matching production or purchase source entry',
+            'items' => [],
+        ],
     ];
     foreach ($stocks as $stock) {
         $source = $stock['stock_source'] ?? 'other';
@@ -71,7 +76,9 @@
         }
         $stockGroups[$source]['items'][] = $stock;
     }
-    $activeStockSource = !empty($stockGroups['own']['items']) ? 'own' : 'purchase';
+    $activeStockSource = !empty($stockGroups['own']['items'])
+        ? 'own'
+        : (!empty($stockGroups['purchase']['items']) ? 'purchase' : 'other');
     ?>
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
@@ -87,7 +94,7 @@
                             role="tab"
                             aria-controls="stock-table-body"
                             aria-selected="<?= $activeStockSource === $source ? 'true' : 'false' ?>">
-                        <i class="bi <?= $source === 'own' ? 'bi-boxes' : 'bi-bag-check' ?> me-1"></i>
+                        <i class="bi <?= $source === 'own' ? 'bi-boxes' : ($source === 'purchase' ? 'bi-bag-check' : 'bi-arrow-left-right') ?> me-1"></i>
                         <?= htmlspecialchars($group['title']) ?>
                         <span class="badge <?= $activeStockSource === $source ? 'bg-light text-primary' : 'bg-white text-dark border' ?> ms-1"><?= count($group['items']) ?></span>
                     </button>

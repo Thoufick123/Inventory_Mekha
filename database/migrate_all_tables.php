@@ -402,6 +402,8 @@ echo "\n16. Checking `production_stock_requests` & audit tables...\n";
 DB::query("CREATE TABLE IF NOT EXISTS `production_stock_requests` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
+    `source_concern_id` INT NULL,
+    `destination_concern_id` INT NULL,
     `request_no` VARCHAR(50) NOT NULL UNIQUE,
     `request_type` VARCHAR(50) NOT NULL DEFAULT 'INTER_MODULE',
     `from_location_type` VARCHAR(50) NOT NULL DEFAULT 'WAREHOUSE',
@@ -436,6 +438,15 @@ DB::query("CREATE TABLE IF NOT EXISTS `production_stock_requests` (
     INDEX `idx_psr_from` (`from_location_type`, `from_location_id`),
     INDEX `idx_psr_to` (`to_location_type`, `to_location_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$chkSrc = DB::fetchAll("SHOW COLUMNS FROM `production_stock_requests` LIKE 'source_concern_id'");
+if (empty($chkSrc)) {
+    DB::query("ALTER TABLE `production_stock_requests` ADD COLUMN `source_concern_id` INT NULL AFTER `concern_id`");
+}
+$chkDest = DB::fetchAll("SHOW COLUMNS FROM `production_stock_requests` LIKE 'destination_concern_id'");
+if (empty($chkDest)) {
+    DB::query("ALTER TABLE `production_stock_requests` ADD COLUMN `destination_concern_id` INT NULL AFTER `source_concern_id`");
+}
 
 DB::query("CREATE TABLE IF NOT EXISTS `production_stock_request_items` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -494,6 +505,37 @@ if (!$batchForeignKey) {
                REFERENCES `batches` (`id`) ON DELETE SET NULL");
 }
 echo "  + Production batch traceability is ready\n";
+
+// 19. POS DIRECT BILL AND COMPANY INVOICE DETAILS
+echo "\n19. Checking POS direct bill and company invoice fields...\n";
+$invoiceCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `sales_invoices`"), 'Field');
+if (!in_array('shipping_amount', $invoiceCols, true)) {
+    DB::query("ALTER TABLE `sales_invoices` ADD COLUMN `shipping_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `net_amount`");
+    $invoiceCols[] = 'shipping_amount';
+    echo "  + Added `shipping_amount` to `sales_invoices`\n";
+}
+if (!in_array('paid_amount', $invoiceCols, true)) {
+    DB::query("ALTER TABLE `sales_invoices` ADD COLUMN `paid_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `payment_status`");
+    $invoiceCols[] = 'paid_amount';
+    echo "  + Added `paid_amount` to `sales_invoices`\n";
+    DB::query("UPDATE `sales_invoices` SET `paid_amount` = `net_amount` WHERE `payment_status` = 'paid' AND `paid_amount` = 0 AND `net_amount` > 0");
+}
+$companyInvoiceColumns = [
+    'is_direct_bill' => 'TINYINT(1) NOT NULL DEFAULT 0 AFTER `paid_amount`',
+    'billing_company_name' => 'VARCHAR(150) NULL AFTER `is_direct_bill`',
+    'billing_company_address' => 'VARCHAR(255) NULL AFTER `billing_company_name`',
+    'billing_company_phone' => 'VARCHAR(30) NULL AFTER `billing_company_address`',
+    'billing_company_email' => 'VARCHAR(150) NULL AFTER `billing_company_phone`',
+    'billing_company_gstin' => 'VARCHAR(15) NULL AFTER `billing_company_email`',
+];
+foreach ($companyInvoiceColumns as $column => $definition) {
+    if (!in_array($column, $invoiceCols, true)) {
+        DB::query("ALTER TABLE `sales_invoices` ADD COLUMN `{$column}` {$definition}");
+        $invoiceCols[] = $column;
+        echo "  + Added `{$column}` to `sales_invoices`\n";
+    }
+}
+echo "  + POS direct bill and company invoice fields are ready\n";
 
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";

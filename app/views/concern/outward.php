@@ -120,6 +120,11 @@
                                     <small class="text-muted d-block" style="font-size:0.75rem;">
                                         Dispatched by <?= htmlspecialchars($o['display_dispatched_by'] ?? 'System Administrator') ?>
                                     </small>
+                                    <?php if (!empty($o['sales_invoice_no'])): ?>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle mt-1">
+                                            POS <?= htmlspecialchars($o['sales_invoice_no']) ?>
+                                        </span>
+                                    <?php endif; ?>
                                     <?php if (!empty($o['source_concern_code'])): ?>
                                         <span class="badge bg-light text-secondary border px-1.5 py-0 mt-0.5" style="font-size: 0.68rem;">
                                             <?= htmlspecialchars($o['source_concern_code']) ?>
@@ -261,6 +266,10 @@
         <form action="<?= \App\Core\Controller::url('/m/outward/store') ?>" method="POST" id="formAddOutward" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
             <input type="hidden" name="scanned_items_json" id="scanned_items_json" value="[]">
+            <?php if (!empty($posInvoiceTransfer)): ?>
+                <input type="hidden" name="pos_invoice_id" value="<?= (int)$posInvoiceTransfer['id'] ?>">
+                <input type="hidden" name="customer_id" value="<?= (int)$posInvoiceTransfer['customer_id'] ?>">
+            <?php endif; ?>
 
             <div class="modal-header bg-primary text-white py-3">
                 <h5 class="modal-title fw-bold"><i class="bi bi-truck me-2"></i> New Outward Dispatch Manifest</h5>
@@ -284,6 +293,14 @@
                         </label>
                     </div>
                 </div>
+
+                <?php if (!empty($posInvoiceTransfer)): ?>
+                    <div class="alert alert-info py-2 px-3 small">
+                        <strong>POS invoice <?= htmlspecialchars($posInvoiceTransfer['invoice_no']) ?></strong>
+                        &mdash; <?= htmlspecialchars($posInvoiceTransfer['customer_name']) ?>.
+                        Its items are prefilled and locked to the bill; inventory will not be deducted again.
+                    </div>
+                <?php endif; ?>
 
                 <!-- ========================================================================= -->
                 <!-- FLOW 1: PRODUCTION BATCH DISPATCH (Show the batches)                      -->
@@ -364,7 +381,7 @@
                 <!-- ========================================================================= -->
                 <div id="sectionFgMode" class="d-none">
                     <!-- Scanner Input Bar -->
-                    <div class="card border-0 bg-light p-3 rounded-3 mb-3 border">
+                    <div class="card border-0 bg-light p-3 rounded-3 mb-3 border <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>" id="fgScannerTools">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <label class="form-label small fw-bold text-dark mb-0 d-flex align-items-center gap-2">
                                 <i class="bi bi-upc-scan text-primary fs-5"></i> Scan Finishing Good Product QR / Barcode / SKU
@@ -437,7 +454,7 @@
 
                     <!-- Destination Concern (All created concerns listed) & Boxes for Finishing Goods -->
                     <div class="row g-3 mb-2 p-3 bg-light rounded-3 border">
-                        <div class="col-md-6">
+                        <div class="col-md-6 <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>" id="fgSourceConcernField">
                             <label class="form-label small fw-bold text-dark">
                                 <i class="bi bi-geo-alt-fill text-danger me-1"></i> Current Concern (Dispatched From) *
                             </label>
@@ -453,7 +470,7 @@
                             </small>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-6 <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>" id="fgDestinationConcernField">
                             <label class="form-label small fw-bold text-dark">
                                 <i class="bi bi-truck text-primary me-1"></i> Destination Concern (Outward To Concern) *
                             </label>
@@ -469,6 +486,15 @@
                                 <i class="bi bi-arrow-right-circle me-1"></i> Select from all created concerns which we outward to
                             </small>
                         </div>
+
+                        <?php if (!empty($posInvoiceTransfer)): ?>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-dark">Destination Customer</label>
+                                <div class="form-control form-control-sm bg-white">
+                                    <?= htmlspecialchars($posInvoiceTransfer['customer_name']) ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
 
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold text-secondary">
@@ -629,9 +655,24 @@
 <script>
 // Catalog variants lookup for barcode/QR scanner
 const availableVariants = <?= json_encode($stockVariants) ?>;
+const isPosInvoiceTransfer = <?= !empty($posInvoiceTransfer) ? 'true' : 'false' ?>;
+const initialPosInvoiceItems = <?= json_encode($posInvoiceItems ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
 // Scanned items dictionary: { variant_id: { variant_id, name, sku, size, stock, qty } }
 let scannedFgMap = {};
+if (isPosInvoiceTransfer) {
+    initialPosInvoiceItems.forEach(function(item) {
+        const id = parseInt(item.variant_id, 10);
+        scannedFgMap[id] = {
+            variant_id: id,
+            name: item.name,
+            sku: item.sku_code || 'SKU-' + id,
+            size: item.size || 'Free',
+            stock: 0,
+            qty: parseFloat(item.qty)
+        };
+    });
+}
 
 function filterBatchesByConcern(conId) {
     const select = document.getElementById('dispatchBatchSelect');
@@ -675,11 +716,11 @@ function toggleDispatchMode(mode) {
         fgSec.classList.remove('d-none');
         if (batchSelect) batchSelect.required = false;
         if (dispatchConcernSelect) dispatchConcernSelect.required = false;
-        if (fgDestConcernSelect) fgDestConcernSelect.required = true;
+        if (fgDestConcernSelect) fgDestConcernSelect.required = !isPosInvoiceTransfer;
         btnSubmit.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> Confirm & Outward Finishing Goods';
         setTimeout(() => {
             const input = document.getElementById('fgScanInput');
-            if (input) input.focus();
+            if (input && !isPosInvoiceTransfer) input.focus();
         }, 150);
     }
 }
@@ -846,6 +887,19 @@ function renderScannedTable() {
     let html = '';
     items.forEach((it, idx) => {
         const isOverStock = it.stock > 0 && it.qty > it.stock;
+        const stockLabel = isPosInvoiceTransfer
+            ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">POS invoice</span>'
+            : `<span class="badge ${isOverStock ? 'bg-danger' : 'bg-success-subtle text-success border border-success-subtle'}">Stock: ${it.stock} pcs</span>`;
+        const quantityControl = isPosInvoiceTransfer
+            ? `<span class="fw-bold font-monospace">${it.qty}</span>`
+            : `<div class="input-group input-group-sm" style="width: 120px;">
+                    <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, -1)">-</button>
+                    <input type="number" class="form-control text-center px-1 font-monospace fw-bold" value="${it.qty}" min="1" onchange="setScannedQtyManual(${it.variant_id}, this)">
+                    <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, 1)">+</button>
+                </div>`;
+        const removeAction = isPosInvoiceTransfer
+            ? '<span class="text-muted">-</span>'
+            : `<button type="button" class="btn btn-sm btn-outline-danger p-1" onclick="removeScannedItem(${it.variant_id})" title="Remove"><i class="bi bi-trash"></i></button>`;
         html += `
             <tr>
                 <td class="ps-3 py-2">
@@ -853,23 +907,9 @@ function renderScannedTable() {
                     <small class="text-muted font-monospace">${it.sku}</small>
                 </td>
                 <td><span class="badge bg-light text-dark border">${it.size}</span></td>
-                <td>
-                    <span class="badge ${isOverStock ? 'bg-danger' : 'bg-success-subtle text-success border border-success-subtle'}">
-                        Stock: ${it.stock} pcs
-                    </span>
-                </td>
-                <td>
-                    <div class="input-group input-group-sm" style="width: 120px;">
-                        <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, -1)">-</button>
-                        <input type="number" class="form-control text-center px-1 font-monospace fw-bold" value="${it.qty}" min="1" onchange="setScannedQtyManual(${it.variant_id}, this)">
-                        <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, 1)">+</button>
-                    </div>
-                </td>
-                <td class="text-end pe-3">
-                    <button type="button" class="btn btn-sm btn-outline-danger p-1" onclick="removeScannedItem(${it.variant_id})" title="Remove">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </td>
+                <td>${stockLabel}</td>
+                <td>${quantityControl}</td>
+                <td class="text-end pe-3">${removeAction}</td>
             </tr>
         `;
     });
@@ -891,6 +931,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Form submit validation for Finishing Good mode
     const form = document.getElementById('formAddOutward');
     if (form) {
+        if (isPosInvoiceTransfer) {
+            renderScannedTable();
+        }
         form.addEventListener('submit', function(e) {
             const isFg = document.getElementById('mode_fg').checked;
             if (isFg) {
@@ -902,6 +945,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+    }
+
+    if (isPosInvoiceTransfer) {
+        openNewDispatchModal('finished_goods');
     }
 });
 

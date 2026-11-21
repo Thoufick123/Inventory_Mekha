@@ -5,11 +5,11 @@
             <p class="text-secondary small mb-0">Reversible Return Merchandise Authorization with real exchanges, multi-line double-entry ledger & cancellation recovery.</p>
         </div>
         <div class="d-flex gap-2">
-            <a href="<?= \App\Core\Controller::url('/production/returns/create') ?>" class="btn btn-warning shadow-sm fw-semibold">
+            <a href="<?= \App\Core\Controller::url('/m/return_exchange') ?>" class="btn btn-warning shadow-sm fw-semibold">
                 <i class="bi bi-plus-lg me-1"></i> New Return / Exchange
             </a>
-            <a href="<?= \App\Core\Controller::url('/m/return_exchange') ?>" class="btn btn-outline-secondary shadow-sm">
-                <i class="bi bi-clock-history me-1"></i> Legacy Log
+            <a href="<?= \App\Core\Controller::url('/m/return_exchange#returnTransactions') ?>" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-clock-history me-1"></i> Return History
             </a>
         </div>
     </div>
@@ -70,6 +70,7 @@
                         <th>Status</th>
                         <th>Customer</th>
                         <th>Items Count</th>
+                        <th>Products / SKU Codes</th>
                         <th>Settlement</th>
                         <th>Net Balance</th>
                         <th>Date</th>
@@ -78,7 +79,7 @@
                 </thead>
                 <tbody>
                     <?php if (empty($returns)): ?>
-                        <tr><td colspan="9" class="text-center py-5 text-muted">No RMA return/exchange records found matching criteria.</td></tr>
+                        <tr><td colspan="10" class="text-center py-5 text-muted">No RMA return/exchange records found matching criteria.</td></tr>
                     <?php else: ?>
                         <?php foreach ($returns as $r): 
                             $badgeClass = match ($r['status']) {
@@ -109,6 +110,13 @@
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-dark border"><?= (int)$r['item_count'] ?> Line(s)</span>
+                                </td>
+                                <td class="small">
+                                    <?php if (!empty($r['product_codes'])): ?>
+                                        <span class="font-monospace text-muted"><?= nl2br(htmlspecialchars(str_replace(' | ', "\n", $r['product_codes']), ENT_QUOTES, 'UTF-8')) ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <div class="small fw-semibold"><?= htmlspecialchars($r['settlement_mode'] ?: 'Credit Note') ?></div>

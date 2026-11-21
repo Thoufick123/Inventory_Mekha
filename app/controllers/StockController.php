@@ -33,7 +33,7 @@ class StockController extends Controller {
                                  END,
                                  pbi.id DESC
                         LIMIT 1) AS purchase_item_id,
-                       CASE latest_inbound.ref_module
+                       CASE COALESCE(latest_inbound.ref_module, latest_variant_source.ref_module)
                            WHEN 'Production Inward' THEN 'own'
                            WHEN 'Production Stock Adjustment' THEN 'own'
                            WHEN 'Purchase Inward' THEN 'purchase'
@@ -53,12 +53,32 @@ class StockController extends Controller {
                         SELECT concern_id, variant_id, location, MAX(id) AS latest_id
                         FROM stock_ledger
                         WHERE qty_in > 0
+                          AND ref_module IN (
+                              'Production Inward', 'Production Stock Adjustment',
+                              'Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'
+                          )
                         GROUP BY concern_id, variant_id, location
                     ) latest ON latest.latest_id = inbound.id
                 ) latest_inbound
                   ON latest_inbound.concern_id = s.concern_id
                  AND latest_inbound.variant_id = s.variant_id
                  AND latest_inbound.location = s.location
+                LEFT JOIN (
+                    SELECT inbound.concern_id, inbound.variant_id, inbound.ref_module, inbound.ref_id
+                    FROM stock_ledger inbound
+                    JOIN (
+                        SELECT concern_id, variant_id, MAX(id) AS latest_id
+                        FROM stock_ledger
+                        WHERE qty_in > 0
+                          AND ref_module IN (
+                              'Production Inward', 'Production Stock Adjustment',
+                              'Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'
+                          )
+                        GROUP BY concern_id, variant_id
+                    ) latest ON latest.latest_id = inbound.id
+                ) latest_variant_source
+                  ON latest_variant_source.concern_id = s.concern_id
+                 AND latest_variant_source.variant_id = s.variant_id
                 LEFT JOIN (
                     SELECT inbound.concern_id, inbound.variant_id, inbound.location, inbound.ref_module, inbound.ref_id
                     FROM stock_ledger inbound
@@ -73,11 +93,7 @@ class StockController extends Controller {
                  AND latest_purchase.variant_id = s.variant_id
                  AND latest_purchase.location = s.location";
         
-        $sql .= " WHERE s.qty > 0
-                  AND latest_inbound.ref_module IN (
-                      'Production Inward', 'Production Stock Adjustment',
-                      'Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'
-                  )";
+        $sql .= " WHERE s.qty > 0";
         $params = [];
         if ($cid) {
             $sql .= " AND s.concern_id = ?";

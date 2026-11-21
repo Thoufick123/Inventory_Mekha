@@ -27,6 +27,10 @@ class ProductionReturnController extends Controller {
         $sql = "SELECT pr.*, c.name AS customer_name, c.phone AS customer_phone,
                        con.name AS concern_name, con.code AS concern_code,
                        (SELECT COUNT(*) FROM production_return_exchange_items WHERE return_id = pr.id) AS item_count,
+                       (SELECT GROUP_CONCAT(DISTINCT CONCAT(v.name, ' [', v.sku_code, ']') ORDER BY v.name SEPARATOR ' | ')
+                        FROM production_return_exchange_items prei
+                        JOIN variants v ON v.id = prei.variant_id
+                        WHERE prei.return_id = pr.id) AS product_codes,
                        (SELECT COALESCE(SUM(total_amount), 0) FROM production_return_exchange_items WHERE return_id = pr.id AND direction = 'IN') AS return_total,
                        (SELECT COALESCE(SUM(total_amount), 0) FROM production_return_exchange_items WHERE return_id = pr.id AND direction = 'OUT') AS exchange_total
                 FROM production_returns pr
@@ -131,10 +135,13 @@ class ProductionReturnController extends Controller {
     }
 
     public function store(): void {
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $this->validateCsrf();
+        $shopWorkflow = ($_POST['source_workflow'] ?? '') === 'shop';
+        $errorRedirect = $shopWorkflow ? '/m/return_exchange' : '/production/returns/create';
+        $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId() ?: (int)($_POST['concern_id'] ?? 0);
         if (!$cid) {
             $this->flash('error', 'Please select a valid business concern.');
-            $this->redirect('/production/returns');
+            $this->redirect($shopWorkflow ? '/m/return_exchange' : '/production/returns');
             return;
         }
 
@@ -149,6 +156,8 @@ class ProductionReturnController extends Controller {
 
         $inItems = json_decode($_POST['in_items'] ?? '[]', true);
         $outItems = json_decode($_POST['out_items'] ?? '[]', true);
+        $inItems = is_array($inItems) ? $inItems : [];
+        $outItems = is_array($outItems) ? $outItems : [];
 
         // Fallback to single-line input if legacy form submitted
         if (empty($inItems) && !empty($_POST['returned_variant_id'])) {
@@ -170,7 +179,17 @@ class ProductionReturnController extends Controller {
 
         if (empty($inItems)) {
             $this->flash('error', 'Please provide at least one returned item.');
-            $this->redirect('/production/returns/create');
+            $this->redirect($errorRedirect);
+            return;
+        }
+        if ($shopWorkflow && (!$salesInvoiceId || !$customerId || !in_array($type, ['RETURN', 'EXCHANGE'], true))) {
+            $this->flash('error', 'Choose an unused customer invoice and a valid return or exchange type.');
+            $this->redirect($errorRedirect);
+            return;
+        }
+        if ($shopWorkflow && $reason === '') {
+            $this->flash('error', 'Enter a reason for the customer return or exchange.');
+            $this->redirect($errorRedirect);
             return;
         }
 
@@ -180,6 +199,128 @@ class ProductionReturnController extends Controller {
         }
 
         try {
+            if ($salesInvoiceId) {
+                $invoice = DB::fetch(
+                    "SELECT id, concern_id, customer_id, total_amount, tax_amount
+                     FROM sales_invoices
+                     WHERE id = ? AND concern_id = ?
+                     LIMIT 1 FOR UPDATE",
+                    [$salesInvoiceId, $cid]
+                );
+                if (!$invoice) {
+                    throw new \RuntimeException('The selected invoice does not belong to this concern.');
+                }
+                if ($customerId !== null && (int)$invoice['customer_id'] !== $customerId) {
+                    throw new \RuntimeException('The selected customer does not match the invoice.');
+                }
+                $usedReturn = DB::fetch(
+                    "SELECT id FROM returns_exchanges WHERE sales_invoice_id = ? LIMIT 1 FOR UPDATE",
+                    [$salesInvoiceId]
+                );
+                $usedProductionReturn = DB::fetch(
+                    "SELECT id FROM production_returns WHERE sales_invoice_id = ? LIMIT 1 FOR UPDATE",
+                    [$salesInvoiceId]
+                );
+                if ($usedReturn || $usedProductionReturn) {
+                    throw new \RuntimeException('This invoice has already been used for a return or exchange.');
+                }
+
+                if ($shopWorkflow) {
+                    if (!in_array($settlementMode, ['Cash', 'UPI / QR', 'Card / POS', 'Cash + UPI', 'Exchange Adjustment'], true)) {
+                        throw new \RuntimeException('Choose a valid refund or exchange settlement method.');
+                    }
+                    $invoiceItems = DB::fetchAll(
+                        "SELECT id, variant_id, qty, total_price
+                         FROM sales_invoice_items
+                         WHERE sales_invoice_id = ?
+                         ORDER BY id ASC
+                         FOR UPDATE",
+                        [$salesInvoiceId]
+                    );
+                    $itemsById = [];
+                    foreach ($invoiceItems as $invoiceItem) {
+                        $itemsById[(int)$invoiceItem['id']] = $invoiceItem;
+                    }
+                    $seenInvoiceItems = [];
+                    $validatedInItems = [];
+                    foreach ($inItems as $item) {
+                        $invoiceItemId = (int)($item['invoice_item_id'] ?? 0);
+                        $qty = $item['qty'] ?? null;
+                        if ($invoiceItemId <= 0 || !isset($itemsById[$invoiceItemId]) || !is_numeric($qty) || (float)$qty <= 0) {
+                            throw new \RuntimeException('A returned item is not valid for the selected invoice.');
+                        }
+                        if (isset($seenInvoiceItems[$invoiceItemId])) {
+                            throw new \RuntimeException('Each invoice item can only be listed once in a return.');
+                        }
+                        $seenInvoiceItems[$invoiceItemId] = true;
+                        $invoiceItem = $itemsById[$invoiceItemId];
+                        $soldQty = (float)$invoiceItem['qty'];
+                        if ($soldQty <= 0 || (float)$qty > $soldQty) {
+                            throw new \RuntimeException('Returned quantity cannot exceed the quantity sold.');
+                        }
+                        $taxableValue = (float)$invoiceItem['total_price'];
+                        $taxShare = (float)$invoice['total_amount'] > 0
+                            ? (float)$invoice['tax_amount'] * ($taxableValue / (float)$invoice['total_amount'])
+                            : 0.0;
+                        $item['variant_id'] = (int)$invoiceItem['variant_id'];
+                        $item['unit_price'] = round(($taxableValue + $taxShare) / $soldQty, 2);
+                        $condition = trim((string)($item['condition_state'] ?? 'Good (Restock)'));
+                        if (!in_array($condition, ['Good (Restock)', 'Damaged (Do Not Restock)'], true)) {
+                            throw new \RuntimeException('Choose a valid returned-product condition.');
+                        }
+                        $item['condition_state'] = $condition;
+                        $item['action'] = $condition === 'Good (Restock)' ? 'RESTOCK' : 'SCRAP';
+                        $item['invoice_item_id'] = $invoiceItemId;
+                        $item['qty'] = (float)$qty;
+                        $validatedInItems[] = $item;
+                    }
+                    $inItems = $validatedInItems;
+
+                    if ($type === 'RETURN' && !empty($outItems)) {
+                        throw new \RuntimeException('Replacement items can only be added to an exchange.');
+                    }
+                    if ($type === 'EXCHANGE' && empty($outItems)) {
+                        throw new \RuntimeException('Add at least one replacement product for an exchange.');
+                    }
+                }
+            }
+
+            if ($shopWorkflow) {
+                $validatedOutItems = [];
+                $requestedOutQtyByVariant = [];
+                foreach ($outItems as $item) {
+                    $variantId = (int)($item['variant_id'] ?? 0);
+                    $qty = $item['qty'] ?? null;
+                    if ($variantId <= 0 || !is_numeric($qty) || (float)$qty <= 0) {
+                        throw new \RuntimeException('A replacement product or quantity is invalid.');
+                    }
+                    $variant = DB::fetch(
+                        "SELECT id, name, price FROM variants WHERE id = ? AND concern_id = ? AND status = 'active' LIMIT 1",
+                        [$variantId, $cid]
+                    );
+                    if (!$variant) {
+                        throw new \RuntimeException('A replacement product is not active in this shop.');
+                    }
+                    $requestedOutQtyByVariant[$variantId] = ($requestedOutQtyByVariant[$variantId] ?? 0) + (float)$qty;
+                    $stock = DB::fetch(
+                        "SELECT qty FROM stocks
+                         WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'
+                         LIMIT 1 FOR UPDATE",
+                        [$cid, $variantId]
+                    );
+                    $availableQty = $stock ? (float)$stock['qty'] : 0.0;
+                    if ($availableQty <= 0 || $requestedOutQtyByVariant[$variantId] > $availableQty) {
+                        throw new \RuntimeException(
+                            "Replacement product '{$variant['name']}' has {$availableQty} available in Main Store; requested {$requestedOutQtyByVariant[$variantId]}."
+                        );
+                    }
+                    $item['unit_price'] = (float)$variant['price'];
+                    $item['qty'] = (float)$qty;
+                    $validatedOutItems[] = $item;
+                }
+                $outItems = $validatedOutItems;
+            }
+
             $returnNo = DocumentNumberService::generate('RETURN', $cid);
 
             $totalInAmount = 0.00;
@@ -260,18 +401,30 @@ class ProductionReturnController extends Controller {
                         Auth::id()
                     );
                 } elseif ($action === 'SCRAP') {
+                    StockService::move(
+                        $cid,
+                        $variantId,
+                        'Main Store',
+                        $qty,
+                        0.00,
+                        'Return & Exchange',
+                        $returnId,
+                        "RMA Damaged Return Received [{$returnNo}]: {$reason}",
+                        Auth::id()
+                    );
                     DamageService::log(
                         $cid,
                         $variantId,
-                        'WAREHOUSE',
-                        1,
+                        'Main Store',
+                        'Main Store',
                         $qty,
                         "RMA Scrapped Return [{$returnNo}]: {$reason}",
                         "Logged from RMA {$returnNo}",
                         Auth::id(),
                         $photoUrl,
                         'SCRAP',
-                        'CONCERN'
+                        'CONCERN',
+                        true
                     );
                 }
             }
@@ -309,9 +462,10 @@ class ProductionReturnController extends Controller {
                 }
             }
 
-            // Sync with returns_exchanges table for backward compatibility
+            // Sync the invoice summary with the shop return register.
             $firstIn = $inItems[0] ?? null;
             $firstOut = $outItems[0] ?? null;
+            $legacyReturnId = null;
             if ($firstIn) {
                 DB::query(
                     "INSERT INTO returns_exchanges (
@@ -327,6 +481,36 @@ class ProductionReturnController extends Controller {
                         $reason, Auth::id()
                     ]
                 );
+                $legacyReturnId = (int)DB::lastInsertId();
+
+                foreach ($inItems as $item) {
+                    $qty = (float)$item['qty'];
+                    $price = (float)$item['unit_price'];
+                    DB::query(
+                        "INSERT INTO return_exchange_items (
+                            return_id, direction, variant_id, qty, unit_price, total_amount, condition_state, restock_action, created_at
+                         ) VALUES (?, 'IN', ?, ?, ?, ?, ?, ?, NOW())",
+                        [
+                            $legacyReturnId,
+                            (int)$item['variant_id'],
+                            $qty,
+                            $price,
+                            $qty * $price,
+                            trim((string)($item['condition_state'] ?? 'Good')),
+                            strtoupper(trim((string)($item['action'] ?? 'RESTOCK'))),
+                        ]
+                    );
+                }
+                foreach ($outItems as $item) {
+                    $qty = (float)$item['qty'];
+                    $price = (float)$item['unit_price'];
+                    DB::query(
+                        "INSERT INTO return_exchange_items (
+                            return_id, direction, variant_id, qty, unit_price, total_amount, created_at
+                         ) VALUES (?, 'OUT', ?, ?, ?, ?, NOW())",
+                        [$legacyReturnId, (int)$item['variant_id'], $qty, $price, $qty * $price]
+                    );
+                }
             }
 
             AuditService::log('RETURN_CREATE', 'production_returns', $returnId, null, [
@@ -343,13 +527,13 @@ class ProductionReturnController extends Controller {
             }
 
             $this->flash('success', "Return/Exchange '{$returnNo}' processed successfully and stock ledger balanced.");
-            $this->redirect('/production/returns/view/' . $returnId);
+            $this->redirect($shopWorkflow ? '/m/return_exchange' : '/production/returns/view/' . $returnId);
         } catch (\Throwable $e) {
             if (!$hasActiveTx) {
                 DB::rollBack();
             }
             $this->flash('error', 'Failed to process return: ' . $e->getMessage());
-            $this->redirect('/production/returns/create');
+            $this->redirect($errorRedirect);
         }
     }
 
