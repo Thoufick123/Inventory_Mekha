@@ -39,7 +39,7 @@
         <div class="col-md-6">
             <div class="card-stat d-flex justify-content-between align-items-center">
                 <div>
-                    <span class="text-secondary small fw-semibold text-uppercase">Total Stock Valuation</span>
+                    <span class="text-secondary small fw-semibold text-uppercase">Total Cost Valuation</span>
                     <h3 class="fw-bold text-success mt-1 mb-0">₹<?= number_format($totalValuation, 2) ?></h3>
                 </div>
                 <div class="stat-icon-box bg-success bg-opacity-10 text-success">
@@ -108,7 +108,7 @@
                         <th>Variant Description</th>
                         <th>Category / Specs</th>
                         <th>Qty</th>
-                        <th>Unit Rate</th>
+                        <th>Cost / Selling Price</th>
                         <th>Net Value</th>
                         <th class="text-end">Actions</th>
                     </tr>
@@ -189,10 +189,10 @@
                                             </span>
                                         </td>
                                         <td>
-                                            ₹<?= number_format((float)$s['price'], 2) ?>
-                                            <small class="d-block text-muted">MRP ₹<?= number_format((float)$s['mrp'], 2) ?></small>
+                                            <span class="d-block text-success">Cost ₹<?= number_format((float)$s['cost_price'], 2) ?></span>
+                                            <small class="d-block text-muted">Selling ₹<?= number_format((float)$s['price'], 2) ?> · MRP ₹<?= number_format((float)$s['mrp'], 2) ?></small>
                                         </td>
-                                        <td class="fw-bold text-dark">₹<?= number_format($s['qty'] * $s['price'], 2) ?></td>
+                                        <td class="fw-bold text-dark">₹<?= number_format($s['qty'] * $s['cost_price'], 2) ?></td>
                                         <td class="text-end">
                                             <div class="d-inline-flex flex-wrap justify-content-end gap-1">
                                                 <button type="button"
@@ -213,6 +213,7 @@
                                                         data-weight="<?= htmlspecialchars((string)((float)$s['weight'] > 0 ? number_format((float)$s['weight'], 3) . ' ' . $s['weight_unit'] : '-'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-quantity="<?= (int)round((float)$s['qty']) ?>"
                                                         data-unit="<?= htmlspecialchars($stockUnit, ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-cost-price="<?= number_format((float)$s['cost_price'], 2) ?>"
                                                         data-price="<?= number_format((float)$s['price'], 2) ?>"
                                                         data-mrp="<?= number_format((float)$s['mrp'], 2) ?>"
                                                         data-source="<?= htmlspecialchars((string)($s['stock_source'] ?? 'other'), ENT_QUOTES, 'UTF-8') ?>"
@@ -264,6 +265,7 @@
                                                             data-hsn="<?= htmlspecialchars((string)($variantAttributes['hsn'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                                             data-weight="<?= (float)($s['weight'] ?? 0) ?>"
                                                             data-weight-unit="<?= htmlspecialchars((string)($s['weight_unit'] ?: 'kg'), ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-cost-price="<?= (float)($s['cost_price'] ?? 0) ?>"
                                                             data-price="<?= (float)($s['price'] ?? 0) ?>"
                                                             data-mrp="<?= (float)($s['mrp'] ?? 0) ?>"
                                                             data-quantity="<?= (int)round((float)$s['qty']) ?>"
@@ -316,6 +318,9 @@
             <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bulkComplementaryModal">
                 <i class="bi bi-gift me-1"></i>Mark as Complementary
             </button>
+            <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bulkUndoComplementaryModal">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Undo Complementary
+            </button>
             <?php endif; ?>
         </div>
     </div>
@@ -341,14 +346,14 @@
                         <i class="bi bi-info-circle me-1"></i> Updating price for <strong id="bulkPriceCount">0</strong> selected product(s).
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold" for="bulkNewPrice">New Cost Price / Unit Rate (₹) <span class="text-danger">*</span></label>
+                        <label class="form-label fw-semibold" for="bulkNewPrice">New Selling Price (₹) <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text">₹</span>
                             <input type="number" class="form-control" id="bulkNewPrice" name="price" step="0.01" min="0" required placeholder="e.g. 350.00">
                         </div>
                     </div>
                     <div class="mb-0">
-                        <label class="form-label fw-semibold" for="bulkNewMrp">New Selling MRP (₹) <span class="text-muted small">(optional — leave blank to keep current)</span></label>
+                        <label class="form-label fw-semibold" for="bulkNewMrp">New MRP (₹) <span class="text-muted small">(optional — leave blank to keep current)</span></label>
                         <div class="input-group">
                             <span class="input-group-text">₹</span>
                             <input type="number" class="form-control" id="bulkNewMrp" name="mrp" step="0.01" min="0" placeholder="Leave blank to keep current MRP">
@@ -388,6 +393,38 @@
                 <div class="modal-footer bg-light py-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-warning text-dark"><i class="bi bi-gift me-1"></i>Confirm Complementary</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal: Undo Complementary -->
+<?php if ($canEditStock): ?>
+<div class="modal fade" id="bulkUndoComplementaryModal" tabindex="-1" aria-labelledby="bulkUndoComplementaryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-0">
+            <form method="post" action="<?= \App\Core\Controller::url('/m/stocks/bulk-unassign-complementary') ?>">
+                <div class="modal-header bg-secondary bg-opacity-10 py-3 border-bottom">
+                    <h5 class="modal-title fw-bold text-dark" id="bulkUndoComplementaryModalLabel">
+                        <i class="bi bi-arrow-counterclockwise me-2 text-secondary"></i>Undo Complementary
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="concern_id" id="bulkUndoConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
+                    <div id="bulkUndoVariantInputs"><!-- filled by JS --></div>
+                    <div class="alert alert-secondary py-2 small mb-3">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Confirm:</strong> The following <span id="bulkUndoCount">0</span> product(s) will be restored to <strong>Normal</strong> (complementary flag removed):
+                    </div>
+                    <ul class="list-group list-group-flush small mb-0" id="bulkUndoProductList" style="max-height:200px; overflow-y:auto;"></ul>
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Confirm Undo</button>
                 </div>
             </form>
         </div>
@@ -463,15 +500,19 @@
                                 <strong id="detailWeight" class="text-dark">-</strong>
                             </div>
                             <div class="col-sm-6 col-md-4">
-                                <span class="text-muted d-block">Unit Cost Rate</span>
+                                <span class="text-muted d-block">Cost Price</span>
                                 <strong id="detailCostPrice" class="text-dark text-success">-</strong>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <span class="text-muted d-block">Selling Price</span>
+                                <strong id="detailSellingPrice" class="text-dark">-</strong>
                             </div>
                             <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">Selling MRP</span>
                                 <strong id="detailMrp" class="text-dark">-</strong>
                             </div>
                             <div class="col-sm-6 col-md-4">
-                                <span class="text-muted d-block">Stock Valuation</span>
+                                <span class="text-muted d-block">Stock Valuation at Cost</span>
                                 <strong id="detailValuation" class="text-dark text-primary">-</strong>
                             </div>
                         </div>
@@ -584,103 +625,6 @@
     </div>
 </div>
 
-<!-- Bulk Action Bar -->
-<div id="bulkActionBar" class="d-none" style="position:sticky; bottom:0; z-index:1030; background:#fff; border-top:2px solid #0d6efd; padding:12px 20px; box-shadow:0 -4px 12px rgba(0,0,0,0.1);">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-primary fs-6" id="bulkSelectedCount">0</span>
-            <span class="text-dark fw-semibold">items selected</span>
-        </div>
-        <div class="d-flex gap-2 ms-auto flex-wrap">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="bulkClearSelection">
-                <i class="bi bi-x-circle me-1"></i>Clear
-            </button>
-            <?php if ($canEditStock): ?>
-            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#bulkPriceModal">
-                <i class="bi bi-currency-rupee me-1"></i>Change Price
-            </button>
-            <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bulkComplementaryModal">
-                <i class="bi bi-gift me-1"></i>Mark as Complementary
-            </button>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Bulk Price Update -->
-<?php if ($canEditStock): ?>
-<div class="modal fade" id="bulkPriceModal" tabindex="-1" aria-labelledby="bulkPriceModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow border-0">
-            <form method="post" action="<?= \App\Core\Controller::url('/m/stocks/bulk-update-price') ?>">
-                <div class="modal-header bg-light py-3 border-bottom">
-                    <h5 class="modal-title fw-bold text-dark" id="bulkPriceModalLabel">
-                        <i class="bi bi-currency-rupee me-2 text-primary"></i>Bulk Change Price
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                    <input type="hidden" name="concern_id" id="bulkPriceConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
-                    <div id="bulkPriceVariantInputs"><!-- filled by JS --></div>
-                    <div class="alert alert-info py-2 small mb-3">
-                        <i class="bi bi-info-circle me-1"></i> Updating price for <strong id="bulkPriceCount">0</strong> selected product(s).
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" for="bulkNewPrice">New Cost Price / Unit Rate (₹) <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">₹</span>
-                            <input type="number" class="form-control" id="bulkNewPrice" name="price" step="0.01" min="0" required placeholder="e.g. 350.00">
-                        </div>
-                    </div>
-                    <div class="mb-0">
-                        <label class="form-label fw-semibold" for="bulkNewMrp">New Selling MRP (₹) <span class="text-muted small">(optional — leave blank to keep current)</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">₹</span>
-                            <input type="number" class="form-control" id="bulkNewMrp" name="mrp" step="0.01" min="0" placeholder="Leave blank to keep current MRP">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-light py-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Update Price</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Bulk Mark as Complementary -->
-<div class="modal fade" id="bulkComplementaryModal" tabindex="-1" aria-labelledby="bulkComplementaryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow border-0">
-            <form method="post" action="<?= \App\Core\Controller::url('/m/stocks/bulk-assign-complementary') ?>">
-                <div class="modal-header bg-warning bg-opacity-10 py-3 border-bottom">
-                    <h5 class="modal-title fw-bold text-dark" id="bulkComplementaryModalLabel">
-                        <i class="bi bi-gift me-2 text-warning"></i>Mark as Complementary
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                    <input type="hidden" name="concern_id" id="bulkCompConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
-                    <div id="bulkCompVariantInputs"><!-- filled by JS --></div>
-                    <div class="alert alert-warning py-2 small mb-3">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        <strong>Confirm:</strong> The following <span id="bulkCompCount">0</span> product(s) will be flagged as <strong>Complementary</strong>:
-                    </div>
-                    <ul class="list-group list-group-flush small mb-0" id="bulkCompProductList" style="max-height:200px; overflow-y:auto;"></ul>
-                </div>
-                <div class="modal-footer bg-light py-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning text-dark"><i class="bi bi-gift me-1"></i>Confirm Complementary</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
 <?php if ($canEditStock): ?>
 <!-- Modal: Edit All Product & Stock Details -->
 <div class="modal fade" id="stockEditModal" tabindex="-1" aria-labelledby="stockEditModalLabel" aria-hidden="true">
@@ -789,19 +733,30 @@
                     <!-- 3. Pricing & Valuation -->
                     <h6 class="fw-bold text-dark mb-3 border-bottom pb-1"><i class="bi bi-cash-stack me-1 text-primary"></i> 3. Pricing & Valuation</h6>
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small text-muted" for="stockEditPrice">Cost Price / Unit Rate (₹)</label>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-muted" for="stockEditCostPrice">Cost Price (₹) *</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" class="form-control" id="stockEditPrice" name="price" step="0.01" min="0" placeholder="0.00">
+                                <input type="number" class="form-control" id="stockEditCostPrice" name="cost_price" step="0.01" min="0" max="9999999999.99" required placeholder="0.00">
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold small text-muted" for="stockEditMrp">Selling MRP (₹)</label>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-muted" for="stockEditPrice">Selling Price (₹) *</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" class="form-control" id="stockEditMrp" name="mrp" step="0.01" min="0" placeholder="0.00">
+                                <input type="number" class="form-control" id="stockEditPrice" name="price" step="0.01" min="0" max="9999999999.99" required placeholder="0.00">
                             </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-muted" for="stockEditMrp">Selling MRP (₹) *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" class="form-control" id="stockEditMrp" name="mrp" step="0.01" min="0" max="9999999999.99" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div id="stockEditPriceValidation" class="small text-danger" aria-live="polite"></div>
+                            <small class="form-text text-muted">Enter prices in this order: Cost Price &lt; Selling Price &lt; MRP.</small>
                         </div>
                     </div>
                 </div>
@@ -813,103 +768,6 @@
         </div>
     </div>
 </div>
-
-<!-- Bulk Action Bar -->
-<div id="bulkActionBar" class="d-none" style="position:sticky; bottom:0; z-index:1030; background:#fff; border-top:2px solid #0d6efd; padding:12px 20px; box-shadow:0 -4px 12px rgba(0,0,0,0.1);">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-primary fs-6" id="bulkSelectedCount">0</span>
-            <span class="text-dark fw-semibold">items selected</span>
-        </div>
-        <div class="d-flex gap-2 ms-auto flex-wrap">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="bulkClearSelection">
-                <i class="bi bi-x-circle me-1"></i>Clear
-            </button>
-            <?php if ($canEditStock): ?>
-            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#bulkPriceModal">
-                <i class="bi bi-currency-rupee me-1"></i>Change Price
-            </button>
-            <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bulkComplementaryModal">
-                <i class="bi bi-gift me-1"></i>Mark as Complementary
-            </button>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Bulk Price Update -->
-<?php if ($canEditStock): ?>
-<div class="modal fade" id="bulkPriceModal" tabindex="-1" aria-labelledby="bulkPriceModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow border-0">
-            <form method="post" action="<?= \App\Core\Controller::url('/m/stocks/bulk-update-price') ?>">
-                <div class="modal-header bg-light py-3 border-bottom">
-                    <h5 class="modal-title fw-bold text-dark" id="bulkPriceModalLabel">
-                        <i class="bi bi-currency-rupee me-2 text-primary"></i>Bulk Change Price
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                    <input type="hidden" name="concern_id" id="bulkPriceConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
-                    <div id="bulkPriceVariantInputs"><!-- filled by JS --></div>
-                    <div class="alert alert-info py-2 small mb-3">
-                        <i class="bi bi-info-circle me-1"></i> Updating price for <strong id="bulkPriceCount">0</strong> selected product(s).
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" for="bulkNewPrice">New Cost Price / Unit Rate (₹) <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">₹</span>
-                            <input type="number" class="form-control" id="bulkNewPrice" name="price" step="0.01" min="0" required placeholder="e.g. 350.00">
-                        </div>
-                    </div>
-                    <div class="mb-0">
-                        <label class="form-label fw-semibold" for="bulkNewMrp">New Selling MRP (₹) <span class="text-muted small">(optional — leave blank to keep current)</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">₹</span>
-                            <input type="number" class="form-control" id="bulkNewMrp" name="mrp" step="0.01" min="0" placeholder="Leave blank to keep current MRP">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-light py-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Update Price</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Bulk Mark as Complementary -->
-<div class="modal fade" id="bulkComplementaryModal" tabindex="-1" aria-labelledby="bulkComplementaryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow border-0">
-            <form method="post" action="<?= \App\Core\Controller::url('/m/stocks/bulk-assign-complementary') ?>">
-                <div class="modal-header bg-warning bg-opacity-10 py-3 border-bottom">
-                    <h5 class="modal-title fw-bold text-dark" id="bulkComplementaryModalLabel">
-                        <i class="bi bi-gift me-2 text-warning"></i>Mark as Complementary
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                    <input type="hidden" name="concern_id" id="bulkCompConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
-                    <div id="bulkCompVariantInputs"><!-- filled by JS --></div>
-                    <div class="alert alert-warning py-2 small mb-3">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        <strong>Confirm:</strong> The following <span id="bulkCompCount">0</span> product(s) will be flagged as <strong>Complementary</strong>:
-                    </div>
-                    <ul class="list-group list-group-flush small mb-0" id="bulkCompProductList" style="max-height:200px; overflow-y:auto;"></ul>
-                </div>
-                <div class="modal-footer bg-light py-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning text-dark"><i class="bi bi-gift me-1"></i>Confirm Complementary</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
 
 <!-- Fallback / Backward Compatibility Modal for Quantity Only -->
 <div class="modal fade d-none" id="stockQuantityModal" tabindex="-1" aria-hidden="true">
@@ -924,103 +782,6 @@
         </div>
     </div>
 </div>
-
-<!-- Bulk Action Bar -->
-<div id="bulkActionBar" class="d-none" style="position:sticky; bottom:0; z-index:1030; background:#fff; border-top:2px solid #0d6efd; padding:12px 20px; box-shadow:0 -4px 12px rgba(0,0,0,0.1);">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-primary fs-6" id="bulkSelectedCount">0</span>
-            <span class="text-dark fw-semibold">items selected</span>
-        </div>
-        <div class="d-flex gap-2 ms-auto flex-wrap">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="bulkClearSelection">
-                <i class="bi bi-x-circle me-1"></i>Clear
-            </button>
-            <?php if ($canEditStock): ?>
-            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#bulkPriceModal">
-                <i class="bi bi-currency-rupee me-1"></i>Change Price
-            </button>
-            <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bulkComplementaryModal">
-                <i class="bi bi-gift me-1"></i>Mark as Complementary
-            </button>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Bulk Price Update -->
-<?php if ($canEditStock): ?>
-<div class="modal fade" id="bulkPriceModal" tabindex="-1" aria-labelledby="bulkPriceModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow border-0">
-            <form method="post" action="<?= \App\Core\Controller::url('/m/stocks/bulk-update-price') ?>">
-                <div class="modal-header bg-light py-3 border-bottom">
-                    <h5 class="modal-title fw-bold text-dark" id="bulkPriceModalLabel">
-                        <i class="bi bi-currency-rupee me-2 text-primary"></i>Bulk Change Price
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                    <input type="hidden" name="concern_id" id="bulkPriceConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
-                    <div id="bulkPriceVariantInputs"><!-- filled by JS --></div>
-                    <div class="alert alert-info py-2 small mb-3">
-                        <i class="bi bi-info-circle me-1"></i> Updating price for <strong id="bulkPriceCount">0</strong> selected product(s).
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" for="bulkNewPrice">New Cost Price / Unit Rate (₹) <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">₹</span>
-                            <input type="number" class="form-control" id="bulkNewPrice" name="price" step="0.01" min="0" required placeholder="e.g. 350.00">
-                        </div>
-                    </div>
-                    <div class="mb-0">
-                        <label class="form-label fw-semibold" for="bulkNewMrp">New Selling MRP (₹) <span class="text-muted small">(optional — leave blank to keep current)</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">₹</span>
-                            <input type="number" class="form-control" id="bulkNewMrp" name="mrp" step="0.01" min="0" placeholder="Leave blank to keep current MRP">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-light py-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Update Price</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Bulk Mark as Complementary -->
-<div class="modal fade" id="bulkComplementaryModal" tabindex="-1" aria-labelledby="bulkComplementaryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow border-0">
-            <form method="post" action="<?= \App\Core\Controller::url('/m/stocks/bulk-assign-complementary') ?>">
-                <div class="modal-header bg-warning bg-opacity-10 py-3 border-bottom">
-                    <h5 class="modal-title fw-bold text-dark" id="bulkComplementaryModalLabel">
-                        <i class="bi bi-gift me-2 text-warning"></i>Mark as Complementary
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                    <input type="hidden" name="concern_id" id="bulkCompConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
-                    <div id="bulkCompVariantInputs"><!-- filled by JS --></div>
-                    <div class="alert alert-warning py-2 small mb-3">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        <strong>Confirm:</strong> The following <span id="bulkCompCount">0</span> product(s) will be flagged as <strong>Complementary</strong>:
-                    </div>
-                    <ul class="list-group list-group-flush small mb-0" id="bulkCompProductList" style="max-height:200px; overflow-y:auto;"></ul>
-                </div>
-                <div class="modal-footer bg-light py-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning text-dark"><i class="bi bi-gift me-1"></i>Confirm Complementary</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
 <?php endif; ?>
 
 <script>
@@ -1078,9 +839,10 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         document.getElementById('detailColor').textContent = d.color || '-';
         document.getElementById('detailHsn').textContent = d.hsn || '-';
         document.getElementById('detailWeight').textContent = d.weight || '-';
-        document.getElementById('detailCostPrice').textContent = '₹' + (d.price || '0.00');
+        document.getElementById('detailCostPrice').textContent = '₹' + (d.costPrice || '0.00');
+        document.getElementById('detailSellingPrice').textContent = '₹' + (d.price || '0.00');
         document.getElementById('detailMrp').textContent = '₹' + (d.mrp || '0.00');
-        const valuation = (parseFloat(d.quantity || 0) * parseFloat(d.price || 0)).toFixed(2);
+        const valuation = (parseFloat(d.quantity || 0) * parseFloat(d.costPrice || 0)).toFixed(2);
         document.getElementById('detailValuation').textContent = '₹' + valuation;
 
         // Reset Purchase Billing Card state
@@ -1122,7 +884,8 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                     document.getElementById('detailColor').textContent = v.color || '-';
                     document.getElementById('detailHsn').textContent = v.hsn || '-';
                     document.getElementById('detailWeight').textContent = v.weight > 0 ? (v.weight + ' ' + v.weight_unit) : '-';
-                    document.getElementById('detailCostPrice').textContent = '₹' + Number(v.price).toFixed(2);
+                    document.getElementById('detailCostPrice').textContent = '₹' + Number(v.cost_price).toFixed(2);
+                    document.getElementById('detailSellingPrice').textContent = '₹' + Number(v.price).toFixed(2);
                     document.getElementById('detailMrp').textContent = '₹' + Number(v.mrp).toFixed(2);
                 }
                 if (data.stock) {
@@ -1226,6 +989,49 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
 // Edit Details Modal Handler
 const categorySelect = document.getElementById('stockEditCategory');
 const subcategorySelect = document.getElementById('stockEditSubcategory');
+const stockEditForm = document.querySelector('#stockEditModal form');
+const stockEditCostPrice = document.getElementById('stockEditCostPrice');
+const stockEditSellingPrice = document.getElementById('stockEditPrice');
+const stockEditMrp = document.getElementById('stockEditMrp');
+const stockEditPriceValidation = document.getElementById('stockEditPriceValidation');
+
+function validateStockEditPrices() {
+    if (!stockEditCostPrice || !stockEditSellingPrice || !stockEditMrp) return true;
+
+    [stockEditCostPrice, stockEditSellingPrice, stockEditMrp].forEach(input => input.setCustomValidity(''));
+    const costPrice = stockEditCostPrice.valueAsNumber;
+    const sellingPrice = stockEditSellingPrice.valueAsNumber;
+    const mrp = stockEditMrp.valueAsNumber;
+    if (![costPrice, sellingPrice, mrp].every(Number.isFinite)) {
+        if (stockEditPriceValidation) stockEditPriceValidation.textContent = '';
+        return true;
+    }
+
+    let message = '';
+    if (costPrice >= sellingPrice) {
+        message = 'Cost Price must be less than Selling Price.';
+        stockEditCostPrice.setCustomValidity(message);
+        stockEditSellingPrice.setCustomValidity('Selling Price must be greater than Cost Price.');
+    } else if (sellingPrice >= mrp) {
+        message = 'Selling Price must be less than MRP.';
+        stockEditSellingPrice.setCustomValidity(message);
+        stockEditMrp.setCustomValidity('MRP must be greater than Selling Price.');
+    }
+    if (stockEditPriceValidation) stockEditPriceValidation.textContent = message;
+    return message === '';
+}
+
+[stockEditCostPrice, stockEditSellingPrice, stockEditMrp].forEach(input => {
+    if (input) input.addEventListener('input', validateStockEditPrices);
+});
+if (stockEditForm) {
+    stockEditForm.addEventListener('submit', event => {
+        if (!validateStockEditPrices()) {
+            event.preventDefault();
+            stockEditForm.reportValidity();
+        }
+    });
+}
 
 function filterSubcategories(catId) {
     if (!subcategorySelect) return;
@@ -1271,9 +1077,11 @@ document.querySelectorAll('[data-stock-edit]').forEach(button => {
             document.getElementById('stockEditHsn').value = d.hsn || '';
             document.getElementById('stockEditWeight').value = d.weight || '0';
             document.getElementById('stockEditWeightUnit').value = d.weightUnit || 'kg';
+            document.getElementById('stockEditCostPrice').value = d.costPrice || '0.00';
             document.getElementById('stockEditPrice').value = d.price || '0.00';
             document.getElementById('stockEditMrp').value = d.mrp || '0.00';
             document.getElementById('stockEditQuantity').value = d.quantity || '0';
+            validateStockEditPrices();
         }
 
         // Backward compatibility support for old modal ids
@@ -1402,6 +1210,34 @@ if (bulkCompModal) {
             const li = document.createElement('li');
             li.className = 'list-group-item py-1 px-2';
             li.innerHTML = `<i class="bi bi-box me-1 text-warning"></i><strong>${item.name}</strong> <span class="text-muted small ms-1">— ₹${item.price}</span>`;
+            list.appendChild(li);
+        });
+    });
+}
+// Populate undo complementary modal
+const bulkUndoModal = document.getElementById('bulkUndoComplementaryModal');
+if (bulkUndoModal) {
+    bulkUndoModal.addEventListener('show.bs.modal', () => {
+        const uniqueItems = [];
+        const seen = new Set();
+        selectedStockItems.forEach(i => { if (!seen.has(i.variantId)) { seen.add(i.variantId); uniqueItems.push(i); } });
+        document.getElementById('bulkUndoCount').textContent = uniqueItems.length;
+        if (uniqueItems.length > 0) {
+            document.getElementById('bulkUndoConcernId').value = uniqueItems[0].concernId;
+        }
+        const inputContainer = document.getElementById('bulkUndoVariantInputs');
+        inputContainer.innerHTML = '';
+        uniqueItems.forEach(item => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = 'variant_ids[]'; inp.value = item.variantId;
+            inputContainer.appendChild(inp);
+        });
+        const list = document.getElementById('bulkUndoProductList');
+        list.innerHTML = '';
+        uniqueItems.forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item py-1 px-2';
+            li.innerHTML = `<i class="bi bi-box me-1 text-secondary"></i><strong>${item.name}</strong> <span class="text-muted small ms-1">— ₹${item.price}</span>`;
             list.appendChild(li);
         });
     });

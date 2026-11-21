@@ -91,9 +91,14 @@ $router->post('/api/qr/lookup', [LabelController::class, 'lookup'], 'stocks', 'v
 
 // Stock & Ledger
 $router->get('/m/stocks', [StockController::class, 'index'], 'stocks', 'view');
+$router->get('/m/stocks/details', [StockController::class, 'details'], 'stocks', 'view');
 $router->get('/m/stocks/view-label', [LabelController::class, 'previewPurchaseFinishedGoodLabel'], 'stocks', 'view');
+$router->post('/m/stocks/update-details', [StockController::class, 'updateDetails'], 'stocks', 'edit');
 $router->post('/m/stocks/update-quantity', [StockController::class, 'updateQuantity'], 'stocks', 'edit');
 $router->post('/m/stocks/delete-line', [StockController::class, 'deleteStockLine'], 'stocks', 'edit');
+$router->post('/m/stocks/bulk-update-price', [StockController::class, 'bulkUpdatePrice'], 'stocks', 'edit');
+$router->post('/m/stocks/bulk-assign-complementary', [StockController::class, 'bulkAssignComplementary'], 'stocks', 'edit');
+$router->post('/m/stocks/bulk-unassign-complementary', [StockController::class, 'bulkUnassignComplementary'], 'stocks', 'edit');
 $router->get('/m/stocks/export', [StockController::class, 'exportStocks'], 'stocks', 'view');
 $router->get('/m/stock_ledger', [StockController::class, 'ledger'], 'stocks', 'view');
 $router->get('/m/stock_ledger/export', [StockController::class, 'exportLedger'], 'stocks', 'view');
@@ -202,10 +207,11 @@ $router->post('/production/batches/update', [BatchController::class, 'update'], 
 $router->post('/m/batch/delete', [BatchController::class, 'delete'], 'batch', 'delete');
 $router->post('/production/batches/delete', [BatchController::class, 'delete'], 'batch', 'delete');
 $router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'view');
-$router->get('/m/billing', [SalesController::class, 'billing'], 'billing', 'view');
+$router->get('/m/billing', [SalesController::class, 'billingOverview'], 'billing', 'view');
+$router->get('/m/billing/create', [SalesController::class, 'billing'], 'billing', 'add');
 $router->get('/m/billing/export', [SalesController::class, 'exportBilling'], 'billing', 'view');
 $router->post('/m/billing/store', [SalesController::class, 'storeInvoice'], 'billing', 'add');
-$router->get('/shop/pos', [SalesController::class, 'billing'], 'billing', 'view');
+$router->get('/shop/pos', [SalesController::class, 'billingOverview'], 'billing', 'view');
 $router->post('/shop/pos/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->post('/m/billing/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->get('/api/pos/variant-lookup', [SalesController::class, 'variantLookup'], 'billing', 'view');

@@ -13,7 +13,7 @@ class StockController extends Controller {
     public function index(): void {
         $cid = Auth::concernId();
 
-        $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.price, v.mrp, v.catalog_id,
+        $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp, v.catalog_id,
                        v.category_id, v.subcategory_id, v.is_complementary,
                        v.attributes AS variant_attributes,
                        c.name AS category_name, sub.name AS subcategory_name,
@@ -86,7 +86,7 @@ class StockController extends Controller {
         $sql .= " ORDER BY FIELD(stock_source, 'own', 'purchase', 'other'), s.qty DESC";
         $stocks = DB::fetchAll($sql, $params);
         $totalUnits = array_sum(array_column($stocks, 'qty'));
-        $totalValuation = array_reduce($stocks, fn($sum, $item) => $sum + ($item['qty'] * $item['price']), 0);
+        $totalValuation = array_reduce($stocks, fn($sum, $item) => $sum + ($item['qty'] * $item['cost_price']), 0);
 
         $categories = DB::fetchAll(
             "SELECT id, name, concern_id FROM categories WHERE status = 1" . ($cid ? " AND concern_id = ?" : "") . " ORDER BY name ASC",
@@ -231,6 +231,7 @@ class StockController extends Controller {
                     'size' => $variant['size'] ?: 'Free',
                     'weight' => (float)$variant['weight'],
                     'weight_unit' => $variant['weight_unit'] ?: 'kg',
+                    'cost_price' => (float)$variant['cost_price'],
                     'price' => (float)$variant['price'],
                     'mrp' => (float)$variant['mrp'],
                     'color' => (string)($variantAttributes['color'] ?? ''),
@@ -240,7 +241,7 @@ class StockController extends Controller {
                 'stock' => $stock ? [
                     'location' => $stock['location'],
                     'qty' => (float)$stock['qty'],
-                    'net_value' => (float)$stock['qty'] * (float)$variant['price'],
+                    'net_value' => (float)$stock['qty'] * (float)$variant['cost_price'],
                     'latest_inbound_module' => $stock['latest_inbound_module'],
                 ] : null,
                 'total_stock_qty' => (float)($totalStock['total_qty'] ?? 0),
@@ -333,11 +334,28 @@ class StockController extends Controller {
                 $weightUnit = 'kg';
             }
 
-            $price = filter_var($_POST['price'] ?? 0, FILTER_VALIDATE_FLOAT);
-            $price = ($price !== false && $price >= 0) ? $price : 0.0;
-
-            $mrp = filter_var($_POST['mrp'] ?? 0, FILTER_VALIDATE_FLOAT);
-            $mrp = ($mrp !== false && $mrp >= 0) ? $mrp : 0.0;
+            $readPrice = static function (string $field, string $label): float {
+                $rawValue = $_POST[$field] ?? null;
+                if (!is_scalar($rawValue) || trim((string)$rawValue) === '') {
+                    throw new \InvalidArgumentException("{$label} is required.");
+                }
+                $rawValue = trim((string)$rawValue);
+                $value = filter_var($rawValue, FILTER_VALIDATE_FLOAT);
+                if (!preg_match('/^\d+(?:\.\d{1,2})?$/D', $rawValue)
+                    || $value === false
+                    || !is_finite((float)$value)
+                    || $value < 0
+                    || $value > 9999999999.99) {
+                    throw new \InvalidArgumentException("Enter a valid {$label} between ₹0.00 and ₹9,999,999,999.99.");
+                }
+                return (float)$value;
+            };
+            $costPrice = $readPrice('cost_price', 'cost price');
+            $price = $readPrice('price', 'selling price');
+            $mrp = $readPrice('mrp', 'MRP');
+            if (!($costPrice < $price && $price < $mrp)) {
+                throw new \InvalidArgumentException('Prices must follow: Cost Price < Selling Price < MRP.');
+            }
 
             $rawQuantity = $_POST['qty'] ?? null;
             $newQuantity = filter_var($rawQuantity, FILTER_VALIDATE_INT);
@@ -396,11 +414,11 @@ class StockController extends Controller {
             DB::query(
                 "UPDATE variants
                  SET name = ?, sku_code = ?, size = ?, weight = ?, weight_unit = ?,
-                     price = ?, mrp = ?, category_id = ?, subcategory_id = ?, attributes = ?
+                     cost_price = ?, price = ?, mrp = ?, category_id = ?, subcategory_id = ?, attributes = ?
                  WHERE id = ? AND concern_id = ?",
                 [
                     $variantName, $skuCode, $size, $weight, $weightUnit,
-                    $price, $mrp, $categoryId, $subcategoryId, json_encode($attributes),
+                    $costPrice, $price, $mrp, $categoryId, $subcategoryId, json_encode($attributes),
                     $variantId, $concernId
                 ]
             );
@@ -420,7 +438,7 @@ class StockController extends Controller {
                    AND (variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?))",
                 [
                     $variantName, $skuCode, $hsnCode, $color, $size,
-                    $price, $mrp, $mrp,
+                    $costPrice, $mrp, $price,
                     $concernId, $variantId, $catalogId ?: 0
                 ]
             );
@@ -568,21 +586,48 @@ class StockController extends Controller {
             if (empty($variantIds)) {
                 throw new \InvalidArgumentException('Invalid product selection.');
             }
+            $variantIds = array_values(array_unique($variantIds));
 
-            $newPrice = filter_var($_POST['price'] ?? null, FILTER_VALIDATE_FLOAT);
-            if ($newPrice === false || $newPrice < 0) {
-                throw new \InvalidArgumentException('Enter a valid price (≥ 0).');
+            $rawNewPrice = $_POST['price'] ?? null;
+            if (!is_scalar($rawNewPrice)) {
+                throw new \InvalidArgumentException('Enter a valid selling price (≥ 0).');
+            }
+            $newPrice = filter_var(trim((string)$rawNewPrice), FILTER_VALIDATE_FLOAT);
+            if ($newPrice === false || !preg_match('/^\d+(?:\.\d{1,2})?$/D', trim((string)$rawNewPrice)) || $newPrice < 0 || $newPrice > 9999999999.99) {
+                throw new \InvalidArgumentException('Enter a valid selling price (≥ 0).');
             }
 
             $newMrp = null;
-            if (isset($_POST['mrp']) && trim((string)$_POST['mrp']) !== '') {
-                $newMrp = filter_var($_POST['mrp'], FILTER_VALIDATE_FLOAT);
-                if ($newMrp === false || $newMrp < 0) {
+            $rawNewMrp = $_POST['mrp'] ?? null;
+            if ($rawNewMrp !== null && !is_scalar($rawNewMrp)) {
+                throw new \InvalidArgumentException('Enter a valid MRP (≥ 0).');
+            }
+            if (is_scalar($rawNewMrp) && trim((string)$rawNewMrp) !== '') {
+                $rawNewMrp = trim((string)$rawNewMrp);
+                $newMrp = filter_var($rawNewMrp, FILTER_VALIDATE_FLOAT);
+                if ($newMrp === false
+                    || !preg_match('/^\d+(?:\.\d{1,2})?$/D', $rawNewMrp)
+                    || $newMrp < 0
+                    || $newMrp > 9999999999.99) {
                     throw new \InvalidArgumentException('Enter a valid MRP (≥ 0).');
                 }
             }
 
             $placeholders = implode(',', array_fill(0, count($variantIds), '?'));
+            $selectedVariants = DB::fetchAll(
+                "SELECT id, cost_price, mrp FROM variants WHERE concern_id = ? AND id IN ({$placeholders})",
+                array_merge([$concernId], $variantIds)
+            );
+            if (count($selectedVariants) !== count($variantIds)) {
+                throw new \InvalidArgumentException('One or more selected products are not available in this concern.');
+            }
+            foreach ($selectedVariants as $selectedVariant) {
+                $targetMrp = $newMrp ?? (float)$selectedVariant['mrp'];
+                if (!((float)$selectedVariant['cost_price'] < $newPrice && $newPrice < $targetMrp)) {
+                    throw new \InvalidArgumentException('Bulk prices must follow Cost Price < Selling Price < MRP for every selected product.');
+                }
+            }
+
             if ($newMrp !== null) {
                 $params = array_merge([$newPrice, $newMrp], $variantIds, [$concernId]);
                 DB::query("UPDATE variants SET price = ?, mrp = ? WHERE id IN ({$placeholders}) AND concern_id = ?", $params);
@@ -628,6 +673,39 @@ class StockController extends Controller {
             $this->flash('success', "{$count} product(s) marked as complementary.");
         } catch (\Throwable $e) {
             $this->flash('error', 'Unable to assign complementary: ' . $e->getMessage());
+        }
+
+        $this->redirect('/m/stocks');
+    }
+
+    public function bulkUnassignComplementary(): void
+    {
+        ModuleGuard::enforce('stocks', 'edit');
+        $this->validateCsrf();
+
+        try {
+            $concernId = $this->resolveStockActionConcern();
+
+            $rawIds = $_POST['variant_ids'] ?? [];
+            if (!is_array($rawIds) || empty($rawIds)) {
+                throw new \InvalidArgumentException('No products selected.');
+            }
+            $variantIds = array_values(array_filter(
+                array_map(fn($id) => filter_var($id, FILTER_VALIDATE_INT), $rawIds),
+                fn($id) => $id !== false && $id > 0
+            ));
+            if (empty($variantIds)) {
+                throw new \InvalidArgumentException('Invalid product selection.');
+            }
+
+            $placeholders = implode(',', array_fill(0, count($variantIds), '?'));
+            $params = array_merge($variantIds, [$concernId]);
+            DB::query("UPDATE variants SET is_complementary = 0 WHERE id IN ({$placeholders}) AND concern_id = ?", $params);
+
+            $count = count($variantIds);
+            $this->flash('success', "{$count} product(s) restored to normal (complementary flag removed).");
+        } catch (\Throwable $e) {
+            $this->flash('error', 'Unable to undo complementary: ' . $e->getMessage());
         }
 
         $this->redirect('/m/stocks');
@@ -703,7 +781,7 @@ class StockController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.price, v.mrp,
+        $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp,
                        c.name AS category_name, sub.name AS subcategory_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM stocks s
@@ -731,14 +809,14 @@ class StockController extends Controller {
 
         $headers = [
             'SKU Code', 'Variant Name', 'Category', 'Subcategory', 'Quantity', 'Unit', 
-            'Cost Price (₹)', 'Selling MRP (₹)', 'Valuation (₹)', 'Concern'
+            'Cost Price (₹)', 'Selling Price (₹)', 'Selling MRP (₹)', 'Cost Valuation (₹)', 'Concern'
         ];
 
         $rows = [];
         $totalQty = 0;
         $totalVal = 0;
         foreach ($stocks as $s) {
-            $val = (float)$s['qty'] * (float)$s['price'];
+            $val = (float)$s['qty'] * (float)$s['cost_price'];
             $totalQty += (float)$s['qty'];
             $totalVal += $val;
             $rows[] = [
@@ -748,6 +826,7 @@ class StockController extends Controller {
                 $s['subcategory_name'] ?? '-',
                 (float)$s['qty'],
                 $s['weight_unit'] ?: 'Pcs',
+                '₹' . number_format((float)$s['cost_price'], 2),
                 '₹' . number_format((float)$s['price'], 2),
                 '₹' . number_format((float)$s['mrp'], 2),
                 '₹' . number_format($val, 2),
@@ -755,14 +834,14 @@ class StockController extends Controller {
             ];
         }
 
-        $totals = ['Total', '', '', '', $totalQty, '', '', '', '₹' . number_format($totalVal, 2), ''];
+        $totals = ['Total', '', '', '', $totalQty, '', '', '', '', '₹' . number_format($totalVal, 2), ''];
         $metadata = [
             'Report Title' => 'Current Live Stock Balances & Valuation',
             'Scope / Period' => $dateScope['label'],
             'Generated At' => date('d M Y, h:i A'),
             'Total SKUs' => count($stocks),
             'Total Units' => number_format($totalQty, 2),
-            'Total Valuation' => '₹' . number_format($totalVal, 2)
+            'Total Cost Valuation' => '₹' . number_format($totalVal, 2)
         ];
 
         $filename = 'stocks_report_' . date('Ymd_His');
