@@ -657,11 +657,14 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         $varName = $fg['variant_name'] ?: $fg['item_name'];
                                         $sku = $fg['sku_code'] ?: ($fg['item_code'] ?: 'FG-' . $fg['id']);
                                         $fgColor = trim((string) ($fgVariantAttributeData['color'] ?? '')) ?: ($fg['color'] ?: 'STANDARD');
-                                        $tagCode = QrService::generateTagCode(
-                                            $varName,
-                                            $fgColor,
-                                            $fg['variant_size'] ?: ($fg['specification'] ?? ''),
-                                            (string) ($fg['variant_id'] ?: $fg['id'])
+                                        $tagCode = QrService::formatFinishedGoodsCode(
+                                            (int)$fg['variant_id'],
+                                            $fg['main_category_code'] ?? $fg['category_code'] ?? null,
+                                            $fg['sub_category_code'] ?? $fg['subcategory_code'] ?? null,
+                                            $fg['sub_sub_category_code'] ?? null,
+                                            $fg['category_name'] ?? null,
+                                            $fg['subcategory_name'] ?? null,
+                                            $fg['sub_subcategory_name'] ?? null
                                         );
                                         $mrp = $fg['variant_mrp'] ?: ($fg['mrp'] ?: $fg['unit_price']);
                                         $size = $fg['variant_size'] ?: ($fg['specification'] ?: 'Free');
@@ -696,11 +699,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                     <?php if (!empty($productionItems)): ?>
                                         <optgroup label="--- Stitched Production Finished Goods ---">
                                             <?php foreach ($productionItems as $pfg): 
-                                                $pfgTag = QrService::generateTagCode(
-                                                    $pfg['variant_name'],
-                                                    $pfg['variant_color'] ?? ($pfg['color'] ?? ''),
-                                                    $pfg['program_no'] ?? '',
-                                                    (string)($pfg['produced_variant_id'] ?: $pfg['variant_id'] ?: $pfg['id'])
+                                                $pfgVariantId = (int)($pfg['produced_variant_id'] ?: $pfg['variant_id'] ?: 0);
+                                                $pfgTag = QrService::formatFinishedGoodsCode(
+                                                    $pfgVariantId,
+                                                    $pfg['main_category_code'] ?? $pfg['category_code'] ?? null,
+                                                    $pfg['sub_category_code'] ?? $pfg['subcategory_code'] ?? null,
+                                                    $pfg['sub_sub_category_code'] ?? null,
+                                                    $pfg['variant_category_name'] ?? $pfg['category_name'] ?? null,
+                                                    $pfg['variant_subcategory_name'] ?? $pfg['subcategory_name'] ?? null,
+                                                    $pfg['variant_sub_subcategory_name'] ?? $pfg['sub_subcategory_name'] ?? null
                                                 );
                                             ?>
                                                 <option value="prod_<?= $pfg['id'] ?>"
@@ -715,7 +722,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                         data-brand="GRM Production"
                                                         data-color="<?= htmlspecialchars($pfg['variant_color'] ?? ($pfg['color'] ?? 'Standard')) ?>"
                                                         data-mapped="1"
-                                                        data-varid="<?= htmlspecialchars($pfg['variant_id'] ?? '') ?>"
+                                                        data-varid="<?= $pfgVariantId ?>"
                                                         data-qty="<?= htmlspecialchars($pfg['stitched_pieces']) ?>"
                                                         data-unit="pcs"
                                                         data-bill="<?= htmlspecialchars($pfg['log_no']) ?>"
@@ -813,7 +820,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                             <div id="fg_preview_variant_attributes" class="d-none"></div>
                                             <div id="fg_preview_variant_summary_row" class="d-none"><span class="text-secondary">Mapped variants:</span> <strong class="text-dark" id="fg_preview_variant_summary"></strong></div>
                                             <div class="text-truncate"><span class="text-secondary">Price:</span> <strong class="text-success fw-bold" id="fg_preview_price">₹0.00</strong></div>
-                                            <div class="text-truncate"><span class="text-secondary">Code:</span> <strong class="font-monospace text-primary fw-bold" id="fg_preview_code_tag">FG-0-01</strong></div>
+                                            <div class="text-truncate"><span class="text-secondary">Product Code:</span> <strong class="font-monospace text-primary fw-bold" id="fg_preview_code_tag">Select variant</strong></div>
                                         </div>
                                     </div>
                                 </div>
@@ -1062,17 +1069,22 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         <select name="item_id" id="prod_item_select" class="form-select" required onchange="updateProdPreview()">
                                             <option value="">-- Choose Stitched Production Batch --</option>
                                             <?php foreach ($productionItems as $prod):
-                                                $tagCode = QrService::generateTagCode(
-                                                    $prod['variant_name'],
-                                                    $prod['variant_color'] ?? ($prod['color'] ?? ''),
-                                                    $prod['program_no'] ?? '',
-                                                    (string)($prod['produced_variant_id'] ?: $prod['variant_id'] ?: $prod['id'])
+                                                $prodVariantId = (int)($prod['produced_variant_id'] ?: $prod['variant_id'] ?: 0);
+                                                $tagCode = QrService::formatFinishedGoodsCode(
+                                                    $prodVariantId,
+                                                    $prod['main_category_code'] ?? $prod['category_code'] ?? null,
+                                                    $prod['sub_category_code'] ?? $prod['subcategory_code'] ?? null,
+                                                    $prod['sub_sub_category_code'] ?? null,
+                                                    $prod['variant_category_name'] ?? $prod['category_name'] ?? null,
+                                                    $prod['variant_subcategory_name'] ?? $prod['subcategory_name'] ?? null,
+                                                    $prod['variant_sub_subcategory_name'] ?? $prod['sub_subcategory_name'] ?? null
                                                 );
                                             ?>
                                                 <option value="<?= $prod['id'] ?>"
                                                         data-name="<?= htmlspecialchars($prod['variant_name']) ?>"
                                                         data-sku="<?= htmlspecialchars($prod['sku_code']) ?>"
                                                         data-tag="<?= htmlspecialchars($tagCode) ?>"
+                                                        data-varid="<?= $prodVariantId ?>"
                                                         data-mrp="<?= htmlspecialchars($prod['variant_mrp']) ?>"
                                                         data-price="<?= htmlspecialchars($prod['variant_price'] ?? $prod['variant_mrp']) ?>"
                                                         data-size="<?= htmlspecialchars($prod['variant_size'] ?: 'Standard') ?>"
@@ -1130,7 +1142,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                     <div class="text-truncate"><span class="text-secondary">Design:</span> <strong class="text-dark text-uppercase" id="prod_preview_design">-</strong></div>
                                                     <div class="text-truncate"><span class="text-secondary">Size:</span> <strong class="text-dark text-uppercase fw-bold" id="prod_preview_size">FREE</strong></div>
                                                     <div class="text-truncate"><span class="text-secondary">Price:</span> <strong class="text-success fw-bold" id="prod_preview_price">&#8377;0.00</strong></div>
-                                                    <div class="text-truncate"><span class="text-secondary">Code:</span> <strong class="font-monospace text-primary fw-bold" id="prod_preview_code_tag">PRO-S-01</strong></div>
+                                                    <div class="text-truncate"><span class="text-secondary">Product Code:</span> <strong class="font-monospace text-primary fw-bold" id="prod_preview_code_tag">Select variant</strong></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1258,12 +1270,19 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
 
                                     <!-- VARIANT DETAIL ROWS (collapsed by default) -->
                                     <?php $vIdx = 1; foreach ($batch['items'] as $bItem):
-                                        $bTagCode = QrService::generateTagCode(
-                                            $bItem['variant_name'],
-                                            $bItem['variant_color'] ?? ($bItem['color'] ?? ''),
-                                            $bItem['program_no'] ?? '',
-                                            (string)($bItem['produced_variant_id'] ?: $bItem['variant_id'] ?: $bItem['id'])
+                                        $bVariantId = (int)($bItem['produced_variant_id'] ?: $bItem['variant_id'] ?: 0);
+                                        $bTagCode = QrService::formatFinishedGoodsCode(
+                                            $bVariantId,
+                                            $bItem['main_category_code'] ?? $bItem['category_code'] ?? null,
+                                            $bItem['sub_category_code'] ?? $bItem['subcategory_code'] ?? null,
+                                            $bItem['sub_sub_category_code'] ?? null,
+                                            $bItem['variant_category_name'] ?? $bItem['category_name'] ?? null,
+                                            $bItem['variant_subcategory_name'] ?? $bItem['subcategory_name'] ?? null,
+                                            $bItem['variant_sub_subcategory_name'] ?? $bItem['sub_subcategory_name'] ?? null
                                         );
+                                        if ($bTagCode === '') {
+                                            $bTagCode = 'Variant required';
+                                        }
                                         $bInStock = !empty($bItem['is_in_stock']);
                                     ?>
                                     <tr class="variant-detail-row <?= $batchRowId ?> d-none" style="background:#fefefe; border-left:3px solid #ffc107;">
@@ -1437,6 +1456,7 @@ function renderQr(containerId, text) {
     const el = document.getElementById(containerId);
     if (!el || typeof QRCode === 'undefined') return;
     el.innerHTML = '';
+    if (!text) return;
     new QRCode(el, {
         text: text,
         width: 76,
@@ -1736,7 +1756,7 @@ function updateFgPreview() {
             }
         }
 
-        const tag = opt.dataset.tag || makeTagCode(opt.dataset.name, opt.dataset.color, opt.dataset.pattern, opt.value);
+        const tag = opt.dataset.tag || opt.dataset.qr || '';
         const ref = opt.dataset.bill ? ('BILL #' + opt.dataset.bill) : (opt.dataset.sku || 'PO-FG');
         const color = (opt.dataset.color || 'STANDARD').toUpperCase();
         const design = (opt.dataset.pattern || opt.dataset.spec || 'STANDARD').toUpperCase();
@@ -1774,7 +1794,7 @@ function updateFgPreview() {
         if (summaryText) summaryText.textContent = opt.dataset.variantSummary || '';
         if (summaryRow) summaryRow.classList.toggle('d-none', !opt.dataset.variantSummary);
         document.getElementById('fg_preview_price').textContent = '₹' + price.toFixed(2);
-        document.getElementById('fg_preview_code_tag').textContent = tag;
+        document.getElementById('fg_preview_code_tag').textContent = tag || 'Variant required';
 
         renderQr('fg_qr_box', tag);
 
@@ -1813,8 +1833,8 @@ function updateFgPreview() {
         if (summaryText) summaryText.textContent = '';
         if (summaryRow) summaryRow.classList.add('d-none');
         document.getElementById('fg_preview_price').textContent = '₹0.00';
-        document.getElementById('fg_preview_code_tag').textContent = 'GAR-S-01';
-        renderQr('fg_qr_box', 'GAR-S-01');
+        document.getElementById('fg_preview_code_tag').textContent = 'Select variant';
+        renderQr('fg_qr_box', '');
         if (mappingCard) mappingCard.style.display = 'none';
     }
 }
@@ -1877,7 +1897,8 @@ function doMapVariant() {
             opt.dataset.sku = res.sku_code;
             opt.dataset.mrp = res.mrp;
             opt.dataset.size = res.size;
-            opt.dataset.tag = makeTagCode(res.variant_name, '', '', res.sku_code);
+            opt.dataset.varid = String(res.variant_id);
+            opt.dataset.tag = res.variant_code || res.qr || '';
             opt.dataset.qr = opt.dataset.tag;
             updateFgPreview();
         } else {
@@ -1907,7 +1928,7 @@ function updateProdPreview() {
             isInStock ? inStockBadge.classList.remove('d-none') : inStockBadge.classList.add('d-none');
         }
 
-        const tag    = opt.dataset.tag || makeTagCode(opt.dataset.name, opt.dataset.color, opt.dataset.program, opt.value);
+        const tag = opt.dataset.tag || opt.dataset.qr || '';
         const ref    = opt.dataset.program || opt.dataset.log || 'PP-REF';
         const size   = (opt.dataset.size || 'Free').toUpperCase();
         const price  = parseFloat(opt.dataset.price || opt.dataset.mrp || 0);
@@ -1917,7 +1938,7 @@ function updateProdPreview() {
         if (document.getElementById('prod_preview_title')) document.getElementById('prod_preview_title').textContent = opt.dataset.name || 'Production Garment';
         if (document.getElementById('prod_preview_size')) document.getElementById('prod_preview_size').textContent = size;
         if (document.getElementById('prod_preview_price')) document.getElementById('prod_preview_price').textContent = '₹' + price.toFixed(2);
-        if (document.getElementById('prod_preview_code_tag')) document.getElementById('prod_preview_code_tag').textContent = tag;
+        if (document.getElementById('prod_preview_code_tag')) document.getElementById('prod_preview_code_tag').textContent = tag || 'Variant required';
 
         const badgeEl = document.getElementById('prod_preview_badge');
         if (badgeEl) {
@@ -1935,13 +1956,13 @@ function updateProdPreview() {
         if (document.getElementById('prod_preview_title')) document.getElementById('prod_preview_title').textContent = 'Select Stitched Batch';
         if (document.getElementById('prod_preview_size')) document.getElementById('prod_preview_size').textContent = 'FREE';
         if (document.getElementById('prod_preview_price')) document.getElementById('prod_preview_price').textContent = '₹0.00';
-        if (document.getElementById('prod_preview_code_tag')) document.getElementById('prod_preview_code_tag').textContent = 'PRO-S-01';
+        if (document.getElementById('prod_preview_code_tag')) document.getElementById('prod_preview_code_tag').textContent = 'Select variant';
         const badgeEl = document.getElementById('prod_preview_badge');
         if (badgeEl) {
             badgeEl.textContent = 'IN-HOUSE STITCHED';
             badgeEl.className   = 'badge bg-warning-subtle text-warning border border-warning font-monospace';
         }
-        renderQr('prod_qr_box', 'PRO-S-01');
+        renderQr('prod_qr_box', '');
     }
 }
 

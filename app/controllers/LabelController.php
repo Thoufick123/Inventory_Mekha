@@ -174,7 +174,13 @@ class LabelController extends Controller {
                          v.sku_code, v.name AS variant_name, v.size AS variant_size, v.catalog_id AS variant_catalog_id,
                          v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes,
                          v.category_id, v.subcategory_id,
-                         c.name AS category_name, sc.name AS subcategory_name, b.name AS brand_name
+                         c.name AS category_name, c.code AS category_code,
+                         sc.name AS subcategory_name, sc.code AS subcategory_code,
+                         COALESCE(NULLIF(fg_catalog.main_category_code, ''), c.code) AS main_category_code,
+                         COALESCE(NULLIF(fg_catalog.sub_category_code, ''), sc.code) AS sub_category_code,
+                         COALESCE(NULLIF(fg_catalog.sub_sub_category_code, ''), fg_subsub.code) AS sub_sub_category_code,
+                         fg_subsub.name AS sub_subcategory_name,
+                         b.name AS brand_name
                   FROM purchase_bill_items pbi
                   JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                   LEFT JOIN suppliers s ON pb.supplier_id = s.id
@@ -182,6 +188,8 @@ class LabelController extends Controller {
                   LEFT JOIN variants v ON pbi.variant_id = v.id
                   LEFT JOIN categories c ON v.category_id = c.id
                   LEFT JOIN subcategories sc ON v.subcategory_id = sc.id
+                  LEFT JOIN catalogs fg_catalog ON fg_catalog.id = v.catalog_id
+                  LEFT JOIN sub_subcategories fg_subsub ON fg_subsub.id = fg_catalog.sub_sub_category_id
                   LEFT JOIN brands b ON v.brand_id = b.id
                   WHERE pbi.section_type = 'finished_goods'";
         $fgParams = [];
@@ -318,8 +326,15 @@ class LabelController extends Controller {
                            COALESCE(cat.id, pp.catalog_id) AS catalog_id,
                            cat.name AS catalog_name,
                            cat.style_code AS catalog_code,
-                           c.name AS category_name,
-                           sc.name AS subcategory_name,
+                           c.name AS category_name, c.code AS category_code,
+                           sc.name AS subcategory_name, sc.code AS subcategory_code,
+                           COALESCE(NULLIF(vcat.main_category_code, ''), vc.code) AS main_category_code,
+                           COALESCE(NULLIF(vcat.sub_category_code, ''), vsc.code) AS sub_category_code,
+                           COALESCE(NULLIF(vcat.sub_sub_category_code, ''), vssc.code) AS sub_sub_category_code,
+                           vssc.name AS sub_subcategory_name,
+                           vc.name AS variant_category_name,
+                           vsc.name AS variant_subcategory_name,
+                           vssc.name AS variant_sub_subcategory_name,
                            b.name AS brand_name
                     FROM stitching_items si
                     JOIN stitching_logs sl ON si.stitching_id = sl.id
@@ -330,6 +345,10 @@ class LabelController extends Controller {
                     LEFT JOIN categories c ON cat.category_id = c.id
                     LEFT JOIN subcategories sc ON cat.subcategory_id = sc.id
                     LEFT JOIN variants v ON si.variant_id = v.id
+                    LEFT JOIN catalogs vcat ON vcat.id = v.catalog_id
+                    LEFT JOIN categories vc ON vc.id = v.category_id
+                    LEFT JOIN subcategories vsc ON vsc.id = v.subcategory_id
+                    LEFT JOIN sub_subcategories vssc ON vssc.id = vcat.sub_sub_category_id
                     LEFT JOIN brands b ON v.brand_id = b.id
                     WHERE (sl.status IS NULL OR sl.status != 'cancelled')";
         $prodParams = [];
@@ -359,14 +378,23 @@ class LabelController extends Controller {
                              sl.stitched_pieces,
                              pp.program_no,
                              pp.program_name,
-                             c.name AS category_name,
-                             sc.name AS subcategory_name,
+                             c.name AS category_name, c.code AS category_code,
+                             sc.name AS subcategory_name, sc.code AS subcategory_code,
+                             COALESCE(NULLIF(cat.main_category_code, ''), c.code) AS main_category_code,
+                             COALESCE(NULLIF(cat.sub_category_code, ''), sc.code) AS sub_category_code,
+                             COALESCE(NULLIF(cat.sub_sub_category_code, ''), ssc.code) AS sub_sub_category_code,
+                             ssc.name AS sub_subcategory_name,
+                             c.name AS variant_category_name,
+                             sc.name AS variant_subcategory_name,
+                             ssc.name AS variant_sub_subcategory_name,
                              b.name AS brand_name
                       FROM stitching_logs sl
                       JOIN variants v ON sl.produced_variant_id = v.id
                       LEFT JOIN production_programs pp ON sl.program_id = pp.id
                       LEFT JOIN categories c ON v.category_id = c.id
                       LEFT JOIN subcategories sc ON v.subcategory_id = sc.id
+                      LEFT JOIN catalogs cat ON cat.id = v.catalog_id
+                      LEFT JOIN sub_subcategories ssc ON ssc.id = cat.sub_sub_category_id
                       LEFT JOIN brands b ON v.brand_id = b.id
                       WHERE sl.id NOT IN (SELECT DISTINCT stitching_id FROM stitching_items)";
         $legacyParams = [];
@@ -490,14 +518,22 @@ class LabelController extends Controller {
         }
         DB::query($sql, $params);
 
+        $variantCode = QrService::generateFinishedGoodsCode((int)$variant['id']);
+        if ($variantCode === null) {
+            $this->renderJson(['success' => false, 'message' => 'Could not generate a code for the saved variant.'], 500);
+            return;
+        }
+
         $this->renderJson([
             'success'      => true,
             'message'      => "Item mapped to '{$variant['name']}' ({$variant['sku_code']}) successfully!",
             'variant_name' => $variant['name'],
             'sku_code'     => $variant['sku_code'],
+            'variant_id'   => (int)$variant['id'],
+            'variant_code' => $variantCode,
             'mrp'          => $variant['mrp'],
             'size'         => $variant['size'],
-            'qr'           => QrService::generatePayload((int)$variant['category_id'], (int)$variant['subcategory_id'], (int)$variant['id'])
+            'qr'           => $variantCode
         ]);
     }
 
@@ -780,12 +816,12 @@ class LabelController extends Controller {
                 ?: 'STANDARD';
             $variantSize = trim((string) ($item['variant_size'] ?? ''));
             $labelVariantAttributes = self::buildLabelVariantAttributes($variantAttributeData, $variantSize);
-            $tagCode = QrService::generateTagCode(
-                $prodName,
-                $labelColor,
-                $variantSize ?: ($item['specification'] ?? ''),
-                (string) ($varId ?: $item['id'])
-            );
+            $tagCode = QrService::generateFinishedGoodsCode($varId);
+            if ($tagCode === null) {
+                $this->flash('error', 'Could not generate a product code for the saved variant.');
+                $this->redirect('/m/label_generation?tab=purchase_fg');
+                return;
+            }
             $qrText = $tagCode;
             $mrp = (float)($item['variant_mrp'] ?: ($item['mrp'] ?: $item['unit_price']));
             $designVal = trim($item['pattern'] ?: ($item['specification'] ?: 'STANDARD'));
@@ -806,6 +842,7 @@ class LabelController extends Controller {
                 'label_4_val'    => '₹' . number_format($mrp, 2),
                 'price'          => $mrp,
                 'price_mrp'      => $mrp,
+                'variant_id'     => $varId,
                 'tag_code'       => $tagCode,
                 'qr_payload'     => $qrText,
                 'section_title'  => 'PURCHASE FINISHED GOODS',
@@ -899,14 +936,15 @@ class LabelController extends Controller {
                         }
                         $variantAttributes = self::buildLabelVariantAttributes($attributes, $variantSize);
                         $variantMrp = (float) ($mappedVariant['mrp'] ?: ($item['mrp'] ?: $item['unit_price']));
-                        $variantTagCode = QrService::generateTagCode(
-                            $variantName,
-                            $variantColor,
-                            $variantSize ?: ($item['pattern'] ?: ($item['specification'] ?? '')),
-                            (string) $mappedVariant['id']
-                        );
+                        $variantTagCode = QrService::generateFinishedGoodsCode((int)$mappedVariant['id']);
+                        if ($variantTagCode === null) {
+                            $this->flash('error', 'Could not generate a product code for a mapped variant.');
+                            $this->redirect('/m/label_generation?tab=purchase_fg');
+                            return;
+                        }
 
                         $variantLabel = $labelData;
+                        $variantLabel['variant_id'] = (int)$mappedVariant['id'];
                         $variantLabel['header_title'] = $variantName;
                         $variantLabel['item_title'] = $variantName;
                         $variantLabel['label_2_val'] = $variantColor;
@@ -933,6 +971,17 @@ class LabelController extends Controller {
                         $batchNo = (string) ($item['bill_no'] ?? '');
                     }
                 }
+            }
+
+            if ($multiLabels) {
+                $variantId = (int)$multiLabels[0]['variant_id'];
+            } else {
+                $variantId = $varId;
+            }
+            if ($variantId <= 0) {
+                $this->flash('error', 'Map this finished good to a saved catalog variant before generating labels.');
+                $this->redirect('/m/label_generation?tab=purchase_fg');
+                return;
             }
         }
 
@@ -1071,17 +1120,18 @@ class LabelController extends Controller {
                         }
                     }
 
+                    if ($itemVariantId <= 0) {
+                        $this->flash('error', 'A saved catalog variant is required before generating finished-goods labels.');
+                        $this->redirect('/m/label_generation?tab=production');
+                        return;
+                    }
+
                     $prodName = $bItem['variant_name'] ?: ($bItem['catalog_name'] ?: 'In-House Garment');
-                    // Use SKU as tag code when available (unique per variant); fall back to generated code
-                    if (!empty($itemSku)) {
-                        $tagCode = strtoupper($itemSku);
-                    } else {
-                        $tagCode = QrService::generateTagCode(
-                            $prodName,
-                            $itemColor,
-                            $itemSize,
-                            (string)$itemVariantId
-                        );
+                    $tagCode = QrService::generateFinishedGoodsCode($itemVariantId);
+                    if ($tagCode === null) {
+                        $this->flash('error', 'Could not generate a product code for the saved variant.');
+                        $this->redirect('/m/label_generation?tab=production');
+                        return;
                     }
                     $designVal = 'SIZE: ' . strtoupper($itemSize);
 
@@ -1100,6 +1150,7 @@ class LabelController extends Controller {
                         'label_4_val'    => '₹' . number_format($itemPrice, 2),
                         'price'          => $itemPrice,
                         'price_mrp'      => $itemMrp,
+                        'variant_id'     => $itemVariantId,
                         'tag_code'       => $tagCode,
                         'qr_payload'     => $tagCode,
                         'section_title'  => 'PRODUCTION FINISHED GARMENT',
@@ -1285,13 +1336,19 @@ class LabelController extends Controller {
                 }
             }
 
+            if ($variantId <= 0) {
+                $this->flash('error', 'A saved catalog variant is required before generating finished-goods labels.');
+                $this->redirect('/m/label_generation?tab=production');
+                return;
+            }
+
             $prodName = $item['variant_name'] ?: 'In-House Garment';
-            $tagCode = QrService::generateTagCode(
-                $prodName,
-                $item['variant_color'] ?? ($item['color'] ?? ''),
-                !empty($item['pattern']) ? $item['pattern'] : ($item['program_no'] ?? ''),
-                (string)$variantId
-            );
+            $tagCode = QrService::generateFinishedGoodsCode($variantId);
+            if ($tagCode === null) {
+                $this->flash('error', 'Could not generate a product code for the saved variant.');
+                $this->redirect('/m/label_generation?tab=production');
+                return;
+            }
             $qrText = $tagCode;
 
             $designVal = trim(!empty($item['variant_size']) ? ('SIZE: ' . $item['variant_size']) : (!empty($item['pattern']) ? $item['pattern'] : ($item['program_no'] ?: 'STANDARD')));
@@ -1312,6 +1369,7 @@ class LabelController extends Controller {
                 'label_4_val'    => '₹' . number_format($priceVal, 2),
                 'price'          => $priceVal,
                 'price_mrp'      => $priceVal,
+                'variant_id'     => $variantId,
                 'tag_code'       => $tagCode,
                 'qr_payload'     => $qrText,
                 'section_title'  => 'PRODUCTION FINISHED GARMENT',
@@ -1356,12 +1414,13 @@ class LabelController extends Controller {
             $designVal = $v['subcategory_name'] ?: 'STANDARD';
             $priceVal = (float)$v['mrp'];
 
-            $tagCode = QrService::generateTagCode(
-                $v['name'],
-                '',
-                $designVal,
-                (string)$v['id']
-            );
+            $variantId = (int)$v['id'];
+            $tagCode = QrService::generateFinishedGoodsCode($variantId);
+            if ($tagCode === null) {
+                $this->flash('error', 'Could not generate a product code for the saved variant.');
+                $this->redirect('/m/label_generation');
+                return;
+            }
             $qrText = $tagCode;
 
             $labelData = [
@@ -1379,6 +1438,7 @@ class LabelController extends Controller {
                 'label_4_val'    => '₹' . number_format($priceVal, 2),
                 'price'          => $priceVal,
                 'price_mrp'      => $priceVal,
+                'variant_id'     => $variantId,
                 'tag_code'       => $tagCode,
                 'qr_payload'     => $qrText,
                 'section_title'  => 'PRODUCT CATALOG LABEL',
@@ -1388,6 +1448,7 @@ class LabelController extends Controller {
                 'brand_name'     => $concernName,
                 'category_name'  => $v['category_name'] ?? 'Apparel',
                 'cost_or_ref'    => 'Catalog',
+                'stock_tab'      => 'finished_goods',
                 'extra_details'  => [
                     'Design'     => $designVal,
                     'Price'      => '₹' . number_format($priceVal, 2),
@@ -1527,8 +1588,11 @@ class LabelController extends Controller {
         // 1. If Super Admin has not filtered to a single concern, detect variant concern
         if (Auth::isSuperAdmin() && !$cid) {
             $parsed = QrService::parsePayload($code);
-            if ($parsed) {
-                $varCid = DB::fetchValue("SELECT concern_id FROM variants WHERE id = ?", [$parsed['variant_id']]);
+            $finishedGoodsCode = QrService::parseFinishedGoodsCode($code);
+            $variantId = QrService::parseVariantId($code)
+                ?? ($finishedGoodsCode['variant_id'] ?? ($parsed['variant_id'] ?? null));
+            if ($variantId) {
+                $varCid = DB::fetchValue("SELECT concern_id FROM variants WHERE id = ?", [$variantId]);
                 if ($varCid) {
                     $cid = (int)$varCid;
                 }

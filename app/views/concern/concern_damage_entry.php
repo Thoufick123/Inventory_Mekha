@@ -9,22 +9,41 @@
         </a>
     </div>
 
-    <?php if ($isSuperAdmin && !$selectedCid): ?>
+    <?php if ($isSuperAdmin): ?>
         <form method="GET" action="<?= \App\Core\Controller::url('/m/concern_damage/new') ?>" class="card border-0 shadow-sm mb-3">
-            <div class="card-body d-flex flex-wrap align-items-end gap-2">
-                <div class="flex-grow-1">
-                    <label class="form-label small fw-semibold" for="entryConcernId">Concern *</label>
-                    <select class="form-select" name="concern_id" id="entryConcernId" required>
-                        <option value="">Select a concern</option>
-                        <?php foreach ($allConcerns as $concern): ?>
-                            <option value="<?= (int)$concern['id'] ?>"><?= htmlspecialchars($concern['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <button class="btn btn-primary" type="submit">Continue</button>
+            <div class="card-body">
+                <label class="form-label small fw-semibold" for="entryConcernId">Concern *</label>
+                <select class="form-select" name="concern_id" id="entryConcernId" required>
+                    <option value="">Select a concern to load its stock</option>
+                    <?php foreach ($allConcerns as $concern): ?>
+                        <option value="<?= (int)$concern['id'] ?>" <?= (int)$selectedCid === (int)$concern['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($concern['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="form-text text-muted">Choose a concern to load its locations and scan stock on this page.</small>
+                <noscript><button class="btn btn-primary mt-2" type="submit">Load concern</button></noscript>
             </div>
         </form>
+    <?php elseif (!empty($selectedCid)): ?>
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body py-3">
+                <div class="small text-muted">Concern</div>
+                <div class="fw-semibold"><?= htmlspecialchars($concernName ?: 'Assigned concern') ?></div>
+            </div>
+        </div>
     <?php endif; ?>
+
+    <?php
+    $defaultDamageLocation = $locations[0] ?? '';
+    foreach ($locations as $locationOption) {
+        $baseLocation = preg_replace('/:(AVAILABLE|DAMAGED)$/i', '', (string)$locationOption);
+        if (strcasecmp(trim($baseLocation), 'Main Store') === 0) {
+            $defaultDamageLocation = $locationOption;
+            break;
+        }
+    }
+    ?>
 
     <?php if (empty($selectedCid)): ?>
         <div class="alert alert-info border-0 shadow-sm">Select a concern before scanning stock labels.</div>
@@ -50,7 +69,7 @@
                     </label>
                     <select class="form-select" id="damageSourceLocation" name="location" required>
                         <?php foreach ($locations as $stockLocation): ?>
-                            <option value="<?= htmlspecialchars($stockLocation, ENT_QUOTES, 'UTF-8') ?>">
+                            <option value="<?= htmlspecialchars($stockLocation, ENT_QUOTES, 'UTF-8') ?>" <?= $stockLocation === $defaultDamageLocation ? 'selected' : '' ?>>
                                 <?= htmlspecialchars(preg_replace('/:(AVAILABLE|DAMAGED)$/i', '', $stockLocation)) ?>
                             </option>
                         <?php endforeach; ?>
@@ -65,7 +84,7 @@
                             <span class="damage-scanner-icon"><i class="bi bi-qr-code-scan"></i></span>
                             <div>
                                 <div class="fw-bold">Live Concern QR Scanner</div>
-                                <small class="text-muted">Scan an exact product QR tag to check stock at the selected location.</small>
+                                <small class="text-muted">Scan the QR code on the stock label, or enter its printed product code (for example, GRMAPSHRL01).</small>
                             </div>
                         </div>
                         <div class="d-flex align-items-center gap-2">
@@ -78,7 +97,7 @@
                     </div>
                     <div class="input-group input-group-lg damage-scanner-input">
                         <span class="input-group-text bg-white text-danger"><i class="bi bi-upc-scan"></i></span>
-                        <input type="text" id="damageTagInput" class="form-control font-monospace" autocomplete="off" placeholder="Scan exact warehouse QR tag..." aria-label="Scan exact product QR tag">
+                        <input type="text" id="damageTagInput" class="form-control font-monospace" autocomplete="off" placeholder="Scan QR or enter product code (e.g. GRMAPSHRL01)..." aria-label="Scan product QR code or enter its printed product code">
                         <button type="button" class="btn btn-danger fw-bold px-4" id="scanDamageTagButton">
                             <i class="bi bi-lightning-charge-fill me-1"></i> Scan / Add
                         </button>
@@ -86,7 +105,7 @@
                             <i class="bi bi-x-lg"></i>
                         </button>
                     </div>
-                    <div class="small text-muted mt-2">Each accepted scan adds one piece. You can adjust quantities, but not above the available location balance.</div>
+                    <div class="small text-muted mt-2">Each accepted scan adds one piece. The product must belong to this concern and have available stock at the selected location.</div>
                     <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="damageScanError" role="alert" aria-live="polite"></div>
                 </div>
             </div>
@@ -145,6 +164,11 @@
 
 <script>
 (() => {
+    const concernSelect = document.getElementById('entryConcernId');
+    if (concernSelect) {
+        concernSelect.addEventListener('change', () => concernSelect.form.submit());
+    }
+
     const form = document.getElementById('concernDamageForm');
     if (!form) return;
 

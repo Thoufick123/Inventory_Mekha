@@ -9,6 +9,8 @@ use App\Core\Auth;
 use App\Services\StockService;
 use App\Services\NumberSeries;
 use App\Services\CashService;
+use App\Services\QrService;
+use App\Services\PosBillingCalculator;
 use Exception;
 
 class SalesController extends Controller {
@@ -671,21 +673,21 @@ class SalesController extends Controller {
         $invoices = DB::fetchAll($sql, $params);
 
         if ($cid) {
-            $customers = DB::fetchAll("SELECT id, name, phone, address, city FROM customers WHERE concern_id = ? AND status = 'active' ORDER BY id DESC", [$cid]);
+            $customers = DB::fetchAll("SELECT id, name, phone, email, gstin, address, city FROM customers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $variants  = DB::fetchAll(
                 "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, COALESCE(s.qty, 0) as available_qty
                  FROM variants v
-                 LEFT JOIN stocks s ON v.id = s.variant_id AND s.concern_id = ?
+                 LEFT JOIN stocks s ON v.id = s.variant_id AND s.concern_id = ? AND s.location = 'Main Store'
                  WHERE v.concern_id = ? AND v.status = 'active'
                  ORDER BY v.name ASC",
                 [$cid, $cid]
             );
         } else {
-            $customers = DB::fetchAll("SELECT id, name, phone, address, city FROM customers WHERE status = 'active' ORDER BY id DESC LIMIT 50");
+            $customers = DB::fetchAll("SELECT id, name, phone, email, gstin, address, city FROM customers WHERE status = 'active' ORDER BY name ASC LIMIT 50");
             $variants  = DB::fetchAll(
                 "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, COALESCE(s.qty, 0) as available_qty
                  FROM variants v
-                 LEFT JOIN (SELECT variant_id, SUM(qty) as qty FROM stocks GROUP BY variant_id) s ON v.id = s.variant_id
+                 LEFT JOIN (SELECT variant_id, SUM(qty) as qty FROM stocks WHERE location = 'Main Store' GROUP BY variant_id) s ON v.id = s.variant_id
                  WHERE v.status = 'active'
                  ORDER BY v.name ASC"
             );
@@ -707,9 +709,10 @@ class SalesController extends Controller {
             );
             if ($printInvoice) {
                 $printItems = DB::fetchAll(
-                    "SELECT sii.*, v.sku_code, v.name AS item_name, v.size
+                    "SELECT sii.*, v.sku_code, v.name AS item_name, v.size, b.batch_no
                      FROM sales_invoice_items sii
                      JOIN variants v ON sii.variant_id = v.id
+                     LEFT JOIN batches b ON b.id = sii.production_batch_id
                      WHERE sii.sales_invoice_id = ?",
                     [$printId]
                 );
@@ -743,14 +746,23 @@ class SalesController extends Controller {
         }
 
         $variantId = null;
+        $finishedGoodsCode = QrService::parseFinishedGoodsCode($query);
+        if ($finishedGoodsCode) {
+            if (!$cid || !QrService::lookupVariant($query, (int)$cid)) {
+                $this->renderJson(['success' => false, 'message' => "Item '{$query}' not found."], 404);
+                return;
+            }
+            $variantId = (int)$finishedGoodsCode['variant_id'];
+        }
+
         // Check if QR format like C1-S1-V5
-        if (preg_match('/V(\d+)$/i', $query, $matches)) {
+        if (!$variantId && preg_match('/V(\d+)$/i', $query, $matches)) {
             $variantId = (int)$matches[1];
         }
 
         $sql = "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, COALESCE(s.qty, 0) AS available_qty
                 FROM variants v
-                LEFT JOIN stocks s ON v.id = s.variant_id AND s.concern_id = ?
+                LEFT JOIN stocks s ON v.id = s.variant_id AND s.concern_id = ? AND s.location = 'Main Store'
                 LEFT JOIN catalogs c ON c.id = v.catalog_id AND c.concern_id = v.concern_id
                 WHERE v.concern_id = ? AND v.status = 'active'";
         $params = [$cid, $cid];
@@ -811,7 +823,7 @@ class SalesController extends Controller {
         }
 
         $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
-        $sql = "SELECT id, name, phone, address, city FROM customers WHERE phone = ?";
+        $sql = "SELECT id, name, phone, email, gstin, address, city FROM customers WHERE phone = ?";
         $params = [$phone];
         if ($cid) {
             $sql .= " AND concern_id = ?";
@@ -827,6 +839,64 @@ class SalesController extends Controller {
         }
     }
 
+    public function productionBatchLookup(): void {
+        $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        if (!$cid) {
+            $this->renderJson(['success' => false, 'message' => 'Select a concern before loading production batches.'], 400);
+            return;
+        }
+
+        $batches = DB::fetchAll(
+            "SELECT b.id, b.batch_no, b.batch_qty, b.variant_id, v.attributes,
+                    v.name AS product_name, v.sku_code, v.size, v.price, v.mrp,
+                    COALESCE(c.gst_rate, cat.default_gst_rate) AS gst_pct,
+                    COALESCE(c.hsn_code, '') AS hsn_code,
+                    COALESCE(s.qty, 0) AS available_qty,
+                    GREATEST(0, b.batch_qty - COALESCE((
+                        SELECT SUM(sii.qty) FROM sales_invoice_items sii
+                        WHERE sii.production_batch_id = b.id
+                    ), 0)) AS batch_remaining_qty
+             FROM batches b
+             JOIN variants v ON v.id = b.variant_id AND v.concern_id = b.concern_id
+             LEFT JOIN catalogs c ON c.id = v.catalog_id AND c.concern_id = v.concern_id
+             LEFT JOIN categories cat ON cat.id = v.category_id
+             LEFT JOIN stocks s ON s.concern_id = b.concern_id
+                               AND s.variant_id = b.variant_id
+                               AND s.location = 'Main Store'
+             WHERE b.concern_id = ? AND UPPER(b.status) = 'APPROVED'
+               AND b.batch_qty > 0 AND COALESCE(s.qty, 0) > 0
+             ORDER BY b.created_at DESC, b.id DESC",
+            [$cid]
+        );
+
+        foreach ($batches as &$batch) {
+            $attributes = json_decode($batch['attributes'] ?? '{}', true) ?: [];
+            $batch['id'] = (int)$batch['id'];
+            $batch['variant_id'] = (int)$batch['variant_id'];
+            $batch['batch_qty'] = (float)$batch['batch_qty'];
+            $batch['available_qty'] = (float)$batch['available_qty'];
+            $batch['batch_remaining_qty'] = (float)$batch['batch_remaining_qty'];
+            $batch['price'] = (float)$batch['price'];
+            $batch['mrp'] = (float)$batch['mrp'];
+            $batch['gst_pct'] = $batch['gst_pct'] === null ? null : (float)$batch['gst_pct'];
+            $batch['hsn_code'] = !empty($attributes['hsn']) ? $attributes['hsn'] : $batch['hsn_code'];
+            if ($batch['gst_pct'] === null && $batch['hsn_code'] !== '') {
+                $masterRate = DB::fetchValue(
+                    "SELECT gst_rate FROM hsn_masters
+                     WHERE is_active = 1 AND code_type = 'HSN' AND hsn_code = ?
+                       AND (concern_id = ? OR concern_id IS NULL)
+                     ORDER BY concern_id DESC LIMIT 1",
+                    [$batch['hsn_code'], $cid]
+                );
+                $batch['gst_pct'] = $masterRate === null ? null : (float)$masterRate;
+            }
+            unset($batch['attributes']);
+        }
+        unset($batch);
+
+        $this->renderJson(['success' => true, 'batches' => $batches]);
+    }
+
     public function completePosSale(): void {
         $this->validateCsrf();
         $cid = (int)($_POST['concern_id'] ?? 0) ?: Auth::concernId();
@@ -840,9 +910,28 @@ class SalesController extends Controller {
         $custMobile  = trim($_POST['customer_mobile'] ?? '');
         $custName    = trim($_POST['customer_name'] ?? 'Walk-in Customer');
         $custAddress = trim($_POST['customer_address'] ?? 'Counter Walk-in / Local Store');
+        $billingPartyType = $_POST['billing_party_type'] ?? 'customer';
+        $companyCustomerId = (int)($_POST['company_customer_id'] ?? 0);
         $gstType     = $_POST['gst_type'] ?? 'both'; // 'both', 'igst', 'exempt'
+        $gstPriceMode = $_POST['gst_price_mode'] ?? 'exclude';
         $payMethod   = $_POST['payment_method'] ?? 'cash';
         $isOnline    = !empty($_POST['is_online']) ? 1 : 0;
+
+        if (!in_array($gstType, ['both', 'igst', 'exempt'], true)) {
+            $this->flash('error', 'Choose a valid GST type.');
+            $this->redirect('/m/billing');
+            return;
+        }
+        if (!in_array($gstPriceMode, ['include', 'exclude'], true)) {
+            $this->flash('error', 'Choose whether the item prices include or exclude GST.');
+            $this->redirect('/m/billing');
+            return;
+        }
+        if (!in_array($billingPartyType, ['customer', 'company'], true)) {
+            $this->flash('error', 'Choose whether this bill is for a customer or company.');
+            $this->redirect('/m/billing');
+            return;
+        }
 
         $cartItemsJson = $_POST['cart_items_json'] ?? '[]';
         $items = json_decode($cartItemsJson, true);
@@ -854,50 +943,129 @@ class SalesController extends Controller {
 
         DB::beginTransaction();
         try {
-            // 1. Resolve or create Customer
+            // 1. Resolve or create the invoice customer.
             $customerId = null;
-            if (!empty($custMobile)) {
-                $existingCust = DB::fetch(
-                    "SELECT id FROM customers WHERE concern_id = ? AND phone = ? LIMIT 1",
-                    [$cid, $custMobile]
+            if ($billingPartyType === 'company') {
+                $company = DB::fetch(
+                    "SELECT id, name, phone, address FROM customers WHERE id = ? AND concern_id = ? AND status = 'active' LIMIT 1",
+                    [$companyCustomerId, $cid]
                 );
-                if ($existingCust) {
-                    $customerId = (int)$existingCust['id'];
+                if (!$company) {
+                    throw new \RuntimeException('Choose an active company from this concern.');
                 }
-            }
-            if (!$customerId) {
-                $custCode = 'CUST-' . rand(10000, 99999);
-                DB::query(
-                    "INSERT INTO customers (concern_id, code, name, phone, address, city, status, created_at)
-                     VALUES (?, ?, ?, ?, ?, 'Retail Store', 'active', NOW())",
-                    [$cid, $custCode, $custName, $custMobile, $custAddress]
-                );
-                $customerId = (int)DB::lastInsertId();
+                $customerId = (int)$company['id'];
+            } else {
+                if (!empty($custMobile)) {
+                    $existingCust = DB::fetch(
+                        "SELECT id FROM customers WHERE concern_id = ? AND phone = ? LIMIT 1",
+                        [$cid, $custMobile]
+                    );
+                    if ($existingCust) {
+                        $customerId = (int)$existingCust['id'];
+                    }
+                }
+                if (!$customerId) {
+                    $custCode = 'CUST-' . rand(10000, 99999);
+                    DB::query(
+                        "INSERT INTO customers (concern_id, code, name, phone, address, city, status, created_at)
+                         VALUES (?, ?, ?, ?, ?, 'Retail Store', 'active', NOW())",
+                        [$cid, $custCode, $custName, $custMobile, $custAddress]
+                    );
+                    $customerId = (int)DB::lastInsertId();
+                }
             }
 
             // 2. Calculate Totals
             $taxableSubtotal = 0.00;
             $taxTotal = 0.00;
             $discountTotal = 0.00;
+            $calculatedItems = [];
+            $requestedQtyByVariant = [];
+            $requestedQtyByBatch = [];
 
             foreach ($items as $item) {
-                $qty = max(1, (float)($item['qty'] ?? 1));
-                $unitPrice = (float)($item['price'] ?? 0);
-                $itemDiscount = (float)($item['discount'] ?? 0);
+                $variantId = (int)($item['id'] ?? 0);
+                $qtyInput = $item['qty'] ?? 1;
+                $priceInput = $item['price'] ?? null;
+                $discountInput = $item['discount'] ?? 0;
+                if ($variantId <= 0 || !is_numeric($qtyInput) || !is_numeric($priceInput) || !is_numeric($discountInput)) {
+                    throw new \RuntimeException('A cart item has invalid product, quantity, price, or discount data.');
+                }
+
+                $qty = (float)$qtyInput;
+                $unitPrice = (float)$priceInput;
+                $itemDiscount = (float)$discountInput;
+                $productionBatchId = (int)($item['batch_id'] ?? 0);
+                if ($billingPartyType === 'company' && $productionBatchId <= 0) {
+                    throw new \RuntimeException('Company bulk billing items must come from an approved production batch.');
+                }
+                if ($productionBatchId > 0) {
+                    $batch = DB::fetch(
+                        "SELECT id, batch_qty FROM batches
+                         WHERE id = ? AND concern_id = ? AND variant_id = ? AND UPPER(status) = 'APPROVED'
+                         LIMIT 1 FOR UPDATE",
+                        [$productionBatchId, $cid, $variantId]
+                    );
+                    if (!$batch) {
+                        throw new \RuntimeException('A selected production batch is invalid or no longer available.');
+                    }
+                    $requestedQtyByBatch[$productionBatchId] = ($requestedQtyByBatch[$productionBatchId] ?? 0) + $qty;
+                }
                 $gstRateInput = $item['gst_pct'] ?? null;
                 if ($gstType !== 'exempt' && (!is_numeric($gstRateInput) || (float)$gstRateInput < 0 || (float)$gstRateInput > 100)) {
                     throw new \RuntimeException('A valid GST rate is required for every taxable item.');
                 }
                 $gstPct = $gstType === 'exempt' ? 0.00 : (float)$gstRateInput;
 
-                $itemSubtotal = ($unitPrice * $qty) - $itemDiscount;
-                if ($itemSubtotal < 0) $itemSubtotal = 0;
+                $line = PosBillingCalculator::calculateLine(
+                    $unitPrice,
+                    $qty,
+                    $itemDiscount,
+                    $gstPct,
+                    $gstPriceMode
+                );
 
-                $itemGst = ($itemSubtotal * $gstPct) / 100.0;
+                $taxableSubtotal += $line['taxable_amount'];
+                $taxTotal += $line['gst_amount'];
+                $discountTotal += $line['discount_amount'];
+                $calculatedItems[] = [
+                    'variant_id' => $variantId,
+                    'production_batch_id' => $productionBatchId ?: null,
+                    'qty' => $qty,
+                    'unit_price' => $line['base_unit_price'],
+                    'total_price' => $line['taxable_amount'],
+                ];
+                $requestedQtyByVariant[$variantId] = ($requestedQtyByVariant[$variantId] ?? 0) + $qty;
+            }
 
-                $taxableSubtotal += $itemSubtotal;
-                $taxTotal += $itemGst;
-                $discountTotal += $itemDiscount;
+            ksort($requestedQtyByVariant);
+            foreach ($requestedQtyByVariant as $variantId => $requestedQty) {
+                $availableQty = (float)(DB::fetchValue(
+                    "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store' FOR UPDATE",
+                    [$cid, (int)$variantId]
+                ) ?: 0);
+                if ($requestedQty > $availableQty) {
+                    $variantName = DB::fetchValue(
+                        "SELECT name FROM variants WHERE id = ? AND concern_id = ?",
+                        [(int)$variantId, $cid]
+                    ) ?: "Variant #{$variantId}";
+                    throw new \RuntimeException(
+                        "Insufficient Main Store stock for '{$variantName}'. Available: {$availableQty}, requested: {$requestedQty}."
+                    );
+                }
+            }
+            foreach ($requestedQtyByBatch as $batchId => $requestedQty) {
+                $batchQty = (float)DB::fetchValue("SELECT batch_qty FROM batches WHERE id = ?", [(int)$batchId]);
+                $soldQty = (float)(DB::fetchValue(
+                    "SELECT COALESCE(SUM(qty), 0) FROM sales_invoice_items WHERE production_batch_id = ?",
+                    [(int)$batchId]
+                ) ?: 0);
+                $batchAvailableQty = max(0, $batchQty - $soldQty);
+                if ($requestedQty > $batchAvailableQty) {
+                    throw new \RuntimeException(
+                        "Selected batch has only {$batchAvailableQty} unsold units; requested {$requestedQty}."
+                    );
+                }
             }
 
             $netPayable = round($taxableSubtotal + $taxTotal, 2);
@@ -905,7 +1073,7 @@ class SalesController extends Controller {
             // 3. Generate Sequential Invoice Number
             $invoiceNo = NumberSeries::getNext($cid, 'INVOICE');
             $invDate = date('Y-m-d');
-            $notes = "POS Terminal Sale. GST Type: {$gstType}" . ($isOnline ? " [Online Channel]" : "");
+            $notes = "POS Terminal Sale. Billing For: {$billingPartyType}. GST Type: {$gstType}. GST Price Mode: {$gstPriceMode}" . ($isOnline ? " [Online Channel]" : "");
 
             DB::query(
                 "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, net_amount, payment_method, payment_status, notes, created_by, created_at)
@@ -915,25 +1083,20 @@ class SalesController extends Controller {
             $invoiceId = (int)DB::lastInsertId();
 
             // 4. Record items & atomically deduct stock via single stock gateway
-            foreach ($items as $item) {
-                $varId = (int)$item['id'];
-                $qty = max(1, (float)($item['qty'] ?? 1));
-                $unitPrice = (float)($item['price'] ?? 0);
-                $itemTotal = ($unitPrice * $qty) - (float)($item['discount'] ?? 0);
-
+            foreach ($calculatedItems as $item) {
                 DB::query(
-                    "INSERT INTO sales_invoice_items (concern_id, sales_invoice_id, variant_id, qty, unit_price, total_price)
-                     VALUES (?, ?, ?, ?, ?, ?)",
-                    [$cid, $invoiceId, $varId, $qty, $unitPrice, $itemTotal]
+                    "INSERT INTO sales_invoice_items (concern_id, sales_invoice_id, variant_id, production_batch_id, qty, unit_price, total_price)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    [$cid, $invoiceId, $item['variant_id'], $item['production_batch_id'], $item['qty'], $item['unit_price'], $item['total_price']]
                 );
 
                 // Deduct stock via StockService::move
                 StockService::move(
                     $cid,
-                    $varId,
+                    $item['variant_id'],
                     'Main Store',
                     0.00,
-                    $qty,
+                    $item['qty'],
                     'Billing',
                     $invoiceId,
                     "POS Sale #{$invoiceNo}",

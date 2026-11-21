@@ -279,10 +279,12 @@ class Auth {
                     FROM user_permissions up
                     JOIN modules m ON up.module_id = m.id
                     WHERE up.user_id = ?";
-            if ($cid > 0) {
+            $upCols = array_column(DB::fetchAll("DESCRIBE user_permissions"), 'Field');
+            $hasConcernCol = in_array('concern_id', $upCols, true);
+            if ($hasConcernCol && $cid > 0) {
                 $sql .= " AND (up.concern_id = ? OR up.concern_id IS NULL) ORDER BY (up.concern_id IS NOT NULL) ASC";
                 $params[] = $cid;
-            } else {
+            } elseif ($hasConcernCol) {
                 $sql .= " AND up.concern_id IS NULL";
             }
             $userPerms = DB::fetchAll($sql, $params);
@@ -438,13 +440,16 @@ class Auth {
         }
 
         // 1. Check user-specific granular overrides
-        // If user has customized user_permissions, only explicitly granted actions are allowed
+        // NULL = inherit from role, 1 = explicitly granted, 0 = explicitly denied
         $userPerms = $_SESSION['user_permissions'] ?? [];
-        if (!empty($userPerms)) {
-            if (isset($userPerms[$moduleCode]) && array_key_exists($act, $userPerms[$moduleCode])) {
-                return $userPerms[$moduleCode][$act] === 1;
+        if (isset($userPerms[$moduleCode]) && array_key_exists($act, $userPerms[$moduleCode])) {
+            $val = $userPerms[$moduleCode][$act];
+            if ($val === 1) {
+                return true;
             }
-            return false;
+            if ($val === 0) {
+                return false;
+            }
         }
         if ($actionAlias && isset($userPerms[$moduleCode]) && array_key_exists($actionAlias, $userPerms[$moduleCode])) {
             $val = $userPerms[$moduleCode][$actionAlias];

@@ -871,15 +871,19 @@
                                     $liveStore = isset($f['live_variant_stock']) ? (float)$f['live_variant_stock'] : $qty;
                                     $labelProductName = $f['variant_name'] ?: ($f['item_name'] ?: 'Finished Garment');
                                     $labelDesign = trim($f['pattern'] ?: ($f['specification'] ?: ($f['variant_size'] ?: 'STANDARD')));
-                                    $labelCode = \App\Services\QrService::generateTagCode(
-                                        $labelProductName,
-                                        $f['color'] ?? '',
-                                        $f['specification'] ?? '',
-                                        (string)$f['id']
-                                    );
-                                    $labelCode = $f['fg_label_qr_payload'] ?: $labelCode;
+                                    $labelCode = !empty($f['variant_id'])
+                                        ? \App\Services\QrService::formatFinishedGoodsCode(
+                                            (int)$f['variant_id'],
+                                            $f['main_category_code'] ?? null,
+                                            $f['sub_category_code'] ?? null,
+                                            $f['sub_sub_category_code'] ?? null,
+                                            $f['category_name'] ?? null,
+                                            $f['subcategory_name'] ?? null,
+                                            $f['sub_subcategory_name'] ?? null
+                                        )
+                                        : '';
                                     $labelProductName = $f['fg_label_title'] ?: $labelProductName;
-                                    $labelCodeDisplay = $f['fg_label_code'] ?: $labelCode;
+                                    $labelCodeDisplay = $labelCode;
                                     $labelPrice = (float)($f['variant_mrp'] ?: ($f['mrp'] ?: $f['unit_price']));
                                     $labelConcern = $f['concern_name'] ?: 'GRM Inventory';
                                     $labelRef = $f['bill_no'] ?: ('PO-' . $f['purchase_bill_id']);
@@ -948,13 +952,14 @@
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
-                                                <?php if (!empty($f['label_generation_complete'])): ?>
+                                                <?php if (!empty($f['label_generation_complete']) && !empty($f['variant_id'])): ?>
                                                     <button type="button" class="btn btn-outline-primary btn-sm p-1"
                                                         data-qr="<?= htmlspecialchars($labelCode, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-label-concern="<?= htmlspecialchars($labelConcern, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-label-ref="<?= htmlspecialchars($labelRef, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-label-title="<?= htmlspecialchars($labelProductName, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-label-field1-label="Product"
+                                                        data-label-code-label="Product Code"
                                                         data-label-fabric="<?= htmlspecialchars($f['category_name'] ?: 'Apparel', ENT_QUOTES, 'UTF-8') ?>"
                                                         data-label-color="<?= htmlspecialchars($f['color'] ?: 'STANDARD', ENT_QUOTES, 'UTF-8') ?>"
                                                         data-label-design="<?= htmlspecialchars($labelDesign, ENT_QUOTES, 'UTF-8') ?>"
@@ -1117,7 +1122,7 @@
                             <div class="label-detail-row"><span class="detail-label">Color:</span> <span class="detail-val text-uppercase" id="rollQrColor"></span></div>
                             <div class="label-detail-row"><span class="detail-label">Design:</span> <span class="detail-val text-uppercase" id="rollQrDesign"></span></div>
                             <div class="label-detail-row"><span class="detail-label">Price:</span> <span class="detail-val fw-bold text-success" id="rollQrPrice"></span></div>
-                            <div class="label-detail-row"><span class="detail-label">Code:</span> <span class="detail-val font-monospace text-primary fw-bold" id="rollQrCodeText"></span></div>
+                            <div class="label-detail-row"><span class="detail-label" id="rollQrCodeLabel">Code:</span> <span class="detail-val font-monospace text-primary fw-bold" id="rollQrCodeText"></span></div>
                         </div>
                     </div>
                 </div>
@@ -1145,6 +1150,7 @@ function showRollQr(button) {
     document.getElementById('rollQrColor').textContent = button.dataset.labelColor || '';
     document.getElementById('rollQrDesign').textContent = button.dataset.labelDesign || '';
     document.getElementById('rollQrPrice').textContent = button.dataset.labelPrice || '₹0.00';
+    document.getElementById('rollQrCodeLabel').textContent = (button.dataset.labelCodeLabel || 'Code') + ':';
     document.getElementById('rollQrCodeText').textContent = button.dataset.labelCode || payload;
     qrContainer.replaceChildren();
     new QRCode(qrContainer, {
