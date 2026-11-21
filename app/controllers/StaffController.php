@@ -181,6 +181,20 @@ class StaffController extends Controller {
         $sql .= " ORDER BY s.id DESC";
         $staffMembers = DB::fetchAll($sql, $params);
 
+        // Modules and grouping for permissions matrix (used in edit staff modal)
+        $modules = DB::fetchAll(
+            "SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC"
+        );
+        $groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+        $groupedModules = [];
+        foreach ($modules as $m) {
+            if ($m['code'] === 'cash') continue;
+            if ($m['code'] === 'concern_dashboard' || ($m['group_name'] ?? '') === 'Dashboard') continue;
+            if ($m['code'] === 'variants' || ($m['group_name'] ?? '') === 'Masters') continue;
+            $grp = $m['group_name'] ?: 'General';
+            $groupedModules[$grp][] = $m;
+        }
+
         $openAddModal = !empty($_GET['action']) && $_GET['action'] === 'add';
 
         $this->render('concern/staff', [
@@ -193,6 +207,9 @@ class StaffController extends Controller {
             'selectedCid'      => $selectedCid,
             'activeConcern'    => $activeConcern,
             'staffMembers'     => $staffMembers,
+            'modules'          => $modules,
+            'groupedModules'   => $groupedModules,
+            'groupOrder'       => $groupOrder,
             'showConcernModal' => $showConcernModal,
             'openAddModal'     => $openAddModal,
             'filters'          => [
@@ -620,9 +637,10 @@ class StaffController extends Controller {
                     DB::query("INSERT IGNORE INTO user_concerns (user_id, concern_id) VALUES (?, ?)", [$userId, $cid]);
                 }
 
-                if (!empty($_POST['perms'])) {
+                if (isset($_POST['has_perms_matrix']) || isset($_POST['perms'])) {
                     $activePermCids = isset($updCids) ? $updCids : [$cid];
-                    $this->persistUserPermissions($userId, (array)$_POST['perms'], $activePermCids);
+                    $postedPerms = isset($_POST['perms']) && is_array($_POST['perms']) ? $_POST['perms'] : [];
+                    $this->persistUserPermissions($userId, $postedPerms, $activePermCids);
                 }
             }
 
@@ -1355,7 +1373,7 @@ class StaffController extends Controller {
      * Persist module-level CRUD permissions for specific authorized concerns
      */
     private function persistUserPermissions(int $userId, array $postedPerms, array $concernIds): void {
-        if ($userId <= 0 || empty($postedPerms)) {
+        if ($userId <= 0) {
             return;
         }
 
@@ -1384,6 +1402,8 @@ class StaffController extends Controller {
                 $concernPerms = $postedPerms[$authCid];
             } elseif (count($concernIds) === 1 && isset($postedPerms[array_key_first($postedPerms)])) {
                 $concernPerms = $postedPerms;
+            } elseif (!empty($postedPerms)) {
+                $concernPerms = $postedPerms;
             }
 
             if ($cashModId && $cashFlowModId && isset($concernPerms[$cashFlowModId])) {
@@ -1393,6 +1413,9 @@ class StaffController extends Controller {
             // Get modules enabled for this concern
             $cmRows = DB::fetchAll("SELECT module_id FROM concern_modules WHERE concern_id = ? AND enabled = 1", [$authCid]);
             $enabledMids = array_map('intval', array_column($cmRows, 'module_id'));
+            if (empty($enabledMids)) {
+                $enabledMids = array_map('intval', array_column($allMods, 'id'));
+            }
 
             foreach ($enabledMids as $mid) {
                 $v = !empty($concernPerms[$mid]['view']) ? 1 : 0;

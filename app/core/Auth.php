@@ -4,6 +4,8 @@
 namespace App\Core;
 
 class Auth {
+    private static bool $permissionsRefreshed = false;
+
     public static function startSession(): void {
         if (session_status() === PHP_SESSION_NONE) {
             $config = require __DIR__ . '/../../config/app.php';
@@ -44,6 +46,12 @@ class Auth {
                     self::logout();
                     return false;
                 }
+            }
+
+            // Real-time permission refresh so permission changes take effect immediately without re-login
+            if (!self::$permissionsRefreshed && !self::isSuperAdmin()) {
+                self::loadPermissions($userId, (int)($_SESSION['user']['role_id'] ?? 0));
+                self::$permissionsRefreshed = true;
             }
         } catch (\Throwable $e) {
             // In case of DB disconnection during check, fall back to false
