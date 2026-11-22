@@ -99,4 +99,17 @@ foreach ($modulesToRegister as $m) {
     }
 }
 
+// Clean up deprecated/removed modules
+$removedModuleCodes = ['warehouse_damage', 'shop_damage'];
+foreach ($removedModuleCodes as $rmCode) {
+    $rmId = DB::fetchValue("SELECT id FROM modules WHERE code = ?", [$rmCode]);
+    if ($rmId) {
+        DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$rmId]);
+        DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$rmId]);
+        DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$rmId]);
+        DB::query("DELETE FROM modules WHERE id = ?", [$rmId]);
+        echo "  [OK] Removed deprecated module '{$rmCode}'.\n";
+    }
+}
+
 echo "\nMigrations completed successfully.\n";

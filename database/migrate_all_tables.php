@@ -563,6 +563,22 @@ foreach ([
 }
 echo "  + Required columns and defaults aligned with schema.sql\n";
 
+// 21. VARIANTS (cost_price, is_complementary)
+echo "\n21. Checking `variants`...\n";
+$varCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `variants`"), 'Field');
+if (!in_array('cost_price', $varCols, true)) {
+    DB::query("ALTER TABLE `variants` ADD COLUMN `cost_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `attributes`");
+    echo "  + Added `cost_price` to `variants`\n";
+} else {
+    echo "  . `cost_price` already exists\n";
+}
+if (!in_array('is_complementary', $varCols, true)) {
+    DB::query("ALTER TABLE `variants` ADD COLUMN `is_complementary` TINYINT(1) NOT NULL DEFAULT 0 AFTER `mrp`");
+    echo "  + Added `is_complementary` to `variants`\n";
+} else {
+    echo "  . `is_complementary` already exists\n";
+}
+
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";
 echo "========================================================\n";
