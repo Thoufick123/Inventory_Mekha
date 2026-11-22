@@ -187,6 +187,11 @@
                                                 <input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancel and restore stock"><i class="bi bi-x-lg"></i></button>
                                             </form>
+                                            <form action="<?= \App\Core\Controller::url('/m/concern_damage/destroy') ?>" method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this damage record? The <?= (float)$d['qty'] ?> unit(s) will be completely deleted from inventory and cannot be restored.');">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                <input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete completely (discard stock)"><i class="bi bi-trash"></i></button>
+                                            </form>
                                         <?php endif; ?>
                                     </div>
                                 </td>

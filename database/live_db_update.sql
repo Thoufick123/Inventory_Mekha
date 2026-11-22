@@ -296,6 +296,8 @@ CREATE TABLE IF NOT EXISTS `return_exchange_items` (
 CREATE TABLE IF NOT EXISTS `production_stock_requests` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
+    `source_concern_id` INT NULL,
+    `destination_concern_id` INT NULL,
     `request_no` VARCHAR(50) NOT NULL UNIQUE,
     `request_type` VARCHAR(50) NOT NULL DEFAULT 'INTER_MODULE',
     `from_location_type` VARCHAR(50) NOT NULL DEFAULT 'WAREHOUSE',
@@ -372,9 +374,12 @@ CREATE PROCEDURE `AddColSafe`(
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_schema COLLATE utf8mb4_unicode_ci = DATABASE() COLLATE utf8mb4_unicode_ci 
-          AND table_name COLLATE utf8mb4_unicode_ci = in_table COLLATE utf8mb4_unicode_ci 
-          AND column_name COLLATE utf8mb4_unicode_ci = in_col COLLATE utf8mb4_unicode_ci
+        WHERE CONVERT(table_schema USING utf8mb4) COLLATE utf8mb4_unicode_ci =
+              CONVERT(DATABASE() USING utf8mb4) COLLATE utf8mb4_unicode_ci
+          AND CONVERT(table_name USING utf8mb4) COLLATE utf8mb4_unicode_ci =
+              CONVERT(in_table USING utf8mb4) COLLATE utf8mb4_unicode_ci
+          AND CONVERT(column_name USING utf8mb4) COLLATE utf8mb4_unicode_ci =
+              CONVERT(in_col USING utf8mb4) COLLATE utf8mb4_unicode_ci
     ) THEN
         SET @sql = CONCAT('ALTER TABLE `', in_table, '` ADD COLUMN `', in_col, '` ', in_def);
         PREPARE stmt FROM @sql;
@@ -383,6 +388,10 @@ BEGIN
     END IF;
 END$$
 DELIMITER ;
+
+-- Align production stock request locations for existing installations
+CALL AddColSafe('production_stock_requests', 'source_concern_id', 'INT NULL AFTER `concern_id`');
+CALL AddColSafe('production_stock_requests', 'destination_concern_id', 'INT NULL AFTER `source_concern_id`');
 
 -- Align `batches` table
 CALL AddColSafe('batches', 'production_unit_id', 'INT NULL AFTER `concern_id`');
@@ -457,6 +466,27 @@ CALL AddColSafe('purchase_bill_items', 'product_type', 'VARCHAR(100) NULL');
 CALL AddColSafe('purchase_bill_items', 'mrp', 'DECIMAL(12,2) DEFAULT 0.00');
 CALL AddColSafe('purchase_bill_items', 'selling_price', 'DECIMAL(12,2) DEFAULT 0.00');
 
+-- Store cost independently from the existing selling price.
+CALL AddColSafe('variants', 'cost_price', 'DECIMAL(12,2) NULL DEFAULT NULL AFTER `attributes`');
+UPDATE variants v
+SET v.cost_price = COALESCE(
+    (SELECT pbi.unit_price
+     FROM purchase_bill_items pbi
+     WHERE pbi.concern_id = v.concern_id
+       AND (pbi.variant_id = v.id OR (v.catalog_id IS NOT NULL AND pbi.catalog_id = v.catalog_id))
+       AND pbi.unit_price > 0
+     ORDER BY CASE WHEN pbi.variant_id = v.id THEN 0 ELSE 1 END, pbi.id DESC
+     LIMIT 1),
+    (SELECT ii.unit_cost
+     FROM inward_items ii
+     WHERE ii.concern_id = v.concern_id AND ii.variant_id = v.id AND ii.unit_cost > 0
+     ORDER BY ii.id DESC
+     LIMIT 1),
+    0
+)
+WHERE v.cost_price IS NULL;
+ALTER TABLE `variants` MODIFY COLUMN `cost_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+
 -- Align `stitching_items` table
 CALL AddColSafe('stitching_items', 'inward_status', "VARCHAR(30) DEFAULT 'pending'");
 CALL AddColSafe('stitching_items', 'inward_at', 'DATETIME NULL');
@@ -503,10 +533,47 @@ CALL AddColSafe('concern_damages', 'cancelled_by', 'INT NULL AFTER `resolved_at`
 CALL AddColSafe('concern_damages', 'cancelled_at', 'DATETIME NULL AFTER `cancelled_by`');
 CALL AddColSafe('concern_damages', 'cancel_reason', 'TEXT NULL AFTER `cancelled_at`');
 
+-- POS shipping and partial payment
+CALL AddColSafe('sales_invoices', 'shipping_amount', 'DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `net_amount`');
+CALL AddColSafe('sales_invoices', 'paid_amount', 'DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `payment_status`');
+CALL AddColSafe('sales_invoices', 'is_direct_bill', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER `paid_amount`');
+CALL AddColSafe('sales_invoices', 'billing_company_name', 'VARCHAR(150) NULL AFTER `is_direct_bill`');
+CALL AddColSafe('sales_invoices', 'billing_company_address', 'VARCHAR(255) NULL AFTER `billing_company_name`');
+CALL AddColSafe('sales_invoices', 'billing_company_phone', 'VARCHAR(30) NULL AFTER `billing_company_address`');
+CALL AddColSafe('sales_invoices', 'billing_company_email', 'VARCHAR(150) NULL AFTER `billing_company_phone`');
+CALL AddColSafe('sales_invoices', 'billing_company_gstin', 'VARCHAR(15) NULL AFTER `billing_company_email`');
+ALTER TABLE `sales_invoices` MODIFY COLUMN `payment_method` VARCHAR(30) NOT NULL DEFAULT 'cash';
+UPDATE `sales_invoices`
+SET `paid_amount` = `net_amount`
+WHERE `payment_status` = 'paid' AND `paid_amount` = 0 AND `net_amount` > 0;
+
 -- Flexible Statuses on outwards and batches
 ALTER TABLE `outwards` MODIFY COLUMN `customer_id` INT NULL;
 ALTER TABLE `outwards` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'DISPATCHED';
 ALTER TABLE `batches` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'active';
+
+-- Align required columns and defaults with schema.sql
+UPDATE `inwards` SET `status` = 'VERIFIED' WHERE `status` IS NULL;
+ALTER TABLE `inwards` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'VERIFIED';
+
+UPDATE `inward_items` SET `accepted_qty` = 0.00 WHERE `accepted_qty` IS NULL;
+ALTER TABLE `inward_items` MODIFY COLUMN `accepted_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+UPDATE `inward_items` SET `rejected_qty` = 0.00 WHERE `rejected_qty` IS NULL;
+ALTER TABLE `inward_items` MODIFY COLUMN `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+
+UPDATE `qc_inspections` SET `rework_qty` = 0.00 WHERE `rework_qty` IS NULL;
+ALTER TABLE `qc_inspections` MODIFY COLUMN `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+UPDATE `qc_inspections` SET `status` = 'COMPLETED' WHERE `status` IS NULL;
+ALTER TABLE `qc_inspections` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'COMPLETED';
+
+UPDATE `user_permissions` SET `can_view` = 1 WHERE `can_view` IS NULL;
+ALTER TABLE `user_permissions` MODIFY COLUMN `can_view` TINYINT(1) NOT NULL DEFAULT 1;
+UPDATE `user_permissions` SET `can_add` = 0 WHERE `can_add` IS NULL;
+ALTER TABLE `user_permissions` MODIFY COLUMN `can_add` TINYINT(1) NOT NULL DEFAULT 0;
+UPDATE `user_permissions` SET `can_edit` = 0 WHERE `can_edit` IS NULL;
+ALTER TABLE `user_permissions` MODIFY COLUMN `can_edit` TINYINT(1) NOT NULL DEFAULT 0;
+UPDATE `user_permissions` SET `can_delete` = 0 WHERE `can_delete` IS NULL;
+ALTER TABLE `user_permissions` MODIFY COLUMN `can_delete` TINYINT(1) NOT NULL DEFAULT 0;
 
 DROP PROCEDURE IF EXISTS `AddColSafe`;
 

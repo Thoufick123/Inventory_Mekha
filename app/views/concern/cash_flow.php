@@ -235,6 +235,8 @@
                                         <td>
                                             <?php if ($row['type'] === 'credit'): ?>
                                                 <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Operating Inflow</span>
+                                            <?php elseif (in_array($row['ref_module'], ['Warehouse Expense', 'Expense'], true)): ?>
+                                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Operating Outflow</span>
                                             <?php else: ?>
                                                 <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Disbursement</span>
                                             <?php endif; ?>

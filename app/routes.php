@@ -91,9 +91,14 @@ $router->post('/api/qr/lookup', [LabelController::class, 'lookup'], 'stocks', 'v
 
 // Stock & Ledger
 $router->get('/m/stocks', [StockController::class, 'index'], 'stocks', 'view');
+$router->get('/m/stocks/details', [StockController::class, 'details'], 'stocks', 'view');
 $router->get('/m/stocks/view-label', [LabelController::class, 'previewPurchaseFinishedGoodLabel'], 'stocks', 'view');
+$router->post('/m/stocks/update-details', [StockController::class, 'updateDetails'], 'stocks', 'edit');
 $router->post('/m/stocks/update-quantity', [StockController::class, 'updateQuantity'], 'stocks', 'edit');
 $router->post('/m/stocks/delete-line', [StockController::class, 'deleteStockLine'], 'stocks', 'edit');
+$router->post('/m/stocks/bulk-update-price', [StockController::class, 'bulkUpdatePrice'], 'stocks', 'edit');
+$router->post('/m/stocks/bulk-assign-complementary', [StockController::class, 'bulkAssignComplementary'], 'stocks', 'edit');
+$router->post('/m/stocks/bulk-unassign-complementary', [StockController::class, 'bulkUnassignComplementary'], 'stocks', 'edit');
 $router->get('/m/stocks/export', [StockController::class, 'exportStocks'], 'stocks', 'export');
 $router->get('/m/stock_ledger', [StockController::class, 'ledger'], 'stocks', 'view');
 $router->get('/m/stock_ledger/export', [StockController::class, 'exportLedger'], 'stocks', 'export');
@@ -154,18 +159,10 @@ $router->post('/m/concern_damage/scan', [DamageController::class, 'scan'], 'conc
 $router->post('/m/concern_damage/store', [DamageController::class, 'store'], 'concern_damage', 'add');
 $router->post('/m/concern_damage/update', [DamageController::class, 'update'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/delete', [DamageController::class, 'delete'], 'concern_damage', 'delete');
+$router->post('/m/concern_damage/destroy', [DamageController::class, 'destroy'], 'concern_damage', 'delete');
 $router->post('/m/concern_damage/resolve', [DamageController::class, 'resolve'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/inward-replacement', [DamageController::class, 'inwardReplacement'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/cancel', [DamageController::class, 'cancel'], 'concern_damage', 'delete');
-
-// Warehouse Damage
-$router->get('/warehouse/damages', [WarehouseDamageController::class, 'index'], 'warehouse_damage', 'view');
-$router->get('/m/warehouse_damage', [WarehouseDamageController::class, 'index'], 'warehouse_damage', 'view');
-$router->post('/warehouse/damages/store', [WarehouseDamageController::class, 'store'], 'warehouse_damage', 'add');
-$router->post('/warehouse/damages/resolve', [WarehouseDamageController::class, 'resolve'], 'warehouse_damage', 'edit');
-$router->post('/warehouse/damages/inward-replacement', [WarehouseDamageController::class, 'inwardReplacement'], 'warehouse_damage', 'edit');
-$router->post('/warehouse/damages/cancel', [WarehouseDamageController::class, 'cancel'], 'warehouse_damage', 'delete');
-$router->get('/warehouse/damages/print/{id}', [WarehouseDamageController::class, 'print'], 'warehouse_damage', 'view');
 
 // Sales & Distribution / Shop
 $router->get('/m/customers', [SalesController::class, 'customers'], 'customers', 'view');
@@ -188,9 +185,10 @@ $router->post('/production/stock-requests/receive', [ProductionStockRequestContr
 $router->post('/production/stock-requests/reject', [ProductionStockRequestController::class, 'reject'], 'request', 'edit');
 $router->post('/production/stock-requests/cancel', [ProductionStockRequestController::class, 'cancel'], 'request', 'delete');
 $router->get('/production/stock-requests/print/{id}', [ProductionStockRequestController::class, 'printChallan'], 'request', 'view');
-$router->get('/m/request', [SalesController::class, 'request'], 'request', 'view');
+$router->get('/api/stock-requests/variant-stocks', [ProductionStockRequestController::class, 'variantStocks'], 'request', 'view');
+$router->get('/m/request', [ProductionStockRequestController::class, 'index'], 'request', 'view');
 $router->get('/m/request/export', [SalesController::class, 'exportRequests'], 'request', 'export');
-$router->post('/m/request/store', [SalesController::class, 'storeRequest'], 'request', 'add');
+$router->post('/m/request/store', [ProductionStockRequestController::class, 'store'], 'request', 'add');
 $router->post('/m/request/update', [SalesController::class, 'updateRequest'], 'request', 'edit');
 $router->post('/m/request/delete', [SalesController::class, 'deleteRequest'], 'request', 'delete');
 // Finished Production Batches & Carton Packaging (Image 1, 2, 3)
@@ -211,10 +209,11 @@ $router->post('/production/batches/update', [BatchController::class, 'update'], 
 $router->post('/m/batch/delete', [BatchController::class, 'delete'], 'batch', 'delete');
 $router->post('/production/batches/delete', [BatchController::class, 'delete'], 'batch', 'delete');
 $router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'export');
-$router->get('/m/billing', [SalesController::class, 'billing'], 'billing', 'view');
+$router->get('/m/billing', [SalesController::class, 'billingOverview'], 'billing', 'view');
+$router->get('/m/billing/create', [SalesController::class, 'billing'], 'billing', 'add');
 $router->get('/m/billing/export', [SalesController::class, 'exportBilling'], 'billing', 'export');
 $router->post('/m/billing/store', [SalesController::class, 'storeInvoice'], 'billing', 'add');
-$router->get('/shop/pos', [SalesController::class, 'billing'], 'billing', 'view');
+$router->get('/shop/pos', [SalesController::class, 'billingOverview'], 'billing', 'view');
 $router->post('/shop/pos/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->post('/m/billing/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->get('/api/pos/variant-lookup', [SalesController::class, 'variantLookup'], 'billing', 'view');
@@ -242,13 +241,16 @@ $router->post('/m/dispatch/update', [SalesController::class, 'updateDispatch'], 
 $router->post('/m/dispatch/delete', [SalesController::class, 'deleteDispatch'], 'dispatch', 'delete');
 // Return & Exchange (RMA)
 $router->get('/production/returns', [ProductionReturnController::class, 'index'], 'return_exchange', 'view');
-$router->get('/production/returns/create', [ProductionReturnController::class, 'create'], 'return_exchange', 'add');
+$router->get('/production/returns/create', [SalesController::class, 'returnExchange'], 'return_exchange', 'add');
 $router->post('/production/returns/store', [ProductionReturnController::class, 'store'], 'return_exchange', 'add');
 $router->get('/production/returns/view/{id}', [ProductionReturnController::class, 'view'], 'return_exchange', 'view');
 $router->get('/production/returns/print/{id}', [ProductionReturnController::class, 'print'], 'return_exchange', 'view');
 $router->post('/production/returns/cancel', [ProductionReturnController::class, 'cancel'], 'return_exchange', 'delete');
 $router->get('/api/returns/lookup-bill', [ProductionReturnController::class, 'ajaxLookupBill'], 'return_exchange', 'view');
 $router->get('/m/return_exchange', [SalesController::class, 'returnExchange'], 'return_exchange', 'view');
+$router->get('/api/shop-returns/customer-invoices', [SalesController::class, 'lookupShopReturnInvoices'], 'return_exchange', 'view');
+$router->get('/api/shop-returns/invoice', [SalesController::class, 'lookupShopReturnInvoice'], 'return_exchange', 'view');
+$router->get('/api/shop-returns/replacement', [SalesController::class, 'lookupShopReturnReplacement'], 'return_exchange', 'view');
 $router->get('/m/return_exchange/export', [SalesController::class, 'exportReturnExchange'], 'return_exchange', 'export');
 $router->post('/m/return_exchange/store', [SalesController::class, 'storeReturn'], 'return_exchange', 'add');
 $router->post('/m/return_exchange/update', [SalesController::class, 'updateReturn'], 'return_exchange', 'edit');

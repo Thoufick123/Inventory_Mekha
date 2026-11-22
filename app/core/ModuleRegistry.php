@@ -27,7 +27,6 @@ class ModuleRegistry
             ['code' => 'inward', 'name' => 'Inward', 'icon' => 'bi-box-arrow-in-down', 'sort_order' => 40, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'stocks', 'name' => 'Stocks', 'icon' => 'bi-boxes', 'sort_order' => 41, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'concern_damage', 'name' => 'Concern Damage', 'icon' => 'bi-x-octagon', 'sort_order' => 42, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
-            ['code' => 'warehouse_damage', 'name' => 'Warehouse Damage', 'icon' => 'bi-shield-slash', 'sort_order' => 43, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'return_exchange', 'name' => 'Return & Exchange', 'icon' => 'bi-arrow-left-right', 'sort_order' => 45, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'customers', 'name' => 'Customer Details', 'icon' => 'bi-people', 'sort_order' => 50, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
             ['code' => 'billing', 'name' => 'POS Billing', 'icon' => 'bi-calculator', 'sort_order' => 51, 'group_name' => 'Shop', 'is_super_admin_only' => 0],

@@ -10,7 +10,7 @@
     </div>
 
     <form method="POST" action="<?= \App\Core\Controller::url('/production/stock-requests/store') ?>" id="stockRequestForm" class="needs-validation">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\CSRF::token()) ?>">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
         <input type="hidden" name="items" id="itemsJson" value="[]">
 
         <div class="row g-4">

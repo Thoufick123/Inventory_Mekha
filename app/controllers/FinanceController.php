@@ -24,6 +24,8 @@ class FinanceController extends Controller {
         $payMode  = trim($_GET['payment_mode'] ?? '');
         $search   = trim($_GET['search'] ?? '');
 
+        self::syncUnlinkedExpenses($filterConcernId);
+
         // 2. Base Query
         $sql = "SELECT e.*, ca.name AS account_name, u.name AS user_name,
                        con.name AS concern_name, con.code AS concern_code
@@ -142,10 +144,14 @@ class FinanceController extends Controller {
         ModuleGuard::enforce('expense', 'add');
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 1;
+        }
 
         if (!$cid) {
             $this->flash('error', 'Please choose a warehouse / concern.');
             $this->redirect('/m/expense');
+            return;
         }
 
         $expDate         = $_POST['expense_date'] ?: date('Y-m-d');
@@ -161,6 +167,34 @@ class FinanceController extends Controller {
         if ($amount <= 0) {
             $this->flash('error', 'Expense amount must be greater than zero.');
             $this->redirect('/m/expense');
+            return;
+        }
+
+        // Auto-resolve account if not explicitly specified
+        if (!$accountId && $cid) {
+            $payModeLower = strtolower($payMode);
+            if (str_contains($payModeLower, 'bank') || str_contains($payModeLower, 'neft') || str_contains($payModeLower, 'upi') || str_contains($payModeLower, 'card') || str_contains($payModeLower, 'online')) {
+                $acc = DB::fetch(
+                    "SELECT id FROM cash_accounts WHERE concern_id = ? AND account_type IN ('bank', 'upi') AND status = 'active' ORDER BY id ASC LIMIT 1",
+                    [$cid]
+                );
+                if ($acc) $accountId = (int)$acc['id'];
+            }
+            if (!$accountId) {
+                $acc = DB::fetch(
+                    "SELECT id FROM cash_accounts WHERE concern_id = ? AND account_type IN ('cash', 'petty_cash') AND status = 'active' ORDER BY id ASC LIMIT 1",
+                    [$cid]
+                ) ?: DB::fetch("SELECT id FROM cash_accounts WHERE concern_id = ? AND status = 'active' ORDER BY id ASC LIMIT 1", [$cid]);
+                if ($acc) $accountId = (int)$acc['id'];
+            }
+            if (!$accountId) {
+                DB::query(
+                    "INSERT INTO cash_accounts (concern_id, name, account_type, account_number, balance, status, created_at)
+                     VALUES (?, 'Main Cash Drawer', 'cash', 'DRAWER-01', 0.00, 'active', NOW())",
+                    [$cid]
+                );
+                $accountId = (int)DB::lastInsertId();
+            }
         }
 
         DB::beginTransaction();
@@ -186,7 +220,7 @@ class FinanceController extends Controller {
             );
             $expId = (int)DB::lastInsertId();
 
-            // If Paid and linked to cash account, post debit transaction
+            // If Paid and linked to cash account, post debit transaction to Cash Flow
             if (strtolower($status) !== 'pending' && $accountId) {
                 CashService::postTransaction(
                     $cid,
@@ -196,7 +230,7 @@ class FinanceController extends Controller {
                     $amount,
                     'Warehouse Expense',
                     $expId,
-                    "Voucher #{$expNo} [{$category}]: {$particulars} ({$paidTo})",
+                    "Voucher #{$expNo} [{$category}]: {$particulars}" . ($paidTo ? " ({$paidTo})" : ''),
                     Auth::id()
                 );
             }
@@ -221,24 +255,57 @@ class FinanceController extends Controller {
         if (!$expense) {
             $this->flash('error', 'Expense voucher not found.');
             $this->redirect('/m/expense');
+            return;
         }
 
         if ($cid && (int)$expense['concern_id'] !== $cid && !Auth::isSuperAdmin()) {
             $this->flash('error', 'Unauthorized access to this voucher.');
             $this->redirect('/m/expense');
+            return;
         }
 
+        $concernId   = (int)$expense['concern_id'];
         $expDate     = $_POST['expense_date'] ?: $expense['expense_date'];
         $category    = trim($_POST['category'] ?? $expense['category']);
         $paidTo      = trim($_POST['paid_to'] ?? '');
+        $particulars = trim($_POST['item_particulars'] ?? $expense['item_particulars']);
         $amount      = (float)($_POST['amount'] ?? 0);
-        $payMode     = trim($_POST['payment_mode'] ?? 'Cash');
-        $status      = trim($_POST['status'] ?? 'Paid');
+        $payMode     = trim($_POST['payment_mode'] ?? $expense['payment_mode']);
+        $status      = trim($_POST['status'] ?? $expense['status']);
         $desc        = trim($_POST['description'] ?? '');
+        $accountId   = !empty($_POST['account_id']) ? (int)$_POST['account_id'] : (int)($expense['account_id'] ?? 0);
 
         if ($amount <= 0) {
             $this->flash('error', 'Expense amount must be greater than zero.');
             $this->redirect('/m/expense');
+            return;
+        }
+
+        // Auto-resolve account if still missing
+        if (!$accountId && $concernId) {
+            $payModeLower = strtolower($payMode);
+            if (str_contains($payModeLower, 'bank') || str_contains($payModeLower, 'neft') || str_contains($payModeLower, 'upi') || str_contains($payModeLower, 'card') || str_contains($payModeLower, 'online')) {
+                $acc = DB::fetch(
+                    "SELECT id FROM cash_accounts WHERE concern_id = ? AND account_type IN ('bank', 'upi') AND status = 'active' ORDER BY id ASC LIMIT 1",
+                    [$concernId]
+                );
+                if ($acc) $accountId = (int)$acc['id'];
+            }
+            if (!$accountId) {
+                $acc = DB::fetch(
+                    "SELECT id FROM cash_accounts WHERE concern_id = ? AND account_type IN ('cash', 'petty_cash') AND status = 'active' ORDER BY id ASC LIMIT 1",
+                    [$concernId]
+                ) ?: DB::fetch("SELECT id FROM cash_accounts WHERE concern_id = ? AND status = 'active' ORDER BY id ASC LIMIT 1", [$concernId]);
+                if ($acc) $accountId = (int)$acc['id'];
+            }
+            if (!$accountId) {
+                DB::query(
+                    "INSERT INTO cash_accounts (concern_id, name, account_type, account_number, balance, status, created_at)
+                     VALUES (?, 'Main Cash Drawer', 'cash', 'DRAWER-01', 0.00, 'active', NOW())",
+                    [$concernId]
+                );
+                $accountId = (int)DB::lastInsertId();
+            }
         }
 
         DB::beginTransaction();
@@ -247,14 +314,54 @@ class FinanceController extends Controller {
             if (!empty($category)) {
                 $catExists = DB::fetch("SELECT id FROM expense_categories WHERE LOWER(name) = LOWER(?)", [$category]);
                 if (!$catExists) {
-                    DB::query("INSERT INTO expense_categories (concern_id, name, status, created_at) VALUES (?, ?, 'active', NOW())", [(int)$expense['concern_id'], $category]);
+                    DB::query("INSERT INTO expense_categories (concern_id, name, status, created_at) VALUES (?, ?, 'active', NOW())", [$concernId, $category]);
                 }
             }
 
             DB::query(
-                "UPDATE expenses SET expense_date = ?, category = ?, paid_to = ?, amount = ?, payment_mode = ?, status = ?, description = ? WHERE id = ?",
-                [$expDate, $category, $paidTo, $amount, $payMode, $status, $desc, $id]
+                "UPDATE expenses SET expense_date = ?, category = ?, item_particulars = ?, paid_to = ?, amount = ?, payment_mode = ?, status = ?, account_id = ?, description = ? WHERE id = ?",
+                [$expDate, $category, $particulars, $paidTo, $amount, $payMode, $status, $accountId ?: null, $desc, $id]
             );
+
+            // Reconcile linked cash transaction in Cash Flow
+            $existingTx = DB::fetch(
+                "SELECT * FROM cash_transactions WHERE ref_module IN ('Warehouse Expense', 'Expense') AND ref_id = ? LIMIT 1",
+                [$id]
+            );
+
+            if (strtolower($status) === 'pending') {
+                if ($existingTx) {
+                    if ($existingTx['type'] === 'debit') {
+                        DB::query("UPDATE cash_accounts SET balance = balance + ? WHERE id = ?", [(float)$existingTx['amount'], (int)$existingTx['account_id']]);
+                    }
+                    DB::query("DELETE FROM cash_transactions WHERE id = ?", [(int)$existingTx['id']]);
+                }
+            } else {
+                // Status is Paid
+                $descText = "Voucher #{$expense['expense_no']} [{$category}]: {$particulars}" . ($paidTo ? " ({$paidTo})" : '');
+                if ($existingTx) {
+                    if ($existingTx['type'] === 'debit') {
+                        DB::query("UPDATE cash_accounts SET balance = balance + ? WHERE id = ?", [(float)$existingTx['amount'], (int)$existingTx['account_id']]);
+                    }
+                    DB::query("UPDATE cash_accounts SET balance = balance - ? WHERE id = ?", [$amount, $accountId]);
+                    DB::query(
+                        "UPDATE cash_transactions SET account_id = ?, txn_date = ?, amount = ?, description = ? WHERE id = ?",
+                        [$accountId, $expDate, $amount, $descText, (int)$existingTx['id']]
+                    );
+                } else {
+                    CashService::postTransaction(
+                        $concernId,
+                        $accountId,
+                        $expDate,
+                        'debit',
+                        $amount,
+                        'Warehouse Expense',
+                        $id,
+                        $descText,
+                        Auth::id()
+                    );
+                }
+            }
 
             DB::commit();
             $this->flash('success', "Expense voucher '{$expense['expense_no']}' updated successfully.");
@@ -276,17 +383,28 @@ class FinanceController extends Controller {
         if (!$expense) {
             $this->flash('error', 'Expense voucher not found.');
             $this->redirect('/m/expense');
+            return;
         }
 
         if ($cid && (int)$expense['concern_id'] !== $cid && !Auth::isSuperAdmin()) {
             $this->flash('error', 'Unauthorized access to delete this voucher.');
             $this->redirect('/m/expense');
+            return;
         }
 
         DB::beginTransaction();
         try {
-            // Delete linked cash transaction if any
-            DB::query("DELETE FROM cash_transactions WHERE ref_module = 'Warehouse Expense' AND ref_id = ?", [$id]);
+            // Reconcile and delete linked cash transaction
+            $linkedTx = DB::fetch(
+                "SELECT * FROM cash_transactions WHERE ref_module IN ('Warehouse Expense', 'Expense') AND ref_id = ? LIMIT 1",
+                [$id]
+            );
+            if ($linkedTx) {
+                if ($linkedTx['type'] === 'debit') {
+                    DB::query("UPDATE cash_accounts SET balance = balance + ? WHERE id = ?", [(float)$linkedTx['amount'], (int)$linkedTx['account_id']]);
+                }
+                DB::query("DELETE FROM cash_transactions WHERE id = ?", [(int)$linkedTx['id']]);
+            }
 
             // Delete expense record
             DB::query("DELETE FROM expenses WHERE id = ?", [$id]);
@@ -299,6 +417,74 @@ class FinanceController extends Controller {
         }
 
         $this->redirect('/m/expense');
+    }
+
+    public static function syncUnlinkedExpenses(?int $cid = null): void {
+        $sql = "SELECT e.* FROM expenses e
+                WHERE LOWER(e.status) != 'pending'
+                  AND e.amount > 0
+                  AND e.id NOT IN (
+                      SELECT ref_id FROM cash_transactions 
+                      WHERE ref_module IN ('Warehouse Expense', 'Expense')
+                  )";
+        $params = [];
+        if ($cid) {
+            $sql .= " AND e.concern_id = ?";
+            $params[] = $cid;
+        }
+        $unlinked = DB::fetchAll($sql, $params);
+        if (empty($unlinked)) return;
+
+        foreach ($unlinked as $exp) {
+            $concernId = (int)$exp['concern_id'];
+            $accountId = !empty($exp['account_id']) ? (int)$exp['account_id'] : 0;
+
+            if (!$accountId) {
+                $payModeLower = strtolower($exp['payment_mode'] ?? '');
+                if (str_contains($payModeLower, 'bank') || str_contains($payModeLower, 'neft') || str_contains($payModeLower, 'upi') || str_contains($payModeLower, 'card') || str_contains($payModeLower, 'online')) {
+                    $acc = DB::fetch(
+                        "SELECT id FROM cash_accounts WHERE concern_id = ? AND account_type IN ('bank', 'upi') AND status = 'active' ORDER BY id ASC LIMIT 1",
+                        [$concernId]
+                    );
+                    if ($acc) $accountId = (int)$acc['id'];
+                }
+                if (!$accountId) {
+                    $acc = DB::fetch(
+                        "SELECT id FROM cash_accounts WHERE concern_id = ? AND account_type IN ('cash', 'petty_cash') AND status = 'active' ORDER BY id ASC LIMIT 1",
+                        [$concernId]
+                    ) ?: DB::fetch("SELECT id FROM cash_accounts WHERE concern_id = ? AND status = 'active' ORDER BY id ASC LIMIT 1", [$concernId]);
+                    if ($acc) $accountId = (int)$acc['id'];
+                }
+                if (!$accountId) {
+                    DB::query(
+                        "INSERT INTO cash_accounts (concern_id, name, account_type, account_number, balance, status, created_at)
+                         VALUES (?, 'Main Cash Drawer', 'cash', 'DRAWER-01', 0.00, 'active', NOW())",
+                        [$concernId]
+                    );
+                    $accountId = (int)DB::lastInsertId();
+                }
+
+                DB::query("UPDATE expenses SET account_id = ? WHERE id = ?", [$accountId, (int)$exp['id']]);
+            }
+
+            try {
+                $part = $exp['item_particulars'] ?: ($exp['description'] ?: $exp['category']);
+                $paid = $exp['paid_to'] ? " ({$exp['paid_to']})" : '';
+                CashService::postTransaction(
+                    $concernId,
+                    $accountId,
+                    $exp['expense_date'] ?: date('Y-m-d'),
+                    'debit',
+                    (float)$exp['amount'],
+                    'Warehouse Expense',
+                    (int)$exp['id'],
+                    "Voucher #{$exp['expense_no']} [{$exp['category']}]: {$part}{$paid}",
+                    (int)($exp['created_by'] ?: 1)
+                );
+            } catch (\Throwable $e) {
+                error_log("Failed to sync expense #{$exp['id']} to cash flow: " . $e->getMessage());
+            }
+        }
     }
 
     public function storeCategory(): void {
@@ -528,6 +714,8 @@ class FinanceController extends Controller {
     public function cashFlow(): void {
         ModuleGuard::enforce('cash_flow', 'view');
         $cid = Auth::concernId();
+
+        self::syncUnlinkedExpenses($cid);
 
         // A. Cash Flow Metrics
         $sqlIn = "SELECT COALESCE(SUM(amount), 0) FROM cash_transactions WHERE type = 'credit'";

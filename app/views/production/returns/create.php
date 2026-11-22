@@ -10,7 +10,7 @@
     </div>
 
     <form method="POST" action="<?= \App\Core\Controller::url('/production/returns/store') ?>" id="rmaForm" class="needs-validation">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\CSRF::token()) ?>">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
         <input type="hidden" name="in_items" id="inItemsJson" value="[]">
         <input type="hidden" name="out_items" id="outItemsJson" value="[]">
 

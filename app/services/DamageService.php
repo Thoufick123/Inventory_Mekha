@@ -486,7 +486,7 @@ class DamageService {
         };
     }
 
-    private static function locationWithState(string $location, string $state): string {
+    public static function locationWithState(string $location, string $state): string {
         $location = trim($location);
         if (preg_match('/:(AVAILABLE|DAMAGED)$/i', $location)) {
             return substr($location, 0, strrpos($location, ':') + 1) . strtoupper($state);

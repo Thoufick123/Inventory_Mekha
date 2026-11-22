@@ -1,3 +1,17 @@
+<?php
+$posPaymentMethodLabels = [
+    'cash' => 'CASH',
+    'upi' => 'UPI / QR',
+    'card' => 'CARD / POS',
+    'split' => 'CASH + UPI',
+    'bank_transfer' => 'BANK TRANSFER',
+    'credit' => 'CREDIT',
+];
+$posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels): string {
+    $key = strtolower(trim((string)$method));
+    return $posPaymentMethodLabels[$key] ?? strtoupper(str_replace('_', ' ', $key));
+};
+?>
 <div class="container-fluid px-0">
     <!-- Top Breadcrumb & Page Header (Exact Replica of Image 1) -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
@@ -10,7 +24,7 @@
                 <span class="text-dark fw-semibold">POS Terminal</span>
             </div>
             <div class="d-flex align-items-center gap-3 mt-1">
-                <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="btn btn-light rounded-circle shadow-sm border p-0 d-inline-flex align-items-center justify-content-center" style="width: 38px; height: 38px;" title="Back to Dashboard">
+                <a href="<?= \App\Core\Controller::url('/m/billing') ?>" class="btn btn-light rounded-circle shadow-sm border p-0 d-inline-flex align-items-center justify-content-center" style="width: 38px; height: 38px;" title="Back to POS Bills">
                     <i class="bi bi-arrow-left fs-6 text-dark"></i>
                 </a>
                 <div style="width: 44px; height: 44px; background: #e0f2fe; color: #0284c7; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.45rem; flex-shrink: 0;">
@@ -46,9 +60,8 @@
     ?>
 
     <!-- Main Terminal Grid (Left: Scanner / Shortcuts, Right: Customer & Cart) -->
-    <form id="pos_billing_form" action="<?= \App\Core\Controller::url('/m/billing/complete') ?>" method="POST">
+    <form id="pos_billing_form" action="<?= \App\Core\Controller::url('/m/billing/complete') ?>" method="POST" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-        <input type="hidden" name="concern_id" value="<?= (int)($selectedCid ?: ($currentConcern['id'] ?? 1)) ?>">
         <input type="hidden" name="cart_items_json" id="cart_items_json" value="[]">
         <input type="hidden" name="payment_method" id="input_payment_method" value="cash">
 
@@ -180,6 +193,9 @@
                             <span class="badge rounded-pill px-2 py-1 fw-bold" style="background: #fee2e2; color: #ef4444; font-size: 0.74rem;">
                                 * Name, Phone, Address
                             </span>
+                            <span id="customer_history_badge" class="badge rounded-pill px-2 py-1 fw-bold bg-success-subtle text-success border border-success-subtle d-none" style="font-size: 0.74rem;">
+                                <i class="bi bi-check-circle me-1"></i><span id="customer_history_badge_text">Saved</span>
+                            </span>
                             <button type="button" class="btn btn-sm px-2 py-1 fw-bold rounded-pill" id="btn_walkin" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 0.74rem;">
                                 <i class="bi bi-person"></i> Walk-in
                             </button>
@@ -202,51 +218,41 @@
                                 <option value="company">Company / Bulk</option>
                             </select>
                         </div>
-                        <div class="col-md-6 d-none" id="company_customer_wrap">
-                            <label for="company_customer_id" class="form-label text-secondary small fw-bold mb-1">COMPANY</label>
-                            <select name="company_customer_id" id="company_customer_id" class="form-select" disabled>
-                                <option value="">Select a company</option>
-                                <?php foreach ($customers as $customer): ?>
-                                    <option value="<?= (int)$customer['id'] ?>"
-                                            data-name="<?= htmlspecialchars($customer['name'], ENT_QUOTES) ?>"
-                                            data-phone="<?= htmlspecialchars($customer['phone'] ?? '', ENT_QUOTES) ?>"
-                                            data-address="<?= htmlspecialchars($customer['address'] ?? $customer['city'] ?? '', ENT_QUOTES) ?>"
-                                            data-gstin="<?= htmlspecialchars($customer['gstin'] ?? '', ENT_QUOTES) ?>">
-                                        <?= htmlspecialchars($customer['name']) ?><?= !empty($customer['gstin']) ? ' (' . htmlspecialchars($customer['gstin']) . ')' : '' ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                    </div>
+
+                    <div class="row g-2 mb-3 d-none" id="company_details_wrap">
+                        <div class="col-md-6">
+                            <label for="company_name" class="form-label text-secondary small fw-bold mb-1">COMPANY NAME *</label>
+                            <input type="text" name="company_name" id="company_name" class="form-control" maxlength="150" required disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="company_address" class="form-label text-secondary small fw-bold mb-1">ADDRESS</label>
+                            <input type="text" name="company_address" id="company_address" class="form-control" maxlength="255" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="company_phone" class="form-label text-secondary small fw-bold mb-1">PHONE</label>
+                            <input type="tel" name="company_phone" id="company_phone" class="form-control" maxlength="30" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="company_email" class="form-label text-secondary small fw-bold mb-1">EMAIL</label>
+                            <input type="email" name="company_email" id="company_email" class="form-control" maxlength="100" disabled>
+                        </div>
+                        <div class="col-12">
+                            <label for="company_gstin" class="form-label text-secondary small fw-bold mb-1">GSTIN</label>
+                            <input type="text" name="company_gstin" id="company_gstin" class="form-control text-uppercase" maxlength="15" disabled>
                         </div>
                     </div>
 
-                    <div class="row g-2 mb-3 d-none" id="company_batch_wrap">
-                        <div class="col-md-8">
-                            <label for="company_batch_select" class="form-label text-secondary small fw-bold mb-1">APPROVED PRODUCTION BATCHES</label>
-                            <select id="company_batch_select" class="form-select" multiple size="4" disabled aria-describedby="company_batch_hint">
-                                <option value="">Load batches to select</option>
-                            </select>
-                            <small id="company_batch_hint" class="text-muted">Only approved batches with available stock are shown. Select one or more batches.</small>
-                        </div>
-                        <div class="col-md-4 d-flex align-items-end">
-                            <div class="d-grid gap-2 w-100">
-                                <button type="button" class="btn btn-outline-secondary" id="btn_load_company_batches" disabled>
-                                    <i class="bi bi-arrow-clockwise me-1"></i> Load Batches
-                                </button>
-                                <button type="button" class="btn btn-primary" id="btn_add_selected_batches" disabled>
-                                    <i class="bi bi-boxes me-1"></i> Add Selected
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 2x2 Form Inputs Grid + GST Type -->
+                    <!-- Customer details and invoice GST controls -->
                     <div id="customer_contact_fields">
                     <div class="row g-2 mb-2">
-                        <div class="col-md-6">
+                        <div class="col-md-6 position-relative">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-phone text-muted me-1"></i> MOBILE NUMBER *
                             </label>
-                            <input type="tel" name="customer_mobile" id="cust_mobile" class="form-control" placeholder="10-digit mobile number *" maxlength="10" required style="border-radius: 8px; font-size: 0.88rem;">
+                            <input type="tel" name="customer_mobile" id="cust_mobile" class="form-control" placeholder="10-digit mobile number *" maxlength="10" required autocomplete="off" style="border-radius: 8px; font-size: 0.88rem;">
+                            <!-- Customer Previous Orders & Autocomplete Dropdown -->
+                            <div id="cust_lookup_dropdown" class="position-absolute bg-white border rounded-3 shadow-lg p-1 d-none" style="top: 100%; left: 0; right: 0; z-index: 1060; max-height: 220px; overflow-y: auto; margin-top: 4px;"></div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
@@ -257,19 +263,22 @@
                     </div>
 
                     <div class="row g-2 mb-2">
-                        <div class="col-md-6">
+                        <div class="col-12">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-geo-alt text-muted me-1"></i> CUSTOMER ADDRESS *
                             </label>
                             <input type="text" name="customer_address" id="cust_address" class="form-control" placeholder="Billing address / city *" required style="border-radius: 8px; font-size: 0.88rem;">
                         </div>
+                    </div>
+                    </div>
+
+                    <div class="row g-2 mb-2">
                         <div class="col-md-6">
-                            <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
+                            <label for="billed_by_staff" class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-person-badge text-muted me-1"></i> BILLED BY STAFF
                             </label>
-                            <input type="text" class="form-control bg-light text-muted" value="<?= htmlspecialchars($staffName) ?>" readonly style="border-radius: 8px; font-size: 0.88rem;">
+                            <input type="text" id="billed_by_staff" class="form-control bg-light text-muted" value="<?= htmlspecialchars($staffName) ?>" readonly style="border-radius: 8px; font-size: 0.88rem;">
                         </div>
-                    </div>
                     </div>
 
                     <div class="row g-2">
@@ -285,7 +294,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
-                                <i class="bi bi-percent text-muted me-1"></i> GST PRICE MODE
+                                <i class="bi bi-percent text-muted me-1"></i> GST MODE
                             </label>
                             <select name="gst_price_mode" id="gst_price_mode" class="form-select" style="border-radius: 8px; font-size: 0.88rem;">
                                 <option value="exclude" selected>Exclude GST (Add GST)</option>
@@ -382,7 +391,7 @@
                             NET PAYABLE AMOUNT
                         </div>
                         <div class="text-secondary small d-flex align-items-center gap-1" style="font-size: 0.76rem;">
-                            <i class="bi bi-shield-check text-info"></i> Includes GST & Item discounts
+                            <i class="bi bi-shield-check text-info"></i> Includes GST, item discounts & shipping
                         </div>
                     </div>
                     <div class="fw-bold font-monospace" id="display_net_payable" style="font-size: 2.2rem; color: #38bdf8;">
@@ -397,120 +406,135 @@
                         <span class="text-muted small" style="font-size: 0.75rem;">SELECT CUSTOMER PAYMENT MODE</span>
                     </div>
 
-                    <!-- 4 Payment Cards -->
-                    <div class="row g-2 mb-3">
-                        <div class="col-3">
-                            <div class="pay-method-btn active text-center p-2 rounded-3 border" data-method="cash" style="cursor: pointer; transition: all 0.2s;">
-                                <i class="bi bi-cash-stack fs-4 d-block mb-1"></i>
-                                <span class="fw-bold small d-block">Cash</span>
-                            </div>
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-md-6">
+                            <label for="pos_invoice_date" class="form-label text-secondary small fw-bold mb-1">BILL DATE *</label>
+                            <input type="date" name="invoice_date" id="pos_invoice_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
                         </div>
-                        <div class="col-3">
-                            <div class="pay-method-btn text-center p-2 rounded-3 border" data-method="upi" style="cursor: pointer; transition: all 0.2s;">
-                                <i class="bi bi-qr-code fs-4 d-block mb-1"></i>
-                                <span class="fw-bold small d-block">UPI / QR</span>
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <div class="pay-method-btn text-center p-2 rounded-3 border" data-method="card" style="cursor: pointer; transition: all 0.2s;">
-                                <i class="bi bi-credit-card fs-4 d-block mb-1"></i>
-                                <span class="fw-bold small d-block">Card / POS</span>
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <div class="pay-method-btn text-center p-2 rounded-3 border" data-method="split" style="cursor: pointer; transition: all 0.2s;">
-                                <i class="bi bi-pie-chart fs-4 d-block mb-1"></i>
-                                <span class="fw-bold small d-block">Cash + UPI</span>
+                        <div class="col-md-6 d-none" id="direct_bill_wrap">
+                            <div class="form-check border rounded-3 bg-light px-3 py-2">
+                                <input type="checkbox" name="is_direct_bill" id="is_direct_bill" value="1" class="form-check-input">
+                                <label for="is_direct_bill" class="form-check-label fw-semibold small">Separate as Direct Bill</label>
+                                <small class="d-block text-muted ms-4">Direct bills appear in their own tab and are excluded from standard POS totals.</small>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Online section toggle -->
-                    <div class="form-check form-switch pt-1">
+                    <div class="row row-cols-4 g-2 mb-3">
+                        <div class="col">
+                            <button type="button" class="pay-method-btn active text-center p-2 rounded-3 border w-100" data-method="cash" aria-pressed="true">
+                                <i class="bi bi-cash-stack fs-4 d-block mb-1"></i>
+                                <span class="fw-bold small d-block">Cash</span>
+                            </button>
+                        </div>
+                        <div class="col">
+                            <button type="button" class="pay-method-btn text-center p-2 rounded-3 border w-100" data-method="upi" aria-pressed="false">
+                                <i class="bi bi-qr-code fs-4 d-block mb-1"></i>
+                                <span class="fw-bold small d-block">UPI / QR</span>
+                            </button>
+                        </div>
+                        <div class="col">
+                            <button type="button" class="pay-method-btn text-center p-2 rounded-3 border w-100" data-method="card" aria-pressed="false">
+                                <i class="bi bi-credit-card fs-4 d-block mb-1"></i>
+                                <span class="fw-bold small d-block">Card / POS</span>
+                            </button>
+                        </div>
+                        <div class="col">
+                            <button type="button" class="pay-method-btn text-center p-2 rounded-3 border w-100" data-method="split" aria-pressed="false">
+                                <i class="bi bi-pie-chart fs-4 d-block mb-1"></i>
+                                <span class="fw-bold small d-block">Cash + UPI</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="split_payment_section" class="split-payment-panel rounded-3 p-3 mb-3" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold small text-dark"><i class="bi bi-wallet2 me-1"></i> Cash + UPI Split Breakdown</span>
+                            <button type="button" id="split_auto_balance" class="btn btn-sm btn-outline-success rounded-pill px-2">
+                                <i class="bi bi-magic me-1"></i>Auto-Balance
+                            </button>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label for="split_cash_amount" class="form-label small text-muted mb-1"><i class="bi bi-cash me-1"></i>Cash Amount (₹)</label>
+                                <input type="number" id="split_cash_amount" class="form-control text-end fw-bold font-monospace" min="0" step="0.01" value="0.00">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="split_upi_amount" class="form-label small text-muted mb-1"><i class="bi bi-qr-code me-1"></i>UPI Amount (₹)</label>
+                                <input type="number" id="split_upi_amount" class="form-control text-end fw-bold font-monospace" min="0" step="0.01" value="0.00">
+                            </div>
+                            <div class="col-12">
+                                <label for="split_upi_reference" class="form-label small text-muted mb-1">UPI Ref / Transaction ID / App</label>
+                                <input type="text" id="split_upi_reference" class="form-control" placeholder="e.g. GPay / PhonePe / Ref #402918237">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2 small">
+                            <span class="text-muted">Split Total: <strong id="split_total_amount" class="text-dark font-monospace">₹0.00</strong></span>
+                            <span id="split_balance_status" class="badge rounded-pill bg-success-subtle text-success border border-success-subtle">Balanced (₹0.00)</span>
+                        </div>
+                    </div>
+
+                    <!-- Cash sales can be manually classified as Online. -->
+                    <div id="online_classification_wrap" class="form-check form-switch pt-1">
                         <input class="form-check-input" type="checkbox" id="toggle_online" name="is_online" value="1">
                         <label class="form-check-label fw-semibold text-dark small" for="toggle_online" style="font-size: 0.82rem;">
-                            Show this sale in the Online section
+                            Show this cash sale in the Online section
                         </label>
                         <div class="text-muted" style="font-size: 0.74rem;">
-                            Classification only; the selected payment method and payment records stay unchanged.
+                            Cash sales go to Cash by default. UPI, Card, and Cash + UPI sales go to Online.
                         </div>
                     </div>
                 </div>
 
-                <!-- Cash Received & Change Box (Image 2) -->
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-4">
+                        <div class="payment-detail-card h-100">
+                            <label for="pos_shipping_amount" class="form-label small fw-bold text-uppercase text-muted"><i class="bi bi-truck me-1"></i>Shipping (₹)</label>
+                            <input type="number" id="pos_shipping_amount" name="shipping_amount" class="form-control text-end fw-bold font-monospace" min="0" max="9999999999.99" step="0.01" value="0.00">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="payment-detail-card h-100">
+                            <label for="pos_payment_status" class="form-label small fw-bold text-uppercase text-muted"><i class="bi bi-check-circle me-1"></i>Payment Status</label>
+                            <select id="pos_payment_status" name="payment_status" class="form-select fw-semibold">
+                                <option value="paid" selected>Paid</option>
+                                <option value="partial">Partially Paid / COD</option>
+                                <option value="unpaid">Unpaid / COD</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="payment-detail-card h-100">
+                            <label for="pos_payment_screenshot" class="form-label small fw-bold text-uppercase text-muted"><i class="bi bi-image me-1"></i>Payment Screenshot</label>
+                            <input type="file" id="pos_payment_screenshot" class="form-control" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="advance_payment_section" class="row g-2 mb-3" style="display: none;">
+                    <div class="col-12 col-md-6">
+                        <div class="payment-detail-card h-100">
+                            <label for="advance_paid_amount" class="form-label small fw-bold text-uppercase text-muted"><i class="bi bi-cash-coin me-1"></i>Advance Paid (₹)</label>
+                            <input type="number" id="advance_paid_amount" name="advance_paid" class="form-control text-end fw-bold font-monospace" min="0" max="9999999999.99" step="0.01" value="0.00">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="payment-detail-card h-100">
+                            <label for="pending_cod_amount" class="form-label small fw-bold text-uppercase text-muted"><i class="bi bi-hourglass-split me-1"></i>Pending / COD (₹)</label>
+                            <input type="number" id="pending_cod_amount" class="form-control text-end fw-bold font-monospace" value="0.00" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cash Received & Change -->
                 <div id="cash_received_section" class="card border-0 shadow-sm rounded-4 p-3 mb-3" style="background: #f0fdf4; border: 1.5px solid #bbf7d0 !important;">
-                    <div class="d-flex align-items-center gap-2 mb-1">
-                        <i class="bi bi-cash-coin text-success fs-5"></i>
-                        <h6 class="fw-bold text-dark mb-0">Cash Received & Change</h6>
-                    </div>
-                    <small class="text-muted d-block mb-3" style="font-size: 0.78rem;">Enter the number of notes or coins received from the customer.</small>
-
-                    <!-- 9 Denomination Fields (Row 1: 6, Row 2: 3) -->
-                    <div class="row g-2 mb-2">
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹500 notes</small>
-                                <input type="number" min="0" step="1" name="cash_denom_500" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="500">
-                            </div>
-                        </div>
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹200 notes</small>
-                                <input type="number" min="0" step="1" name="cash_denom_200" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="200">
-                            </div>
-                        </div>
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹100 notes</small>
-                                <input type="number" min="0" step="1" name="cash_denom_100" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="100">
-                            </div>
-                        </div>
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹50 notes</small>
-                                <input type="number" min="0" step="1" name="cash_denom_50" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="50">
-                            </div>
-                        </div>
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹20 notes</small>
-                                <input type="number" min="0" step="1" name="cash_denom_20" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="20">
-                            </div>
-                        </div>
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹10 notes</small>
-                                <input type="number" min="0" step="1" name="cash_denom_10" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="10">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹5 notes / coins</small>
-                                <input type="number" min="0" step="1" name="cash_denom_5" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="5">
-                            </div>
-                        </div>
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹2 coins</small>
-                                <input type="number" min="0" step="1" name="cash_denom_2" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="2">
-                            </div>
-                        </div>
-                        <div class="col-4 col-md-2">
-                            <div class="bg-white border rounded-3 p-1 px-2 text-center" style="border-color: #cbd5e1 !important;">
-                                <small class="text-muted d-block fw-bold" style="font-size: 0.74rem;">₹1 coins</small>
-                                <input type="number" min="0" step="1" name="cash_denom_1" class="form-control form-control-sm border-0 text-center fw-bold shadow-none denom-cash-input" value="0" data-value="1">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Summary Reconciliation row -->
-                    <div class="row text-center pt-2 border-top border-success border-opacity-25 g-2">
+                    <div class="row text-center g-2 align-items-end">
                         <div class="col-4">
-                            <span class="text-muted small d-block" style="font-size: 0.74rem;">Customer Gave</span>
-                            <span class="fw-bold font-monospace fs-6 text-dark" id="display_customer_gave">₹0.00</span>
+                            <label for="cash_customer_gave" class="text-muted small d-block" style="font-size: 0.74rem;">Customer Gave</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" min="0" step="0.01" id="cash_customer_gave" class="form-control text-end fw-bold font-monospace" value="0.00" aria-label="Customer gave">
+                            </div>
                         </div>
                         <div class="col-4">
                             <span class="text-muted small d-block" style="font-size: 0.74rem;">Amount Due</span>
@@ -520,12 +544,6 @@
                             <span class="text-muted small d-block" style="font-size: 0.74rem;">Change to Return</span>
                             <span class="fw-bold font-monospace fs-6 text-success" id="display_change_return">₹0.00</span>
                         </div>
-                    </div>
-
-                    <div class="text-center pt-2 mt-2 border-top" style="font-size: 0.76rem;">
-                        <span class="text-muted">Suggested change notes / coins:</span>
-                        <strong class="text-secondary ms-1" id="display_change_hint">No change required</strong>
-                        <div class="text-muted mt-1">Enter the cash denominations received.</div>
                     </div>
                 </div>
 
@@ -587,9 +605,9 @@
                                         <td class="small text-muted font-monospace"><?= date('d M Y', strtotime($inv['invoice_date'])) ?></td>
                                         <td><span class="badge bg-light text-dark border"><?= (int)$inv['items_count'] ?> items</span></td>
                                         <td class="fw-bold text-success font-monospace">₹<?= number_format($inv['net_amount'], 2) ?></td>
-                                        <td><span class="badge bg-primary bg-opacity-10 text-primary text-uppercase"><?= htmlspecialchars($inv['payment_method']) ?></span></td>
+                                        <td><span class="badge bg-primary bg-opacity-10 text-primary text-uppercase"><?= htmlspecialchars($posPaymentMethodLabel($inv['payment_method']), ENT_QUOTES, 'UTF-8') ?></span></td>
                                         <td class="text-end">
-                                            <a href="<?= \App\Core\Controller::url('/m/billing?print_id=' . $inv['id']) ?>" class="btn btn-sm btn-outline-primary">
+                                            <a href="<?= \App\Core\Controller::url('/m/billing/create?print_id=' . $inv['id']) ?>" class="btn btn-sm btn-outline-primary">
                                                 <i class="bi bi-printer"></i> Print
                                             </a>
                                         </td>
@@ -627,9 +645,17 @@
 
                 <div class="py-2 border-bottom" style="font-size: 0.76rem;">
                     <div><strong>Inv No:</strong> <?= htmlspecialchars($printInvoice['invoice_no']) ?></div>
-                    <div><strong>Date:</strong> <?= date('d M Y, h:i A', strtotime($printInvoice['created_at'])) ?></div>
+                    <div><strong>Date:</strong> <?= date('d M Y', strtotime($printInvoice['invoice_date'])) ?></div>
                     <div><strong>Customer:</strong> <?= htmlspecialchars($printInvoice['customer_name']) ?> (<?= htmlspecialchars($printInvoice['customer_phone'] ?: '-') ?>)</div>
-                    <div><strong>Payment:</strong> <?= strtoupper($printInvoice['payment_method']) ?> (PAID)</div>
+                    <?php
+                    $paymentStatusLabels = [
+                        'paid' => 'PAID',
+                        'partial' => 'PARTIALLY PAID / COD',
+                        'unpaid' => 'UNPAID / COD',
+                    ];
+                    $paymentStatusLabel = $paymentStatusLabels[$printInvoice['payment_status']] ?? 'UNPAID / COD';
+                    ?>
+                    <div><strong>Payment:</strong> <?= htmlspecialchars($posPaymentMethodLabel($printInvoice['payment_method']), ENT_QUOTES, 'UTF-8') ?> (<?= htmlspecialchars($paymentStatusLabel, ENT_QUOTES, 'UTF-8') ?>)</div>
                     <div><strong>Billing For:</strong> <?= stripos((string)($printInvoice['notes'] ?? ''), 'Billing For: company') !== false ? 'Company' : 'Customer' ?></div>
                     <div><strong>GST Pricing:</strong> <?= stripos((string)($printInvoice['notes'] ?? ''), 'GST Price Mode: include') !== false ? 'GST Included' : 'GST Excluded' ?></div>
                 </div>
@@ -675,11 +701,27 @@
                             <span>-₹<?= number_format($printInvoice['discount_amount'], 2) ?></span>
                         </div>
                     <?php endif; ?>
+                    <?php if ((float)($printInvoice['shipping_amount'] ?? 0) > 0): ?>
+                        <div class="d-flex justify-content-between">
+                            <span>Shipping:</span>
+                            <span>₹<?= number_format((float)$printInvoice['shipping_amount'], 2) ?></span>
+                        </div>
+                    <?php endif; ?>
                     <hr class="my-1">
                     <div class="d-flex justify-content-between fw-bold fs-6 text-dark">
                         <span>NET AMOUNT:</span>
                         <span>₹<?= number_format($printInvoice['net_amount'], 2) ?></span>
                     </div>
+                    <?php if ($paymentStatusLabel !== 'PAID'): ?>
+                        <div class="d-flex justify-content-between">
+                            <span>Advance Paid:</span>
+                            <span>₹<?= number_format((float)($printInvoice['paid_amount'] ?? 0), 2) ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between fw-bold">
+                            <span>Pending / COD:</span>
+                            <span>₹<?= number_format(max(0, (float)$printInvoice['net_amount'] - (float)($printInvoice['paid_amount'] ?? 0)), 2) ?></span>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <div class="text-center pt-2 text-muted" style="font-size: 0.7rem;">
@@ -688,13 +730,108 @@
                 </div>
             </div>
 
-            <div class="d-flex justify-content-end gap-2 pt-3">
+            <div class="d-none" id="a4_invoice_print_area">
+                <header class="a4-invoice-header">
+                    <div>
+                        <h1><?= htmlspecialchars($printInvoice['concern_name']) ?></h1>
+                        <div><?= nl2br(htmlspecialchars($printInvoice['concern_address'] ?: '')) ?></div>
+                        <div>Phone: <?= htmlspecialchars($printInvoice['concern_phone'] ?: '-') ?></div>
+                        <div>GSTIN: <?= htmlspecialchars($printInvoice['concern_gstin'] ?: '-') ?></div>
+                    </div>
+                    <div class="a4-invoice-title">
+                        <h2>TAX INVOICE</h2>
+                        <div>Original for recipient</div>
+                    </div>
+                </header>
+
+                <section class="a4-invoice-meta">
+                    <div><strong>Invoice No.</strong><span><?= htmlspecialchars($printInvoice['invoice_no']) ?></span></div>
+                    <div><strong>Invoice Date</strong><span><?= date('d M Y', strtotime($printInvoice['invoice_date'])) ?></span></div>
+                    <div><strong>Payment Method</strong><span><?= htmlspecialchars($posPaymentMethodLabel($printInvoice['payment_method']), ENT_QUOTES, 'UTF-8') ?></span></div>
+                    <div><strong>Payment Status</strong><span><?= htmlspecialchars($paymentStatusLabel, ENT_QUOTES, 'UTF-8') ?></span></div>
+                    <div><strong>GST Pricing</strong><span><?= stripos((string)($printInvoice['notes'] ?? ''), 'GST Price Mode: include') !== false ? 'GST Included' : 'GST Excluded' ?></span></div>
+                    <?php if (!empty($printInvoice['is_direct_bill'])): ?>
+                        <div><strong>Bill Type</strong><span>Direct Bill</span></div>
+                    <?php endif; ?>
+                </section>
+
+                <section class="a4-invoice-customer">
+                    <h3>Bill To</h3>
+                    <strong><?= htmlspecialchars($printInvoice['customer_name']) ?></strong>
+                    <div>Phone: <?= htmlspecialchars($printInvoice['customer_phone'] ?: '-') ?></div>
+                    <div>Email: <?= htmlspecialchars($printInvoice['customer_email'] ?: '-') ?></div>
+                    <div>Address: <?= nl2br(htmlspecialchars($printInvoice['customer_address'] ?: '-')) ?></div>
+                    <div>GSTIN: <?= htmlspecialchars($printInvoice['customer_gstin'] ?: '-') ?></div>
+                    <div>Billing For: <?= stripos((string)($printInvoice['notes'] ?? ''), 'Billing For: company') !== false ? 'Company' : 'Customer' ?></div>
+                </section>
+
+                <table class="a4-invoice-items">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Item Description</th>
+                            <th>SKU</th>
+                            <th>Size</th>
+                            <th class="number">Qty</th>
+                            <th class="number">Base / Unit</th>
+                            <th class="number">Taxable Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($printItems as $index => $it): ?>
+                            <tr>
+                                <td><?= $index + 1 ?></td>
+                                <td>
+                                    <?= htmlspecialchars($it['item_name']) ?>
+                                    <?php if (!empty($it['batch_no'])): ?>
+                                        <small>Batch <?= htmlspecialchars($it['batch_no']) ?></small>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= htmlspecialchars($it['sku_code'] ?: '-') ?></td>
+                                <td><?= htmlspecialchars($it['size'] ?: '-') ?></td>
+                                <td class="number"><?= number_format((float)$it['qty'], 0) ?></td>
+                                <td class="number">₹<?= number_format((float)$it['unit_price'], 2) ?></td>
+                                <td class="number">₹<?= number_format((float)$it['total_price'], 2) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+
+                <div class="a4-invoice-summary">
+                    <div class="a4-invoice-discount">
+                        Discount applied to item prices: ₹<?= number_format((float)$printInvoice['discount_amount'], 2) ?>
+                    </div>
+                    <table>
+                        <tr><th>Taxable Subtotal</th><td>₹<?= number_format((float)$printInvoice['total_amount'], 2) ?></td></tr>
+                        <tr><th>GST</th><td>₹<?= number_format((float)$printInvoice['tax_amount'], 2) ?></td></tr>
+                        <?php if ((float)($printInvoice['shipping_amount'] ?? 0) > 0): ?>
+                            <tr><th>Shipping</th><td>₹<?= number_format((float)$printInvoice['shipping_amount'], 2) ?></td></tr>
+                        <?php endif; ?>
+                        <tr class="a4-invoice-total"><th>Invoice Total</th><td>₹<?= number_format((float)$printInvoice['net_amount'], 2) ?></td></tr>
+                        <tr><th>Amount Paid</th><td>₹<?= number_format((float)($printInvoice['paid_amount'] ?? 0), 2) ?></td></tr>
+                        <tr><th>Balance Due</th><td>₹<?= number_format(max(0, (float)$printInvoice['net_amount'] - (float)($printInvoice['paid_amount'] ?? 0)), 2) ?></td></tr>
+                    </table>
+                </div>
+
+                <footer class="a4-invoice-footer">
+                    <div>Thank you for your business.</div>
+                    <div class="a4-invoice-signature">Authorized Signatory</div>
+                </footer>
+            </div>
+
+            <div class="d-flex flex-wrap justify-content-end gap-2 pt-3">
                 <a href="<?= \App\Core\Controller::url('/m/billing') ?>" class="btn btn-outline-secondary px-3" style="border-radius: 9999px;">
                     Close
                 </a>
-                <button type="button" class="btn btn-primary px-4 fw-bold shadow-sm" onclick="printReceiptArea()" style="border-radius: 9999px; background: #4f46e5;">
-                    <i class="bi bi-printer me-1"></i> Print Receipt
+                <button type="button" class="btn btn-outline-primary fw-bold shadow-sm" onclick="printReceiptArea('a4')" style="border-radius: 9999px;">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> A4 Format
                 </button>
+                <button type="button" class="btn btn-primary fw-bold shadow-sm" onclick="printReceiptArea('pos')" style="border-radius: 9999px; background: #4f46e5;">
+                    <i class="bi bi-printer me-1"></i> POS Format
+                </button>
+                <a href="<?= \App\Core\Controller::url('/production/outward?tab=fg&pos_invoice_id=' . (int)$printInvoice['id']) ?>" class="btn btn-success fw-bold shadow-sm" style="border-radius: 9999px;">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Move to Outward
+                </a>
             </div>
         </div>
     </div>
@@ -872,16 +1009,49 @@
     background: #ffffff;
     border-color: #e2e8f0 !important;
     color: #475569;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 .pay-method-btn:hover {
-    border-color: #93c5fd !important;
-    background: #f8fafc;
+    border-color: #86efac !important;
+    background: #f0fdf4;
+}
+.pay-method-btn[data-method="cash"] i {
+    color: #059669;
+}
+.pay-method-btn[data-method="upi"] i {
+    color: #7c3aed;
+}
+.pay-method-btn[data-method="card"] i {
+    color: #f59e0b;
+}
+.pay-method-btn[data-method="split"] i {
+    color: #06b6d4;
 }
 .pay-method-btn.active {
-    border-color: #3b82f6 !important;
-    background: #eff6ff !important;
-    color: #1d4ed8 !important;
-    box-shadow: 0 0 0 1px #3b82f6;
+    border: 1.5px solid #16a34a !important;
+    background: #f0fdf4 !important;
+    color: #15803d !important;
+    box-shadow: 0 0 0 1px #16a34a;
+}
+.pay-method-btn:focus-visible,
+#split_auto_balance:focus-visible {
+    outline: 2px solid #16a34a;
+    outline-offset: 2px;
+}
+.split-payment-panel {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+}
+.payment-detail-card {
+    padding: 0.65rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.65rem;
+    background: #ffffff;
+}
+.payment-detail-card .form-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
 }
 .scanner-opt-card {
     transition: all 0.2s;
@@ -929,6 +1099,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnCompleteSale = document.getElementById('btn_complete_sale');
     const checkoutHelperHint = document.getElementById('checkout_helper_hint');
     const inputPaymentMethod = document.getElementById('input_payment_method');
+    const onlineClassificationWrap = document.getElementById('online_classification_wrap');
+    const toggleOnline = document.getElementById('toggle_online');
     const gstTypeSelect = document.getElementById('gst_type');
     const gstPriceModeSelect = document.getElementById('gst_price_mode');
 
@@ -941,31 +1113,78 @@ document.addEventListener('DOMContentLoaded', function() {
     const badgeDiscount = document.getElementById('badge_discount');
     const displaySavings = document.getElementById('display_savings');
     const displayNetPayable = document.getElementById('display_net_payable');
+    const shippingAmountInput = document.getElementById('pos_shipping_amount');
+    const paymentStatusSelect = document.getElementById('pos_payment_status');
+    const advancePaymentSection = document.getElementById('advance_payment_section');
+    const advancePaidInput = document.getElementById('advance_paid_amount');
+    const pendingCodAmount = document.getElementById('pending_cod_amount');
 
     // Cash received fields
     const cashSection = document.getElementById('cash_received_section');
-    const displayCustomerGave = document.getElementById('display_customer_gave');
+    const cashCustomerGave = document.getElementById('cash_customer_gave');
     const displayAmountDue = document.getElementById('display_amount_due');
     const displayChangeReturn = document.getElementById('display_change_return');
-    const displayChangeHint = document.getElementById('display_change_hint');
-    const denomCashInputs = document.querySelectorAll('.denom-cash-input');
+    const splitPaymentSection = document.getElementById('split_payment_section');
+    const splitCashAmount = document.getElementById('split_cash_amount');
+    const splitUpiAmount = document.getElementById('split_upi_amount');
+    const splitTotalAmount = document.getElementById('split_total_amount');
+    const splitBalanceStatus = document.getElementById('split_balance_status');
+    const splitAutoBalance = document.getElementById('split_auto_balance');
 
     // Customer fields
     const custMobile = document.getElementById('cust_mobile');
     const custName = document.getElementById('cust_name');
     const custAddress = document.getElementById('cust_address');
+    const custLookupDropdown = document.getElementById('cust_lookup_dropdown');
+    const custHistoryBadge = document.getElementById('customer_history_badge');
+    const custHistoryBadgeText = document.getElementById('customer_history_badge_text');
     const btnWalkin = document.getElementById('btn_walkin');
     const billingPartyType = document.getElementById('billing_party_type');
     const billingPartyButtons = document.getElementById('billing_party_buttons');
-    const companyCustomerSelect = document.getElementById('company_customer_id');
-    const companyCustomerWrap = document.getElementById('company_customer_wrap');
-    const companyBatchWrap = document.getElementById('company_batch_wrap');
-    const companyBatchSelect = document.getElementById('company_batch_select');
-    const btnLoadCompanyBatches = document.getElementById('btn_load_company_batches');
-    const btnAddSelectedBatches = document.getElementById('btn_add_selected_batches');
+    const companyDetailsWrap = document.getElementById('company_details_wrap');
+    const companyName = document.getElementById('company_name');
+    const companyAddress = document.getElementById('company_address');
+    const companyPhone = document.getElementById('company_phone');
+    const companyEmail = document.getElementById('company_email');
+    const companyGstin = document.getElementById('company_gstin');
+    const directBillWrap = document.getElementById('direct_bill_wrap');
+    const directBillCheckbox = document.getElementById('is_direct_bill');
     const customerContactFields = document.getElementById('customer_contact_fields');
     const posScannerCard = document.getElementById('pos_scanner_card');
-    const batchById = new Map();
+    const posBillingForm = document.getElementById('pos_billing_form');
+
+    function updateCompanyDetailsAvailability() {
+        const enabled = billingPartyType.value === 'company';
+        companyDetailsWrap.querySelectorAll('input').forEach(input => {
+            input.disabled = !enabled;
+        });
+        companyName.required = enabled;
+    }
+
+    function clearCompanyDetails() {
+        [companyName, companyAddress, companyPhone, companyEmail, companyGstin].forEach(input => {
+            input.value = '';
+        });
+    }
+
+    function updateCustomerBadge(orderCount) {
+        if (!custHistoryBadge || !custHistoryBadgeText) return;
+        const count = parseInt(orderCount, 10) || 0;
+        const orderLabel = count === 1 ? '1 previous order' : `${count} previous orders`;
+        custHistoryBadgeText.textContent = `Saved - ${orderLabel}`;
+        custHistoryBadge.classList.remove('d-none');
+    }
+
+    function clearCustomerBadge() {
+        if (!custHistoryBadge) return;
+        custHistoryBadge.classList.add('d-none');
+    }
+
+    function hideCustomerDropdown() {
+        if (!custLookupDropdown) return;
+        custLookupDropdown.innerHTML = '';
+        custLookupDropdown.classList.add('d-none');
+    }
 
     // 1. Walk-in Customer Auto-Fill
     if (btnWalkin) {
@@ -973,6 +1192,8 @@ document.addEventListener('DOMContentLoaded', function() {
             custMobile.value = '9999999999';
             custName.value = 'Walk-in Retail Customer';
             custAddress.value = 'Counter Walk-in / Local Store';
+            clearCustomerBadge();
+            hideCustomerDropdown();
         });
     }
 
@@ -984,28 +1205,27 @@ document.addEventListener('DOMContentLoaded', function() {
             button.classList.toggle('btn-primary', isActive);
             button.classList.toggle('btn-outline-primary', !isActive);
         });
-        companyCustomerWrap.classList.toggle('d-none', !isCompany);
-        companyBatchWrap.classList.toggle('d-none', !isCompany);
+        companyDetailsWrap.classList.toggle('d-none', !isCompany);
+        directBillWrap.classList.toggle('d-none', !isCompany);
         customerContactFields.classList.toggle('d-none', isCompany);
-        posScannerCard.classList.toggle('d-none', isCompany);
+        posScannerCard.classList.remove('d-none');
 
-        companyCustomerSelect.disabled = !isCompany;
-        companyCustomerSelect.required = isCompany;
-        companyBatchSelect.disabled = !isCompany || !companyCustomerSelect.value;
-        btnLoadCompanyBatches.disabled = !isCompany || !companyCustomerSelect.value;
-        btnAddSelectedBatches.disabled = true;
+        updateCompanyDetailsAvailability();
         customerContactFields.querySelectorAll('input').forEach(input => {
             input.disabled = isCompany;
         });
         if (btnWalkin) btnWalkin.classList.toggle('d-none', isCompany);
 
+        clearCustomerBadge();
+        hideCustomerDropdown();
+
         if (!isCompany) {
+            directBillCheckbox.checked = false;
             custMobile.value = '';
             custName.value = '';
             custAddress.value = '';
-            companyCustomerSelect.value = '';
-            companyBatchSelect.innerHTML = '<option value="">Select a company first</option>';
-            batchById.clear();
+            clearCompanyDetails();
+            updateCompanyDetailsAvailability();
         }
     }
 
@@ -1016,21 +1236,6 @@ document.addEventListener('DOMContentLoaded', function() {
             billingPartyType.dispatchEvent(new Event('change'));
         });
     });
-    companyCustomerSelect.addEventListener('change', function() {
-        const option = this.options[this.selectedIndex];
-        const selected = this.value !== '';
-        companyBatchSelect.disabled = !selected;
-        btnLoadCompanyBatches.disabled = !selected;
-        btnAddSelectedBatches.disabled = true;
-        companyBatchSelect.innerHTML = '<option value="">Load batches to select</option>';
-        batchById.clear();
-        if (selected) {
-            custName.value = option.dataset.name || '';
-            custMobile.value = option.dataset.phone || '';
-            custAddress.value = option.dataset.address || '';
-        }
-    });
-
     if (billingPartyType) updateBillingPartyFields();
 
     function getVariantCartQuantity(variantId, skipIndex = -1) {
@@ -1041,123 +1246,156 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 0);
     }
 
-    btnLoadCompanyBatches.addEventListener('click', async function() {
-        if (!companyCustomerSelect.value) {
-            alert('Select a company first.');
-            return;
-        }
-        this.disabled = true;
-        companyBatchSelect.innerHTML = '<option value="">Loading approved batches...</option>';
-        try {
-            const response = await fetch('<?= \App\Core\Controller::url('/api/pos/production-batches') ?>');
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Could not load production batches.');
-            }
-            batchById.clear();
-            companyBatchSelect.innerHTML = '';
-            data.batches.forEach(batch => {
-                if (Number(batch.available_qty) <= 0 || Number(batch.batch_remaining_qty) <= 0) return;
-                batchById.set(String(batch.id), batch);
-                const option = document.createElement('option');
-                option.value = batch.id;
-                option.textContent = batch.batch_no + ' - ' + batch.product_name + ' / ' + (batch.size || '-') +
-                    ' | batch remaining: ' + Math.floor(batch.batch_remaining_qty) +
-                    ' | stock: ' + Math.floor(batch.available_qty);
-                companyBatchSelect.appendChild(option);
-            });
-            if (!companyBatchSelect.options.length) {
-                companyBatchSelect.innerHTML = '<option value="">No approved batches with available stock</option>';
-            }
-            btnAddSelectedBatches.disabled = true;
-        } catch (error) {
-            companyBatchSelect.innerHTML = '<option value="">Batch loading failed</option>';
-            alert(error.message || 'Could not load production batches.');
-        } finally {
-            this.disabled = !companyCustomerSelect.value;
-        }
-    });
-
-    companyBatchSelect.addEventListener('change', function() {
-        btnAddSelectedBatches.disabled = !Array.from(this.selectedOptions).some(option => batchById.has(option.value));
-    });
-
-    function addSelectedProductionBatches() {
-        const selectedIds = Array.from(companyBatchSelect.selectedOptions).map(option => option.value).filter(Boolean);
-        if (!selectedIds.length) {
-            alert('Select one or more production batches.');
-            return;
-        }
-
-        let addedCount = 0;
-        let skipped = [];
-        selectedIds.forEach(batchId => {
-            const batch = batchById.get(String(batchId));
-            if (!batch) return;
-            if (batch.gst_pct === null || !Number.isFinite(Number(batch.gst_pct))) {
-                skipped.push(batch.batch_no + ' (GST rate not set)');
-                return;
-            }
-            if (cart.some(item => String(item.batch_id || '') === String(batch.id))) {
-                skipped.push(batch.batch_no + ' (already added)');
-                return;
-            }
-
-            const remainingStock = Math.max(0, Math.floor(Number(batch.available_qty) - getVariantCartQuantity(batch.variant_id)));
-            const addQty = Math.min(
-                Math.floor(Number(batch.batch_qty)),
-                Math.floor(Number(batch.batch_remaining_qty)),
-                remainingStock
-            );
-            if (addQty <= 0) {
-                skipped.push(batch.batch_no + ' (no remaining stock)');
-                return;
-            }
-            cart.push({
-                id: batch.variant_id,
-                batch_id: batch.id,
-                batch_no: batch.batch_no,
-                name: batch.product_name,
-                sku_code: batch.sku_code,
-                size: batch.size || '-',
-                hsn_code: batch.hsn_code || '',
-                price: Number(batch.price),
-                mrp: Number(batch.mrp),
-                gst_pct: Number(batch.gst_pct),
-                discount: 0,
-                qty: addQty,
-                available_qty: Number(batch.available_qty),
-                batch_remaining_qty: Number(batch.batch_remaining_qty)
-            });
-            addedCount++;
-        });
-
-        if (!addedCount) {
-            alert(skipped.length ? 'No batches were added: ' + skipped.join(', ') : 'No eligible batches selected.');
-            return;
-        }
-        renderCart();
-        if (skipped.length) alert('Some batches were skipped: ' + skipped.join(', '));
+    // 2. Mobile Number Auto-Lookup & Order History Suggestions
+    function selectCustomer(cust) {
+        if (!cust) return;
+        if (custMobile) custMobile.value = cust.phone || '';
+        if (custName) custName.value = cust.name || '';
+        if (custAddress) custAddress.value = cust.address || cust.city || '';
+        updateCustomerBadge(cust.order_count || 0);
+        hideCustomerDropdown();
     }
 
-    btnAddSelectedBatches.addEventListener('click', addSelectedProductionBatches);
+    let customerLookupTimer = null;
+    function performCustomerLookup(query, autoSelectExact = false) {
+        const trimmed = (query || '').trim();
+        if (trimmed.length < 3) {
+            hideCustomerDropdown();
+            clearCustomerBadge();
+            return;
+        }
 
-    // 2. Mobile Number Auto-Lookup
+        fetch('<?= \App\Core\Controller::url('/api/pos/customer-lookup?phone=') ?>' + encodeURIComponent(trimmed))
+            .then(res => res.json())
+            .then(data => {
+                if (data.found && data.customer) {
+                    if (autoSelectExact || (trimmed.length === 10 && data.customer.phone === trimmed)) {
+                        selectCustomer(data.customer);
+                    } else {
+                        renderCustomerDropdown(data.customers || [data.customer]);
+                    }
+                } else {
+                    hideCustomerDropdown();
+                    clearCustomerBadge();
+                }
+            })
+            .catch(() => {
+                hideCustomerDropdown();
+            });
+    }
+
+    function renderCustomerDropdown(customers) {
+        if (!custLookupDropdown || !customers || !customers.length) {
+            hideCustomerDropdown();
+            return;
+        }
+
+        custLookupDropdown.innerHTML = '';
+        customers.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'cust-suggest-item p-2 rounded-2 border-bottom';
+            item.style.cursor = 'pointer';
+            item.style.transition = 'background 0.15s ease';
+            const orders = parseInt(c.order_count, 10) || 0;
+            const ordersText = orders === 1 ? '1 previous order' : `${orders} previous orders`;
+
+            item.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-dark" style="font-size: 0.88rem;">${escapeHtml(c.name || 'Customer')}</span>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill" style="font-size: 0.72rem;">${escapeHtml(c.phone || '')}</span>
+                </div>
+                <div class="text-muted small text-truncate mt-0.5" style="font-size: 0.75rem;">${escapeHtml(c.address || c.city || 'No address on file')}</div>
+                <div class="text-success small fw-semibold mt-1" style="font-size: 0.76rem;">
+                    <i class="bi bi-bag-check me-1"></i>${ordersText}
+                </div>
+            `;
+
+            item.addEventListener('mouseenter', () => item.style.backgroundColor = '#f1f5f9');
+            item.addEventListener('mouseleave', () => item.style.backgroundColor = 'transparent');
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                selectCustomer(c);
+            });
+
+            custLookupDropdown.appendChild(item);
+        });
+
+        custLookupDropdown.classList.remove('d-none');
+    }
+
     if (custMobile) {
         custMobile.addEventListener('input', function() {
             const phone = this.value.trim();
+            clearTimeout(customerLookupTimer);
+            if (phone.length < 3) {
+                hideCustomerDropdown();
+                clearCustomerBadge();
+                return;
+            }
             if (phone.length === 10) {
-                fetch('<?= \App\Core\Controller::url('/api/pos/customer-lookup?phone=') ?>' + encodeURIComponent(phone))
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.found && data.customer) {
-                            custName.value = data.customer.name || '';
-                            custAddress.value = data.customer.address || data.customer.city || '';
-                        }
-                    })
-                    .catch(() => {});
+                performCustomerLookup(phone, true);
+            } else {
+                customerLookupTimer = setTimeout(() => {
+                    performCustomerLookup(phone, false);
+                }, 200);
             }
         });
+
+        custMobile.addEventListener('focus', function() {
+            const phone = this.value.trim();
+            if (phone.length >= 3) {
+                performCustomerLookup(phone, false);
+            }
+        });
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', function(e) {
+        if (custLookupDropdown && !custLookupDropdown.contains(e.target) && e.target !== custMobile) {
+            hideCustomerDropdown();
+        }
+    });
+
+    // Prevent Enter key in customer inputs from submitting the billing form or redirecting to old bill!
+    if (posBillingForm) {
+        posBillingForm.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const tag = e.target ? e.target.tagName : '';
+                const id = e.target ? e.target.id : '';
+                if (tag === 'INPUT' && id !== 'qr_input' && e.target.type !== 'submit') {
+                    e.preventDefault();
+                    if (id === 'cust_mobile') {
+                        const firstItem = custLookupDropdown ? custLookupDropdown.querySelector('.cust-suggest-item') : null;
+                        if (firstItem && !custLookupDropdown.classList.contains('d-none')) {
+                            firstItem.click();
+                        } else if (custMobile.value.trim().length === 10) {
+                            performCustomerLookup(custMobile.value.trim(), true);
+                            if (custName && !custName.value.trim()) {
+                                custName.focus();
+                            } else if (qrInput) {
+                                qrInput.focus();
+                            }
+                        } else if (custName) {
+                            custName.focus();
+                        }
+                    } else if (id === 'cust_name' && custAddress) {
+                        custAddress.focus();
+                    } else if (id === 'cust_address' && qrInput) {
+                        qrInput.focus();
+                    }
+                    return false;
+                }
+            }
+        });
+    }
+
+    // Clear print_id from URL so subsequent refresh does not reload the old bill receipt modal
+    if (window.history && window.history.replaceState) {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('print_id')) {
+            url.searchParams.delete('print_id');
+            window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
+        }
     }
 
     // -----------------------------------------------------------------
@@ -1548,8 +1786,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (qtyToAdd <= 0) qtyToAdd = 1;
                     }
 
-                    // Check if already in cart
-                    const existingIndex = cart.findIndex(item => String(item.id) === String(v.id) && !item.batch_id);
                     const currentQty = getVariantCartQuantity(v.id);
                     if (currentQty + qtyToAdd > availableQty) {
                         const remainingQty = Math.max(0, availableQty - currentQty);
@@ -1562,6 +1798,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         alert('Available at Main Store: ' + availableQty + '. Already in cart: ' + currentQty + '. You can add only ' + remainingQty + ' more.');
                         return;
                     }
+
+                    const existingIndex = cart.findIndex(item => String(item.id) === String(v.id) && !item.batch_id);
                     if (existingIndex > -1) {
                         cart[existingIndex].qty += qtyToAdd;
                         cart[existingIndex].available_qty = availableQty;
@@ -1616,11 +1854,13 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(err => {
                 playPosBeep('error');
+                const message = err && err.message ? err.message : String(err);
                 if (fromCamera) {
-                    if (camStatusDisplay) camStatusDisplay.innerHTML = '<span class="text-danger">Lookup error: ' + err + '</span>';
+                    if (camStatusDisplay) camStatusDisplay.textContent = 'Could not add scanned product: ' + message;
                 } else {
-                    alert('Failed to lookup product: ' + err);
+                    alert('Could not add scanned product: ' + message);
                 }
+                if (scannerStatus) scannerStatus.textContent = message;
             });
     }
 
@@ -1805,6 +2045,31 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 5. Calculate Cart Totals
+    function getPaidAmount(netPayable) {
+        const status = paymentStatusSelect ? paymentStatusSelect.value : 'paid';
+        if (status === 'unpaid') return 0;
+        if (status === 'partial') {
+            return Math.min(netPayable, Math.max(0, parseFloat(advancePaidInput ? advancePaidInput.value : '0') || 0));
+        }
+        return netPayable;
+    }
+
+    function updatePaymentStatusDetails(netPayable) {
+        const status = paymentStatusSelect ? paymentStatusSelect.value : 'paid';
+        const needsAdvance = status !== 'paid';
+        if (advancePaymentSection) advancePaymentSection.style.display = needsAdvance ? 'flex' : 'none';
+        if (advancePaidInput) {
+            advancePaidInput.disabled = status === 'unpaid';
+            if (status === 'unpaid') advancePaidInput.value = '0.00';
+        }
+        const paidAmount = getPaidAmount(netPayable);
+        if (pendingCodAmount) pendingCodAmount.value = Math.max(0, netPayable - paidAmount).toFixed(2);
+        if (cashSection) {
+            cashSection.style.display = currentPaymentMethod === 'cash' && status === 'paid' ? 'block' : 'none';
+        }
+        updateSplitBreakdown(paidAmount);
+    }
+
     function calculateCartTotals() {
         let taxableSubtotal = 0.00;
         let totalGst = 0.00;
@@ -1819,7 +2084,9 @@ document.addEventListener('DOMContentLoaded', function() {
             totalItemsCount += Math.max(1, parseInt(item.qty, 10) || 1);
         });
 
-        const netPayable = Math.round((taxableSubtotal + totalGst) * 100) / 100;
+        const itemsTotal = Math.round((taxableSubtotal + totalGst) * 100) / 100;
+        const shippingAmount = Math.max(0, parseFloat(shippingAmountInput ? shippingAmountInput.value : '0') || 0);
+        const netPayable = Math.round((itemsTotal + shippingAmount) * 100) / 100;
 
         // Update displays
         if (displayItemsCount) displayItemsCount.textContent = totalItemsCount;
@@ -1844,6 +2111,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update cash received change calculation
         updateCashChange(netPayable);
+        updatePaymentStatusDetails(netPayable);
+    }
+
+    function updateSplitBreakdown(netPayable) {
+        if (!splitCashAmount || !splitUpiAmount || !splitTotalAmount || !splitBalanceStatus) return;
+
+        const cashAmount = Math.max(0, parseFloat(splitCashAmount.value) || 0);
+        const upiAmount = Math.max(0, parseFloat(splitUpiAmount.value) || 0);
+        const splitTotal = Math.round((cashAmount + upiAmount) * 100) / 100;
+        const difference = Math.round((netPayable - splitTotal) * 100) / 100;
+        splitTotalAmount.textContent = '₹' + splitTotal.toFixed(2);
+
+        if (difference === 0) {
+            splitBalanceStatus.textContent = 'Balanced (₹0.00)';
+            splitBalanceStatus.className = 'badge rounded-pill bg-success-subtle text-success border border-success-subtle';
+        } else {
+            splitBalanceStatus.textContent = (difference > 0 ? 'Remaining ' : 'Over by ') + '₹' + Math.abs(difference).toFixed(2);
+            splitBalanceStatus.className = 'badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+        }
+    }
+
+    function balanceSplitForCash() {
+        if (!splitCashAmount || !splitUpiAmount || !displayNetPayable) return;
+        const netPayable = parseFloat(displayNetPayable.textContent.replace('₹', '')) || 0;
+        const paidAmount = getPaidAmount(netPayable);
+        const cashAmount = Math.max(0, parseFloat(splitCashAmount.value) || 0);
+        splitUpiAmount.value = Math.max(0, paidAmount - cashAmount).toFixed(2);
+        updateSplitBreakdown(paidAmount);
     }
 
     if (gstTypeSelect) {
@@ -1852,79 +2147,128 @@ document.addEventListener('DOMContentLoaded', function() {
     if (gstPriceModeSelect) {
         gstPriceModeSelect.addEventListener('change', () => renderCart());
     }
+    if (shippingAmountInput) {
+        shippingAmountInput.addEventListener('input', () => renderCart());
+    }
+    if (paymentStatusSelect) {
+        paymentStatusSelect.addEventListener('change', () => renderCart());
+    }
+    if (advancePaidInput) {
+        advancePaidInput.addEventListener('input', () => {
+            const currentNet = parseFloat(displayNetPayable.textContent.replace('₹', '')) || 0;
+            updatePaymentStatusDetails(currentNet);
+        });
+    }
 
     // 6. Payment Method Selection (Cards)
+    function updateOnlineClassificationVisibility() {
+        const isCash = currentPaymentMethod === 'cash';
+        if (onlineClassificationWrap) onlineClassificationWrap.classList.toggle('d-none', !isCash);
+        if (!isCash && toggleOnline) toggleOnline.checked = false;
+    }
+
+    updateOnlineClassificationVisibility();
+
     document.querySelectorAll('.pay-method-btn').forEach(card => {
         card.addEventListener('click', function() {
             document.querySelectorAll('.pay-method-btn').forEach(c => c.classList.remove('active'));
             this.classList.add('active');
+            this.setAttribute('aria-pressed', 'true');
+            document.querySelectorAll('.pay-method-btn').forEach(button => {
+                if (button !== this) button.setAttribute('aria-pressed', 'false');
+            });
             currentPaymentMethod = this.getAttribute('data-method');
             if (inputPaymentMethod) inputPaymentMethod.value = currentPaymentMethod;
+            updateOnlineClassificationVisibility();
 
-            // Show or hide Cash Received section
-            if (cashSection) {
-                if (currentPaymentMethod === 'cash' || currentPaymentMethod === 'split') {
-                    cashSection.style.display = 'block';
-                } else {
-                    cashSection.style.display = 'none';
-                }
+            if (splitPaymentSection) {
+                splitPaymentSection.style.display = currentPaymentMethod === 'split' ? 'block' : 'none';
             }
+
+            const currentNet = parseFloat(displayNetPayable.textContent.replace('₹', '')) || 0;
+            updatePaymentStatusDetails(currentNet);
         });
     });
 
+    if (splitCashAmount) {
+        splitCashAmount.addEventListener('input', balanceSplitForCash);
+    }
+    if (splitUpiAmount) {
+        splitUpiAmount.addEventListener('input', function() {
+            const netPayable = parseFloat(displayNetPayable.textContent.replace('₹', '')) || 0;
+            updateSplitBreakdown(getPaidAmount(netPayable));
+        });
+    }
+    if (splitAutoBalance) {
+        splitAutoBalance.addEventListener('click', balanceSplitForCash);
+    }
+
     // 7. Cash Received & Change Calculator
     function calculateCashGiven() {
-        let total = 0;
-        denomCashInputs.forEach(input => {
-            const count = parseFloat(input.value) || 0;
-            const multiplier = parseFloat(input.getAttribute('data-value')) || 1;
-            total += count * multiplier;
-        });
-        return total;
+        return Math.max(0, parseFloat(cashCustomerGave ? cashCustomerGave.value : '0') || 0);
     }
 
     function updateCashChange(netPayable) {
         const cashGiven = calculateCashGiven();
-        if (displayCustomerGave) displayCustomerGave.textContent = '₹' + cashGiven.toFixed(2);
 
         if (netPayable <= 0) {
             if (displayAmountDue) displayAmountDue.textContent = '₹0.00';
             if (displayChangeReturn) displayChangeReturn.textContent = '₹0.00';
-            if (displayChangeHint) {
-                if (cashGiven > 0) {
-                    displayChangeHint.textContent = 'Cart is empty (₹0.00 bill) — Add products to cart';
-                    displayChangeHint.className = 'text-danger fw-semibold ms-1';
-                } else {
-                    displayChangeHint.textContent = 'No change required';
-                    displayChangeHint.className = 'text-secondary ms-1';
-                }
-            }
             return;
         }
 
-        const amountDue = Math.max(0, netPayable - cashGiven);
+        const amountDue = Math.max(0, netPayable);
         if (displayAmountDue) displayAmountDue.textContent = '₹' + amountDue.toFixed(2);
 
         const changeReturn = Math.max(0, cashGiven - netPayable);
         if (displayChangeReturn) displayChangeReturn.textContent = '₹' + changeReturn.toFixed(2);
-
-        if (displayChangeHint) {
-            if (changeReturn === 0) {
-                displayChangeHint.textContent = 'No change required';
-                displayChangeHint.className = 'text-secondary ms-1';
-            } else {
-                displayChangeHint.textContent = 'Return ₹' + changeReturn.toFixed(2) + ' change to customer';
-                displayChangeHint.className = 'text-success fw-bold ms-1';
-            }
-        }
     }
 
-    denomCashInputs.forEach(input => {
-        input.addEventListener('input', function() {
+    if (cashCustomerGave) {
+        cashCustomerGave.addEventListener('input', function() {
             const currentNet = parseFloat(displayNetPayable.textContent.replace('₹', '')) || 0;
             updateCashChange(currentNet);
         });
-    });
+    }
+
+    function validatePaymentDetails() {
+        const shippingRaw = shippingAmountInput ? shippingAmountInput.value.trim() : '0';
+        const shippingAmount = shippingRaw === '' ? 0 : Number(shippingRaw);
+        if ((shippingRaw !== '' && !/^\d+(?:\.\d{1,2})?$/.test(shippingRaw))
+            || !Number.isFinite(shippingAmount) || shippingAmount < 0 || shippingAmount > 9999999999.99) {
+            alert('Enter a valid non-negative shipping amount.');
+            if (shippingAmountInput) shippingAmountInput.focus();
+            return false;
+        }
+
+        const paymentStatus = paymentStatusSelect ? paymentStatusSelect.value : 'paid';
+        const currentNet = parseFloat(displayNetPayable.textContent.replace('₹', '')) || 0;
+        const advancePaid = Math.max(0, parseFloat(advancePaidInput ? advancePaidInput.value : '0') || 0);
+        if (paymentStatus === 'partial' && (advancePaid <= 0 || advancePaid >= currentNet)) {
+            alert('For Partially Paid / COD, advance paid must be greater than zero and less than the invoice total.');
+            if (advancePaidInput) advancePaidInput.focus();
+            return false;
+        }
+        if (paymentStatus === 'unpaid' && advancePaid > 0) {
+            alert('Unpaid / COD invoices cannot have an advance payment.');
+            return false;
+        }
+        if (currentPaymentMethod === 'cash' && paymentStatus === 'paid') {
+            const cashGiven = calculateCashGiven();
+            if (cashGiven > 0 && cashGiven < currentNet) {
+                alert('Customer gave less than the invoice total. Choose Partially Paid / COD and enter the advance amount.');
+                if (paymentStatusSelect) paymentStatusSelect.focus();
+                return false;
+            }
+        }
+        return true;
+    }
+
+    if (posBillingForm) {
+        posBillingForm.addEventListener('submit', function(e) {
+            if (!validatePaymentDetails()) e.preventDefault();
+        });
+    }
 
     // 8. Complete Sale Validation & F2 Keyboard Shortcut
     if (btnCompleteSale) {
@@ -1948,17 +2292,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            // Cash reconciliation check
-            const currentNet = parseFloat(displayNetPayable.textContent.replace('₹', '')) || 0;
-            if (currentPaymentMethod === 'cash') {
-                const cashGiven = calculateCashGiven();
-                if (cashGiven > 0 && cashGiven < currentNet) {
-                    const proceed = confirm(`Customer gave ₹${cashGiven.toFixed(2)}, but total net amount is ₹${currentNet.toFixed(2)}.\n\nRemaining amount due is ₹${(currentNet - cashGiven).toFixed(2)}. Complete sale anyway?`);
-                    if (!proceed) {
-                        e.preventDefault();
-                        return false;
-                    }
-                }
+            if (!validatePaymentDetails()) {
+                e.preventDefault();
+                return false;
             }
         });
     }
@@ -1985,13 +2321,30 @@ document.addEventListener('DOMContentLoaded', function() {
     renderCart();
 });
 
-// Thermal Receipt Print Helper
-function printReceiptArea() {
-    const printContents = document.getElementById('thermal_receipt_print_area').innerHTML;
-    const originalContents = document.body.innerHTML;
-    document.body.innerHTML = '<div style="width: 320px; margin: auto; padding: 20px; font-family: monospace;">' + printContents + '</div>';
-    window.print();
-    document.body.innerHTML = originalContents;
-    window.location.href = '<?= \App\Core\Controller::url('/m/billing') ?>';
+function printReceiptArea(format) {
+    if (!['a4', 'pos'].includes(format)) return;
+    const printArea = document.getElementById(format === 'a4' ? 'a4_invoice_print_area' : 'thermal_receipt_print_area');
+    if (!printArea) return;
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+        window.alert('Please allow pop-ups to print this receipt.');
+        return;
+    }
+
+    const pageStyles = format === 'a4'
+        ? '@page{size:A4 portrait;margin:10mm} body{font-family:Arial,sans-serif;color:#111;font-size:10pt} #a4_invoice_print_area{display:block!important;width:100%;max-width:190mm;margin:auto;padding:0!important;border:0!important;background:#fff!important;font-family:Arial,sans-serif!important;font-size:10pt!important} .a4-invoice-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #222;padding-bottom:12px;margin-bottom:16px}.a4-invoice-header h1{font-size:20pt;margin:0 0 6px}.a4-invoice-title{text-align:right}.a4-invoice-title h2{font-size:20pt;margin:0 0 4px}.a4-invoice-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px 20px;border:1px solid #bbb;padding:10px 12px;margin-bottom:14px}.a4-invoice-meta>div{display:flex;justify-content:space-between;gap:12px}.a4-invoice-customer{border:1px solid #bbb;padding:10px 12px;margin-bottom:16px}.a4-invoice-customer h3{font-size:11pt;text-transform:uppercase;margin:0 0 7px}.a4-invoice-items{width:100%;border-collapse:collapse;margin-bottom:16px}.a4-invoice-items th,.a4-invoice-items td{border:1px solid #888;padding:7px 6px;vertical-align:top}.a4-invoice-items th{background:#f1f5f9;text-align:left}.a4-invoice-items .number{text-align:right;white-space:nowrap}.a4-invoice-items small{display:block;color:#555}.a4-invoice-summary{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.a4-invoice-summary>table{width:44%;border-collapse:collapse}.a4-invoice-summary th,.a4-invoice-summary td{padding:5px 8px;border-bottom:1px solid #ccc;text-align:right}.a4-invoice-summary th{text-align:left}.a4-invoice-total th,.a4-invoice-total td{font-weight:bold;font-size:12pt;border-top:2px solid #222}.a4-invoice-discount{font-size:9pt;color:#444}.a4-invoice-footer{display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #888;margin-top:45px;padding-top:10px}.a4-invoice-signature{border-top:1px solid #555;min-width:55mm;text-align:center;padding-top:6px}'
+        : '@page{size:80mm auto;margin:3mm} body{font-family:monospace;color:#111} #thermal_receipt_print_area{width:72mm;margin:auto;padding:0!important;border:0!important;background:#fff!important;font-family:monospace!important;font-size:10px!important} #thermal_receipt_print_area table{width:100%;font-size:9px!important} #thermal_receipt_print_area h5{font-size:14px}';
+
+    printWindow.document.open();
+    printWindow.document.write('<!doctype html><html><head><title>' + (format === 'a4' ? 'Tax Invoice' : 'POS Receipt') + '</title><style>body{margin:0;padding:0}*{box-sizing:border-box} .text-center{text-align:center}.text-end{text-align:right}.d-flex{display:flex;justify-content:space-between}.fw-bold{font-weight:700}.text-muted{color:#555}.text-danger{color:#b91c1c}.text-success{color:#047857}.border-bottom{border-bottom:1px solid #ccc}.pt-2{padding-top:8px}.py-2{padding-top:8px;padding-bottom:8px}.mb-0{margin-bottom:0}table{border-collapse:collapse}th,td{padding:3px 1px;vertical-align:top}hr{border:0;border-top:1px solid #bbb}' + pageStyles + '</style></head><body>' + printArea.outerHTML + '</body></html>');
+    printWindow.onload = function() {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.onafterprint = function() {
+            printWindow.close();
+        };
+    };
+    printWindow.document.close();
 }
 </script>

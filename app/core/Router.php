@@ -65,7 +65,7 @@ class Router {
 
         // Central CSRF protection for all POST requests (excluding /api/*)
         if ($method === 'POST' && !str_starts_with($uri, '/api/')) {
-            CSRF::validateRequest();
+            Csrf::validateRequest();
         }
 
         foreach ($this->routes as $route) {

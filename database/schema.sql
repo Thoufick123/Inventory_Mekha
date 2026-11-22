@@ -1,6 +1,7 @@
 -- ========================================================
 -- INVENTO: Multi-Concern Inventory Management System Schema
 -- Compatible with Local (XAMPP) & Live Hosting (Hostinger/cPanel)
+-- Fresh-install baseline; use live_db_update.sql to upgrade an existing database.
 -- ========================================================
 
 -- Disable foreign key checks for clean creation
@@ -165,8 +166,10 @@ CREATE TABLE IF NOT EXISTS `variants` (
     `weight` DECIMAL(10,3) NOT NULL DEFAULT 0.000,
     `weight_unit` VARCHAR(20) NOT NULL DEFAULT 'kg',
     `attributes` JSON NULL, -- color, fabric, gsm, cut, etc.
+    `cost_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     `price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     `mrp` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `is_complementary` TINYINT(1) NOT NULL DEFAULT 0,
     `creation_date` DATE NOT NULL,
     `expiry_date` DATE NULL,
     `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
@@ -840,8 +843,16 @@ CREATE TABLE IF NOT EXISTS `sales_invoices` (
     `tax_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     `discount_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     `net_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-    `payment_method` ENUM('cash', 'bank_transfer', 'upi', 'credit') NOT NULL DEFAULT 'cash',
+    `shipping_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `payment_method` VARCHAR(30) NOT NULL DEFAULT 'cash',
     `payment_status` ENUM('paid', 'partial', 'unpaid') NOT NULL DEFAULT 'paid',
+    `paid_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    `is_direct_bill` TINYINT(1) NOT NULL DEFAULT 0,
+    `billing_company_name` VARCHAR(150) NULL,
+    `billing_company_address` VARCHAR(255) NULL,
+    `billing_company_phone` VARCHAR(30) NULL,
+    `billing_company_email` VARCHAR(150) NULL,
+    `billing_company_gstin` VARCHAR(15) NULL,
     `notes` TEXT NULL,
     `created_by` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1309,6 +1320,8 @@ CREATE TABLE IF NOT EXISTS `production_return_exchange_items` (
 CREATE TABLE IF NOT EXISTS `production_stock_requests` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
+    `source_concern_id` INT NULL,
+    `destination_concern_id` INT NULL,
     `request_no` VARCHAR(50) NOT NULL UNIQUE,
     `request_type` VARCHAR(50) NOT NULL DEFAULT 'INTER_MODULE',
     `from_location_type` VARCHAR(50) NOT NULL DEFAULT 'WAREHOUSE',

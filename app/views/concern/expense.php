@@ -354,6 +354,11 @@
                                     <span class="badge bg-light text-secondary border">
                                         <?= htmlspecialchars($e['payment_mode']) ?>
                                     </span>
+                                    <?php if (!empty($e['account_name'])): ?>
+                                        <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                                            <i class="bi bi-wallet2 me-1 text-primary"></i><?= htmlspecialchars($e['account_name']) ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <?php if (strtolower($e['status'] ?? 'paid') === 'pending'): ?>
@@ -533,6 +538,24 @@
                         </select>
                     </div>
 
+                    <!-- Disbursed From Cash/Bank Account (Cash Flow Interconnection) -->
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-secondary text-uppercase mb-1">
+                            <i class="bi bi-wallet2 text-primary me-1"></i> Disbursed From Cash/Bank Account (Cash Flow)
+                        </label>
+                        <select name="account_id" id="add_expense_account_id" class="form-select form-select-sm" style="border-radius: 8px;">
+                            <option value="">-- Auto-detect (Cash Drawer / Bank by Payment Mode) --</option>
+                            <?php foreach ($accounts as $acc): ?>
+                                <option value="<?= $acc['id'] ?>" data-concern="<?= $acc['concern_id'] ?>">
+                                    <?= htmlspecialchars($acc['name']) ?> (<?= ucfirst($acc['account_type']) ?> - Current Bal: ₹<?= number_format((float)$acc['balance'], 2) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted" style="font-size: 0.74rem;">
+                            <i class="bi bi-info-circle me-1"></i>Interconnected with Cash Flow. Debits will post immediately to the Cash &amp; Cash Flow ledger.
+                        </small>
+                    </div>
+
                     <!-- Description / Notes -->
                     <div class="col-12">
                         <label class="form-label small fw-bold text-secondary text-uppercase mb-1">
@@ -599,6 +622,10 @@
                     <li class="list-group-item px-0 d-flex justify-content-between">
                         <span class="text-muted">Payment Mode:</span>
                         <span class="badge bg-light text-dark border" id="view_pay_mode"></span>
+                    </li>
+                    <li class="list-group-item px-0 d-flex justify-content-between">
+                        <span class="text-muted">Disbursed From Account:</span>
+                        <strong class="text-dark" id="view_account_name">-</strong>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between">
                         <span class="text-muted">Date:</span>
@@ -668,6 +695,23 @@
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-secondary text-uppercase mb-1">Particulars / Items</label>
                         <input type="text" name="item_particulars" id="edit_expense_particulars" class="form-control form-control-sm" style="border-radius: 8px;">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-secondary text-uppercase mb-1">Payment Mode *</label>
+                        <select name="payment_mode" id="edit_expense_payment_mode" class="form-select form-select-sm" required style="border-radius: 8px;">
+                            <?php foreach ($paymentModes as $pm): ?>
+                                <option value="<?= htmlspecialchars($pm) ?>"><?= htmlspecialchars($pm) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-secondary text-uppercase mb-1">Disbursed From Account</label>
+                        <select name="account_id" id="edit_expense_account_id" class="form-select form-select-sm" style="border-radius: 8px;">
+                            <option value="">-- Auto-detect (Cash Drawer / Bank) --</option>
+                            <?php foreach ($accounts as $acc): ?>
+                                <option value="<?= $acc['id'] ?>"><?= htmlspecialchars($acc['name']) ?> (<?= ucfirst($acc['account_type']) ?> - Bal: ₹<?= number_format((float)$acc['balance'], 2) ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="col-12">
                         <label class="form-label small fw-bold text-secondary text-uppercase mb-1">Description / Bill Notes</label>
@@ -920,6 +964,7 @@ function showVoucherDetails(voucher) {
     setTxt('view_particulars', voucher.item_particulars || voucher.description || '-');
     setTxt('view_paid_to', voucher.paid_to || 'Counter Payee');
     setTxt('view_pay_mode', voucher.payment_mode || 'Cash');
+    setTxt('view_account_name', voucher.account_name || 'Main Cash Drawer');
     setTxt('view_date', voucher.expense_date || '');
     setTxt('view_description', voucher.description || '-');
 
@@ -949,6 +994,8 @@ function openEditExpenseModal(exp) {
     setVal('edit_expense_status', exp.status === 'Pending' ? 'Pending' : 'Paid');
     setVal('edit_expense_paid_to', exp.paid_to || '');
     setVal('edit_expense_particulars', exp.item_particulars || '');
+    setVal('edit_expense_payment_mode', exp.payment_mode || 'Cash');
+    setVal('edit_expense_account_id', exp.account_id || '');
     setVal('edit_expense_description', exp.description || '');
 
     const modalEl = document.getElementById('modalEditExpense');

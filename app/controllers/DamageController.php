@@ -525,6 +525,76 @@ class DamageController extends Controller {
         $this->redirect('/m/concern_damage');
     }
 
+    public function destroy(): void {
+        ModuleGuard::enforce('concern_damage', 'delete');
+        $this->validateCsrf();
+        $id = (int)($_POST['id'] ?? 0);
+        $dmg = DB::fetch("SELECT * FROM concern_damages WHERE id = ?", [$id]);
+        if (!$dmg) {
+            $this->flash('error', 'Damage record not found.');
+            $this->redirect('/m/concern_damage');
+            return;
+        }
+
+        $concernId = (int)$dmg['concern_id'];
+        $variantId = (int)$dmg['variant_id'];
+        $qty = (float)$dmg['qty'];
+        $sourceLocation = $dmg['location'] ?: 'Main Store';
+        $damagedLocation = DamageService::locationWithState($sourceLocation, 'DAMAGED');
+        $status = strtoupper((string)($dmg['status'] ?? 'LOGGED'));
+
+        DB::beginTransaction();
+        try {
+            // If the damage is in LOGGED or INSPECTED status, deduct the quarantine stock completely
+            // so this product quantity is permanently removed from inventory (never restored to live stock).
+            if (in_array($status, ['LOGGED', 'INSPECTED'], true)) {
+                $hasQuarantine = (int)DB::fetchValue(
+                    "SELECT COUNT(*) FROM stock_ledger
+                     WHERE ref_module = 'Concern Damage' AND ref_id = ? AND qty_in > 0",
+                    [$id]
+                ) > 0;
+
+                if ($hasQuarantine) {
+                    $currDamagedStock = (float)DB::fetchValue(
+                        "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE",
+                        [$concernId, $variantId, $damagedLocation]
+                    );
+                    $deductQty = min($qty, max(0.0, $currDamagedStock));
+                    if ($deductQty > 0.00001) {
+                        StockService::move(
+                            $concernId,
+                            $variantId,
+                            $damagedLocation,
+                            0.00,
+                            $deductQty,
+                            'Concern Damage',
+                            $id,
+                            "Permanently deleted damage case [{$dmg['damage_no']}]; {$deductQty} unit(s) completely removed from inventory.",
+                            Auth::id()
+                        );
+                    }
+                }
+            }
+
+            // Clean up any zero-balance damaged quarantine stock
+            DB::query(
+                "DELETE FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? AND qty <= 0",
+                [$concernId, $variantId, $damagedLocation]
+            );
+
+            // Permanently delete the damage record from concern_damages
+            DB::query("DELETE FROM concern_damages WHERE id = ?", [$id]);
+
+            DB::commit();
+            $this->flash('success', "Damage record '{$dmg['damage_no']}' deleted and {$qty} unit(s) completely removed from inventory.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->flash('error', 'Failed to completely delete damage: ' . $e->getMessage());
+        }
+
+        $this->redirect('/m/concern_damage');
+    }
+
     public function resolve(): void {
         ModuleGuard::enforce('concern_damage', 'edit');
         $this->validateCsrf();

@@ -18,6 +18,7 @@ $stocks = [
         'subcategory_name' => 'Feedfin',
         'location' => 'Main Store',
         'qty' => 4,
+        'cost_price' => 250,
         'price' => 350,
         'mrp' => 400,
         'concern_id' => 1,
@@ -35,15 +36,34 @@ $stocks = [
         'subcategory_name' => 'Feedfin',
         'location' => 'Main Store',
         'qty' => 2,
+        'cost_price' => 260,
         'price' => 360,
         'mrp' => 420,
         'concern_id' => 1,
         'variant_id' => 12,
         'purchase_item_id' => 31,
     ],
+    [
+        'stock_source' => 'other',
+        'sku_code' => 'RET-L',
+        'variant_name' => 'Shirt - Red - L',
+        'variant_attributes' => json_encode(['color' => 'red']),
+        'size' => 'L',
+        'weight' => 0.3,
+        'weight_unit' => 'kg',
+        'category_name' => 'Womens',
+        'subcategory_name' => 'Feedfin',
+        'location' => 'Main Store:DAMAGED',
+        'qty' => 1,
+        'cost_price' => 0,
+        'price' => 350,
+        'mrp' => 400,
+        'concern_id' => 1,
+        'variant_id' => 13,
+    ],
 ];
-$totalUnits = 6;
-$totalValuation = 2120;
+$totalUnits = 7;
+$totalValuation = 1520;
 $exportTitle = 'Stock Export';
 $exportSubtitle = 'Test';
 $exportUrl = '/m/stocks/export';
@@ -57,12 +77,18 @@ $ownPosition = strpos($html, 'Own Products');
 $purchasePosition = strpos($html, 'Purchase Products');
 preg_match('/<tr data-stock-source="purchase"[^>]*>.*?<\/tr>/s', $html, $purchaseRowMatch);
 $purchaseRowHtml = $purchaseRowMatch[0] ?? '';
+$otherPosition = strpos($html, 'Other Sources');
 $checks = [
     'Own and purchase stocks render as separate ordered sections' =>
         $ownPosition !== false && $purchasePosition !== false && $ownPosition < $purchasePosition,
-    'Source sections are presented as one horizontal tab row' =>
-        strpos($html, 'data-stock-source-tab="own"') !== false && strpos($html, 'data-stock-source-tab="purchase"') !== false,
-    'Unclassified stock is not displayed' => strpos($html, 'Other Stock') === false,
+    'Own, purchase, and other source sections are presented as one horizontal tab row' =>
+        strpos($html, 'data-stock-source-tab="own"') !== false
+        && strpos($html, 'data-stock-source-tab="purchase"') !== false
+        && strpos($html, 'data-stock-source-tab="other"') !== false,
+    'Positive stock without a known source remains visible in Other Sources' =>
+        $otherPosition !== false
+        && strpos($html, 'data-stock-source="other"') !== false
+        && strpos($html, 'RET-L') !== false,
     'Storage Location column is removed' => strpos($html, '<th>Storage Location</th>') === false,
     'Quantity and net value use the requested column labels' =>
         strpos($html, '<th>Qty</th>') !== false
@@ -75,9 +101,19 @@ $checks = [
         strpos($html, 'Color: red') !== false && strpos($html, 'Memory: 4GB') !== false,
     'Stock display distinguishes selling rate from label MRP' =>
         strpos($html, '₹350.00') !== false && strpos($html, 'MRP ₹400.00') !== false,
+    'Stock display and edit modal separate cost, selling, and MRP values' =>
+        strpos($html, 'Cost ₹250.00') !== false
+        && strpos($html, 'Selling ₹350.00') !== false
+        && strpos($html, 'id="stockEditCostPrice"') !== false
+        && strpos($html, 'id="stockEditPrice"') !== false
+        && strpos($html, 'id="stockEditMrp"') !== false
+        && strpos($html, 'Cost Price &lt; Selling Price &lt; MRP') !== false,
+    'Stock valuation uses cost price' =>
+        strpos($html, 'Total Cost Valuation') !== false
+        && strpos($html, '₹1,520.00') !== false,
     'Stock actions include quantity edit and ledger-preserving removal' =>
-        strpos($html, 'Edit Qty') !== false
-        && strpos($html, '/m/stocks/update-quantity') !== false
+        strpos($html, 'data-stock-edit') !== false
+        && strpos($html, '/m/stocks/update-details') !== false
         && strpos($html, '/m/stocks/delete-line') !== false
         && strpos($html, 'stock ledger history will be preserved') !== false,
     'Purchase stock actions open the exact label and provide quantity CRUD' =>
@@ -86,7 +122,7 @@ $checks = [
         && strpos($purchaseRowHtml, 'variant_id=12') !== false
         && strpos($purchaseRowHtml, 'Print Labels') === false
         && strpos($purchaseRowHtml, 'View QR') === false
-        && strpos($purchaseRowHtml, 'Edit Qty') !== false
+        && strpos($purchaseRowHtml, 'data-stock-edit') !== false
         && strpos($purchaseRowHtml, '/m/stocks/delete-line') !== false
         && strpos($purchaseRowHtml, 'Remove') !== false,
 ];
@@ -99,6 +135,9 @@ $checks['Production and purchase inward ledger entries determine stock source'] 
     && strpos($controllerSource, "WHEN 'Purchase Inward Item' THEN 'purchase'") !== false
     && strpos($controllerSource, "WHEN 'Purchase Stock Adjustment' THEN 'purchase'") !== false
     && strpos($controllerSource, "WHERE s.qty > 0") !== false
+    && strpos($controllerSource, 'COALESCE(latest_inbound.ref_module, latest_variant_source.ref_module)') !== false
+    && strpos($controllerSource, 'latest_variant_source') !== false
+    && strpos($controllerSource, 'AND latest_inbound.ref_module IN (') === false
     && strpos($controllerSource, "pbi.id = latest_purchase.ref_id") !== false
     && strpos($controllerSource, "WHERE qty_in > 0 AND ref_module IN ('Purchase Inward', 'Purchase Inward Item')") !== false
     && strpos($controllerSource, "'Purchase Inward Item'") !== false;
@@ -108,7 +147,7 @@ ob_start();
 include __DIR__ . '/../app/views/concern/stocks.php';
 $readOnlyHtml = ob_get_clean();
 $checks['Quantity CRUD controls are hidden without stock edit permission'] =
-    strpos($readOnlyHtml, 'Edit Qty') === false
+    strpos($readOnlyHtml, 'aria-label="Edit details for') === false
     && strpos($readOnlyHtml, 'delete-line') === false;
 $checks['Purchase label preview remains available in read-only mode'] =
     strpos($readOnlyHtml, 'View Label') !== false;

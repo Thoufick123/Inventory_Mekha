@@ -38,59 +38,155 @@ class ProductionStockRequestController extends Controller {
     public function index(): void {
         ModuleGuard::enforce('request', 'view');
         $cid = Auth::concernId();
+        $tab = strtolower(trim($_GET['tab'] ?? 'receive'));
+        if (!in_array($tab, ['receive', 'send'], true)) {
+            $tab = 'receive';
+        }
 
         $search = trim($_GET['search'] ?? '');
         $status = strtoupper(trim($_GET['status'] ?? ''));
         $fromDate = trim($_GET['from_date'] ?? '');
         $toDate = trim($_GET['to_date'] ?? '');
 
-        $sql = "SELECT psr.*, con.name AS concern_name, con.code AS concern_code,
-                       (SELECT COUNT(*) FROM production_stock_request_items WHERE request_id = psr.id) AS item_count,
-                       u.name AS creator_name, du.name AS dispatcher_name, ru.name AS receiver_name
-                FROM production_stock_requests psr
-                LEFT JOIN concerns con ON psr.concern_id = con.id
-                LEFT JOIN users u ON psr.created_by = u.id
-                LEFT JOIN users du ON psr.dispatched_by = du.id
-                LEFT JOIN users ru ON psr.received_by = ru.id
-                WHERE 1=1";
-        $params = [];
+        // 1. Fetch active concerns
+        $concerns = DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY name ASC");
 
+        // 2. Fetch active variants
+        $variants = DB::fetchAll("SELECT id, sku_code, name, size, price, concern_id FROM variants WHERE status = 'active' ORDER BY name ASC");
+
+        // 3. Precompute stock availability per concern & variant
+        $stocksRaw = DB::fetchAll(
+            "SELECT concern_id, variant_id, SUM(qty) AS total_qty 
+             FROM stocks 
+             WHERE location NOT LIKE '%:DAMAGED%' AND location NOT LIKE '%:IN_TRANSIT%' 
+             GROUP BY concern_id, variant_id"
+        );
+        $concernStocksMap = [];
+        foreach ($stocksRaw as $stk) {
+            $cIdKey = (int)$stk['concern_id'];
+            $vIdKey = (int)$stk['variant_id'];
+            $concernStocksMap[$cIdKey][$vIdKey] = (float)$stk['total_qty'];
+        }
+
+        // Base SELECT for requisitions
+        $baseSelect = "SELECT psr.*, 
+                              COALESCE(dest_con.name, 'Main Retail Store') AS destination_concern_name, 
+                              dest_con.code AS destination_concern_code,
+                              COALESCE(src_con.name, 'Central Warehouse & Hub') AS source_concern_name, 
+                              src_con.code AS source_concern_code,
+                              (SELECT COUNT(*) FROM production_stock_request_items WHERE request_id = psr.id) AS item_count,
+                              u.name AS creator_name, du.name AS dispatcher_name, ru.name AS receiver_name
+                       FROM production_stock_requests psr
+                       LEFT JOIN concerns dest_con ON psr.destination_concern_id = dest_con.id
+                       LEFT JOIN concerns src_con ON (psr.source_concern_id = src_con.id OR (psr.source_concern_id IS NULL AND psr.concern_id = src_con.id))
+                       LEFT JOIN users u ON psr.created_by = u.id
+                       LEFT JOIN users du ON psr.dispatched_by = du.id
+                       LEFT JOIN users ru ON psr.received_by = ru.id
+                       WHERE 1=1";
+
+        // Query Receive list (Image 1): Incoming requisitions from other concerns or destined for this store
+        $receiveSql = $baseSelect;
+        $receiveParams = [];
         if ($cid) {
-            $sql .= " AND psr.concern_id = ?";
-            $params[] = $cid;
+            $receiveSql .= " AND (
+                psr.destination_concern_id = ? 
+                OR (psr.destination_concern_id IS NULL AND psr.to_location_type = 'SHOP' AND psr.concern_id = ?)
+                OR (psr.source_concern_id IS NOT NULL AND psr.source_concern_id != ? AND (psr.destination_concern_id = ? OR psr.destination_concern_id IS NULL))
+            )";
+            $receiveParams[] = $cid;
+            $receiveParams[] = $cid;
+            $receiveParams[] = $cid;
+            $receiveParams[] = $cid;
         }
         if ($search !== '') {
-            $sql .= " AND (psr.request_no LIKE ? OR psr.notes LIKE ? OR psr.dispatch_challan_no LIKE ?)";
-            $params[] = "%{$search}%";
-            $params[] = "%{$search}%";
-            $params[] = "%{$search}%";
+            $receiveSql .= " AND (psr.request_no LIKE ? OR psr.notes LIKE ? OR psr.dispatch_challan_no LIKE ?)";
+            $receiveParams[] = "%{$search}%";
+            $receiveParams[] = "%{$search}%";
+            $receiveParams[] = "%{$search}%";
         }
         if ($status !== '') {
-            $sql .= " AND psr.status = ?";
-            $params[] = $status;
+            $receiveSql .= " AND psr.status = ?";
+            $receiveParams[] = $status;
         }
         if ($fromDate !== '') {
-            $sql .= " AND psr.created_at >= ?";
-            $params[] = "{$fromDate} 00:00:00";
+            $receiveSql .= " AND psr.created_at >= ?";
+            $receiveParams[] = "{$fromDate} 00:00:00";
         }
         if ($toDate !== '') {
-            $sql .= " AND psr.created_at <= ?";
-            $params[] = "{$toDate} 23:59:59";
+            $receiveSql .= " AND psr.created_at <= ?";
+            $receiveParams[] = "{$toDate} 23:59:59";
         }
+        $receiveSql .= " ORDER BY psr.id DESC";
+        $receivedRequests = DB::fetchAll($receiveSql, $receiveParams);
 
-        $sql .= " ORDER BY psr.id DESC";
-        $requests = DB::fetchAll($sql, $params);
+        // Query Send list: Requisitions sent/indented by this concern
+        $sendSql = $baseSelect;
+        $sendParams = [];
+        if ($cid) {
+            $sendSql .= " AND (psr.concern_id = ? OR psr.source_concern_id = ?)";
+            $sendParams[] = $cid;
+            $sendParams[] = $cid;
+        }
+        if ($search !== '') {
+            $sendSql .= " AND (psr.request_no LIKE ? OR psr.notes LIKE ? OR psr.dispatch_challan_no LIKE ?)";
+            $sendParams[] = "%{$search}%";
+            $sendParams[] = "%{$search}%";
+            $sendParams[] = "%{$search}%";
+        }
+        if ($status !== '') {
+            $sendSql .= " AND psr.status = ?";
+            $sendParams[] = $status;
+        }
+        if ($fromDate !== '') {
+            $sendSql .= " AND psr.created_at >= ?";
+            $sendParams[] = "{$fromDate} 00:00:00";
+        }
+        if ($toDate !== '') {
+            $sendSql .= " AND psr.created_at <= ?";
+            $sendParams[] = "{$toDate} 23:59:59";
+        }
+        $sendSql .= " ORDER BY psr.id DESC";
+        $sentRequests = DB::fetchAll($sendSql, $sendParams);
 
         $this->render('production/stock_requests/index', [
-            'pageTitle'     => 'Stock Requisitions & Inter-Module Movement',
-            'currentModule' => 'request',
-            'requests'      => $requests,
-            'search'        => $search,
-            'status'        => $status,
-            'fromDate'      => $fromDate,
-            'toDate'        => $toDate,
-            'selectedCid'   => $cid,
+            'pageTitle'        => 'Stock Requisitions & Inter-Concern Movement',
+            'currentModule'    => 'request',
+            'activeTab'        => $tab,
+            'receivedRequests' => $receivedRequests,
+            'sentRequests'     => $sentRequests,
+            'requests'         => $tab === 'send' ? $sentRequests : $receivedRequests,
+            'concerns'         => $concerns,
+            'variants'         => $variants,
+            'concernStocksMap' => $concernStocksMap,
+            'search'           => $search,
+            'status'           => $status,
+            'fromDate'         => $fromDate,
+            'toDate'           => $toDate,
+            'selectedCid'      => $cid,
         ]);
+    }
+
+    /**
+     * AJAX endpoint: return stock map for a concern
+     */
+    public function variantStocks(): void {
+        $cid = (int)($_GET['concern_id'] ?? Auth::concernId() ?? 0);
+        $stocks = [];
+        if ($cid > 0) {
+            $rows = DB::fetchAll(
+                "SELECT variant_id, SUM(qty) AS total_qty 
+                 FROM stocks 
+                 WHERE concern_id = ? AND location NOT LIKE '%:DAMAGED%' AND location NOT LIKE '%:IN_TRANSIT%' 
+                 GROUP BY variant_id",
+                [$cid]
+            );
+            foreach ($rows as $r) {
+                $stocks[(int)$r['variant_id']] = (float)$r['total_qty'];
+            }
+        }
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'stocks' => $stocks]);
+        exit;
     }
 
     public function create(): void {
@@ -131,10 +227,12 @@ class ProductionStockRequestController extends Controller {
         ModuleGuard::enforce('request', 'add');
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
         if (!$cid) {
-            $this->flash('error', 'Please select a valid business concern.');
-            $this->redirect('/production/stock-requests');
-            return;
+            $firstCon = DB::fetch("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1");
+            $cid = $firstCon ? (int)$firstCon['id'] : 1;
         }
+
+        $destConcernId = !empty($_POST['destination_concern_id']) ? (int)$_POST['destination_concern_id'] : $cid;
+        $sourceConcernId = $cid;
 
         $fromType = strtoupper(trim($_POST['from_location_type'] ?? 'WAREHOUSE'));
         $fromId = (int)($_POST['from_location_id'] ?? 1);
@@ -144,20 +242,41 @@ class ProductionStockRequestController extends Controller {
         $expectedDate = !empty($_POST['expected_date']) ? trim($_POST['expected_date']) : date('Y-m-d', strtotime('+3 days'));
         $notes = trim($_POST['notes'] ?? '');
 
-        $itemsJson = $_POST['items'] ?? '[]';
-        $items = json_decode($itemsJson, true);
+        $rawItems = $_POST['items'] ?? null;
+        $items = [];
+        if (is_array($rawItems)) {
+            foreach ($rawItems as $k => $it) {
+                $vId = (int)($it['variant_id'] ?? $k);
+                $rq = (float)($it['requested_qty'] ?? 0);
+                if ($vId > 0 && $rq > 0) {
+                    $items[] = ['variant_id' => $vId, 'requested_qty' => $rq];
+                }
+            }
+        } elseif (is_string($rawItems)) {
+            $decoded = json_decode($rawItems, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $it) {
+                    $vId = (int)($it['variant_id'] ?? 0);
+                    $rq = (float)($it['requested_qty'] ?? 0);
+                    if ($vId > 0 && $rq > 0) {
+                        $items[] = ['variant_id' => $vId, 'requested_qty' => $rq];
+                    }
+                }
+            }
+        }
 
         // Fallback for single variant input
         if (empty($items) && !empty($_POST['variant_id'])) {
-            $items = [[
-                'variant_id'    => (int)$_POST['variant_id'],
-                'requested_qty' => (float)($_POST['requested_qty'] ?? 1),
-            ]];
+            $vId = (int)$_POST['variant_id'];
+            $rq = (float)($_POST['requested_qty'] ?? 1);
+            if ($vId > 0 && $rq > 0) {
+                $items[] = ['variant_id' => $vId, 'requested_qty' => $rq];
+            }
         }
 
         if (empty($items)) {
             $this->flash('error', 'Please add at least one line item to the requisition.');
-            $this->redirect('/production/stock-requests/create');
+            $this->redirect('/production/stock-requests?tab=send');
             return;
         }
 
@@ -177,11 +296,11 @@ class ProductionStockRequestController extends Controller {
             // 1. Insert header
             DB::query(
                 "INSERT INTO production_stock_requests (
-                    concern_id, request_no, request_type, from_location_type, from_location_id,
+                    concern_id, source_concern_id, destination_concern_id, request_no, request_type, from_location_type, from_location_id,
                     to_location_type, to_location_id, status, priority, requested_qty, expected_date, notes, created_by, created_at
-                 ) VALUES (?, ?, 'INTER_MODULE', ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, NOW())",
+                 ) VALUES (?, ?, ?, ?, 'INTER_MODULE', ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, NOW())",
                 [
-                    $cid, $requestNo, $fromType, $fromId,
+                    $cid, $sourceConcernId, $destConcernId, $requestNo, $fromType, $fromId,
                     $toType, $toId, $priority, $totalRequestedQty, $expectedDate, $notes, Auth::id()
                 ]
             );
@@ -207,18 +326,10 @@ class ProductionStockRequestController extends Controller {
                 [$requestId, $totalRequestedQty, Auth::id(), "Requisition created: {$notes}"]
             );
 
-            // Backward compatibility insert into customer_requests
-            $firstItem = $items[0] ?? null;
-            if ($firstItem) {
-                DB::query(
-                    "INSERT INTO customer_requests (concern_id, request_no, customer_id, variant_id, requested_qty, expected_date, status, notes, created_at)
-                     VALUES (?, ?, 1, ?, ?, ?, 'pending', ?, NOW())",
-                    [$cid, $requestNo, (int)$firstItem['variant_id'], (float)$firstItem['requested_qty'], $expectedDate, $notes]
-                );
-            }
-
             AuditService::log('STOCK_REQUEST_CREATE', 'production_stock_requests', $requestId, null, [
                 'request_no' => $requestNo,
+                'source'     => $sourceConcernId,
+                'dest'       => $destConcernId,
                 'from'       => "{$fromType}:{$fromId}",
                 'to'         => "{$toType}:{$toId}",
                 'total_qty'  => $totalRequestedQty
@@ -228,14 +339,30 @@ class ProductionStockRequestController extends Controller {
                 DB::commit();
             }
 
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success'    => true,
+                    'request_no' => $requestNo,
+                    'id'         => $requestId,
+                    'message'    => "Stock Requisition '{$requestNo}' submitted successfully."
+                ]);
+                exit;
+            }
+
             $this->flash('success', "Stock Requisition '{$requestNo}' submitted successfully.");
-            $this->redirect('/production/stock-requests/view/' . $requestId);
+            $this->redirect('/production/stock-requests?tab=send');
         } catch (\Throwable $e) {
             if (!$hasActiveTx) {
                 DB::rollBack();
             }
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                exit;
+            }
             $this->flash('error', 'Failed to create requisition: ' . $e->getMessage());
-            $this->redirect('/production/stock-requests/create');
+            $this->redirect('/production/stock-requests?tab=send');
         }
     }
 
@@ -244,14 +371,17 @@ class ProductionStockRequestController extends Controller {
 
         $request = DB::fetch(
             "SELECT psr.*, con.name AS concern_name, con.code AS concern_code,
+                    dest_con.name AS destination_concern_name, src_con.name AS source_concern_name,
                     u.name AS creator_name, du.name AS dispatcher_name, ru.name AS receiver_name
              FROM production_stock_requests psr
              LEFT JOIN concerns con ON psr.concern_id = con.id
+             LEFT JOIN concerns dest_con ON psr.destination_concern_id = dest_con.id
+             LEFT JOIN concerns src_con ON psr.source_concern_id = src_con.id
              LEFT JOIN users u ON psr.created_by = u.id
              LEFT JOIN users du ON psr.dispatched_by = du.id
              LEFT JOIN users ru ON psr.received_by = ru.id
-             WHERE psr.id = ? AND (psr.concern_id = ? OR ? IS NULL)",
-            [$id, $cid, $cid]
+             WHERE psr.id = ? AND (psr.concern_id = ? OR psr.destination_concern_id = ? OR psr.source_concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid, $cid, $cid]
         );
 
         if (!$request) {
@@ -308,8 +438,8 @@ class ProductionStockRequestController extends Controller {
         $cid = Auth::concernId();
 
         $request = DB::fetch(
-            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
-            [$id, $cid, $cid]
+            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR source_concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid, $cid]
         );
 
         if (!$request) {
@@ -446,13 +576,13 @@ class ProductionStockRequestController extends Controller {
         $cid = Auth::concernId();
 
         $request = DB::fetch(
-            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
-            [$id, $cid, $cid]
+            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR destination_concern_id = ? OR source_concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid, $cid, $cid]
         );
 
         if (!$request) {
             $this->flash('error', 'Requisition not found.');
-            $this->redirect('/production/stock-requests');
+            $this->redirect('/production/stock-requests?tab=receive');
             return;
         }
 
@@ -464,6 +594,18 @@ class ProductionStockRequestController extends Controller {
 
         $items = DB::fetchAll("SELECT * FROM production_stock_request_items WHERE request_id = ?", [$id]);
         $receivedInputs = $_POST['received_qty'] ?? [];
+        $receivedTotal = isset($_POST['received_qty_total']) ? (float)$_POST['received_qty_total'] : null;
+        if ($receivedTotal !== null && empty($receivedInputs) && !empty($items)) {
+            if (count($items) === 1) {
+                $receivedInputs[$items[0]['id']] = $receivedTotal;
+            } else {
+                $totTransit = (float)$request['in_transit_qty'] ?: (float)$request['dispatched_qty'];
+                $ratio = $totTransit > 0 ? min(1.0, $receivedTotal / $totTransit) : 1.0;
+                foreach ($items as $it) {
+                    $receivedInputs[$it['id']] = round((float)$it['in_transit_qty'] * $ratio, 2);
+                }
+            }
+        }
 
         $concernId = (int)$request['concern_id'];
         $inTransitLoc = StockService::formatLocation($request['from_location_type'], $request['from_location_id'], 'IN_TRANSIT');
@@ -597,8 +739,8 @@ class ProductionStockRequestController extends Controller {
         $cid = Auth::concernId();
 
         $request = DB::fetch(
-            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
-            [$id, $cid, $cid]
+            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR source_concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid, $cid]
         );
 
         if (!$request) {
@@ -642,8 +784,8 @@ class ProductionStockRequestController extends Controller {
         $cid = Auth::concernId();
 
         $request = DB::fetch(
-            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
-            [$id, $cid, $cid]
+            "SELECT * FROM production_stock_requests WHERE id = ? AND (concern_id = ? OR source_concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid, $cid]
         );
 
         if (!$request) {

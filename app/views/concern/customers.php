@@ -337,18 +337,8 @@
                         <input type="tel" name="phone" id="edit_cust_phone" class="form-control" maxlength="10" style="border-radius: 8px;">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold text-secondary">GSTIN</label>
-                        <input type="text" name="gstin" id="edit_cust_gstin" class="form-control text-uppercase" style="border-radius: 8px;">
-                    </div>
-                </div>
-                <div class="row g-2 mb-3">
-                    <div class="col-md-6">
                         <label class="form-label small fw-bold text-secondary">EMAIL ADDRESS</label>
                         <input type="email" name="email" id="edit_cust_email" class="form-control" style="border-radius: 8px;">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold text-secondary">CITY</label>
-                        <input type="text" name="city" id="edit_cust_city" class="form-control" style="border-radius: 8px;">
                     </div>
                 </div>
                 <div class="mb-3">
@@ -633,9 +623,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('edit_cust_name').value = this.getAttribute('data-name');
             document.getElementById('edit_cust_phone').value = this.getAttribute('data-phone');
             document.getElementById('edit_cust_email').value = this.getAttribute('data-email');
-            document.getElementById('edit_cust_city').value = this.getAttribute('data-city');
             document.getElementById('edit_cust_address').value = this.getAttribute('data-address');
-            document.getElementById('edit_cust_gstin').value = this.getAttribute('data-gstin');
             document.getElementById('edit_cust_status').value = this.getAttribute('data-status') || 'active';
 
             if (editModalEl && window.bootstrap) {
