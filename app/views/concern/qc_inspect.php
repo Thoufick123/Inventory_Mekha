@@ -122,7 +122,8 @@
                 <table class="table table-hover align-middle mb-0" id="tablePieces">
                     <thead class="table-light text-uppercase small text-secondary sticky-top" style="font-size:0.75rem; z-index: 5;">
                         <tr>
-                            <th class="ps-4 py-2.5">Garment Tag Code &amp; Variant</th>
+                            <th class="ps-3 text-center py-2.5" style="width: 50px;">#</th>
+                            <th class="ps-3 py-2.5">Garment Tag Code &amp; Variant</th>
                             <th class="text-center py-2.5" style="width: 140px;">QC Verdict</th>
                             <th class="py-2.5" style="width: 320px;">Defect / Rework Reason &amp; Notes</th>
                             <th class="text-center pe-4 py-2.5" style="width: 240px;">Piece QC Actions</th>
@@ -131,7 +132,12 @@
                     <tbody id="tbodyPieces">
                         <?php foreach ($pieces as $idx => $p): ?>
                             <tr id="row_piece_<?= $p['id'] ?>" data-tag="<?= htmlspecialchars($p['tag_code']) ?>" data-verdict="<?= htmlspecialchars($p['verdict']) ?>">
-                                <td class="ps-4 py-2.5">
+                                <td class="ps-3 text-center align-middle">
+                                    <span class="badge bg-light text-dark border font-monospace fw-bold px-2 py-1" style="font-size:0.80rem;">
+                                        <?= (int)$p['piece_number'] ?>
+                                    </span>
+                                </td>
+                                <td class="ps-3 py-2.5">
                                     <div class="d-flex flex-column gap-1">
                                         <span class="badge bg-light text-primary border align-self-start font-monospace text-truncate" style="max-width: 300px; font-size:0.75rem;">
                                             <i class="bi bi-tag text-primary me-1"></i> <?= htmlspecialchars($p['catalog_name'] ?: 'Garment Product') ?>
@@ -146,8 +152,8 @@
                                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-1.5 py-0.5" style="font-size:0.72rem;">
                                                 <?= htmlspecialchars($p['color'] ?: 'STD') ?>
                                             </span>
-                                            <span class="text-muted small" style="font-size:0.75rem;">
-                                                <?= htmlspecialchars($p['size'] . '-' . $p['color']) ?> &bull; Garment #<?= $p['piece_number'] ?> of <?= $p['total_variant_pieces'] ?>
+                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle font-monospace px-2 py-0.5" style="font-size:0.72rem;">
+                                                Garment #<?= (int)$p['piece_number'] ?> of <?= (int)$p['total_variant_pieces'] ?>
                                             </span>
                                         </div>
                                     </div>
