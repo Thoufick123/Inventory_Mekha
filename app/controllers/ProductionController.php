@@ -4006,7 +4006,7 @@ class ProductionController extends Controller {
         }
 
         $batch = DB::fetch(
-            "SELECT cl.*, pp.program_no, pp.program_name, pp.planned_qty, cm.name AS master_name, con.name AS concern_name
+            "SELECT cl.*, pp.program_no, pp.program_name, pp.planned_qty, pp.catalog_id AS program_catalog_id, cm.name AS master_name, con.name AS concern_name
              FROM cutting_logs cl
              LEFT JOIN production_programs pp ON cl.program_id = pp.id
              LEFT JOIN cutting_masters cm ON cl.cutting_master_id = cm.id
@@ -4035,14 +4035,24 @@ class ProductionController extends Controller {
             "SELECT pr.*, 
                     pbi.item_code, pbi.item_name, pbi.pattern, pbi.color, pbi.unit, pbi.net_weight, pbi.unit_price,
                     cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
-                    c.name AS roll_catalog_name, c.style_code AS roll_style_code, c.sizes AS roll_catalog_sizes
+                    c.id AS roll_catalog_id,
+                    c.name AS roll_catalog_name,
+                    c.style_code AS roll_style_code,
+                    c.sizes AS roll_catalog_sizes
              FROM program_rolls pr
              LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
              LEFT JOIN categories cat ON pr.category_id = cat.id
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-             LEFT JOIN catalogs c ON pr.catalog_id = c.id
+             LEFT JOIN catalogs c ON c.id = COALESCE(
+                 pr.catalog_id,
+                 (SELECT pp.catalog_id FROM production_programs pp WHERE pp.id = pr.program_id),
+                 (SELECT c1.id FROM catalogs c1 WHERE pr.sub_sub_category_id IS NOT NULL AND c1.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c1.id ASC LIMIT 1),
+                 (SELECT c2.id FROM catalogs c2 WHERE pr.subcategory_id IS NOT NULL AND c2.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c2.category_id = pr.category_id) ORDER BY c2.id ASC LIMIT 1),
+                 (SELECT c3.id FROM catalogs c3 WHERE pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
+             )
              WHERE pr.id IN (SELECT DISTINCT program_roll_id FROM cutting_items WHERE cutting_id = ? AND program_roll_id IS NOT NULL)
+             GROUP BY pr.id
              ORDER BY pr.id ASC",
             [$id]
         );
@@ -4053,17 +4063,181 @@ class ProductionController extends Controller {
                 "SELECT pr.*, 
                         pbi.item_code, pbi.item_name, pbi.pattern, pbi.color, pbi.unit, pbi.net_weight, pbi.unit_price,
                         cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
-                        c.name AS roll_catalog_name, c.style_code AS roll_style_code, c.sizes AS roll_catalog_sizes
+                        c.id AS roll_catalog_id,
+                        c.name AS roll_catalog_name,
+                        c.style_code AS roll_style_code,
+                        c.sizes AS roll_catalog_sizes
                  FROM program_rolls pr
                  LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
                  LEFT JOIN categories cat ON pr.category_id = cat.id
                  LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
                  LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-                 LEFT JOIN catalogs c ON pr.catalog_id = c.id
+                 LEFT JOIN catalogs c ON c.id = COALESCE(
+                     pr.catalog_id,
+                     (SELECT pp.catalog_id FROM production_programs pp WHERE pp.id = pr.program_id),
+                     (SELECT c1.id FROM catalogs c1 WHERE pr.sub_sub_category_id IS NOT NULL AND c1.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c1.id ASC LIMIT 1),
+                     (SELECT c2.id FROM catalogs c2 WHERE pr.subcategory_id IS NOT NULL AND c2.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c2.category_id = pr.category_id) ORDER BY c2.id ASC LIMIT 1),
+                     (SELECT c3.id FROM catalogs c3 WHERE pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
+                 )
                  WHERE pr.program_id = ?
+                 GROUP BY pr.id
                  ORDER BY pr.id ASC",
                 [$batch['program_id']]
             );
+        }
+
+        // Index cutting items by roll ID
+        $itemsByRoll = [];
+        foreach ($items as $it) {
+            $rId = (int)($it['program_roll_id'] ?? 0);
+            if (!isset($itemsByRoll[$rId])) {
+                $itemsByRoll[$rId] = [];
+            }
+            $itemsByRoll[$rId][] = $it;
+        }
+
+        $sumRollWeight = 0.00;
+        $sumRollPrice = 0.00;
+
+        foreach ($rolls as &$r) {
+            $rId = (int)$r['id'];
+
+            // Calculate weight
+            $weight = (float)$r['roll_weight'];
+            if ($weight <= 0) {
+                $weight = (float)$r['allocated_qty'];
+            }
+            if ($weight <= 0) {
+                $weight = (float)($r['net_weight'] ?? 0);
+            }
+            if ($weight <= 0 && count($rolls) === 1 && (float)($batch['total_roll_weight'] ?? 0) > 0) {
+                $weight = (float)$batch['total_roll_weight'];
+            }
+
+            // Calculate price
+            $price = (float)$r['roll_price'];
+            if ($price <= 0) {
+                $price = (float)$r['allocated_qty'] * (float)($r['unit_price'] ?? 0);
+            }
+            if ($price <= 0 && $weight > 0 && (float)($r['unit_price'] ?? 0) > 0) {
+                $price = $weight * (float)$r['unit_price'];
+            }
+            if ($price <= 0 && count($rolls) === 1 && (float)($batch['total_roll_price'] ?? 0) > 0) {
+                $price = (float)$batch['total_roll_price'];
+            }
+
+            $r['calculated_weight'] = $weight;
+            $r['calculated_price'] = $price;
+            $sumRollWeight += $weight;
+            $sumRollPrice += $price;
+
+            $hierParts = array_filter([$r['category_name'] ?? '', $r['subcategory_name'] ?? '', $r['subsub_name'] ?? '']);
+            $r['hierarchy_display'] = !empty($hierParts) ? implode(' > ', $hierParts) : '';
+            if (empty($r['roll_catalog_name']) && !empty($r['hierarchy_display'])) {
+                $r['roll_catalog_name'] = $r['hierarchy_display'];
+            }
+
+            // Fetch variants for this roll's catalog
+            $catId = $r['roll_catalog_id'] ?: ($r['catalog_id'] ?: ($batch['program_catalog_id'] ?? null));
+            $variants = [];
+
+            if ($catId) {
+                $variants = DB::fetchAll(
+                    "SELECT id, sku_code, name, size, weight, price, mrp 
+                     FROM variants 
+                     WHERE catalog_id = ? AND status = 'active' 
+                     ORDER BY id ASC",
+                    [$catId]
+                );
+
+                if (empty($variants)) {
+                    $catRecord = DB::fetch("SELECT id, style_code, name, sizes FROM catalogs WHERE id = ?", [$catId]);
+                    if ($catRecord && !empty($catRecord['sizes'])) {
+                        $sizesList = json_decode($catRecord['sizes'], true);
+                        if (is_array($sizesList)) {
+                            foreach ($sizesList as $s) {
+                                $variants[] = [
+                                    'id'       => null,
+                                    'sku_code' => ($catRecord['style_code'] ?: 'STY') . '-' . strtoupper($s),
+                                    'name'     => $catRecord['name'] . ' - ' . strtoupper($s),
+                                    'size'     => strtoupper($s),
+                                    'price'    => 0.00,
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Map existing cutting items to variants
+            $existingRollItems = $itemsByRoll[$rId] ?? ($itemsByRoll[0] ?? []);
+            $matchedItemIds = [];
+
+            foreach ($variants as &$v) {
+                $v['cut_pieces'] = 0;
+                foreach ($existingRollItems as $ei) {
+                    if (in_array($ei['id'], $matchedItemIds)) continue;
+
+                    // Match by variant_id
+                    if (!empty($v['id']) && !empty($ei['variant_id']) && (int)$v['id'] === (int)$ei['variant_id']) {
+                        $v['cut_pieces'] = (int)$ei['cut_pieces'];
+                        $matchedItemIds[] = $ei['id'];
+                        break;
+                    }
+                    // Match by sku_code
+                    if (!empty($v['sku_code']) && !empty($ei['sku_code']) && strcasecmp($v['sku_code'], $ei['sku_code']) === 0) {
+                        $v['cut_pieces'] = (int)$ei['cut_pieces'];
+                        $matchedItemIds[] = $ei['id'];
+                        break;
+                    }
+                    // Match by size
+                    if (!empty($v['size']) && !empty($ei['size']) && strcasecmp($v['size'], $ei['size']) === 0) {
+                        $v['cut_pieces'] = (int)$ei['cut_pieces'];
+                        $matchedItemIds[] = $ei['id'];
+                        break;
+                    }
+                }
+            }
+            unset($v);
+
+            // Any remaining cutting items that didn't match catalog variants (e.g. custom sizes)
+            foreach ($existingRollItems as $ei) {
+                if (!in_array($ei['id'], $matchedItemIds)) {
+                    $variants[] = [
+                        'id'         => !empty($ei['variant_id']) ? (int)$ei['variant_id'] : null,
+                        'sku_code'   => $ei['sku_code'] ?? '',
+                        'name'       => $ei['variant_name'] ?: (($r['fabric_name'] ?? 'Fabric') . ' - ' . ($ei['size'] ?? 'Standard')),
+                        'size'       => $ei['size'] ?? 'Standard',
+                        'cut_pieces' => (int)$ei['cut_pieces'],
+                    ];
+                    $matchedItemIds[] = $ei['id'];
+                }
+            }
+
+            // Fallback default sizes if still empty
+            if (empty($variants)) {
+                $defaultSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
+                foreach ($defaultSizes as $ds) {
+                    $variants[] = [
+                        'id'         => null,
+                        'sku_code'   => ($r['roll_piece_tag'] ?: 'ROLL') . '-' . $ds,
+                        'name'       => ($r['fabric_name'] ?: 'Fabric') . ' (' . ($r['color'] ?: 'Standard') . ') - ' . $ds,
+                        'size'       => $ds,
+                        'cut_pieces' => 0,
+                    ];
+                }
+            }
+
+            $r['variants'] = $variants;
+        }
+        unset($r);
+
+        // If batch total weight / price was 0, sync from sum of rolls
+        if ((float)($batch['total_roll_weight'] ?? 0) <= 0 && $sumRollWeight > 0) {
+            $batch['total_roll_weight'] = $sumRollWeight;
+        }
+        if ((float)($batch['total_roll_price'] ?? 0) <= 0 && $sumRollPrice > 0) {
+            $batch['total_roll_price'] = $sumRollPrice;
         }
 
         // Fetch active cutting masters
@@ -4128,6 +4302,23 @@ class ProductionController extends Controller {
 
         $totalRollWeight = (float)$batch['total_roll_weight'];
         $totalRollPrice = (float)$batch['total_roll_price'];
+
+        if ($totalRollWeight <= 0 || $totalRollPrice <= 0) {
+            $rollSums = DB::fetch(
+                "SELECT COALESCE(SUM(pr.roll_weight), 0) AS sum_weight, COALESCE(SUM(pr.roll_price), 0) AS sum_price 
+                 FROM program_rolls pr
+                 JOIN cutting_items ci ON pr.id = ci.program_roll_id
+                 WHERE ci.cutting_id = ?",
+                [$id]
+            );
+            if ($totalRollWeight <= 0 && (float)($rollSums['sum_weight'] ?? 0) > 0) {
+                $totalRollWeight = (float)$rollSums['sum_weight'];
+            }
+            if ($totalRollPrice <= 0 && (float)($rollSums['sum_price'] ?? 0) > 0) {
+                $totalRollPrice = (float)$rollSums['sum_price'];
+            }
+        }
+
         $fabricRatePerKg = $totalRollWeight > 0 ? round($totalRollPrice / $totalRollWeight, 2) : (float)$batch['fabric_rate_per_kg'];
 
         $wastageWeight = (float)floor((float)($_POST['wastage_qty'] ?? 0.00));

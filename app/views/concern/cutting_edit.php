@@ -8,7 +8,16 @@ $availScrap = max(0.00, (float)$batch['wastage_qty'] - (float)$batch['sold_wasta
 $soldScrap = (float)($batch['sold_wastage_qty'] ?? 0.00);
 $totalRollWeight = (float)($batch['total_roll_weight'] ?? 0.00);
 $totalRollPrice = (float)($batch['total_roll_price'] ?? 0.00);
+if ($totalRollWeight <= 0 && !empty($rolls)) {
+    $totalRollWeight = (float)array_sum(array_column($rolls, 'calculated_weight'));
+}
+if ($totalRollPrice <= 0 && !empty($rolls)) {
+    $totalRollPrice = (float)array_sum(array_column($rolls, 'calculated_price'));
+}
 $fabricRatePerKg = (float)($batch['fabric_rate_per_kg'] ?? ($totalRollWeight > 0 ? $totalRollPrice / $totalRollWeight : 0.00));
+if ($fabricRatePerKg <= 0 && $totalRollWeight > 0 && $totalRollPrice > 0) {
+    $fabricRatePerKg = $totalRollPrice / $totalRollWeight;
+}
 $wastageWeight = (int)floor((float)($batch['wastage_qty'] ?? 0));
 $wastageCost = (float)($batch['wastage_cost'] ?? ($wastageWeight * $fabricRatePerKg));
 $wastagePct = (float)($batch['wastage_percent'] ?? ($totalRollWeight > 0 ? ($wastageWeight / $totalRollWeight) * 100 : 0.00));
