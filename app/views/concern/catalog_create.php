@@ -65,7 +65,7 @@ if (!$isEdit) {
                                 <i class="bi bi-plus-circle me-1"></i>New
                             </a>
                         </div>
-                        <select name="category_id" id="selectMainCategory" class="form-select" required>
+                        <select name="category_id" id="selectMainCategory" class="form-select d-none" required>
                             <option value="">-- Select Category --</option>
                             <?php foreach ($categories as $cat): 
                                 $isSel = ($isEdit && $style['category_id'] == $cat['id']) || (!$isEdit && $cat['name'] === 'KIDS');
@@ -80,6 +80,7 @@ if (!$isEdit) {
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <div class="cat-custom-dropdown" data-target="selectMainCategory" data-type="category" data-tier-label="Main Category"></div>
                         <div class="invalid-feedback">Please choose a Main Category.</div>
                     </div>
 
@@ -91,7 +92,7 @@ if (!$isEdit) {
                                 <i class="bi bi-plus-circle me-1"></i>New
                             </a>
                         </div>
-                        <select name="subcategory_id" id="selectSubCategory" class="form-select">
+                        <select name="subcategory_id" id="selectSubCategory" class="form-select d-none">
                             <option value="">-- Select Category First --</option>
                             <?php if ($isEdit && !empty($subcategories)): ?>
                                 <?php foreach ($subcategories as $sub): ?>
@@ -104,6 +105,7 @@ if (!$isEdit) {
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </select>
+                        <div class="cat-custom-dropdown" data-target="selectSubCategory" data-type="subcategory" data-tier-label="Sub Category"></div>
                     </div>
 
                     <!-- Sub Sub Category -->
@@ -114,7 +116,7 @@ if (!$isEdit) {
                                 <i class="bi bi-plus-circle me-1"></i>New
                             </a>
                         </div>
-                        <select name="sub_sub_category_id" id="selectSubSubCategory" class="form-select">
+                        <select name="sub_sub_category_id" id="selectSubSubCategory" class="form-select d-none">
                             <option value="">-- Select Sub Category First --</option>
                             <?php if ($isEdit && !empty($subSubcategories)): ?>
                                 <?php foreach ($subSubcategories as $subsub): ?>
@@ -127,6 +129,7 @@ if (!$isEdit) {
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </select>
+                        <div class="cat-custom-dropdown" data-target="selectSubSubCategory" data-type="subsubcategory" data-tier-label="Sub Sub Category"></div>
                     </div>
                 </div>
 
@@ -502,6 +505,71 @@ if (!$isEdit) {
 .size-chip.active .btn-remove-size {
     color: #fca5a5;
 }
+
+/* Custom Category Dropdown with Delete Cross Icon & Multi-Select Checkboxes */
+.cat-custom-dropdown {
+    position: relative;
+    width: 100%;
+}
+.cat-dropdown-trigger {
+    background-color: #fff;
+    cursor: pointer;
+    min-height: 38px;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.875rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    transition: all 0.15s ease-in-out;
+    user-select: none;
+}
+.cat-dropdown-trigger:hover {
+    border-color: #b0c4de;
+}
+.cat-dropdown-trigger.is-invalid {
+    border-color: #dc3545 !important;
+}
+.cat-dropdown-trigger.active {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+.cat-dropdown-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 1060;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+    display: none;
+    flex-direction: column;
+}
+.cat-dropdown-panel.show {
+    display: flex !important;
+}
+.cat-option-item {
+    padding: 6px 8px;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    transition: background-color 0.15s ease;
+    user-select: none;
+}
+.cat-option-item:hover {
+    background-color: #f1f5f9;
+}
+.cat-option-item.selected {
+    background-color: #eff6ff;
+}
+.cat-btn-delete-single {
+    opacity: 0.75;
+    transition: opacity 0.15s, transform 0.15s;
+    line-height: 1;
+}
+.cat-btn-delete-single:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
 </style>
 
 <script>
@@ -527,6 +595,311 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let currentCatDefaultHsn = '';
     let currentCatDefaultGst = '';
+
+    // ========================================================
+    // CUSTOM HIERARCHY DROPDOWNS WITH DELETE CROSS & CHECKBOXES
+    // ========================================================
+    const customDropdownInstances = {};
+
+    function initCustomDropdowns() {
+        document.querySelectorAll('.cat-custom-dropdown').forEach(wrapper => {
+            const selectId = wrapper.getAttribute('data-target');
+            const type = wrapper.getAttribute('data-type'); // 'category', 'subcategory', 'subsubcategory'
+            const tierLabel = wrapper.getAttribute('data-tier-label');
+            const selectEl = document.getElementById(selectId);
+            if (!selectEl) return;
+
+            wrapper.innerHTML = `
+                <div class="cat-custom-dropdown-container position-relative">
+                    <div class="form-select cat-dropdown-trigger d-flex align-items-center justify-content-between cursor-pointer shadow-xs" tabindex="0">
+                        <span class="cat-trigger-text text-truncate">-- Select ${tierLabel} --</span>
+                        <i class="bi bi-chevron-down text-muted small ms-2 cat-trigger-caret"></i>
+                    </div>
+                    
+                    <div class="cat-dropdown-panel shadow-lg border rounded-3 p-2 bg-white" style="display: none;">
+                        <!-- Search filter -->
+                        <div class="p-1 mb-1">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white border-end-0 text-muted py-1"><i class="bi bi-search" style="font-size: 0.75rem;"></i></span>
+                                <input type="text" class="form-control form-control-sm border-start-0 cat-search-input" placeholder="Search ${tierLabel}...">
+                            </div>
+                        </div>
+                        
+                        <!-- Action bar -->
+                        <div class="d-flex align-items-center justify-content-between px-2 py-1 bg-light rounded-2 border mb-1 cat-action-bar">
+                            <label class="small text-muted mb-0 d-flex align-items-center gap-1.5 cursor-pointer user-select-none" style="font-size: 0.72rem;">
+                                <input type="checkbox" class="form-check-input mt-0 cat-select-all-cb" style="width: 14px; height: 14px;">
+                                <span>Select All</span>
+                            </label>
+                            <button type="button" class="btn btn-xs btn-outline-danger py-0 px-2 fw-semibold cat-bulk-delete-btn d-none" style="font-size: 0.70rem;">
+                                <i class="bi bi-trash me-1"></i>Delete (<span class="bulk-count">0</span>)
+                            </button>
+                        </div>
+                        
+                        <!-- List container -->
+                        <div class="cat-options-list" style="max-height: 220px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            `;
+
+            const trigger = wrapper.querySelector('.cat-dropdown-trigger');
+            const panel = wrapper.querySelector('.cat-dropdown-panel');
+            const searchInput = wrapper.querySelector('.cat-search-input');
+            const selectAllCb = wrapper.querySelector('.cat-select-all-cb');
+            const bulkDeleteBtn = wrapper.querySelector('.cat-bulk-delete-btn');
+            const bulkCountSpan = wrapper.querySelector('.bulk-count');
+            const listContainer = wrapper.querySelector('.cat-options-list');
+
+            customDropdownInstances[selectId] = {
+                wrapper, selectEl, type, tierLabel, trigger, panel, searchInput,
+                selectAllCb, bulkDeleteBtn, bulkCountSpan, listContainer
+            };
+
+            // Toggle panel open/close
+            trigger.addEventListener('click', function(e) {
+                e.stopPropagation();
+                document.querySelectorAll('.cat-dropdown-panel').forEach(p => {
+                    if (p !== panel) {
+                        p.classList.remove('show');
+                        p.style.display = 'none';
+                    }
+                });
+                const isShowing = panel.classList.contains('show');
+                if (isShowing) {
+                    panel.classList.remove('show');
+                    panel.style.display = 'none';
+                    trigger.classList.remove('active');
+                } else {
+                    panel.classList.add('show');
+                    panel.style.display = 'flex';
+                    trigger.classList.add('active');
+                    searchInput.value = '';
+                    filterItems('');
+                    setTimeout(() => searchInput.focus(), 60);
+                }
+            });
+
+            // Prevent clicks inside panel from closing it
+            panel.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+
+            function filterItems(q) {
+                const term = q.trim().toLowerCase();
+                listContainer.querySelectorAll('.cat-option-item').forEach(item => {
+                    const name = (item.getAttribute('data-name') || '').toLowerCase();
+                    const code = (item.getAttribute('data-code') || '').toLowerCase();
+                    if (!term || name.includes(term) || code.includes(term)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            }
+
+            searchInput.addEventListener('input', function() {
+                filterItems(this.value);
+            });
+
+            selectAllCb.addEventListener('change', function() {
+                const checked = this.checked;
+                listContainer.querySelectorAll('.cat-option-item').forEach(item => {
+                    if (item.style.display !== 'none') {
+                        const cb = item.querySelector('.cat-option-cb');
+                        if (cb) cb.checked = checked;
+                    }
+                });
+                updateBulkDeleteState();
+            });
+
+            function updateBulkDeleteState() {
+                const checkedBoxes = listContainer.querySelectorAll('.cat-option-cb:checked');
+                const count = checkedBoxes.length;
+                bulkCountSpan.textContent = count;
+                if (count > 0) {
+                    bulkDeleteBtn.classList.remove('d-none');
+                } else {
+                    bulkDeleteBtn.classList.add('d-none');
+                    selectAllCb.checked = false;
+                }
+            }
+
+            bulkDeleteBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const checkedBoxes = Array.from(listContainer.querySelectorAll('.cat-option-cb:checked'));
+                const ids = checkedBoxes.map(cb => parseInt(cb.value)).filter(id => id > 0);
+                if (ids.length === 0) return;
+
+                if (!confirm(`Are you sure you want to delete ${ids.length} selected ${tierLabel}(s)?`)) {
+                    return;
+                }
+
+                const endpoint = '<?= \App\Core\Controller::url('/api/') ?>' + 
+                    (type === 'category' ? 'categories/delete' : 
+                     (type === 'subcategory' ? 'subcategories/delete' : 'subsubcategories/delete'));
+
+                const fd = new FormData();
+                ids.forEach(id => fd.append('ids[]', id));
+
+                fetch(endpoint, { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            const deletedIds = res.deleted_ids || ids;
+                            deletedIds.forEach(delId => {
+                                const opt = selectEl.querySelector(`option[value="${delId}"]`);
+                                if (opt) {
+                                    if (selectEl.value == delId) {
+                                        selectEl.value = '';
+                                        selectEl.dispatchEvent(new Event('change'));
+                                    }
+                                    opt.remove();
+                                }
+                            });
+                            refreshCustomDropdown(selectId);
+                            alert(res.message || `${deletedIds.length} ${tierLabel}(s) deleted successfully.`);
+                        } else {
+                            alert(res.message || `Failed to delete ${tierLabel}.`);
+                        }
+                    })
+                    .catch(err => {
+                        alert('Network error while deleting ' + tierLabel);
+                        console.error(err);
+                    });
+            });
+
+            refreshCustomDropdown(selectId);
+        });
+
+        document.addEventListener('click', function() {
+            document.querySelectorAll('.cat-dropdown-panel').forEach(p => {
+                p.classList.remove('show');
+                p.style.display = 'none';
+            });
+            document.querySelectorAll('.cat-dropdown-trigger').forEach(t => t.classList.remove('active'));
+        });
+    }
+
+    function refreshCustomDropdown(selectId) {
+        const inst = customDropdownInstances[selectId];
+        if (!inst) return;
+
+        const { selectEl, trigger, listContainer, selectAllCb, bulkDeleteBtn, tierLabel, type } = inst;
+        const triggerText = trigger.querySelector('.cat-trigger-text');
+
+        selectAllCb.checked = false;
+        bulkDeleteBtn.classList.add('d-none');
+
+        const selOpt = selectEl.selectedOptions[0];
+        if (selOpt && selOpt.value) {
+            triggerText.textContent = selOpt.text;
+            triggerText.classList.remove('text-muted');
+            triggerText.classList.add('text-dark', 'fw-semibold');
+        } else {
+            const firstOpt = selectEl.options[0];
+            triggerText.textContent = firstOpt ? firstOpt.text : `-- Select ${tierLabel} --`;
+            triggerText.classList.remove('text-dark', 'fw-semibold');
+            triggerText.classList.add('text-muted');
+        }
+
+        listContainer.innerHTML = '';
+        let validOptionCount = 0;
+
+        Array.from(selectEl.options).forEach(opt => {
+            if (!opt.value) return;
+            validOptionCount++;
+            const isSelected = (selectEl.value == opt.value);
+            const optName = opt.getAttribute('data-name') || opt.text;
+            const optCode = opt.getAttribute('data-code') || '';
+
+            const row = document.createElement('div');
+            row.className = `cat-option-item d-flex align-items-center justify-content-between px-2 py-1.5 rounded-2 border-bottom hover-bg-light cursor-pointer ${isSelected ? 'selected' : ''}`;
+            row.setAttribute('data-val', opt.value);
+            row.setAttribute('data-name', optName);
+            row.setAttribute('data-code', optCode);
+
+            row.innerHTML = `
+                <div class="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden cat-select-hitarea">
+                    <input type="checkbox" class="form-check-input mt-0 cat-option-cb" value="${opt.value}" style="width: 15px; height: 15px;">
+                    <span class="cat-item-name text-truncate text-dark fw-semibold" style="font-size: 0.82rem;">${opt.text}</span>
+                    ${optCode ? `<span class="badge bg-light text-muted border text-uppercase font-monospace" style="font-size: 0.65rem;">${optCode}</span>` : ''}
+                </div>
+                <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2 cat-btn-delete-single" title="Delete this ${tierLabel}">
+                    <i class="bi bi-x-circle text-danger fs-6"></i>
+                </button>
+            `;
+
+            const cb = row.querySelector('.cat-option-cb');
+            cb.addEventListener('change', function(e) {
+                e.stopPropagation();
+                const checkedBoxes = listContainer.querySelectorAll('.cat-option-cb:checked');
+                const count = checkedBoxes.length;
+                inst.bulkCountSpan.textContent = count;
+                if (count > 0) {
+                    bulkDeleteBtn.classList.remove('d-none');
+                } else {
+                    bulkDeleteBtn.classList.add('d-none');
+                }
+            });
+
+            const delBtn = row.querySelector('.cat-btn-delete-single');
+            delBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!confirm(`Are you sure you want to delete ${tierLabel} "${optName}"?`)) {
+                    return;
+                }
+
+                const endpoint = '<?= \App\Core\Controller::url('/api/') ?>' + 
+                    (type === 'category' ? 'categories/delete' : 
+                     (type === 'subcategory' ? 'subcategories/delete' : 'subsubcategories/delete'));
+
+                const fd = new FormData();
+                fd.append('id', opt.value);
+
+                fetch(endpoint, { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            if (selectEl.value == opt.value) {
+                                selectEl.value = '';
+                                selectEl.dispatchEvent(new Event('change'));
+                            }
+                            opt.remove();
+                            refreshCustomDropdown(selectId);
+                            alert(res.message || `${tierLabel} deleted successfully.`);
+                        } else {
+                            alert(res.message || `Cannot delete: this ${tierLabel} is currently used in catalog styles.`);
+                        }
+                    })
+                    .catch(err => {
+                        alert('Network error while deleting ' + tierLabel);
+                        console.error(err);
+                    });
+            });
+
+            const hitArea = row.querySelector('.cat-select-hitarea');
+            hitArea.addEventListener('click', function(e) {
+                if (e.target === cb) return;
+                selectEl.value = opt.value;
+                selectEl.dispatchEvent(new Event('change'));
+                trigger.classList.remove('is-invalid');
+                inst.panel.classList.remove('show');
+                inst.panel.style.display = 'none';
+                trigger.classList.remove('active');
+                refreshCustomDropdown(selectId);
+            });
+
+            listContainer.appendChild(row);
+        });
+
+        if (validOptionCount === 0) {
+            listContainer.innerHTML = `<div class="text-center py-3 text-muted small"><i class="bi bi-inbox d-block mb-1"></i>No ${tierLabel} items available</div>`;
+        }
+    }
+
+    // Initialize custom dropdowns
+    initCustomDropdowns();
 
     // Helper: update Hierarchy Path & Whole Code
     function updateHierarchyAndCodes() {
@@ -568,6 +941,8 @@ document.addEventListener('DOMContentLoaded', function() {
             mainCodeInput.value = '';
             catHsnDisplay.textContent = '-';
             updateHierarchyAndCodes();
+            refreshCustomDropdown('selectSubCategory');
+            refreshCustomDropdown('selectSubSubCategory');
             return;
         }
 
@@ -585,6 +960,8 @@ document.addEventListener('DOMContentLoaded', function() {
         subSubCatSelect.innerHTML = '<option value="">-- Select Sub Category First --</option>';
         subCodeInput.value = '';
         subSubCodeInput.value = '';
+        refreshCustomDropdown('selectSubCategory');
+        refreshCustomDropdown('selectSubSubCategory');
 
         fetch('<?= \App\Core\Controller::url('/api/categories/subcategories?category_id=') ?>' + opt.value)
             .then(r => r.json())
@@ -599,9 +976,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     subCatSelect.innerHTML = '<option value="">-- No Subcategories (Add New) --</option>';
                 }
                 updateHierarchyAndCodes();
+                refreshCustomDropdown('selectSubCategory');
+                refreshCustomDropdown('selectSubSubCategory');
             })
             .catch(() => {
                 subCatSelect.innerHTML = '<option value="">-- Error loading --</option>';
+                refreshCustomDropdown('selectSubCategory');
             });
     });
 
@@ -613,6 +993,7 @@ document.addEventListener('DOMContentLoaded', function() {
             subCodeInput.value = '';
             subSubCodeInput.value = '';
             updateHierarchyAndCodes();
+            refreshCustomDropdown('selectSubSubCategory');
             return;
         }
 
@@ -622,6 +1003,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Load Sub-Subcategories via AJAX
         subSubCatSelect.innerHTML = '<option value="">Loading sub-subcategories...</option>';
         subSubCodeInput.value = '';
+        refreshCustomDropdown('selectSubSubCategory');
 
         fetch('<?= \App\Core\Controller::url('/api/categories/subsubcategories?subcategory_id=') ?>' + opt.value)
             .then(r => r.json())
@@ -636,9 +1018,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     subSubCatSelect.innerHTML = '<option value="">-- No Sub-Subcategories (Add New) --</option>';
                 }
                 updateHierarchyAndCodes();
+                refreshCustomDropdown('selectSubSubCategory');
             })
             .catch(() => {
                 subSubCatSelect.innerHTML = '<option value="">-- Error loading --</option>';
+                refreshCustomDropdown('selectSubSubCategory');
             });
     });
 
@@ -652,6 +1036,7 @@ document.addEventListener('DOMContentLoaded', function() {
             subSubCodeInput.value = '';
         }
         updateHierarchyAndCodes();
+        refreshCustomDropdown('selectSubSubCategory');
     });
 
     // Code Inputs change event
@@ -889,6 +1274,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     opt.setAttribute('data-gst', res.default_gst_rate);
                     mainCatSelect.add(opt);
                     mainCatSelect.dispatchEvent(new Event('change'));
+                    refreshCustomDropdown('selectMainCategory');
                     bootstrap.Modal.getInstance(document.getElementById('modalAddCategory')).hide();
                     this.reset();
                 } else {
@@ -910,6 +1296,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     opt.setAttribute('data-code', res.code);
                     subCatSelect.add(opt);
                     subCatSelect.dispatchEvent(new Event('change'));
+                    refreshCustomDropdown('selectSubCategory');
                     bootstrap.Modal.getInstance(document.getElementById('modalAddSubcategory')).hide();
                     this.reset();
                 } else {
@@ -931,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     opt.setAttribute('data-code', res.code);
                     subSubCatSelect.add(opt);
                     subSubCatSelect.dispatchEvent(new Event('change'));
+                    refreshCustomDropdown('selectSubSubCategory');
                     bootstrap.Modal.getInstance(document.getElementById('modalAddSubSubcategory')).hide();
                     this.reset();
                 } else {
@@ -970,11 +1358,14 @@ document.addEventListener('DOMContentLoaded', function() {
         let valid = true;
 
         // 1. Check Main Category
+        const mainCatTrigger = document.querySelector('#customDropdown-selectMainCategory .cat-dropdown-trigger');
         if (!mainCatSelect.value) {
             mainCatSelect.classList.add('is-invalid');
+            if (mainCatTrigger) mainCatTrigger.classList.add('is-invalid');
             valid = false;
         } else {
             mainCatSelect.classList.remove('is-invalid');
+            if (mainCatTrigger) mainCatTrigger.classList.remove('is-invalid');
         }
 
         // 2. Check Main Code

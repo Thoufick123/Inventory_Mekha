@@ -206,6 +206,7 @@
 const availableRollsData = <?= json_encode($availableRolls, JSON_UNESCAPED_UNICODE) ?>;
 const categoriesData = <?= json_encode($categories, JSON_UNESCAPED_UNICODE) ?>;
 const catalogsData = <?= json_encode($catalogs, JSON_UNESCAPED_UNICODE) ?>;
+const CATALOGS = catalogsData;
 
 let rollCardCounter = 0;
 
@@ -820,6 +821,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (!matched && subcatId && catId) {
                 matched = CATALOGS.find(c => String(c.subcategory_id) === String(subcatId) && String(c.category_id) === String(catId));
+            }
+            if (!matched && catId) {
+                matched = CATALOGS.find(c => String(c.category_id) === String(catId) && (!c.subcategory_id || String(c.subcategory_id) === String(subcatId)));
             }
             if (matched) {
                 catalogSelect.value = matched.id;

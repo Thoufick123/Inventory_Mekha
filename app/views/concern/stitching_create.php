@@ -369,15 +369,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 lblCuttingCodes.textContent = `[${data.cutting.program_no || 'PRG'}] [${data.cutting.batch_no || 'CUT'}]`;
                 lblCuttingUsableWeight.textContent = `${parseFloat(data.cutting.usable_weight || 0).toFixed(2)} kg Usable`;
 
-                let catalogNames = (data.catalogs || []).map(c => `${c.name}${c.style_code ? ' [' + c.style_code + ']' : ''}`).join(', ');
-                lblCuttingCatalogs.innerHTML = `<strong>Assigned Catalog:</strong> <span class="badge bg-primary text-white ms-1">${escapeHtml(catalogNames || 'Standard')}</span>`;
+                const cats = data.catalogs || [];
+                if (cats.length > 0) {
+                    const badges = cats.map(c => 
+                        `<span class="badge bg-primary text-white me-1.5 mb-1 px-2 py-1 font-monospace shadow-2xs">${escapeHtml(c.name)}${c.style_code ? ' [' + escapeHtml(c.style_code) + ']' : ''}</span>`
+                    ).join('');
+                    lblCuttingCatalogs.innerHTML = `<strong>Assigned Catalogs (${cats.length}):</strong><div class="mt-1 d-flex flex-wrap gap-1">${badges}</div>`;
+                } else {
+                    lblCuttingCatalogs.innerHTML = `<strong>Assigned Catalog:</strong> <span class="badge bg-secondary text-white ms-1">Standard</span>`;
+                }
 
                 // Populate bulk catalog dropdown
                 bulkCatalogSelect.innerHTML = '<option value="">-- All Catalogs in Batch --</option>';
-                (data.catalogs || []).forEach(cat => {
+                cats.forEach(cat => {
                     const opt = document.createElement('option');
                     opt.value = cat.id;
-                    opt.textContent = `${cat.name} (${cat.style_code})`;
+                    opt.textContent = `${cat.name} (${cat.style_code || 'CAT'})`;
                     opt.dataset.base = cat.base_price || 0;
                     opt.dataset.disc = cat.discount_price || 0;
                     bulkCatalogSelect.appendChild(opt);
@@ -426,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     <div class="d-flex flex-column">
                         <span class="badge bg-light text-dark border align-self-start mb-1 text-truncate" style="max-width: 250px;">
-                            <i class="bi bi-tag text-primary me-1"></i> ${escapeHtml(it.catalog_name || 'Catalog Item')}
+                            <i class="bi bi-tag text-primary me-1"></i> ${escapeHtml(it.catalog_name || 'Catalog Item')}${it.catalog_code ? ` <span class="badge bg-secondary-subtle text-secondary border font-monospace ms-1" style="font-size:0.65rem;">${escapeHtml(it.catalog_code)}</span>` : ''}
                         </span>
                         <div class="fw-bold text-dark small">
                             ${escapeHtml(it.variant_name || (it.size + ' - ' + it.color))}

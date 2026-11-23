@@ -1093,6 +1093,231 @@ class ProductionController extends Controller {
         exit;
     }
 
+    public function deleteCategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to delete categories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId();
+        $isSuperAdmin = Auth::isSuperAdmin();
+
+        $ids = [];
+        if (!empty($_POST['ids']) && is_array($_POST['ids'])) {
+            $ids = array_values(array_filter(array_map('intval', $_POST['ids'])));
+        } elseif (!empty($_POST['id'])) {
+            $ids = [(int)$_POST['id']];
+        }
+
+        if (empty($ids)) {
+            echo json_encode(['success' => false, 'message' => 'No category selected for deletion.']);
+            exit;
+        }
+
+        $deletedIds = [];
+        $skipped = [];
+
+        foreach ($ids as $id) {
+            $catSql = "SELECT * FROM categories WHERE id = ?";
+            $catParams = [$id];
+            if ($cid && !$isSuperAdmin) {
+                $catSql .= " AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)";
+                $catParams[] = $cid;
+            }
+            $cat = DB::fetch($catSql, $catParams);
+            if (!$cat) {
+                continue;
+            }
+
+            $used = (int)DB::fetchValue("SELECT COUNT(*) FROM catalogs WHERE category_id = ?", [$id]);
+            if ($used > 0) {
+                $skipped[] = "{$cat['name']} (linked to {$used} style(s))";
+                continue;
+            }
+
+            try {
+                $subIds = DB::fetchAll("SELECT id FROM subcategories WHERE category_id = ?", [$id]);
+                foreach ($subIds as $s) {
+                    DB::query("DELETE FROM sub_subcategories WHERE subcategory_id = ?", [$s['id']]);
+                }
+                DB::query("DELETE FROM subcategories WHERE category_id = ?", [$id]);
+                DB::query("DELETE FROM categories WHERE id = ?", [$id]);
+                $deletedIds[] = $id;
+            } catch (\Throwable $e) {
+                $skipped[] = "{$cat['name']} (" . $e->getMessage() . ")";
+            }
+        }
+
+        if (empty($deletedIds)) {
+            $msg = !empty($skipped) 
+                ? ("Cannot delete category: " . implode(', ', $skipped))
+                : "No categories could be deleted.";
+            echo json_encode(['success' => false, 'message' => $msg]);
+            exit;
+        }
+
+        $msg = count($deletedIds) . " category(s) deleted successfully.";
+        if (!empty($skipped)) {
+            $msg .= " Note: " . implode(', ', $skipped) . " could not be deleted because they are used in catalogs.";
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => $msg,
+            'deleted_ids' => $deletedIds,
+            'skipped' => $skipped
+        ]);
+        exit;
+    }
+
+    public function deleteSubcategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to delete subcategories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId();
+        $isSuperAdmin = Auth::isSuperAdmin();
+
+        $ids = [];
+        if (!empty($_POST['ids']) && is_array($_POST['ids'])) {
+            $ids = array_values(array_filter(array_map('intval', $_POST['ids'])));
+        } elseif (!empty($_POST['id'])) {
+            $ids = [(int)$_POST['id']];
+        }
+
+        if (empty($ids)) {
+            echo json_encode(['success' => false, 'message' => 'No subcategory selected for deletion.']);
+            exit;
+        }
+
+        $deletedIds = [];
+        $skipped = [];
+
+        foreach ($ids as $id) {
+            $subSql = "SELECT * FROM subcategories WHERE id = ?";
+            $subParams = [$id];
+            if ($cid && !$isSuperAdmin) {
+                $subSql .= " AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)";
+                $subParams[] = $cid;
+            }
+            $sub = DB::fetch($subSql, $subParams);
+            if (!$sub) {
+                continue;
+            }
+
+            $used = (int)DB::fetchValue("SELECT COUNT(*) FROM catalogs WHERE subcategory_id = ?", [$id]);
+            if ($used > 0) {
+                $skipped[] = "{$sub['name']} (linked to {$used} style(s))";
+                continue;
+            }
+
+            try {
+                DB::query("DELETE FROM sub_subcategories WHERE subcategory_id = ?", [$id]);
+                DB::query("DELETE FROM subcategories WHERE id = ?", [$id]);
+                $deletedIds[] = $id;
+            } catch (\Throwable $e) {
+                $skipped[] = "{$sub['name']} (" . $e->getMessage() . ")";
+            }
+        }
+
+        if (empty($deletedIds)) {
+            $msg = !empty($skipped) 
+                ? ("Cannot delete subcategory: " . implode(', ', $skipped))
+                : "No subcategories could be deleted.";
+            echo json_encode(['success' => false, 'message' => $msg]);
+            exit;
+        }
+
+        $msg = count($deletedIds) . " subcategory(s) deleted successfully.";
+        if (!empty($skipped)) {
+            $msg .= " Note: " . implode(', ', $skipped) . " could not be deleted because they are used in catalogs.";
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => $msg,
+            'deleted_ids' => $deletedIds,
+            'skipped' => $skipped
+        ]);
+        exit;
+    }
+
+    public function deleteSubSubcategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to delete sub-subcategories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId();
+        $isSuperAdmin = Auth::isSuperAdmin();
+
+        $ids = [];
+        if (!empty($_POST['ids']) && is_array($_POST['ids'])) {
+            $ids = array_values(array_filter(array_map('intval', $_POST['ids'])));
+        } elseif (!empty($_POST['id'])) {
+            $ids = [(int)$_POST['id']];
+        }
+
+        if (empty($ids)) {
+            echo json_encode(['success' => false, 'message' => 'No sub-subcategory selected for deletion.']);
+            exit;
+        }
+
+        $deletedIds = [];
+        $skipped = [];
+
+        foreach ($ids as $id) {
+            $subSubSql = "SELECT * FROM sub_subcategories WHERE id = ?";
+            $subSubParams = [$id];
+            if ($cid && !$isSuperAdmin) {
+                $subSubSql .= " AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)";
+                $subSubParams[] = $cid;
+            }
+            $subsub = DB::fetch($subSubSql, $subSubParams);
+            if (!$subsub) {
+                continue;
+            }
+
+            $used = (int)DB::fetchValue("SELECT COUNT(*) FROM catalogs WHERE sub_sub_category_id = ?", [$id]);
+            if ($used > 0) {
+                $skipped[] = "{$subsub['name']} (linked to {$used} style(s))";
+                continue;
+            }
+
+            try {
+                DB::query("DELETE FROM sub_subcategories WHERE id = ?", [$id]);
+                $deletedIds[] = $id;
+            } catch (\Throwable $e) {
+                $skipped[] = "{$subsub['name']} (" . $e->getMessage() . ")";
+            }
+        }
+
+        if (empty($deletedIds)) {
+            $msg = !empty($skipped) 
+                ? ("Cannot delete sub-subcategory: " . implode(', ', $skipped))
+                : "No sub-subcategories could be deleted.";
+            echo json_encode(['success' => false, 'message' => $msg]);
+            exit;
+        }
+
+        $msg = count($deletedIds) . " sub-subcategory(s) deleted successfully.";
+        if (!empty($skipped)) {
+            $msg .= " Note: " . implode(', ', $skipped) . " could not be deleted because they are used in catalogs.";
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => $msg,
+            'deleted_ids' => $deletedIds,
+            'skipped' => $skipped
+        ]);
+        exit;
+    }
+
     public function searchHsnAjax(): void {
         header('Content-Type: application/json');
         if (!Auth::check()) {
@@ -1755,6 +1980,15 @@ class ProductionController extends Controller {
                 $matchedCat = DB::fetch(
                     "SELECT id FROM catalogs WHERE subcategory_id = ? AND category_id = ? {$catalogScopeSql} LIMIT 1",
                     array_merge([$subcatId, $catId], $catalogScopeParams)
+                );
+                if ($matchedCat) {
+                    $catalogId = (int)$matchedCat['id'];
+                }
+            }
+            if (!$catalogId && $catId) {
+                $matchedCat = DB::fetch(
+                    "SELECT id FROM catalogs WHERE category_id = ? AND (subcategory_id IS NULL OR subcategory_id = 0) {$catalogScopeSql} LIMIT 1",
+                    array_merge([$catId], $catalogScopeParams)
                 );
                 if ($matchedCat) {
                     $catalogId = (int)$matchedCat['id'];
@@ -2938,18 +3172,19 @@ class ProductionController extends Controller {
             "SELECT pr.*, 
                     pbi.item_code, pbi.item_name, pbi.pattern, pbi.color, pbi.unit, pbi.net_weight, pbi.unit_price,
                     cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
-                    COALESCE(c.id, c_hier.id, " . ($program['catalog_id'] ? (int)$program['catalog_id'] : "NULL") . ") AS roll_catalog_id,
-                    COALESCE(c.name, c_hier.name, c_prog.name) AS roll_catalog_name,
-                    COALESCE(c.style_code, c_hier.style_code, c_prog.style_code) AS roll_style_code,
-                    COALESCE(c.sizes, c_hier.sizes, c_prog.sizes) AS roll_catalog_sizes
+                    COALESCE(c.id, c_subsub.id, c_sub.id, c_cat.id) AS roll_catalog_id,
+                    COALESCE(c.name, c_subsub.name, c_sub.name, c_cat.name) AS roll_catalog_name,
+                    COALESCE(c.style_code, c_subsub.style_code, c_sub.style_code, c_cat.style_code) AS roll_style_code,
+                    COALESCE(c.sizes, c_subsub.sizes, c_sub.sizes, c_cat.sizes) AS roll_catalog_sizes
              FROM program_rolls pr
              LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
              LEFT JOIN categories cat ON pr.category_id = cat.id
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
              LEFT JOIN catalogs c ON pr.catalog_id = c.id
-             LEFT JOIN catalogs c_hier ON (pr.sub_sub_category_id IS NOT NULL AND pr.sub_sub_category_id = c_hier.sub_sub_category_id)
-             LEFT JOIN catalogs c_prog ON " . ($program['catalog_id'] ? (int)$program['catalog_id'] : "0") . " = c_prog.id
+             LEFT JOIN catalogs c_subsub ON (pr.sub_sub_category_id IS NOT NULL AND pr.sub_sub_category_id = c_subsub.sub_sub_category_id)
+             LEFT JOIN catalogs c_sub ON (pr.subcategory_id IS NOT NULL AND pr.subcategory_id = c_sub.subcategory_id AND (pr.category_id IS NULL OR pr.category_id = c_sub.category_id))
+             LEFT JOIN catalogs c_cat ON (pr.category_id IS NOT NULL AND pr.category_id = c_cat.category_id AND (c_cat.subcategory_id IS NULL OR c_cat.subcategory_id = 0))
              WHERE pr.program_id = ?
                AND pr.id NOT IN (
                    SELECT DISTINCT program_roll_id 
@@ -2991,7 +3226,7 @@ class ProductionController extends Controller {
                 $r['roll_catalog_name'] = $r['hierarchy_display'];
             }
 
-            $catId = $r['roll_catalog_id'] ?: ($r['catalog_id'] ?: $program['catalog_id']);
+            $catId = $r['roll_catalog_id'] ?: ($r['catalog_id'] ?: (empty($r['hierarchy_display']) ? ($program['catalog_id'] ?? null) : null));
             $variants = [];
 
             if ($catId) {
@@ -4257,8 +4492,18 @@ class ProductionController extends Controller {
         $saleSql .= " ORDER BY sws.id DESC";
         $wastageSales = DB::fetchAll($saleSql, $saleParams);
 
-        // Batches available for Scrap Sale modal
-        $saleEligibleBatches = $batches;
+        // Batches available for Scrap Sale modal: only batches that have NOT yet recorded a scrap sale and are not cancelled
+        $soldStitchingIds = array_column(
+            DB::fetchAll("SELECT DISTINCT stitching_id FROM stitching_wastage_sales WHERE stitching_id IS NOT NULL"),
+            'stitching_id'
+        );
+        $soldStitchingMap = array_flip(array_map('intval', $soldStitchingIds));
+        $saleEligibleBatches = array_values(array_filter($batches, function($b) use ($soldStitchingMap) {
+            if (isset($b['status']) && $b['status'] === 'cancelled') {
+                return false;
+            }
+            return !isset($soldStitchingMap[(int)$b['id']]);
+        }));
 
         // Statistics
         $totalBatches = count($batches);
@@ -4390,22 +4635,25 @@ class ProductionController extends Controller {
                     pr.catalog_id AS roll_catalog_id,
                     pr.category_id, pr.subcategory_id, pr.sub_sub_category_id,
                     cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
-                    COALESCE(c.id, c_hier.id, " . ($cutting['prog_catalog_id'] ? (int)$cutting['prog_catalog_id'] : "NULL") . ") AS cat_id,
-                    COALESCE(c.name, c_hier.name, c_prog.name) AS cat_name,
-                    COALESCE(c.style_code, c_hier.style_code, c_prog.style_code) AS cat_code,
+                    COALESCE(c_roll.id, c_var.id, c_subsub.id, c_sub.id, c_cat.id) AS cat_id,
+                    COALESCE(c_roll.name, c_var.name, c_subsub.name, c_sub.name, c_cat.name) AS cat_name,
+                    COALESCE(c_roll.style_code, c_var.style_code, c_subsub.style_code, c_sub.style_code, c_cat.style_code) AS cat_code,
                     v.id AS var_id, v.name AS var_name, v.sku_code AS var_sku, v.size AS var_size,
                     v.catalog_id AS var_cat_id, v.mrp AS var_mrp, v.price AS var_sp,
-                    COALESCE(pr.color, pbi.color, 'Standard') AS roll_color
+                    COALESCE(pr.color, pbi.color, 'Standard') AS roll_color,
+                    COALESCE(pr.fabric_name, pbi.item_name, 'Fabric') AS roll_fabric_name
              FROM cutting_items ci
              LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
              LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
              LEFT JOIN categories cat ON pr.category_id = cat.id
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-             LEFT JOIN catalogs c ON pr.catalog_id = c.id
-             LEFT JOIN catalogs c_hier ON (pr.sub_sub_category_id IS NOT NULL AND pr.sub_sub_category_id = c_hier.sub_sub_category_id)
-             LEFT JOIN catalogs c_prog ON " . ($cutting['prog_catalog_id'] ? (int)$cutting['prog_catalog_id'] : "0") . " = c_prog.id
+             LEFT JOIN catalogs c_roll ON pr.catalog_id = c_roll.id
              LEFT JOIN variants v ON ci.variant_id = v.id
+             LEFT JOIN catalogs c_var ON v.catalog_id = c_var.id
+             LEFT JOIN catalogs c_subsub ON (pr.sub_sub_category_id IS NOT NULL AND pr.sub_sub_category_id = c_subsub.sub_sub_category_id)
+             LEFT JOIN catalogs c_sub ON (pr.subcategory_id IS NOT NULL AND pr.subcategory_id = c_sub.subcategory_id AND (pr.category_id IS NULL OR pr.category_id = c_sub.category_id))
+             LEFT JOIN catalogs c_cat ON (pr.category_id IS NOT NULL AND pr.category_id = c_cat.category_id AND (c_cat.subcategory_id IS NULL OR c_cat.subcategory_id = 0))
              WHERE ci.cutting_id = ?
              ORDER BY ci.id ASC",
             [$cuttingId]
@@ -4426,9 +4674,24 @@ class ProductionController extends Controller {
         $catalogsMap = [];
 
         foreach ($rawItems as $it) {
-            $catId = $it['cat_id'] ?: ($it['var_cat_id'] ?: ($cutting['prog_catalog_id'] ?: 0));
+            $catId = $it['cat_id'] ?: ($it['var_cat_id'] ?: ($it['roll_catalog_id'] ?: null));
             $catName = $it['cat_name'];
             $catCode = $it['cat_code'];
+
+            if (!$catId || !$catName) {
+                // Check if SKU or variant belongs to any known catalog style
+                if (!empty($it['sku_code'])) {
+                    $skuPrefix = explode('-', $it['sku_code'])[0] ?? '';
+                    if ($skuPrefix) {
+                        $matchedBySku = DB::fetch("SELECT id, name, style_code FROM catalogs WHERE style_code LIKE ? LIMIT 1", [$skuPrefix . '%']);
+                        if ($matchedBySku) {
+                            $catId = (int)$matchedBySku['id'];
+                            $catName = $matchedBySku['name'];
+                            $catCode = $matchedBySku['style_code'];
+                        }
+                    }
+                }
+            }
 
             if (!$catName) {
                 $hierParts = array_filter([$it['category_name'] ?? '', $it['subcategory_name'] ?? '', $it['subsub_name'] ?? '']);
@@ -4439,8 +4702,11 @@ class ProductionController extends Controller {
                         $catId = 'cat_' . ($it['category_id'] ?? 0) . '_' . ($it['subcategory_id'] ?? 0) . '_' . ($it['sub_sub_category_id'] ?? 0);
                     }
                 } else {
-                    $catName = 'Catalog Item';
-                    $catCode = 'CAT';
+                    $catName = ($it['roll_fabric_name'] ?: 'Fabric') . ' (' . ($it['roll_color'] ?: 'Standard') . ')';
+                    $catCode = 'ROLL-' . ($it['program_roll_id'] ?: $it['id']);
+                    if (!$catId) {
+                        $catId = 'roll_' . ($it['program_roll_id'] ?: $it['id']);
+                    }
                 }
             }
 
@@ -4471,7 +4737,7 @@ class ProductionController extends Controller {
                 'size'            => $it['size'] ?: ($it['var_size'] ?: 'Free Size'),
                 'color'           => $it['roll_color'] ?: 'Standard',
                 'sku_code'        => $it['sku_code'] ?: ($it['var_sku'] ?: 'SKU'),
-                'variant_name'    => $it['variant_name'] ?: ($it['var_name'] ?: 'Variant'),
+                'variant_name'    => $it['variant_name'] ?: ($it['var_name'] ?: ($it['size'] . ' - ' . $it['roll_color'])),
                 'cut_qty'         => $cutQty,
                 'stitching_qty'   => $stitchingQty,
                 'per_pc_weight'   => $perPcWeight,
@@ -4479,6 +4745,42 @@ class ProductionController extends Controller {
                 'base_price'      => $basePrice,
                 'discount_price'  => $discPrice,
             ];
+        }
+
+        // Also discover any distinct catalogs attached to the program rolls
+        if (!empty($cutting['program_id'])) {
+            $progRollCats = DB::fetchAll(
+                "SELECT DISTINCT c.id, c.name, c.style_code 
+                 FROM program_rolls pr 
+                 JOIN catalogs c ON pr.catalog_id = c.id 
+                 WHERE pr.program_id = ?",
+                [$cutting['program_id']]
+            );
+            foreach ($progRollCats as $prc) {
+                if (!isset($catalogsMap[$prc['id']])) {
+                    $catalogsMap[$prc['id']] = [
+                        'id'             => $prc['id'],
+                        'name'           => $prc['name'],
+                        'style_code'     => $prc['style_code'],
+                        'base_price'     => 0.00,
+                        'discount_price' => 0.00,
+                    ];
+                }
+            }
+        }
+
+        // Also if program had a primary catalog
+        if (!empty($cutting['prog_catalog_id']) && !isset($catalogsMap[$cutting['prog_catalog_id']])) {
+            $progCat = DB::fetch("SELECT id, name, style_code FROM catalogs WHERE id = ?", [$cutting['prog_catalog_id']]);
+            if ($progCat) {
+                $catalogsMap[$progCat['id']] = [
+                    'id'             => $progCat['id'],
+                    'name'           => $progCat['name'],
+                    'style_code'     => $progCat['style_code'],
+                    'base_price'     => 0.00,
+                    'discount_price' => 0.00,
+                ];
+            }
         }
 
         echo json_encode([
@@ -5171,6 +5473,25 @@ class ProductionController extends Controller {
             $this->redirect('/production/stitching?tab=wastage');
         }
 
+        if (isset($batch['status']) && $batch['status'] === 'cancelled') {
+            $this->flash('error', 'Cannot record scrap sale for a cancelled stitching batch.');
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
+        // Validate that this stitching batch has not already completed wastage scrap selling
+        $alreadySold = DB::fetch(
+            "SELECT sws.id, sws.sale_no, COALESCE(sl.batch_no, sl.log_no) AS batch_no 
+             FROM stitching_wastage_sales sws
+             LEFT JOIN stitching_logs sl ON sws.stitching_id = sl.id
+             WHERE sws.stitching_id = ? LIMIT 1",
+            [$stitchingId]
+        );
+        if ($alreadySold) {
+            $bNo = $alreadySold['batch_no'] ?: 'Selected Batch';
+            $this->flash('error', "Stitching Batch [{$bNo}] has already completed wastage scrap selling (Sale #{$alreadySold['sale_no']}). Completed batches cannot be selected again.");
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
         if (empty($buyerName)) {
             $this->flash('error', 'Buyer Name is required.');
             $this->redirect('/production/stitching?tab=wastage');
@@ -5281,6 +5602,219 @@ class ProductionController extends Controller {
         } catch (Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Failed to record scrap sale: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/stitching?tab=wastage');
+    }
+
+    /**
+     * API: Get Stitching Scrap Sale Details for Quick View Modal
+     */
+    public function apiStitchingWastageDetails(): void {
+        header('Content-Type: application/json');
+        $this->ensureStitchingSchema();
+        $cid = Auth::concernId();
+        $id = (int)($_GET['id'] ?? 0);
+
+        if (!$id) {
+            echo json_encode(['success' => false, 'message' => 'Invalid scrap sale ID.']);
+            exit;
+        }
+
+        $sale = DB::fetch(
+            "SELECT sws.*, 
+                    COALESCE(sl.batch_no, sl.log_no) AS stitching_batch_no,
+                    sl.stitching_name, sl.cut_pieces, sl.stitched_pieces, sl.stitch_weight, sl.cut_weight, sl.wastage_weight, sl.status AS batch_status,
+                    cl.batch_no AS cutting_batch_no, cl.cutting_name,
+                    pp.program_no, pp.program_name,
+                    con.name AS concern_name,
+                    u.name AS recorded_by_name
+             FROM stitching_wastage_sales sws
+             JOIN stitching_logs sl ON sws.stitching_id = sl.id
+             LEFT JOIN cutting_logs cl ON sl.cutting_id = cl.id
+             LEFT JOIN production_programs pp ON sl.program_id = pp.id
+             LEFT JOIN concerns con ON sws.concern_id = con.id
+             LEFT JOIN users u ON sws.created_by = u.id
+             WHERE sws.id = ?" . ($cid ? " AND sws.concern_id = ?" : ""),
+            $cid ? [$id, $cid] : [$id]
+        );
+
+        if (!$sale) {
+            echo json_encode(['success' => false, 'message' => 'Scrap sale record not found or access denied.']);
+            exit;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'sale'    => $sale,
+        ]);
+        exit;
+    }
+
+    /**
+     * Update Individual Stitching Wastage Scrap Sale
+     */
+    public function updateStitchingWastageSale(): void {
+        $this->ensureStitchingSchema();
+        $this->validateCsrf();
+        $cid = Auth::concernId();
+        $id = (int)($_POST['id'] ?? 0);
+
+        if (!$id) {
+            $this->flash('error', 'Invalid scrap sale ID.');
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
+        $sale = DB::fetch(
+            "SELECT * FROM stitching_wastage_sales WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""),
+            $cid ? [$id, $cid] : [$id]
+        );
+
+        if (!$sale) {
+            $this->flash('error', 'Scrap sale record not found or access denied.');
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
+        $buyerName       = trim($_POST['buyer_name'] ?? '');
+        $buyerPhone      = trim($_POST['buyer_phone'] ?? '');
+        $buyerCompany    = trim($_POST['buyer_company'] ?? '');
+        $wastageCategory = trim($_POST['wastage_category'] ?? $sale['wastage_category']);
+        $unitType        = in_array($_POST['unit_type'] ?? '', ['KG', 'Pcs']) ? $_POST['unit_type'] : $sale['unit_type'];
+        $quantity        = (float)($_POST['quantity'] ?? 0);
+        $sellingRate     = (float)($_POST['selling_rate'] ?? 0);
+        $totalPrice      = (float)($_POST['total_price'] ?? 0);
+        $amountReceived  = (float)($_POST['amount_received'] ?? 0);
+        $saleDate        = !empty($_POST['sale_date']) ? $_POST['sale_date'] : $sale['sale_date'];
+        $notes           = trim($_POST['notes'] ?? '');
+
+        if (empty($buyerName)) {
+            $this->flash('error', 'Buyer Name is required.');
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
+        $cleanPhone = preg_replace('/[^0-9]/', '', $buyerPhone);
+        if (strlen($cleanPhone) !== 10) {
+            $this->flash('error', 'Buyer Phone must be exactly 10 digits (e.g. 9876543210).');
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
+        if ($quantity <= 0 || $sellingRate <= 0) {
+            $this->flash('error', 'Scrap Quantity and Selling Rate must be greater than zero.');
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
+        if ($totalPrice <= 0) {
+            $totalPrice = round($quantity * $sellingRate, 2);
+        }
+
+        $paymentStatus = $amountReceived >= $totalPrice ? 'paid' : ($amountReceived > 0 ? 'partial' : 'pending');
+        $qtyDiff = $quantity - (float)$sale['quantity'];
+
+        DB::beginTransaction();
+        try {
+            DB::query(
+                "UPDATE stitching_wastage_sales SET 
+                    buyer_name = ?, buyer_phone = ?, buyer_company = ?, wastage_category = ?,
+                    unit_type = ?, quantity = ?, selling_rate = ?, total_price = ?,
+                    amount_received = ?, sale_date = ?, payment_status = ?, notes = ?
+                 WHERE id = ?",
+                [
+                    $buyerName, $cleanPhone, $buyerCompany, $wastageCategory,
+                    $unitType, $quantity, $sellingRate, $totalPrice,
+                    $amountReceived, $saleDate, $paymentStatus, $notes,
+                    $id
+                ]
+            );
+
+            // Adjust sold_wastage_qty on stitching_logs by the delta difference
+            if (abs($qtyDiff) > 0.0001) {
+                DB::query(
+                    "UPDATE stitching_logs SET sold_wastage_qty = GREATEST(0, COALESCE(sold_wastage_qty, 0) + ?) WHERE id = ?",
+                    [$qtyDiff, $sale['stitching_id']]
+                );
+            }
+
+            // Update associated cash transaction if present
+            $cashTxn = DB::fetch(
+                "SELECT id FROM cash_transactions WHERE ref_module = 'scrap_sales' AND ref_id = ? LIMIT 1",
+                [$id]
+            );
+            if ($cashTxn) {
+                DB::query(
+                    "UPDATE cash_transactions SET amount = ?, txn_date = ? WHERE id = ?",
+                    [$amountReceived, $saleDate, $cashTxn['id']]
+                );
+            } elseif ($amountReceived > 0) {
+                $cashAccount = DB::fetch("SELECT id FROM cash_accounts WHERE concern_id = ? LIMIT 1", [$sale['concern_id']]);
+                if ($cashAccount) {
+                    DB::query(
+                        "INSERT INTO cash_transactions (
+                            concern_id, account_id, txn_date, type, amount, ref_module, ref_id, description, created_by, created_at
+                        ) VALUES (?, ?, ?, 'credit', ?, 'scrap_sales', ?, ?, ?, NOW())",
+                        [
+                            $sale['concern_id'], $cashAccount['id'], $saleDate, $amountReceived, $id,
+                            "Stitching Scrap Sale [{$sale['sale_no']}] from Buyer {$buyerName}", Auth::id()
+                        ]
+                    );
+                }
+            }
+
+            AuditLog::log('UPDATE', 'stitching_wastage_sales', $id, $sale, $_POST);
+            DB::commit();
+            $this->flash('success', "Stitching Scrap Sale '{$sale['sale_no']}' updated successfully.");
+        } catch (Exception $e) {
+            DB::rollBack();
+            $this->flash('error', 'Failed to update scrap sale: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/stitching?tab=wastage');
+    }
+
+    /**
+     * Delete Individual Stitching Wastage Scrap Sale
+     */
+    public function deleteStitchingWastageSale(): void {
+        $this->ensureStitchingSchema();
+        $this->validateCsrf();
+        $cid = Auth::concernId();
+        $id = (int)($_POST['id'] ?? 0);
+
+        if (!$id) {
+            $this->flash('error', 'Invalid scrap sale ID.');
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
+        $sale = DB::fetch(
+            "SELECT * FROM stitching_wastage_sales WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""),
+            $cid ? [$id, $cid] : [$id]
+        );
+
+        if (!$sale) {
+            $this->flash('error', 'Scrap sale not found or access denied.');
+            $this->redirect('/production/stitching?tab=wastage');
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::query("DELETE FROM stitching_wastage_sales WHERE id = ?", [$id]);
+
+            // Revert sold wastage quantity in stitching_logs so batch becomes eligible again
+            if (!empty($sale['stitching_id']) && !empty($sale['quantity'])) {
+                DB::query(
+                    "UPDATE stitching_logs SET sold_wastage_qty = GREATEST(0, COALESCE(sold_wastage_qty, 0) - ?) WHERE id = ?",
+                    [(float)$sale['quantity'], (int)$sale['stitching_id']]
+                );
+            }
+
+            // Remove associated cash transaction
+            DB::query("DELETE FROM cash_transactions WHERE ref_module = 'scrap_sales' AND ref_id = ?", [$id]);
+
+            AuditLog::log('DELETE', 'stitching_wastage_sales', $id, $sale, null);
+            DB::commit();
+            $this->flash('success', "Scrap Sale '{$sale['sale_no']}' deleted successfully. Batch is now restored and available for wastage recording.");
+        } catch (Exception $e) {
+            DB::rollBack();
+            $this->flash('error', 'Failed to delete scrap sale: ' . $e->getMessage());
         }
 
         $this->redirect('/production/stitching?tab=wastage');
