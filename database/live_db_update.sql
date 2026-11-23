@@ -2,6 +2,7 @@
 -- INVENTO / GRM INVENTORY: COMPREHENSIVE LIVE DATABASE SCHEMA & MIGRATION UPDATE
 -- Compatible with Hostinger / cPanel / MariaDB 10.x / MySQL 8.0+
 -- Safe & Non-Destructive: Preserves existing data while adding all missing tables & columns
+-- Prerequisite: import schema.sql first if any core tables (for example `batches`) are missing.
 -- ==============================================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -365,6 +366,22 @@ CREATE TABLE IF NOT EXISTS `production_stock_request_audits` (
 -- ------------------------------------------------------------------------------
 
 DROP PROCEDURE IF EXISTS `AddColSafe`;
+
+-- Register Product Adding module and enable it for existing concerns
+INSERT INTO `modules` (`code`, `name`, `icon`, `sort_order`, `group_name`, `is_super_admin_only`)
+SELECT 'product_adding', 'Product Adding', 'bi-plus-square-dotted', 25, 'Purchase', 0
+WHERE NOT EXISTS (SELECT 1 FROM `modules` WHERE `code` = 'product_adding');
+UPDATE `modules`
+SET `name` = 'Product Adding',
+    `icon` = 'bi-plus-square-dotted',
+    `sort_order` = 25,
+    `group_name` = 'Purchase',
+    `is_super_admin_only` = 0
+WHERE `code` = 'product_adding';
+INSERT IGNORE INTO `concern_modules` (`concern_id`, `module_id`)
+SELECT c.id, m.id
+FROM `concerns` c
+JOIN `modules` m ON m.code = 'product_adding';
 DELIMITER $$
 CREATE PROCEDURE `AddColSafe`(
     IN in_table VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -468,6 +485,7 @@ CALL AddColSafe('purchase_bill_items', 'selling_price', 'DECIMAL(12,2) DEFAULT 0
 
 -- Store cost independently from the existing selling price.
 CALL AddColSafe('variants', 'cost_price', 'DECIMAL(12,2) NULL DEFAULT NULL AFTER `attributes`');
+CALL AddColSafe('variants', 'is_complementary', 'TINYINT(1) NOT NULL DEFAULT 0');
 UPDATE variants v
 SET v.cost_price = COALESCE(
     (SELECT pbi.unit_price

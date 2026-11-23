@@ -24,6 +24,7 @@ use App\Controllers\WarehouseDamageController;
 use App\Controllers\ShopDamageController;
 use App\Controllers\BatchController;
 use App\Controllers\OutwardController;
+use App\Controllers\ProductAddingController;
 
 /** @var Router $router */
 
@@ -64,6 +65,12 @@ $router->get('/admin/reports/export', [AdminController::class, 'exportReports'],
 // ==========================================
 // CONCERN MODULES (Strictly Guarded by concern_modules)
 // ==========================================
+
+// Catalog-only product creation
+$router->get('/m/product_adding', [ProductAddingController::class, 'index'], 'product_adding', 'view');
+$router->post('/m/product_adding/store', [ProductAddingController::class, 'store'], 'product_adding', 'add');
+$router->get('/api/product-adding/subcategories', [ProductAddingController::class, 'subcategories'], 'product_adding', 'view');
+$router->get('/api/product-adding/sub-subcategories', [ProductAddingController::class, 'subSubcategories'], 'product_adding', 'view');
 
 // Dashboard
 $router->get('/dashboard', [ConcernDashboardController::class, 'index']);

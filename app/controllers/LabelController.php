@@ -1422,6 +1422,10 @@ class LabelController extends Controller {
                 return;
             }
             $qrText = $tagCode;
+            $variantAttributes = json_decode((string)($v['attributes'] ?? ''), true);
+            $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
+            $variantColor = trim((string)($variantAttributes['color'] ?? '')) ?: 'STANDARD';
+            $variantSize = trim((string)($variantAttributes['size'] ?? $v['size'] ?? ''));
 
             $labelData = [
                 'concern_name'   => $concernName,
@@ -1430,7 +1434,7 @@ class LabelController extends Controller {
                 'label_1_name'   => 'Category',
                 'label_1_val'    => $v['category_name'] ?? 'Apparel',
                 'label_2_name'   => 'Color',
-                'label_2_val'    => 'STANDARD',
+                'label_2_val'    => $variantColor,
                 'label_3_name'   => 'Design',
                 'label_3_val'    => $designVal,
                 'design'         => $designVal,
@@ -1439,6 +1443,8 @@ class LabelController extends Controller {
                 'price'          => $priceVal,
                 'price_mrp'      => $priceVal,
                 'variant_id'     => $variantId,
+                'variant_size'   => $variantSize,
+                'variant_attributes' => self::buildLabelVariantAttributes($variantAttributes, $variantSize),
                 'tag_code'       => $tagCode,
                 'qr_payload'     => $qrText,
                 'section_title'  => 'PRODUCT CATALOG LABEL',
