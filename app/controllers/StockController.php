@@ -10,7 +10,26 @@ use App\Core\ModuleGuard;
 use App\Services\StockService;
 
 class StockController extends Controller {
+    private static bool $schemaEnsured = false;
+
+    private static function ensureVariantSchema(): void {
+        if (self::$schemaEnsured) return;
+        try {
+            $variantColumns = array_column(DB::fetchAll("DESCRIBE variants"), 'Field');
+            if (!in_array('cost_price', $variantColumns, true)) {
+                DB::query("ALTER TABLE variants ADD COLUMN cost_price DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER attributes");
+            }
+            if (!in_array('is_complementary', $variantColumns, true)) {
+                DB::query("ALTER TABLE variants ADD COLUMN is_complementary TINYINT(1) NOT NULL DEFAULT 0 AFTER mrp");
+            }
+        } catch (\Throwable $e) {
+            // Silently fall through
+        }
+        self::$schemaEnsured = true;
+    }
+
     public function index(): void {
+        self::ensureVariantSchema();
         $cid = Auth::concernId();
 
         $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp, v.catalog_id,
@@ -160,6 +179,7 @@ class StockController extends Controller {
 
     public function details(): void
     {
+        self::ensureVariantSchema();
         try {
             $variantId = filter_var($_GET['variant_id'] ?? null, FILTER_VALIDATE_INT);
             $rawConcernId = $_GET['concern_id'] ?? null;
@@ -1135,6 +1155,7 @@ class StockController extends Controller {
     }
 
     public function exportStocks(): void {
+        self::ensureVariantSchema();
         $cid = Auth::concernId();
         $format = strtolower($_GET['format'] ?? 'excel');
         $period = $_GET['period'] ?? 'all';
