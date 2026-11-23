@@ -221,10 +221,29 @@ class DamageController extends Controller {
             $validatedItems = $this->validateScannedDamageItems($cid, $items);
             DB::beginTransaction();
             foreach ($validatedItems as $item) {
-                $stock = DB::fetch(
-                    "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE",
-                    [$cid, $item['variant_id'], $location]
-                );
+                $locs = [$location];
+                if ($location === 'Main Store') $locs[] = 'Main Store (WH-01)';
+                elseif ($location === 'Main Store (WH-01)') $locs[] = 'Main Store';
+
+                $stock = null;
+                $activeLoc = $location;
+                foreach ($locs as $l) {
+                    $st = DB::fetch(
+                        "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE",
+                        [$cid, $item['variant_id'], $l]
+                    );
+                    if ($st && (float)$st['qty'] >= (float)$item['qty']) {
+                        $stock = $st;
+                        $activeLoc = $l;
+                        break;
+                    }
+                }
+                if (!$stock) {
+                    $stock = DB::fetch(
+                        "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE",
+                        [$cid, $item['variant_id'], $location]
+                    );
+                }
                 $availableQty = $stock ? (float)$stock['qty'] : 0.0;
                 if ($item['qty'] - $availableQty > 0.00001) {
                     throw new \RuntimeException("Only {$availableQty} piece(s) remain for {$item['variant_name']} at this location.");
@@ -233,7 +252,7 @@ class DamageController extends Controller {
                     $cid,
                     $item['variant_id'],
                     'EXACT',
-                    $location,
+                    $activeLoc,
                     $item['qty'],
                     $item['reason'],
                     null,
@@ -295,10 +314,18 @@ class DamageController extends Controller {
             return false;
         }
 
+        $locations = [$location];
+        if ($location === 'Main Store') {
+            $locations[] = 'Main Store (WH-01)';
+        } elseif ($location === 'Main Store (WH-01)') {
+            $locations[] = 'Main Store';
+        }
+        $inClause = implode(',', array_fill(0, count($locations), '?'));
+
         return (int)DB::fetchValue(
             "SELECT COUNT(*) FROM stocks
-             WHERE concern_id = ? AND location = ? AND qty > 0",
-            [$concernId, $location]
+             WHERE concern_id = ? AND location IN ($inClause) AND qty > 0",
+            array_merge([$concernId], $locations)
         ) > 0;
     }
 

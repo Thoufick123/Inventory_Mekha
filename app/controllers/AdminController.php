@@ -264,26 +264,28 @@ class AdminController extends Controller {
             $errors[] = 'A valid 15-character alphanumeric GSTIN is required.';
         }
         if ($phone === '') {
-            $errors[] = 'Phone number is required (10 or 12 digits starting with 6, 7, 8, or 9).';
+            $errors[] = 'Phone number is required (10 digits starting with 6, 7, 8, or 9, or prefixed with +91).';
         } else {
             $cleanDigits = ltrim($phone, '+');
             if (!ctype_digit($cleanDigits)) {
                 $errors[] = 'Phone number can only contain digits with an optional leading +.';
             } else {
                 $len = strlen($cleanDigits);
-                if ($len !== 10 && $len !== 12) {
-                    $errors[] = 'Phone number must be exactly 10 or 12 digits (entered ' . $len . ' digits).';
-                } else {
+                if ($len === 10) {
                     $firstDigit = $cleanDigits[0];
-                    if ($len === 12 && substr($cleanDigits, 0, 2) === '91') {
-                        $mobileFirstDigit = $cleanDigits[2] ?? '';
-                        if (!in_array($mobileFirstDigit, ['6', '7', '8', '9'], true)) {
-                            $errors[] = 'Phone number must start with 6, 7, 8, or 9. Numbers starting with ' . $mobileFirstDigit . ' are not allowed.';
-                        }
+                    if (!in_array($firstDigit, ['6', '7', '8', '9'], true)) {
+                        $errors[] = 'Phone number must start with 6, 7, 8, or 9. Numbers starting with ' . $firstDigit . ' are not allowed.';
+                    }
+                } elseif ($len === 12 && substr($cleanDigits, 0, 2) === '91') {
+                    $mobileFirstDigit = $cleanDigits[2] ?? '';
+                    if (!in_array($mobileFirstDigit, ['6', '7', '8', '9'], true)) {
+                        $errors[] = 'Phone number must start with 6, 7, 8, or 9. Numbers starting with ' . $mobileFirstDigit . ' are not allowed.';
+                    }
+                } else {
+                    if ($len === 12) {
+                        $errors[] = '12-digit phone numbers must begin with country code 91 or +91.';
                     } else {
-                        if (!in_array($firstDigit, ['6', '7', '8', '9'], true)) {
-                            $errors[] = 'Phone number must start with 6, 7, 8, or 9. Numbers starting with ' . $firstDigit . ' are not allowed.';
-                        }
+                        $errors[] = 'Phone number must be exactly 10 digits (or prefixed with +91). Entered ' . $len . ' digits.';
                     }
                 }
             }
@@ -524,7 +526,7 @@ class AdminController extends Controller {
             return;
         }
         if ($phone === '') {
-            $this->flash('error', 'Phone number is required (10 or 12 digits starting with 6, 7, 8, or 9).');
+            $this->flash('error', 'Phone number is required (10 digits starting with 6, 7, 8, or 9, or prefixed with +91).');
             $this->redirect('/admin/concerns');
             return;
         } else {
@@ -535,13 +537,14 @@ class AdminController extends Controller {
                 return;
             }
             $len = strlen($cleanDigits);
-            if ($len !== 10 && $len !== 12) {
-                $this->flash('error', 'Phone number must be exactly 10 or 12 digits (entered ' . $len . ' digits).');
-                $this->redirect('/admin/concerns');
-                return;
-            }
-            $firstDigit = $cleanDigits[0];
-            if ($len === 12 && substr($cleanDigits, 0, 2) === '91') {
+            if ($len === 10) {
+                $firstDigit = $cleanDigits[0];
+                if (!in_array($firstDigit, ['6', '7', '8', '9'], true)) {
+                    $this->flash('error', 'Phone number must start with 6, 7, 8, or 9. Numbers starting with ' . $firstDigit . ' are not allowed.');
+                    $this->redirect('/admin/concerns');
+                    return;
+                }
+            } elseif ($len === 12 && substr($cleanDigits, 0, 2) === '91') {
                 $mobileFirstDigit = $cleanDigits[2] ?? '';
                 if (!in_array($mobileFirstDigit, ['6', '7', '8', '9'], true)) {
                     $this->flash('error', 'Phone number must start with 6, 7, 8, or 9. Numbers starting with ' . $mobileFirstDigit . ' are not allowed.');
@@ -549,11 +552,13 @@ class AdminController extends Controller {
                     return;
                 }
             } else {
-                if (!in_array($firstDigit, ['6', '7', '8', '9'], true)) {
-                    $this->flash('error', 'Phone number must start with 6, 7, 8, or 9. Numbers starting with ' . $firstDigit . ' are not allowed.');
-                    $this->redirect('/admin/concerns');
-                    return;
+                if ($len === 12) {
+                    $this->flash('error', '12-digit phone numbers must begin with country code 91 or +91.');
+                } else {
+                    $this->flash('error', 'Phone number must be exactly 10 digits (or prefixed with +91). Entered ' . $len . ' digits.');
                 }
+                $this->redirect('/admin/concerns');
+                return;
             }
         }
         $addrLen = function_exists('mb_strlen') ? mb_strlen($address, 'UTF-8') : strlen($address);

@@ -128,6 +128,13 @@ CALL `AddColumnIfNotExists`('inwards', 'received_by', 'INT NULL AFTER `vehicle_n
 CALL `AddColumnIfNotExists`('cashier_shifts', 'variance_reason', 'VARCHAR(255) NULL AFTER `variance`');
 CALL `AddColumnIfNotExists`('user_permissions', 'concern_id', 'INT NULL AFTER `id`');
 
+-- Standardize table collations to utf8mb4_general_ci across all tables to avoid 1267 collation mismatch errors
+ALTER TABLE `purchase_damages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER TABLE `purchase_damage_quarantine` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER TABLE `qc_inspection_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER TABLE `qc_piece_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER TABLE `suppliers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
 DROP PROCEDURE IF EXISTS `AddColumnIfNotExists`;
 
 -- =====================================================================
@@ -1166,7 +1173,7 @@ CREATE TABLE IF NOT EXISTS `purchase_damage_quarantine` (
   KEY `idx_pdq_purchase_item` (`purchase_bill_item_id`),
   KEY `idx_pdq_variant` (`variant_id`),
   CONSTRAINT `fk_pdq_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Table: `purchase_damage_reasons`
 CREATE TABLE IF NOT EXISTS `purchase_damage_reasons` (
@@ -1200,7 +1207,7 @@ CREATE TABLE IF NOT EXISTS `purchase_damages` (
   CONSTRAINT `fk_pd_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_pd_supplier` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`),
   CONSTRAINT `fk_pd_variant` FOREIGN KEY (`variant_id`) REFERENCES `variants` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Table: `purchase_stock_item_overrides`
 CREATE TABLE IF NOT EXISTS `purchase_stock_item_overrides` (
@@ -1250,7 +1257,7 @@ CREATE TABLE IF NOT EXISTS `qc_inspection_items` (
   PRIMARY KEY (`id`),
   KEY `qc_id` (`qc_id`),
   KEY `variant_id` (`variant_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Table: `qc_inspections`
 CREATE TABLE IF NOT EXISTS `qc_inspections` (
@@ -1300,7 +1307,7 @@ CREATE TABLE IF NOT EXISTS `qc_piece_items` (
   KEY `qc_id` (`qc_id`),
   KEY `tag_code` (`tag_code`),
   KEY `verdict` (`verdict`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Table: `return_exchange_items`
 CREATE TABLE IF NOT EXISTS `return_exchange_items` (
@@ -1680,7 +1687,7 @@ CREATE TABLE IF NOT EXISTS `suppliers` (
   PRIMARY KEY (`id`),
   KEY `idx_sup_concern` (`concern_id`),
   CONSTRAINT `fk_sup_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Table: `user_concerns`
 CREATE TABLE IF NOT EXISTS `user_concerns` (

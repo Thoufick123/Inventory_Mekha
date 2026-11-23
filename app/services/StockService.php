@@ -368,9 +368,16 @@ class StockService {
      * Get live stock for a variant
      */
     public static function getQty(int $concernId, int $variantId, string $location = 'Main Store'): float {
+        $locations = [$location];
+        if ($location === 'Main Store') {
+            $locations[] = 'Main Store (WH-01)';
+        } elseif ($location === 'Main Store (WH-01)') {
+            $locations[] = 'Main Store';
+        }
+        $inClause = implode(',', array_fill(0, count($locations), '?'));
         $res = DB::fetchValue(
-            "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ?",
-            [$concernId, $variantId, $location]
+            "SELECT COALESCE(SUM(qty), 0) FROM stocks WHERE concern_id = ? AND variant_id = ? AND location IN ($inClause)",
+            array_merge([$concernId, $variantId], $locations)
         );
         return $res !== false ? (float)$res : 0.00;
     }

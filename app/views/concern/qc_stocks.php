@@ -95,10 +95,10 @@
                             } elseif ($st === 'REJECTED') {
                                 $statusBg = '#ef4444'; $statusColor = '#ffffff';
                             }
-                            $reworkQty = (float)($qc['rework_qty'] ?? 0);
-                            $rejectedQty = (float)($qc['rejected_qty'] ?? 0);
-                            $passedQty = (float)($qc['passed_qty'] ?? 0);
-                            $inspectedQty = (float)($qc['inspected_qty'] ?? ($passedQty + $reworkQty + $rejectedQty));
+                            $reworkQty = (float)($qc['live_rework_qty'] ?? ($qc['rework_qty'] ?? 0));
+                            $rejectedQty = (float)($qc['live_rejected_qty'] ?? ($qc['rejected_qty'] ?? 0));
+                            $passedQty = (float)($qc['live_passed_qty'] ?? ($qc['passed_qty'] ?? 0));
+                            $inspectedQty = (float)($qc['live_inspected_qty'] ?? ($qc['inspected_qty'] ?? ($passedQty + $reworkQty + $rejectedQty)));
                             ?>
                             <tr class="border-bottom">
                                 <td class="py-3">

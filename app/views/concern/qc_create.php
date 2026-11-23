@@ -24,14 +24,17 @@
             </h4>
             <p class="text-secondary small mb-0">Select a completed stitching batch to begin quality control inspection</p>
         </div>
-        <div>
+        <div class="d-flex align-items-center gap-2">
             <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary px-3 py-2 rounded-3 text-decoration-none">
                 <i class="bi bi-arrow-left me-1"></i> Back to QC List
             </a>
+            <button type="button" class="btn btn-primary fw-bold shadow-sm px-3 py-2 rounded-3 d-inline-flex align-items-center gap-2" onclick="submitQc('save_and_inspect')" title="Initialize QC and open 2D QR piece-by-piece scanner">
+                <i class="bi bi-play-circle-fill"></i> Start QC
+            </button>
         </div>
     </div>
 
-    <form action="<?= \App\Core\Controller::url('/production/qc/store') ?>" method="POST" id="formQcCreate" onsubmit="return validateQcForm(event)">
+    <form action="<?= \App\Core\Controller::url('/production/qc/store') ?>" method="POST" id="formQcCreate">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
         <input type="hidden" name="concern_id" value="<?= htmlspecialchars((string)$selectedCid) ?>">
         <input type="hidden" name="submit_action" id="submitActionInput" value="direct_inward">
@@ -236,11 +239,11 @@
                             <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary px-3 fw-semibold">
                                 Cancel
                             </a>
-                            <button type="button" class="btn btn-outline-primary fw-semibold shadow-sm px-3" onclick="submitQc('save_and_inspect')" title="Open 2D QR Scanner to inspect piece by piece">
-                                <i class="bi bi-qr-code-scan me-1"></i> Start 2D QR Scanner
+                            <button type="button" class="btn btn-primary fw-bold shadow-sm px-4 py-2 d-inline-flex align-items-center gap-2" id="btnStartQc" onclick="submitQc('save_and_inspect')" title="Initialize QC and open 2D QR Scanner to inspect garment piece-by-piece">
+                                <i class="bi bi-play-circle-fill fs-5"></i> Start QC
                             </button>
-                            <button type="button" class="btn btn-success fw-semibold shadow-sm px-4" onclick="submitQc('direct_inward')">
-                                <i class="bi bi-check2-circle me-1"></i> Pass & Inward to Stock
+                            <button type="button" class="btn btn-success fw-semibold shadow-sm px-3 py-2 d-inline-flex align-items-center gap-1.5" onclick="submitQc('direct_inward')" title="Directly pass and inward to stock">
+                                <i class="bi bi-check2-circle fs-5"></i> Pass & Inward to Stock
                             </button>
                         </div>
                     </div>
@@ -397,19 +400,27 @@ function submitQc(actionType) {
         return;
     }
 
-    let hasError = false;
-    rows.forEach(tr => {
-        const tot = parseInt(tr.querySelector('.input-total-qty')?.value || 0);
-        const p = parseInt(tr.querySelector('.input-passed')?.value || 0);
-        const r = parseInt(tr.querySelector('.input-rejected')?.value || 0);
-        const w = parseInt(tr.querySelector('.input-rework')?.value || 0);
-        if (p + r + w > tot) {
-            alert(`Row sum (${p + r + w}) exceeds total stitched pieces (${tot}). Please correct.`);
-            hasError = true;
-        }
-    });
+    if (actionType === 'direct_inward') {
+        let hasError = false;
+        rows.forEach(tr => {
+            const tot = parseInt(tr.querySelector('.input-total-qty')?.value || 0);
+            const p = parseInt(tr.querySelector('.input-passed')?.value || 0);
+            const r = parseInt(tr.querySelector('.input-rejected')?.value || 0);
+            const w = parseInt(tr.querySelector('.input-rework')?.value || 0);
+            if (p + r + w > tot) {
+                alert(`Row sum (${p + r + w}) exceeds total stitched pieces (${tot}). Please correct.`);
+                hasError = true;
+            }
+        });
+        if (hasError) return;
+    }
 
-    if (hasError) return;
+    // Disable button to prevent double submit
+    const btnStart = document.getElementById('btnStartQc');
+    if (btnStart && actionType === 'save_and_inspect') {
+        btnStart.disabled = true;
+        btnStart.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Starting QC...';
+    }
 
     form.submit();
 }

@@ -4,7 +4,7 @@
         <div>
             <h4 class="fw-bold mb-1 text-dark">Staff Register & Directory</h4>
             <p class="text-secondary small mb-0">
-                Manage employees, workforce rosters, departments, and payroll profiles isolated by business concern.
+                Manage employees, workforce rosters, and user access permissions isolated by business concern.
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -47,28 +47,18 @@
                 <?php if ($selectedCid): ?>
                     <input type="hidden" name="concern_id" value="<?= $selectedCid ?>">
                 <?php endif; ?>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                         <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Search name, code, phone, email..." value="<?= htmlspecialchars($filters['search'] ?? '') ?>">
                     </div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-3">
                     <select name="role_id" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- All Roles --</option>
                         <?php foreach ($allRoles as $r): ?>
                             <option value="<?= $r['id'] ?>" <?= (($filters['role_id'] ?? null) == $r['id']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($r['name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">-- All Departments --</option>
-                        <?php foreach ($allDepartments as $d): ?>
-                            <option value="<?= htmlspecialchars($d['department']) ?>" <?= (($filters['department'] ?? '') === $d['department']) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($d['department']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -84,7 +74,7 @@
                     <button type="submit" class="btn btn-sm btn-primary px-3">
                         <i class="bi bi-funnel me-1"></i> Filter
                     </button>
-                    <?php if (!empty($filters['search']) || !empty($filters['role_id']) || !empty($filters['department']) || !empty($filters['status'])): ?>
+                    <?php if (!empty($filters['search']) || !empty($filters['role_id']) || !empty($filters['status'])): ?>
                         <a href="<?= \App\Core\Controller::url('/m/staff' . ($selectedCid ? '?concern_id=' . $selectedCid : '')) ?>" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-x-circle me-1"></i> Reset
                         </a>
@@ -111,19 +101,16 @@
                     <tr>
                         <th class="ps-3">Staff Code</th>
                         <th>Name</th>
-                        <th>Department</th>
                         <th>Designation</th>
                         <th>Phone / Mobile</th>
-                        <th>Salary Structure</th>
                         <th>Status</th>
-                        <th>Joining Date</th>
                         <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($staffMembers)): ?>
                         <tr>
-                            <td colspan="9" class="text-center py-5 text-muted">
+                            <td colspan="6" class="text-center py-5 text-muted">
                                 <i class="bi bi-people display-6 d-block mb-2 text-secondary opacity-50"></i>
                                 <?= $activeConcern ? 'No staff members recorded for this concern yet.' : 'Please select a concern above to load staff records.' ?>
                                 <?php if ($activeConcern && \App\Core\Auth::can('staff', 'add')): ?>
@@ -145,20 +132,11 @@
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($stf['name']) ?></div>
                                     <small class="text-muted"><?= htmlspecialchars($stf['email'] ?: 'No email') ?></small>
                                 </td>
-                                <td>
-                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                                        <?= htmlspecialchars($stf['department'] ?: 'General') ?>
-                                    </span>
-                                </td>
                                 <td class="fw-semibold text-dark">
                                     <?= htmlspecialchars($stf['designation'] ?: '-') ?>
                                 </td>
                                 <td>
                                     <span class="font-monospace text-dark"><?= htmlspecialchars($stf['phone'] ?: '-') ?></span>
-                                </td>
-                                <td>
-                                    <div class="fw-bold font-monospace text-dark">₹<?= number_format($stf['base_salary'], 2) ?></div>
-                                    <small class="text-muted text-uppercase" style="font-size: 0.72rem;"><?= htmlspecialchars(str_replace('_', ' ', $stf['salary_type'])) ?></small>
                                 </td>
                                 <td>
                                     <?php if ($stf['status'] === 'active'): ?>
@@ -170,9 +148,6 @@
                                             <i class="bi bi-dash-circle me-1"></i> Inactive
                                         </span>
                                     <?php endif; ?>
-                                </td>
-                                <td class="small text-muted font-monospace">
-                                    <?= $stf['joining_date'] ? date('d M Y', strtotime($stf['joining_date'])) : '-' ?>
                                 </td>
                                 <td class="text-end pe-3">
                                     <div class="d-inline-flex align-items-center gap-1">

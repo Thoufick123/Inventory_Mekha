@@ -49,7 +49,7 @@
                             <i class="bi bi-upc-scan fs-4"></i>
                         </span>
                         <input type="text" id="inputQrScanner" class="form-control border-start-0 font-monospace fw-bold fs-5" 
-                               placeholder="Scan QR sticker tag (e.g. <?= htmlspecialchars($pieces[0]['tag_code'] ?? 'TTT112601') ?>)..." 
+                               placeholder="Scan QR sticker tag (e.g. <?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GRMMXTXFS007') ?>)..." 
                                autofocus autocomplete="off">
                     </div>
                 </div>
@@ -61,7 +61,7 @@
             </div>
             <div class="small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-info-circle text-primary"></i>
-                <span>Scan product tag code e.g. <strong class="text-danger font-monospace"><?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GAR112601') ?></strong> to locate and highlight the garment piece.</span>
+                <span>Scan product tag code e.g. <strong class="text-danger font-monospace"><?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GRMMXTXFS007') ?></strong> to locate and highlight the garment piece.</span>
             </div>
         </div>
     </div>
@@ -122,7 +122,8 @@
                 <table class="table table-hover align-middle mb-0" id="tablePieces">
                     <thead class="table-light text-uppercase small text-secondary sticky-top" style="font-size:0.75rem; z-index: 5;">
                         <tr>
-                            <th class="ps-4 py-2.5">Garment Tag Code &amp; Variant</th>
+                            <th class="ps-3 text-center py-2.5" style="width: 50px;">#</th>
+                            <th class="ps-3 py-2.5">Garment Tag Code &amp; Variant</th>
                             <th class="text-center py-2.5" style="width: 140px;">QC Verdict</th>
                             <th class="py-2.5" style="width: 320px;">Defect / Rework Reason &amp; Notes</th>
                             <th class="text-center pe-4 py-2.5" style="width: 240px;">Piece QC Actions</th>
@@ -131,7 +132,12 @@
                     <tbody id="tbodyPieces">
                         <?php foreach ($pieces as $idx => $p): ?>
                             <tr id="row_piece_<?= $p['id'] ?>" data-tag="<?= htmlspecialchars($p['tag_code']) ?>" data-verdict="<?= htmlspecialchars($p['verdict']) ?>">
-                                <td class="ps-4 py-2.5">
+                                <td class="ps-3 text-center align-middle">
+                                    <span class="badge bg-light text-dark border font-monospace fw-bold px-2 py-1" style="font-size:0.80rem;">
+                                        <?= (int)$p['piece_number'] ?>
+                                    </span>
+                                </td>
+                                <td class="ps-3 py-2.5">
                                     <div class="d-flex flex-column gap-1">
                                         <span class="badge bg-light text-primary border align-self-start font-monospace text-truncate" style="max-width: 300px; font-size:0.75rem;">
                                             <i class="bi bi-tag text-primary me-1"></i> <?= htmlspecialchars($p['catalog_name'] ?: 'Garment Product') ?>
@@ -146,8 +152,8 @@
                                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-1.5 py-0.5" style="font-size:0.72rem;">
                                                 <?= htmlspecialchars($p['color'] ?: 'STD') ?>
                                             </span>
-                                            <span class="text-muted small" style="font-size:0.75rem;">
-                                                <?= htmlspecialchars($p['size'] . '-' . $p['color']) ?> &bull; Garment #<?= $p['piece_number'] ?> of <?= $p['total_variant_pieces'] ?>
+                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle font-monospace px-2 py-0.5" style="font-size:0.72rem;">
+                                                Garment #<?= (int)$p['piece_number'] ?> of <?= (int)$p['total_variant_pieces'] ?>
                                             </span>
                                         </div>
                                     </div>
@@ -349,24 +355,37 @@ function filterPieces(verdict, btnElem) {
 
 function onScanLocate() {
     const input = document.getElementById('inputQrScanner');
-    const val = input.value.trim().toUpperCase();
+    let val = input.value.trim().toUpperCase();
     if (!val) return;
 
-    let matchedRow = null;
+    // Support both raw variant code and code with piece suffix
+    let baseVal = val;
+    if (baseVal.match(/-\d{1,4}$/)) {
+        baseVal = baseVal.replace(/-\d{1,4}$/, '');
+    }
+
+    let candidateRows = [];
     document.querySelectorAll('#tbodyPieces tr').forEach(tr => {
         const tag = (tr.dataset.tag || '').toUpperCase();
-        if (tag === val || tag.includes(val)) {
-            matchedRow = tr;
+        if (tag === val || tag === baseVal || tag.includes(val) || tag.includes(baseVal)) {
+            candidateRows.push(tr);
         }
     });
 
-    if (matchedRow) {
+    if (candidateRows.length > 0) {
+        // Priority 1: Pick the first matching garment that is still PENDING inspection
+        let matchedRow = candidateRows.find(tr => tr.dataset.verdict === 'PENDING');
+        // Priority 2: If all are already inspected, focus the first candidate
+        if (!matchedRow) {
+            matchedRow = candidateRows[0];
+        }
+
         matchedRow.style.display = '';
         matchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
         matchedRow.classList.add('table-warning');
         setTimeout(() => matchedRow.classList.remove('table-warning'), 2500);
 
-        // Focus defect note or automatically ask to pass
+        // Focus defect note or action
         const noteInput = matchedRow.querySelector('.input-defect-note');
         if (noteInput) noteInput.focus();
         input.value = '';
