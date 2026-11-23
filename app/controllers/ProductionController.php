@@ -153,11 +153,11 @@ class ProductionController extends Controller {
 
             // Align table collations to prevent "1267 Illegal mix of collations" error
             try {
-                DB::query("ALTER TABLE `purchase_damages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-                DB::query("ALTER TABLE `purchase_damage_quarantine` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-                DB::query("ALTER TABLE `qc_inspection_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-                DB::query("ALTER TABLE `qc_piece_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-                DB::query("ALTER TABLE `suppliers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+                DB::query("ALTER TABLE `purchase_damages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                DB::query("ALTER TABLE `purchase_damage_quarantine` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                DB::query("ALTER TABLE `qc_inspection_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                DB::query("ALTER TABLE `qc_piece_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                DB::query("ALTER TABLE `suppliers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             } catch (\Throwable $colEx) {
                 // Ignore if lacks alter privileges
             }
@@ -1828,13 +1828,13 @@ class ProductionController extends Controller {
                                           (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                           AND pdq.concern_id = pbi.concern_id
                                           AND (
-                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code COLLATE utf8mb4_unicode_ci = pbi.item_code COLLATE utf8mb4_unicode_ci)
                                               OR (
                                                   pdq.roll_source_color IS NOT NULL 
-                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.color)) COLLATE utf8mb4_unicode_ci
                                                   AND (
-                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
-                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) COLLATE utf8mb4_unicode_ci)
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.item_name)) COLLATE utf8mb4_unicode_ci)
                                                   )
                                               )
                                           )
@@ -1956,13 +1956,13 @@ class ProductionController extends Controller {
                                           (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                           AND pdq.concern_id = pbi.concern_id
                                           AND (
-                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code COLLATE utf8mb4_unicode_ci = pbi.item_code COLLATE utf8mb4_unicode_ci)
                                               OR (
                                                   pdq.roll_source_color IS NOT NULL 
-                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.color)) COLLATE utf8mb4_unicode_ci
                                                   AND (
-                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
-                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) COLLATE utf8mb4_unicode_ci)
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.item_name)) COLLATE utf8mb4_unicode_ci)
                                                   )
                                               )
                                           )
@@ -2062,13 +2062,13 @@ class ProductionController extends Controller {
                                      (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                      AND pdq.concern_id = pbi.concern_id
                                      AND (
-                                         (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
+                                         (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code COLLATE utf8mb4_unicode_ci = pbi.item_code COLLATE utf8mb4_unicode_ci)
                                          OR (
                                              pdq.roll_source_color IS NOT NULL 
-                                             AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
+                                             AND UPPER(TRIM(pdq.roll_source_color)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.color)) COLLATE utf8mb4_unicode_ci
                                              AND (
-                                                 (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
-                                                 OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
+                                                 (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) COLLATE utf8mb4_unicode_ci)
+                                                 OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.item_name)) COLLATE utf8mb4_unicode_ci)
                                              )
                                          )
                                      )
@@ -2107,13 +2107,13 @@ class ProductionController extends Controller {
                                                  (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                                  AND pdq.concern_id = pbi.concern_id
                                                  AND (
-                                                     (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
+                                                     (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code COLLATE utf8mb4_unicode_ci = pbi.item_code COLLATE utf8mb4_unicode_ci)
                                                      OR (
                                                          pdq.roll_source_color IS NOT NULL 
-                                                         AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
+                                                         AND UPPER(TRIM(pdq.roll_source_color)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.color)) COLLATE utf8mb4_unicode_ci
                                                          AND (
-                                                             (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
-                                                             OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
+                                                             (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) COLLATE utf8mb4_unicode_ci)
+                                                             OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.item_name)) COLLATE utf8mb4_unicode_ci)
                                                          )
                                                      )
                                                  )
@@ -2249,13 +2249,13 @@ class ProductionController extends Controller {
                                              (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                              AND pdq.concern_id = pbi.concern_id
                                              AND (
-                                                 (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
+                                                 (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code COLLATE utf8mb4_unicode_ci = pbi.item_code COLLATE utf8mb4_unicode_ci)
                                                  OR (
                                                      pdq.roll_source_color IS NOT NULL 
-                                                     AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
+                                                     AND UPPER(TRIM(pdq.roll_source_color)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.color)) COLLATE utf8mb4_unicode_ci
                                                      AND (
-                                                         (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
-                                                         OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
+                                                         (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) COLLATE utf8mb4_unicode_ci)
+                                                         OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.item_name)) COLLATE utf8mb4_unicode_ci)
                                                      )
                                                  )
                                              )
@@ -2706,13 +2706,13 @@ class ProductionController extends Controller {
                                           (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                           AND pdq.concern_id = pbi.concern_id
                                           AND (
-                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code COLLATE utf8mb4_unicode_ci = pbi.item_code COLLATE utf8mb4_unicode_ci)
                                               OR (
                                                   pdq.roll_source_color IS NOT NULL 
-                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.color)) COLLATE utf8mb4_unicode_ci
                                                   AND (
-                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
-                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) COLLATE utf8mb4_unicode_ci)
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.item_name)) COLLATE utf8mb4_unicode_ci)
                                                   )
                                               )
                                           )
@@ -2994,13 +2994,13 @@ class ProductionController extends Controller {
                                       (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                       AND pdq.concern_id = pbi.concern_id
                                       AND (
-                                          (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
+                                          (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code COLLATE utf8mb4_unicode_ci = pbi.item_code COLLATE utf8mb4_unicode_ci)
                                           OR (
                                               pdq.roll_source_color IS NOT NULL 
-                                              AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
+                                              AND UPPER(TRIM(pdq.roll_source_color)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.color)) COLLATE utf8mb4_unicode_ci
                                               AND (
-                                                  (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
-                                                  OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
+                                                  (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) COLLATE utf8mb4_unicode_ci)
+                                                  OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) COLLATE utf8mb4_unicode_ci = UPPER(TRIM(pbi.item_name)) COLLATE utf8mb4_unicode_ci)
                                               )
                                           )
                                       )
@@ -6516,6 +6516,24 @@ class ProductionController extends Controller {
             DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `passed_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
             DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
             DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+
+            // Consolidate legacy 'Main Store (WH-01)' to unified 'Main Store'
+            $whStocks = DB::fetchAll("SELECT * FROM stocks WHERE location = 'Main Store (WH-01)'");
+            foreach ($whStocks as $ws) {
+                $mainStock = DB::fetch(
+                    "SELECT id, qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'",
+                    [$ws['concern_id'], $ws['variant_id']]
+                );
+                if ($mainStock) {
+                    DB::query("UPDATE stocks SET qty = qty + ?, updated_at = NOW() WHERE id = ?", [$ws['qty'], $mainStock['id']]);
+                    DB::query("DELETE FROM stocks WHERE id = ?", [$ws['id']]);
+                } else {
+                    DB::query("UPDATE stocks SET location = 'Main Store', updated_at = NOW() WHERE id = ?", [$ws['id']]);
+                }
+            }
+            DB::query("UPDATE stock_ledger SET location = 'Main Store' WHERE location = 'Main Store (WH-01)'");
+            DB::query("UPDATE qc_inspections SET location = 'Main Store' WHERE location = 'Main Store (WH-01)'");
+            DB::query("UPDATE batches SET warehouse_name = 'Main Store' WHERE warehouse_name = 'Main Store (WH-01)'");
         } catch (\Throwable $e) {}
     }
 
@@ -6525,7 +6543,7 @@ class ProductionController extends Controller {
     protected function inwardVariantToStock(int $variantId, float $qty, int $cid, int $qcId, string $qcNo, string $batchNo, string $location = 'Main Store', ?int $programId = null, ?int $stitchingBatchId = null, string $inspectorName = 'System Administrator'): void {
         if ($qty <= 0) return;
 
-        $location = $location ?: 'Main Store';
+        $location = ($location === 'Main Store (WH-01)' || empty($location)) ? 'Main Store' : trim($location);
 
         // Idempotency: A QC record is allowed to credit each variant exactly once.
         // Repeating direct inward or completing the same QC again adds no stock and no ledger row.
@@ -6631,7 +6649,11 @@ class ProductionController extends Controller {
                        COALESCE(cat.name, p.program_name, sl.stitching_name, v.name, 'Garment Product') AS product_name,
                        COALESCE(u.name, 'System Administrator') AS inspector_name,
                        con.name AS concern_name, con.code AS concern_code,
-                       (SELECT COUNT(*) FROM qc_inspection_items WHERE qc_id = qi.id) AS variant_count
+                       (SELECT COUNT(*) FROM qc_inspection_items WHERE qc_id = qi.id) AS variant_count,
+                       (SELECT SUM(CASE WHEN qp.verdict = 'PASSED' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_passed_qty,
+                       (SELECT SUM(CASE WHEN qp.verdict = 'REJECTED' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_rejected_qty,
+                       (SELECT SUM(CASE WHEN qp.verdict = 'REWORK' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_rework_qty,
+                       (SELECT COUNT(*) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_total_qty
                 FROM qc_inspections qi
                 LEFT JOIN variants v ON qi.variant_id = v.id
                 LEFT JOIN stitching_logs sl ON qi.stitching_batch_id = sl.id
@@ -6669,6 +6691,20 @@ class ProductionController extends Controller {
 
         $sql .= " ORDER BY qi.id DESC LIMIT {$perPage} OFFSET {$offset}";
         $inspections = DB::fetchAll($sql, $params);
+        foreach ($inspections as &$item) {
+            if ($item['piece_total_qty'] !== null && (int)$item['piece_total_qty'] > 0) {
+                $item['live_passed_qty'] = (float)$item['piece_passed_qty'];
+                $item['live_rejected_qty'] = (float)$item['piece_rejected_qty'];
+                $item['live_rework_qty'] = (float)$item['piece_rework_qty'];
+                $item['live_inspected_qty'] = (float)$item['piece_total_qty'];
+            } else {
+                $item['live_passed_qty'] = (float)$item['passed_qty'];
+                $item['live_rejected_qty'] = (float)$item['rejected_qty'];
+                $item['live_rework_qty'] = (float)$item['rework_qty'];
+                $item['live_inspected_qty'] = (float)$item['inspected_qty'];
+            }
+        }
+        unset($item);
 
         $this->render('concern/qc_stocks', [
             'pageTitle'     => 'Quality Control (QC) Inspections',
@@ -6801,7 +6837,7 @@ class ProductionController extends Controller {
         ", $cid ? [$cid] : []);
 
         $warehouses = [
-            ['id' => 1, 'name' => 'Main Store (WH-01)', 'code' => 'WH-01'],
+            ['id' => 1, 'name' => 'Main Store', 'code' => 'WH-01'],
             ['id' => 2, 'name' => 'Finished Goods Warehouse', 'code' => 'WH-02'],
         ];
 
@@ -6831,6 +6867,7 @@ class ProductionController extends Controller {
         $stitchingBatchId = (int)($_POST['stitching_batch_id'] ?? 0);
         $inspectorId      = (int)($_POST['inspector_id'] ?? Auth::id() ?: 1);
         $location         = trim($_POST['location'] ?? 'Main Store');
+        if ($location === 'Main Store (WH-01)' || empty($location)) $location = 'Main Store';
         $generalNotes     = trim($_POST['notes'] ?? '');
         $submitAction     = trim($_POST['submit_action'] ?? 'direct_inward');
 
@@ -6900,6 +6937,9 @@ class ProductionController extends Controller {
         // Status calculation
         if ($submitAction === 'save_and_inspect') {
             $status = 'PENDING';
+            $totPassed = 0;
+            $totRejected = 0;
+            $totRework = 0;
         } elseif ($totRework > 0) {
             $status = 'REWORK';
         } elseif ($totRejected > 0 && $totPassed > 0) {
@@ -6942,9 +6982,9 @@ class ProductionController extends Controller {
                 $sku             = trim($it['sku_code'] ?? '');
                 $variantName     = trim($it['variant_name'] ?? '');
                 $inspectedQ      = max(0, (int)($it['total_qty'] ?? 0));
-                $passedQ         = max(0, (int)($it['passed_qty'] ?? 0));
-                $rejectedQ       = max(0, (int)($it['rejected_qty'] ?? 0));
-                $reworkQ         = max(0, (int)($it['rework_qty'] ?? 0));
+                $passedQ         = ($submitAction === 'save_and_inspect') ? 0 : max(0, (int)($it['passed_qty'] ?? 0));
+                $rejectedQ       = ($submitAction === 'save_and_inspect') ? 0 : max(0, (int)($it['rejected_qty'] ?? 0));
+                $reworkQ         = ($submitAction === 'save_and_inspect') ? 0 : max(0, (int)($it['rework_qty'] ?? 0));
                 $defectNote      = trim($it['defect_notes'] ?? '');
                 $reworkNote      = trim($it['rework_notes'] ?? '');
 
@@ -7157,6 +7197,27 @@ class ProductionController extends Controller {
                 FROM qc_piece_items WHERE qc_id = ?
             ", [$piece['qc_id']]);
 
+            // Sync live counts to qc_inspections
+            DB::query(
+                "UPDATE qc_inspections SET passed_qty = ?, rejected_qty = ?, rework_qty = ? WHERE id = ?",
+                [(int)($counts['passed'] ?? 0), (int)($counts['rejected'] ?? 0), (int)($counts['rework'] ?? 0), $piece['qc_id']]
+            );
+
+            // Sync live counts to qc_inspection_items if item id is present
+            if (!empty($piece['qc_item_id'])) {
+                $itemCounts = DB::fetch("
+                    SELECT 
+                        SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                        SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                        SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework
+                    FROM qc_piece_items WHERE qc_item_id = ?
+                ", [$piece['qc_item_id']]);
+                DB::query(
+                    "UPDATE qc_inspection_items SET passed_qty = ?, rejected_qty = ?, rework_qty = ? WHERE id = ?",
+                    [(int)($itemCounts['passed'] ?? 0), (int)($itemCounts['rejected'] ?? 0), (int)($itemCounts['rework'] ?? 0), $piece['qc_item_id']]
+                );
+            }
+
             echo json_encode([
                 'success' => true,
                 'piece_id' => $pieceId,
@@ -7189,6 +7250,28 @@ class ProductionController extends Controller {
                 FROM qc_piece_items WHERE qc_id = ?
             ", [$qcId]);
 
+            // Sync live counts to qc_inspections
+            DB::query(
+                "UPDATE qc_inspections SET passed_qty = ?, rejected_qty = ?, rework_qty = ? WHERE id = ?",
+                [(int)($counts['passed'] ?? 0), (int)($counts['rejected'] ?? 0), (int)($counts['rework'] ?? 0), $qcId]
+            );
+
+            // Sync live counts to each qc_inspection_item under this qc_id
+            $qcItems = DB::fetchAll("SELECT id FROM qc_inspection_items WHERE qc_id = ?", [$qcId]);
+            foreach ($qcItems as $qItem) {
+                $itemCounts = DB::fetch("
+                    SELECT 
+                        SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                        SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                        SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework
+                    FROM qc_piece_items WHERE qc_item_id = ?
+                ", [$qItem['id']]);
+                DB::query(
+                    "UPDATE qc_inspection_items SET passed_qty = ?, rejected_qty = ?, rework_qty = ? WHERE id = ?",
+                    [(int)($itemCounts['passed'] ?? 0), (int)($itemCounts['rejected'] ?? 0), (int)($itemCounts['rework'] ?? 0), $qItem['id']]
+                );
+            }
+
             echo json_encode(['success' => true, 'counts' => $counts]);
         } catch (\Throwable $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -7220,6 +7303,20 @@ class ProductionController extends Controller {
             return;
         }
 
+        $pieceCounts = DB::fetch("
+            SELECT 
+                COUNT(*) AS total,
+                SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework
+            FROM qc_piece_items WHERE qc_id = ?
+        ", [$id]);
+        if (!empty($pieceCounts['total'])) {
+            $qc['passed_qty'] = (float)$pieceCounts['passed'];
+            $qc['rejected_qty'] = (float)$pieceCounts['rejected'];
+            $qc['rework_qty'] = (float)$pieceCounts['rework'];
+        }
+
         $terminalStatus = strtoupper((string)($qc['status'] ?? ''));
         $pendingPieces = (int)DB::fetchValue(
             "SELECT COUNT(*) FROM qc_piece_items WHERE qc_id = ? AND verdict = 'PENDING'",
@@ -7232,6 +7329,9 @@ class ProductionController extends Controller {
         }
 
         $location = trim($_POST['location'] ?? ($qc['location'] ?: 'Main Store'));
+        if ($location === 'Main Store (WH-01)' || empty($location)) {
+            $location = 'Main Store';
+        }
 
         DB::beginTransaction();
         try {
@@ -7345,6 +7445,20 @@ class ProductionController extends Controller {
             return;
         }
 
+        $pieceCounts = DB::fetch("
+            SELECT 
+                COUNT(*) AS total,
+                SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework
+            FROM qc_piece_items WHERE qc_id = ?
+        ", [$id]);
+        if (!empty($pieceCounts['total'])) {
+            $qc['passed_qty'] = (float)$pieceCounts['passed'];
+            $qc['rejected_qty'] = (float)$pieceCounts['rejected'];
+            $qc['rework_qty'] = (float)$pieceCounts['rework'];
+        }
+
         $items = DB::fetchAll("
             SELECT qii.*, cat.name AS catalog_name, cat.hierarchy_path
             FROM qc_inspection_items qii
@@ -7383,6 +7497,20 @@ class ProductionController extends Controller {
             $this->flash('error', 'QC inspection record not found.');
             $this->redirect('/production/qc');
             return;
+        }
+
+        $pieceCounts = DB::fetch("
+            SELECT 
+                COUNT(*) AS total,
+                SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework
+            FROM qc_piece_items WHERE qc_id = ?
+        ", [$id]);
+        if (!empty($pieceCounts['total'])) {
+            $qc['passed_qty'] = (float)$pieceCounts['passed'];
+            $qc['rejected_qty'] = (float)$pieceCounts['rejected'];
+            $qc['rework_qty'] = (float)$pieceCounts['rework'];
         }
 
         $passedAdd   = max(0, (float)($_POST['passed_add'] ?? 0));
