@@ -76,7 +76,7 @@ class DamageController extends Controller {
         if ($sourceType === 'purchase') {
             $sql .= " AND origin.ref_module IN ('Purchase Inward', 'Purchase Inward Item')";
         } elseif ($sourceType === 'own') {
-            $sql .= " AND origin.ref_module IN ('Production Inward', 'Production Stock Adjustment')";
+            $sql .= " AND origin.ref_module IN ('Production Inward', 'Production Stock Adjustment', 'Production QC')";
         }
         $sql .= " ORDER BY cd.id DESC LIMIT 500";
         $damages = DB::fetchAll($sql, $params);

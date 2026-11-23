@@ -333,10 +333,13 @@ $router->get('/api/catalog-mapping/item-details', [CatalogMappingController::cla
 $router->get('/api/categories/subcategories', [ProductionController::class, 'getSubcategoriesAjax'], 'catalog_program', 'view');
 $router->get('/api/categories/subsubcategories', [ProductionController::class, 'getSubSubcategoriesAjax'], 'catalog_program', 'view');
 $router->post('/api/categories/quick-add', [ProductionController::class, 'quickAddCategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/categories/update', [ProductionController::class, 'updateCategoryAjax'], 'catalog_program', 'edit');
 $router->post('/api/categories/delete', [ProductionController::class, 'deleteCategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/subcategories/quick-add', [ProductionController::class, 'quickAddSubcategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/subcategories/update', [ProductionController::class, 'updateSubcategoryAjax'], 'catalog_program', 'edit');
 $router->post('/api/subcategories/delete', [ProductionController::class, 'deleteSubcategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/subsubcategories/quick-add', [ProductionController::class, 'quickAddSubSubcategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/subsubcategories/update', [ProductionController::class, 'updateSubSubcategoryAjax'], 'catalog_program', 'edit');
 $router->post('/api/subsubcategories/delete', [ProductionController::class, 'deleteSubSubcategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/attributes/quick-add', [ProductionController::class, 'quickAddAttributeAjax'], 'catalog_program', 'add');
 $router->post('/api/attributes/delete', [ProductionController::class, 'deleteAttributeAjax'], 'catalog_program', 'delete');
@@ -409,8 +412,8 @@ $router->get('/production/qc/export', [ProductionController::class, 'exportQc'],
 $router->post('/production/qc/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
 $router->post('/production/qc/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
 $router->post('/production/qc/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit');
-$router->post('/production/qc/update-piece', [ProductionController::class, 'updateQcPiece'], 'qc_stocks', 'edit');
-$router->post('/production/qc/pass-all', [ProductionController::class, 'passAllQcPieces'], 'qc_stocks', 'edit');
+$router->post('/production/qc/update-piece', [ProductionController::class, 'updateQcPiece'], 'qc_stocks', 'edit|add');
+$router->post('/production/qc/pass-all', [ProductionController::class, 'passAllQcPieces'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/delete', [ProductionController::class, 'deleteQc'], 'qc_stocks', 'delete');
 $router->post('/production/qc/reinspect', [ProductionController::class, 'reinspectQc'], 'qc_stocks', 'edit');
 $router->get('/api/qc/stitching-details', [ProductionController::class, 'apiStitchingDetailsForQc'], 'qc_stocks', 'view');
@@ -419,12 +422,13 @@ $router->get('/m/qc_stocks', [ProductionController::class, 'qc'], 'qc_stocks', '
 $router->get('/m/qc_stocks/create', [ProductionController::class, 'createQc'], 'qc_stocks', 'add');
 $router->get('/m/qc_stocks/view', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/m/qc_stocks/details', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
-$router->get('/m/qc_stocks/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit');
+$router->get('/m/qc_stocks/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit|add');
 $router->get('/m/qc_stocks/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'export');
 $router->post('/m/qc_stocks/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
 $router->post('/m/qc_stocks/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
-$router->post('/m/qc_stocks/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit');
-$router->post('/m/qc_stocks/delete', [ProductionController::class, 'deleteQc'], 'qc_stocks', 'delete');
+$router->post('/m/qc_stocks/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit|add');
+$router->post('/m/qc_stocks/update-piece', [ProductionController::class, 'updateQcPiece'], 'qc_stocks', 'edit|add');
+$router->post('/m/qc_stocks/pass-all', [ProductionController::class, 'passAllQcPieces'], 'qc_stocks', 'edit|add');
 $router->post('/m/qc_stocks/reinspect', [ProductionController::class, 'reinspectQc'], 'qc_stocks', 'edit');
 
 // Finance & Accounts

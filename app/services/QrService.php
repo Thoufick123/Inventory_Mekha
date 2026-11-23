@@ -95,7 +95,7 @@ class QrService {
         ];
     }
 
-    /** Build the GRM hierarchy code with a zero-padded minimum two-digit variant ID. */
+    /** Build the GRM hierarchy code with a zero-padded minimum three-digit variant ID. */
     public static function formatFinishedGoodsCode(
         int $variantId,
         ?string $categoryCode,
@@ -113,11 +113,12 @@ class QrService {
         $subcategoryKey = self::hierarchyKey($subcategoryCode, $subcategoryName);
         $subSubcategoryKey = self::hierarchyKey($subSubcategoryCode, $subSubcategoryName);
 
+        // Format: Brand(GRM) + Category(2) + Subcategory(2) + SubSubcategory(2) + VariantID(3-digit padded e.g. 001)
         return self::FINISHED_GOODS_CODE_PREFIX
             . $categoryKey
             . $subcategoryKey
             . $subSubcategoryKey
-            . str_pad((string)$variantId, 2, '0', STR_PAD_LEFT);
+            . str_pad((string)$variantId, 3, '0', STR_PAD_LEFT);
     }
 
     public static function generateFinishedGoodsCode(int $variantId): ?string {

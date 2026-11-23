@@ -60,6 +60,81 @@ class PurchaseDamageService {
             UNIQUE KEY `uq_pdr_concern_reason` (`concern_id`, `reason`),
             CONSTRAINT `fk_pdr_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        self::backfillRollDamageItemIds();
+    }
+
+    public static function backfillRollDamageItemIds(?int $concernId = null): void {
+        try {
+            $where = "item_type = 'rolls' AND (purchase_bill_item_id IS NULL OR purchase_bill_item_id = 0)";
+            $params = [];
+            if ($concernId) {
+                $where .= " AND concern_id = ?";
+                $params[] = $concernId;
+            }
+            $unlinked = DB::fetchAll("SELECT id, concern_id, tag_code, roll_source_color, roll_source_design_name, item_name, item_code FROM purchase_damage_quarantine WHERE {$where}", $params);
+            if (empty($unlinked)) {
+                return;
+            }
+
+            foreach ($unlinked as $u) {
+                $uCid = (int)$u['concern_id'];
+                $uTag = strtoupper(trim((string)$u['tag_code']));
+                $uColor = strtoupper(trim((string)$u['roll_source_color']));
+                $uDesign = strtoupper(trim((string)$u['roll_source_design_name']));
+                $uItemName = strtoupper(trim((string)$u['item_name']));
+
+                $pbiList = DB::fetchAll(
+                    "SELECT id, item_code, item_name, color, pattern, specification 
+                     FROM purchase_bill_items 
+                     WHERE concern_id = ? AND section_type = 'rolls' 
+                     ORDER BY id DESC",
+                    [$uCid]
+                );
+
+                $matchedPbiId = null;
+                // First pass: Match by tag_code or item_code
+                foreach ($pbiList as $pbi) {
+                    $candTag = strtoupper(trim(QrService::generateTagCode(
+                        $pbi['item_name'] ?: 'Fabric',
+                        $pbi['color'] ?? '',
+                        $pbi['pattern'] ?: ($pbi['specification'] ?? ''),
+                        (string)$pbi['id']
+                    )));
+                    $pbiCode = strtoupper(trim((string)$pbi['item_code']));
+                    if (($uTag !== '' && ($candTag === $uTag || $pbiCode === $uTag)) ||
+                        ($u['item_code'] && $pbiCode === strtoupper(trim((string)$u['item_code'])))) {
+                        $matchedPbiId = (int)$pbi['id'];
+                        break;
+                    }
+                }
+
+                // Second pass: Match by Color & Design/Pattern or Item Name
+                if (!$matchedPbiId) {
+                    foreach ($pbiList as $pbi) {
+                        $pbiColor = strtoupper(trim((string)$pbi['color']));
+                        $pbiDesign = strtoupper(trim((string)($pbi['pattern'] ?: $pbi['item_name'])));
+                        $pbiName = strtoupper(trim((string)$pbi['item_name']));
+
+                        if ($uColor !== '' && $pbiColor === $uColor) {
+                            if (($uDesign !== '' && $pbiDesign === $uDesign) || ($uItemName !== '' && $pbiName === $uItemName)) {
+                                $matchedPbiId = (int)$pbi['id'];
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ($matchedPbiId) {
+                    DB::query(
+                        "UPDATE purchase_damage_quarantine SET purchase_bill_item_id = ? WHERE id = ?",
+                        [$matchedPbiId, (int)$u['id']]
+                    );
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently ignore backfill errors
+        }
     }
 
     public static function getDamageReasons(int $concernId): array {
@@ -212,7 +287,7 @@ class PurchaseDamageService {
                     'unit_weight' => $row && (float)$row['qty'] > 0 ? (float)$row['net_weight'] / (float)$row['qty'] : 0.0,
                     'unit_loss' => $row && (float)$row['qty'] > 0 ? (float)$row['total_value'] / (float)$row['qty'] : 0.0,
                     'supplier_name' => $item['supplier_name'] ?? '',
-                    'purchase_bill_item_id' => null,
+                    'purchase_bill_item_id' => (int)$item['id'],
                     'variant_id' => null,
                     'roll_row' => $row,
                     'source_items' => [],
@@ -417,7 +492,7 @@ class PurchaseDamageService {
                     if (!$saved) {
                         throw new RuntimeException('Could not update the consolidated roll stock. Please retry.');
                     }
-                    self::insertQuarantineRow($concernId, $damageNo, $item, null, null, $qty, $weight, $loss, $reason, $notes, $userId);
+                    self::insertQuarantineRow($concernId, $damageNo, $item, $item['purchase_bill_item_id'] ?? null, null, $qty, $weight, $loss, $reason, $notes, $userId);
                     $damagedWeight += $weight;
                     $estimatedLoss += $loss;
                     $savedCount += $qty;

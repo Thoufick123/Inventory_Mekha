@@ -1156,8 +1156,9 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                             <div class="d-flex align-items-center gap-3 pt-2">
                                                 <div class="d-flex align-items-center justify-content-center bg-white flex-shrink-0" style="width:76px;height:76px;" id="prod_qr_box"></div>
                                                 <div class="flex-grow-1 overflow-hidden" style="line-height:1.35;font-size:0.76rem;">
-                                                    <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" style="font-size:0.72rem;letter-spacing:0.02em;" id="prod_preview_title">Production Garment</div>
-                                                    <div class="text-truncate"><span class="text-secondary">Design:</span> <strong class="text-dark text-uppercase" id="prod_preview_design">-</strong></div>
+                                                    <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" style="font-size:0.78rem;letter-spacing:0.02em;" id="prod_preview_title">Production Garment</div>
+                                                    <div class="text-truncate"><span class="text-secondary">Product:</span> <strong class="text-dark" id="prod_preview_cat">Apparel</strong></div>
+                                                    <div class="text-truncate"><span class="text-secondary">Color:</span> <strong class="text-dark text-uppercase" id="prod_preview_color">STANDARD</strong></div>
                                                     <div class="text-truncate"><span class="text-secondary">Size:</span> <strong class="text-dark text-uppercase fw-bold" id="prod_preview_size">FREE</strong></div>
                                                     <div class="text-truncate"><span class="text-secondary">Price:</span> <strong class="text-success fw-bold" id="prod_preview_price">&#8377;0.00</strong></div>
                                                     <div class="text-truncate"><span class="text-secondary">Product Code:</span> <strong class="font-monospace text-primary fw-bold" id="prod_preview_code_tag">Select variant</strong></div>
@@ -1954,6 +1955,8 @@ function updateProdPreview() {
         if (document.getElementById('prod_preview_ref')) document.getElementById('prod_preview_ref').textContent = ref;
         if (document.getElementById('prod_preview_size_badge')) document.getElementById('prod_preview_size_badge').textContent = size;
         if (document.getElementById('prod_preview_title')) document.getElementById('prod_preview_title').textContent = opt.dataset.name || 'Production Garment';
+        if (document.getElementById('prod_preview_cat')) document.getElementById('prod_preview_cat').textContent = opt.dataset.cat || 'Apparel';
+        if (document.getElementById('prod_preview_color')) document.getElementById('prod_preview_color').textContent = (opt.dataset.color || 'STANDARD').toUpperCase();
         if (document.getElementById('prod_preview_size')) document.getElementById('prod_preview_size').textContent = size;
         if (document.getElementById('prod_preview_price')) document.getElementById('prod_preview_price').textContent = '₹' + price.toFixed(2);
         if (document.getElementById('prod_preview_code_tag')) document.getElementById('prod_preview_code_tag').textContent = tag || 'Variant required';
@@ -1972,6 +1975,8 @@ function updateProdPreview() {
         if (document.getElementById('prod_preview_ref')) document.getElementById('prod_preview_ref').textContent = 'PP-REF';
         if (document.getElementById('prod_preview_size_badge')) document.getElementById('prod_preview_size_badge').textContent = 'FREE';
         if (document.getElementById('prod_preview_title')) document.getElementById('prod_preview_title').textContent = 'Select Stitched Batch';
+        if (document.getElementById('prod_preview_cat')) document.getElementById('prod_preview_cat').textContent = 'Apparel';
+        if (document.getElementById('prod_preview_color')) document.getElementById('prod_preview_color').textContent = 'STANDARD';
         if (document.getElementById('prod_preview_size')) document.getElementById('prod_preview_size').textContent = 'FREE';
         if (document.getElementById('prod_preview_price')) document.getElementById('prod_preview_price').textContent = '₹0.00';
         if (document.getElementById('prod_preview_code_tag')) document.getElementById('prod_preview_code_tag').textContent = 'Select variant';

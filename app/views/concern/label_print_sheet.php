@@ -419,7 +419,7 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($pVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label"><?= $isLabelFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
+                                <span class="detail-label">Product Code:</span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tCode) ?></span>
                             </div>
                         <?php else: ?>
@@ -496,6 +496,7 @@ if (!empty($multiLabels)) {
                         <?php if (!empty($headerTitle)): ?>
                             <div class="label-item-title"><?= htmlspecialchars($headerTitle) ?></div>
                         <?php endif; ?>
+<<<<<<< HEAD
                         <?php if ($isPurchaseFinishedGoods): ?>
                             <div class="label-detail-row">
                                 <span class="detail-label"><?= htmlspecialchars($label1Name) ?>:</span>
@@ -519,6 +520,22 @@ if (!empty($multiLabels)) {
                             </div>
                         <?php elseif ($isProduction): ?>
                             <!-- PRODUCTION: Clean layout without Program or Color, Size instead of Design -->
+=======
+                        <?php if ($isProduction): ?>
+                            <!-- PRODUCTION: Exact finished goods format (Image 1) -->
+                            <?php if (!empty($labelData['category_name'])): ?>
+                                <div class="label-detail-row">
+                                    <span class="detail-label">Product:</span>
+                                    <span class="detail-val"><?= htmlspecialchars($labelData['category_name']) ?></span>
+                                </div>
+                            <?php endif; ?>
+                            <?php if (!empty($label2Val) && strtoupper($label2Val) !== 'STANDARD'): ?>
+                                <div class="label-detail-row">
+                                    <span class="detail-label">Color:</span>
+                                    <span class="detail-val text-uppercase"><?= htmlspecialchars($label2Val) ?></span>
+                                </div>
+                            <?php endif; ?>
+>>>>>>> d9e2033c51e5ecb6d65452248a34c05106a2da46
                             <div class="label-detail-row">
                                 <span class="detail-label">Size:</span>
                                 <span class="detail-val text-uppercase fw-bold"><?= htmlspecialchars($sSize) ?></span>
@@ -528,7 +545,7 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($priceVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label"><?= $isFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
+                                <span class="detail-label">Product Code:</span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tagCode) ?></span>
                             </div>
                         <?php else: ?>

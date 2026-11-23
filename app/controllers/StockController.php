@@ -16,7 +16,10 @@ class StockController extends Controller {
         $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp, v.catalog_id,
                        v.category_id, v.subcategory_id, v.is_complementary,
                        v.attributes AS variant_attributes,
-                       c.name AS category_name, sub.name AS subcategory_name,
+                       COALESCE(c.name, 'General') AS category_name, 
+                       COALESCE(sub.name, ssc.name, '-') AS subcategory_name,
+                       ssc.name AS sub_subcategory_name,
+                       cat.style_code, cat.short_code AS whole_code, cat.hierarchy_path, cat.hsn_code AS catalog_hsn,
                        con.name AS concern_name, con.code AS concern_code,
                        (SELECT pbi.id
                         FROM purchase_bill_items pbi
@@ -36,16 +39,44 @@ class StockController extends Controller {
                        CASE COALESCE(latest_inbound.ref_module, latest_variant_source.ref_module)
                            WHEN 'Production Inward' THEN 'own'
                            WHEN 'Production Stock Adjustment' THEN 'own'
+                           WHEN 'Production QC' THEN 'own'
                            WHEN 'Purchase Inward' THEN 'purchase'
                            WHEN 'Purchase Inward Item' THEN 'purchase'
                            WHEN 'Purchase Stock Adjustment' THEN 'purchase'
-                           ELSE 'other'
+                           ELSE CASE
+                               WHEN EXISTS (
+                                   SELECT 1 FROM stock_ledger sl_prod 
+                                   WHERE sl_prod.concern_id = s.concern_id 
+                                     AND sl_prod.variant_id = s.variant_id 
+                                     AND sl_prod.ref_module IN ('Production QC', 'Production Inward', 'Production Stock Adjustment')
+                               ) THEN 'own'
+                               WHEN EXISTS (
+                                   SELECT 1 FROM qc_inspection_items qii_chk 
+                                   WHERE qii_chk.variant_id = s.variant_id
+                               ) THEN 'own'
+                               WHEN EXISTS (
+                                   SELECT 1 FROM stitching_items sti_chk 
+                                   WHERE sti_chk.variant_id = s.variant_id
+                               ) THEN 'own'
+                               WHEN EXISTS (
+                                   SELECT 1 FROM batches b_chk 
+                                   WHERE b_chk.variant_id = s.variant_id
+                               ) THEN 'own'
+                               WHEN EXISTS (
+                                   SELECT 1 FROM purchase_bill_items pbi_chk
+                                   WHERE pbi_chk.concern_id = s.concern_id
+                                     AND (pbi_chk.variant_id = v.id OR (v.catalog_id IS NOT NULL AND pbi_chk.catalog_id = v.catalog_id))
+                               ) THEN 'purchase'
+                               ELSE 'other'
+                           END
                        END AS stock_source
                 FROM stocks s
                 JOIN variants v ON s.variant_id = v.id
+                LEFT JOIN catalogs cat ON v.catalog_id = cat.id
                 LEFT JOIN concerns con ON s.concern_id = con.id
-                LEFT JOIN categories c ON v.category_id = c.id
-                LEFT JOIN subcategories sub ON v.subcategory_id = sub.id
+                LEFT JOIN categories c ON COALESCE(v.category_id, cat.category_id) = c.id
+                LEFT JOIN subcategories sub ON COALESCE(v.subcategory_id, cat.subcategory_id) = sub.id
+                LEFT JOIN sub_subcategories ssc ON cat.sub_sub_category_id = ssc.id
                 LEFT JOIN (
                     SELECT inbound.concern_id, inbound.variant_id, inbound.location, inbound.ref_module, inbound.ref_id
                     FROM stock_ledger inbound
@@ -54,7 +85,7 @@ class StockController extends Controller {
                         FROM stock_ledger
                         WHERE qty_in > 0
                           AND ref_module IN (
-                              'Production Inward', 'Production Stock Adjustment',
+                              'Production Inward', 'Production Stock Adjustment', 'Production QC',
                               'Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'
                           )
                         GROUP BY concern_id, variant_id, location
@@ -71,7 +102,7 @@ class StockController extends Controller {
                         FROM stock_ledger
                         WHERE qty_in > 0
                           AND ref_module IN (
-                              'Production Inward', 'Production Stock Adjustment',
+                              'Production Inward', 'Production Stock Adjustment', 'Production QC',
                               'Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'
                           )
                         GROUP BY concern_id, variant_id
@@ -150,10 +181,18 @@ class StockController extends Controller {
             }
 
             $variant = DB::fetch(
-                "SELECT v.*, c.name AS category_name, sub.name AS subcategory_name, con.name AS concern_name, con.code AS concern_code
+                "SELECT v.*, 
+                        c.name AS category_name, c.code AS category_code,
+                        sub.name AS subcategory_name, sub.code AS subcategory_code,
+                        ssc.name AS sub_subcategory_name, ssc.code AS sub_subcategory_code,
+                        cat.id AS catalog_style_id, cat.style_code, cat.short_code AS whole_code, cat.name AS style_name,
+                        cat.hierarchy_path, cat.hsn_code AS catalog_hsn, cat.gst_rate AS catalog_gst_rate,
+                        con.name AS concern_name, con.code AS concern_code
                  FROM variants v
-                 LEFT JOIN categories c ON v.category_id = c.id
-                 LEFT JOIN subcategories sub ON v.subcategory_id = sub.id
+                 LEFT JOIN catalogs cat ON v.catalog_id = cat.id
+                 LEFT JOIN categories c ON COALESCE(v.category_id, cat.category_id) = c.id
+                 LEFT JOIN subcategories sub ON COALESCE(v.subcategory_id, cat.subcategory_id) = sub.id
+                 LEFT JOIN sub_subcategories ssc ON cat.sub_sub_category_id = ssc.id
                  LEFT JOIN concerns con ON v.concern_id = con.id
                  WHERE v.id = ?" . ($concernId ? " AND v.concern_id = ?" : ""),
                 $concernId ? [$variantId, $concernId] : [$variantId]
@@ -165,6 +204,52 @@ class StockController extends Controller {
             }
 
             $concernId = (int)$variant['concern_id'];
+
+            // Attempt to resolve catalog if catalog_id was missing on variant
+            $catId = (int)($variant['catalog_id'] ?? ($variant['catalog_style_id'] ?? 0));
+            if (!$catId && !empty($variant['sku_code'])) {
+                $lastDash = strrpos($variant['sku_code'], '-');
+                $candidateStyleCode = $lastDash !== false ? substr($variant['sku_code'], 0, $lastDash) : $variant['sku_code'];
+                $matchedCat = DB::fetch(
+                    "SELECT cat.*, c.name AS category_name, sub.name AS subcategory_name, ssc.name AS sub_subcategory_name
+                     FROM catalogs cat
+                     LEFT JOIN categories c ON cat.category_id = c.id
+                     LEFT JOIN subcategories sub ON cat.subcategory_id = sub.id
+                     LEFT JOIN sub_subcategories ssc ON cat.sub_sub_category_id = ssc.id
+                     WHERE (cat.style_code = ? OR cat.code = ?) " . ($concernId ? "AND (cat.concern_id = ? OR cat.concern_id = 1 OR cat.concern_id IS NULL) " : "") . "LIMIT 1",
+                    $concernId ? [$candidateStyleCode, $candidateStyleCode, $concernId] : [$candidateStyleCode, $candidateStyleCode]
+                );
+                if ($matchedCat) {
+                    $catId = (int)$matchedCat['id'];
+                    $variant['catalog_id'] = $catId;
+                    $variant['style_code'] = $matchedCat['style_code'];
+                    $variant['whole_code'] = $matchedCat['short_code'];
+                    $variant['style_name'] = $matchedCat['name'];
+                    $variant['hierarchy_path'] = $matchedCat['hierarchy_path'];
+                    $variant['catalog_hsn'] = $matchedCat['hsn_code'];
+                    $variant['catalog_gst_rate'] = $matchedCat['gst_rate'];
+                    if (empty($variant['category_name']) || $variant['category_name'] === 'General') {
+                        $variant['category_name'] = $matchedCat['category_name'];
+                    }
+                    if (empty($variant['subcategory_name']) || $variant['subcategory_name'] === '-') {
+                        $variant['subcategory_name'] = $matchedCat['subcategory_name'];
+                    }
+                    if (empty($variant['sub_sub_category_name']) || $variant['sub_sub_category_name'] === '-') {
+                        $variant['sub_sub_category_name'] = $matchedCat['sub_sub_category_name'];
+                    }
+                }
+            }
+
+            // Fallback for subcategory from hierarchy_path
+            if ((empty($variant['subcategory_name']) || $variant['subcategory_name'] === '-') && !empty($variant['hierarchy_path'])) {
+                $hpParts = array_map('trim', explode('>', $variant['hierarchy_path']));
+                if (!empty($hpParts[1])) {
+                    $variant['subcategory_name'] = $hpParts[1];
+                }
+                if (!empty($hpParts[2])) {
+                    $variant['sub_sub_category_name'] = $hpParts[2];
+                }
+            }
 
             $stock = null;
             if ($location !== '') {
@@ -192,7 +277,243 @@ class StockController extends Controller {
             $variantAttributes = json_decode((string)($variant['attributes'] ?? ''), true);
             $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
 
-            $catId = (int)($variant['catalog_id'] ?? 0);
+            // Resolve Color / Shade
+            $color = trim((string)($variantAttributes['color'] ?? ''));
+            if ($color === '') {
+                $qcColor = DB::fetchValue(
+                    "SELECT color FROM qc_inspection_items WHERE variant_id = ? AND color IS NOT NULL AND color != '' ORDER BY id DESC LIMIT 1",
+                    [$variantId]
+                );
+                if ($qcColor) {
+                    $color = trim((string)$qcColor);
+                }
+            }
+            if ($color === '') {
+                $stColor = DB::fetchValue(
+                    "SELECT color FROM stitching_items WHERE variant_id = ? AND color IS NOT NULL AND color != '' ORDER BY id DESC LIMIT 1",
+                    [$variantId]
+                );
+                if ($stColor) {
+                    $color = trim((string)$stColor);
+                }
+            }
+            if ($color === '') {
+                $ctColor = DB::fetchValue(
+                    "SELECT color FROM cutting_items WHERE (variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND color != '' ORDER BY id DESC LIMIT 1",
+                    [$variantId, $catId]
+                );
+                if ($ctColor) {
+                    $color = trim((string)$ctColor);
+                }
+            }
+            if ($color === '') {
+                $progColor = DB::fetchValue(
+                    "SELECT color FROM production_programs WHERE (target_variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND color != '' ORDER BY id DESC LIMIT 1",
+                    [$variantId, $catId]
+                );
+                if ($progColor) {
+                    $color = trim((string)$progColor);
+                }
+            }
+            if ($color === '') {
+                if (preg_match('/\(([^)]+)\)/', $variant['name'], $m)) {
+                    $color = trim($m[1]);
+                }
+            }
+
+            // Resolve HSN Code
+            $hsn = trim((string)($variantAttributes['hsn'] ?? ''));
+            if ($hsn === '' && !empty($variant['hsn_code'])) {
+                $hsn = trim((string)$variant['hsn_code']);
+            }
+            if ($hsn === '' && !empty($variant['catalog_hsn'])) {
+                $hsn = trim((string)$variant['catalog_hsn']);
+            }
+            if ($hsn === '') {
+                $catHsn = DB::fetchValue("SELECT hsn_code FROM categories WHERE id = ?", [$variant['category_id'] ?: 0]);
+                if ($catHsn) {
+                    $hsn = trim((string)$catHsn);
+                }
+            }
+
+            // Resolve GST Rate
+            $gstRate = isset($variant['catalog_gst_rate']) && $variant['catalog_gst_rate'] !== null ? (float)$variant['catalog_gst_rate'] : null;
+            if ($gstRate === null) {
+                $catGst = DB::fetchValue("SELECT gst_rate FROM categories WHERE id = ?", [$variant['category_id'] ?: 0]);
+                if ($catGst !== false && $catGst !== null) {
+                    $gstRate = (float)$catGst;
+                }
+            }
+
+            // QR Code Data
+            $qrPayload = \App\Services\QrService::generateFinishedGoodsCode($variantId);
+            if (!$qrPayload) {
+                $qrPayload = $variant['sku_code'];
+            }
+            $qrData = [
+                'payload'    => $qrPayload,
+                'tag_code'   => $qrPayload,
+                'sku_code'   => $variant['sku_code'],
+                'whole_code' => $variant['whole_code'] ?? '',
+                'style_code' => $variant['style_code'] ?? '',
+                'print_url'  => \App\Core\Controller::url('/m/label_generation?variant_id=' . $variantId),
+            ];
+
+            // Production & Manufacturing Journey Data
+            $qcRecord = DB::fetch(
+                "SELECT qi.*, u.name AS inspector_name,
+                        qii.color AS item_color, qii.size AS item_size, qii.inspected_qty AS item_inspected_qty,
+                        qii.passed_qty AS item_passed_qty, qii.rejected_qty AS item_rejected_qty,
+                        qii.rework_qty AS item_rework_qty, qii.defect_notes AS item_defect_notes
+                 FROM qc_inspections qi
+                 JOIN qc_inspection_items qii ON qii.qc_id = qi.id
+                 LEFT JOIN users u ON qi.inspector_id = u.id
+                 WHERE qii.variant_id = ?
+                 ORDER BY qi.id DESC LIMIT 1",
+                [$variantId]
+            );
+
+            $stitchingRecord = DB::fetch(
+                "SELECT sl.*, sm.name AS master_tailor_name, sm.phone AS tailor_phone,
+                        si.color AS item_color, si.size AS item_size, si.stitching_qty AS item_stitched_qty,
+                        si.cut_qty AS item_cut_qty, si.per_pc_weight, si.total_weight AS item_total_weight
+                 FROM stitching_logs sl
+                 JOIN stitching_items si ON si.stitching_id = sl.id
+                 LEFT JOIN stitching_masters sm ON sl.tailor_id = sm.id
+                 WHERE si.variant_id = ?
+                 ORDER BY sl.id DESC LIMIT 1",
+                [$variantId]
+            );
+
+            $cuttingId = $stitchingRecord['cutting_id'] ?? ($qcRecord['cutting_batch_id'] ?? null);
+            $cuttingRecord = null;
+            if ($cuttingId) {
+                $cuttingRecord = DB::fetch(
+                    "SELECT cl.*, ci.cut_qty AS item_cut_qty, ci.color AS item_color
+                     FROM cutting_logs cl
+                     LEFT JOIN cutting_items ci ON ci.cutting_id = cl.id AND (ci.variant_id = ? OR (ci.catalog_id IS NOT NULL AND ci.catalog_id = ?))
+                     WHERE cl.id = ? LIMIT 1",
+                    [$variantId, $catId, $cuttingId]
+                );
+            }
+            if (!$cuttingRecord) {
+                $cuttingRecord = DB::fetch(
+                    "SELECT cl.*, ci.cut_qty AS item_cut_qty, ci.color AS item_color
+                     FROM cutting_logs cl
+                     JOIN cutting_items ci ON ci.cutting_id = cl.id
+                     WHERE ci.variant_id = ?
+                     ORDER BY cl.id DESC LIMIT 1",
+                    [$variantId]
+                );
+            }
+
+            $programId = $qcRecord['program_id'] ?? ($stitchingRecord['program_id'] ?? ($cuttingRecord['program_id'] ?? null));
+            $programRecord = null;
+            if ($programId) {
+                $programRecord = DB::fetch(
+                    "SELECT pp.*, c.name AS catalog_name, con.name AS concern_name
+                     FROM production_programs pp
+                     LEFT JOIN catalogs c ON pp.catalog_id = c.id
+                     LEFT JOIN concerns con ON pp.concern_id = con.id
+                     WHERE pp.id = ? LIMIT 1",
+                    [$programId]
+                );
+            }
+
+            $batchRecord = DB::fetch(
+                "SELECT b.*, con.name AS concern_name
+                 FROM batches b
+                 LEFT JOIN concerns con ON b.concern_id = con.id
+                 WHERE b.variant_id = ?
+                 ORDER BY b.id DESC LIMIT 1",
+                [$variantId]
+            );
+
+            $prodLedger = DB::fetch(
+                "SELECT sl.*, u.name AS user_name
+                 FROM stock_ledger sl
+                 LEFT JOIN users u ON sl.created_by = u.id
+                 WHERE sl.variant_id = ? AND sl.concern_id = ? AND sl.ref_module IN ('Production QC', 'Production Inward', 'Production Stock Adjustment')
+                 ORDER BY sl.id DESC LIMIT 1",
+                [$variantId, $concernId]
+            );
+
+            $productionJourney = null;
+            if ($qcRecord || $stitchingRecord || $cuttingRecord || $programRecord || $batchRecord || $catId > 0) {
+                $productionJourney = [
+                    'has_production' => true,
+                    'catalog' => [
+                        'id'             => $catId,
+                        'style_code'     => $variant['style_code'] ?? '-',
+                        'style_name'     => $variant['style_name'] ?? $variant['name'],
+                        'whole_code'     => $variant['whole_code'] ?? '-',
+                        'hierarchy_path' => $variant['hierarchy_path'] ?? '-',
+                    ],
+                    'program' => $programRecord ? [
+                        'id'           => (int)$programRecord['id'],
+                        'program_no'   => $programRecord['program_no'],
+                        'style_name'   => $programRecord['style_name'] ?: ($variant['style_name'] ?? '-'),
+                        'order_qty'    => (float)$programRecord['order_qty'],
+                        'status'       => $programRecord['status'] ?: 'Completed',
+                        'start_date'   => $programRecord['start_date'] ?: null,
+                        'delivery_date'=> $programRecord['delivery_date'] ?: null,
+                    ] : null,
+                    'cutting' => $cuttingRecord ? [
+                        'id'              => (int)$cuttingRecord['id'],
+                        'batch_no'        => $cuttingRecord['batch_no'],
+                        'master_name'     => $cuttingRecord['cutting_master_name'] ?: ($cuttingRecord['cutting_name'] ?: 'Master Cutter'),
+                        'cut_pieces'      => (float)($cuttingRecord['item_cut_qty'] ?: $cuttingRecord['cut_pieces']),
+                        'total_cut_pieces'=> (float)$cuttingRecord['cut_pieces'],
+                        'fabric_consumed' => (float)($cuttingRecord['consumed_qty'] ?: $cuttingRecord['total_roll_weight']),
+                        'cost_per_piece'  => (float)($cuttingRecord['fabric_cost_per_piece'] ?? 0),
+                        'status'          => $cuttingRecord['status'] ?: 'Completed',
+                        'date'            => $cuttingRecord['created_at'],
+                    ] : null,
+                    'stitching' => $stitchingRecord ? [
+                        'id'              => (int)$stitchingRecord['id'],
+                        'batch_no'        => $stitchingRecord['batch_no'],
+                        'tailor_name'     => $stitchingRecord['tailor_name'] ?: ($stitchingRecord['master_tailor_name'] ?: 'Production Tailor'),
+                        'tailor_phone'    => $stitchingRecord['tailor_phone'] ?: '-',
+                        'machine_no'      => $stitchingRecord['machine_no'] ?: '-',
+                        'stitched_pieces' => (float)($stitchingRecord['item_stitched_qty'] ?: $stitchingRecord['stitched_pieces']),
+                        'total_stitched'  => (float)$stitchingRecord['stitched_pieces'],
+                        'stitch_weight'   => (float)($stitchingRecord['item_total_weight'] ?: $stitchingRecord['stitch_weight']),
+                        'status'          => $stitchingRecord['status'] ?: 'Completed',
+                        'date'            => $stitchingRecord['created_at'],
+                    ] : null,
+                    'qc' => $qcRecord ? [
+                        'id'              => (int)$qcRecord['id'],
+                        'qc_no'           => $qcRecord['qc_no'],
+                        'inspector_name'  => $qcRecord['inspector_name'] ?: 'Quality Inspector',
+                        'status'          => $qcRecord['status'] ?: 'PASSED',
+                        'inspected_qty'   => (float)($qcRecord['item_inspected_qty'] ?: $qcRecord['inspected_qty']),
+                        'passed_qty'      => (float)($qcRecord['item_passed_qty'] ?: $qcRecord['passed_qty']),
+                        'rework_qty'      => (float)($qcRecord['item_rework_qty'] ?: $qcRecord['rework_qty']),
+                        'rejected_qty'    => (float)($qcRecord['item_rejected_qty'] ?: $qcRecord['rejected_qty']),
+                        'location'        => $qcRecord['location'] ?: 'Main Store',
+                        'defect_notes'    => $qcRecord['defect_notes'] ?: ($qcRecord['item_defect_notes'] ?: ''),
+                        'date'            => $qcRecord['created_at'],
+                    ] : null,
+                    'batch' => $batchRecord ? [
+                        'id'              => (int)$batchRecord['id'],
+                        'batch_no'        => $batchRecord['batch_no'],
+                        'batch_qty'       => (float)$batchRecord['batch_qty'],
+                        'warehouse_name'  => $batchRecord['warehouse_name'] ?: 'Main Store',
+                        'status'          => $batchRecord['status'] ?: 'APPROVED',
+                        'mfg_date'        => $batchRecord['mfg_date'] ?: null,
+                    ] : null,
+                    'ledger' => $prodLedger ? [
+                        'module'          => $prodLedger['ref_module'],
+                        'ref_id'          => $prodLedger['ref_id'],
+                        'qty_in'          => (float)$prodLedger['qty_in'],
+                        'note'            => $prodLedger['note'] ?: '-',
+                        'created_at'      => $prodLedger['created_at'],
+                        'user_name'       => $prodLedger['user_name'] ?: 'System',
+                    ] : null,
+                ];
+            }
+
+            // Purchase bill details
             $purchaseBill = DB::fetch(
                 "SELECT pbi.id AS purchase_item_id, pbi.item_name, pbi.item_code, pbi.hsn_code AS item_hsn,
                         pbi.color AS item_color, pbi.specification AS item_spec, pbi.qty AS item_qty,
@@ -235,69 +556,78 @@ class StockController extends Controller {
             echo json_encode([
                 'success' => true,
                 'variant' => [
-                    'id' => (int)$variant['id'],
-                    'concern_id' => (int)$variant['concern_id'],
-                    'concern_name' => $variant['concern_name'] ?? 'Concern #' . $variant['concern_id'],
-                    'concern_code' => $variant['concern_code'] ?? '',
-                    'name' => $variant['name'],
-                    'sku_code' => $variant['sku_code'],
-                    'category_id' => $variant['category_id'] ? (int)$variant['category_id'] : null,
-                    'category_name' => $variant['category_name'] ?? 'General',
-                    'subcategory_id' => $variant['subcategory_id'] ? (int)$variant['subcategory_id'] : null,
-                    'subcategory_name' => $variant['subcategory_name'] ?? '-',
-                    'size' => $variant['size'] ?: 'Free',
-                    'weight' => (float)$variant['weight'],
-                    'weight_unit' => $variant['weight_unit'] ?: 'kg',
-                    'cost_price' => (float)$variant['cost_price'],
-                    'price' => (float)$variant['price'],
-                    'mrp' => (float)$variant['mrp'],
-                    'color' => (string)($variantAttributes['color'] ?? ''),
-                    'hsn' => (string)($variantAttributes['hsn'] ?? ''),
-                    'attributes' => $variantAttributes,
+                    'id'                    => (int)$variant['id'],
+                    'concern_id'            => (int)$variant['concern_id'],
+                    'concern_name'          => $variant['concern_name'] ?? 'Concern #' . $variant['concern_id'],
+                    'concern_code'          => $variant['concern_code'] ?? '',
+                    'name'                  => $variant['name'],
+                    'sku_code'              => $variant['sku_code'],
+                    'catalog_id'            => $catId ?: null,
+                    'style_code'            => $variant['style_code'] ?? '',
+                    'whole_code'            => $variant['whole_code'] ?? '',
+                    'style_name'            => $variant['style_name'] ?? '',
+                    'hierarchy_path'        => $variant['hierarchy_path'] ?? '',
+                    'category_id'           => $variant['category_id'] ? (int)$variant['category_id'] : null,
+                    'category_name'         => $variant['category_name'] ?? 'General',
+                    'subcategory_id'        => $variant['subcategory_id'] ? (int)$variant['subcategory_id'] : null,
+                    'subcategory_name'      => $variant['subcategory_name'] ?? '-',
+                    'sub_sub_category_name' => $variant['sub_sub_category_name'] ?? '-',
+                    'size'                  => $variant['size'] ?: 'Free',
+                    'weight'                => (float)$variant['weight'],
+                    'weight_unit'           => $variant['weight_unit'] ?: 'pcs',
+                    'cost_price'            => (float)$variant['cost_price'],
+                    'price'                 => (float)$variant['price'],
+                    'mrp'                   => (float)$variant['mrp'],
+                    'color'                 => $color !== '' ? $color : '-',
+                    'hsn'                   => $hsn !== '' ? $hsn : '-',
+                    'gst_rate'              => $gstRate,
+                    'attributes'            => $variantAttributes,
                 ],
                 'stock' => $stock ? [
-                    'location' => $stock['location'],
-                    'qty' => (float)$stock['qty'],
-                    'net_value' => (float)$stock['qty'] * (float)$variant['cost_price'],
+                    'location'              => $stock['location'],
+                    'qty'                   => (float)$stock['qty'],
+                    'net_value'             => (float)$stock['qty'] * (float)$variant['cost_price'],
                     'latest_inbound_module' => $stock['latest_inbound_module'],
                 ] : null,
-                'total_stock_qty' => (float)($totalStock['total_qty'] ?? 0),
-                'purchase_bill' => $purchaseBill ? [
-                    'bill_id' => (int)$purchaseBill['purchase_bill_id'],
-                    'bill_no' => $purchaseBill['bill_no'],
+                'total_stock_qty'    => (float)($totalStock['total_qty'] ?? 0),
+                'qr'                 => $qrData,
+                'production_journey' => $productionJourney,
+                'purchase_bill'      => $purchaseBill ? [
+                    'bill_id'             => (int)$purchaseBill['purchase_bill_id'],
+                    'bill_no'             => $purchaseBill['bill_no'],
                     'supplier_invoice_no' => $purchaseBill['supplier_invoice_no'] ?: '-',
-                    'bill_date' => $purchaseBill['bill_date'],
-                    'total_amount' => (float)$purchaseBill['bill_total'],
-                    'tax_amount' => (float)$purchaseBill['bill_tax'],
-                    'net_amount' => (float)$purchaseBill['bill_net'],
-                    'payment_status' => $purchaseBill['payment_status'] ?: 'Pending',
-                    'payment_method' => $purchaseBill['payment_method'] ?: 'Cash',
-                    'payment_reference' => $purchaseBill['payment_reference'] ?: '-',
-                    'notes' => $purchaseBill['bill_notes'] ?: '',
-                    'item_name' => $purchaseBill['item_name'],
-                    'item_code' => $purchaseBill['item_code'] ?: '-',
-                    'item_hsn' => $purchaseBill['item_hsn'] ?: '-',
-                    'item_color' => $purchaseBill['item_color'] ?: '-',
-                    'item_spec' => $purchaseBill['item_spec'] ?: '-',
-                    'item_qty' => (float)$purchaseBill['item_qty'],
-                    'item_unit_price' => (float)$purchaseBill['item_unit_price'],
-                    'item_gst_rate' => (float)$purchaseBill['item_gst_rate'],
-                    'item_gst_type' => $purchaseBill['item_gst_type'] ?: 'Standard',
-                    'item_tax_mode' => $purchaseBill['item_tax_mode'] ?: 'Exclude GST',
-                    'item_tax_amount' => (float)$purchaseBill['item_tax_amount'],
-                    'item_total_price' => (float)$purchaseBill['item_total_price'],
-                    'attachments' => $attachments,
-                    'supplier' => [
-                        'id' => (int)$purchaseBill['supplier_id'],
-                        'name' => $purchaseBill['supplier_name'] ?: 'Unknown Vendor',
+                    'bill_date'           => $purchaseBill['bill_date'],
+                    'total_amount'        => (float)$purchaseBill['bill_total'],
+                    'tax_amount'          => (float)$purchaseBill['bill_tax'],
+                    'net_amount'          => (float)$purchaseBill['bill_net'],
+                    'payment_status'      => $purchaseBill['payment_status'] ?: 'Pending',
+                    'payment_method'      => $purchaseBill['payment_method'] ?: 'Cash',
+                    'payment_reference'   => $purchaseBill['payment_reference'] ?: '-',
+                    'notes'               => $purchaseBill['bill_notes'] ?: '',
+                    'item_name'           => $purchaseBill['item_name'],
+                    'item_code'           => $purchaseBill['item_code'] ?: '-',
+                    'item_hsn'            => $purchaseBill['item_hsn'] ?: '-',
+                    'item_color'          => $purchaseBill['item_color'] ?: '-',
+                    'item_spec'           => $purchaseBill['item_spec'] ?: '-',
+                    'item_qty'            => (float)$purchaseBill['item_qty'],
+                    'item_unit_price'     => (float)$purchaseBill['item_unit_price'],
+                    'item_gst_rate'       => (float)$purchaseBill['item_gst_rate'],
+                    'item_gst_type'       => $purchaseBill['item_gst_type'] ?: 'Standard',
+                    'item_tax_mode'       => $purchaseBill['item_tax_mode'] ?: 'Exclude GST',
+                    'item_tax_amount'     => (float)$purchaseBill['item_tax_amount'],
+                    'item_total_price'    => (float)$purchaseBill['item_total_price'],
+                    'attachments'         => $attachments,
+                    'supplier'            => [
+                        'id'           => (int)$purchaseBill['supplier_id'],
+                        'name'         => $purchaseBill['supplier_name'] ?: 'Unknown Vendor',
                         'company_name' => $purchaseBill['supplier_company'] ?: '-',
-                        'phone' => $purchaseBill['supplier_phone'] ?: '-',
-                        'email' => $purchaseBill['supplier_email'] ?: '-',
-                        'gstin' => $purchaseBill['supplier_gstin'] ?: '-',
-                        'address' => $purchaseBill['supplier_address'] ?: '-',
-                        'city' => $purchaseBill['supplier_city'] ?: '-',
-                        'district' => $purchaseBill['supplier_district'] ?: '-',
-                        'state' => $purchaseBill['supplier_state'] ?: '-',
+                        'phone'        => $purchaseBill['supplier_phone'] ?: '-',
+                        'email'        => $purchaseBill['supplier_email'] ?: '-',
+                        'gstin'        => $purchaseBill['supplier_gstin'] ?: '-',
+                        'address'      => $purchaseBill['supplier_address'] ?: '-',
+                        'city'         => $purchaseBill['supplier_city'] ?: '-',
+                        'district'     => $purchaseBill['supplier_district'] ?: '-',
+                        'state'        => $purchaseBill['supplier_state'] ?: '-',
                     ],
                 ] : null,
             ]);
@@ -464,7 +794,7 @@ class StockController extends Controller {
             $targetQuantity = (float)$newQuantity;
             $difference = $targetQuantity - $currentQuantity;
             if (abs($difference) > 0.00001) {
-                $refModule = $this->stockAdjustmentModule((string)$stock['latest_inbound_module']);
+                $refModule = $this->stockAdjustmentModule((string)$stock['latest_inbound_module'], $concernId, $variantId);
                 StockService::move(
                     $concernId,
                     $variantId,
@@ -551,7 +881,7 @@ class StockController extends Controller {
             $targetQuantity = $remove ? 0.0 : (float)$newQuantity;
             $difference = $targetQuantity - $currentQuantity;
             if (abs($difference) > 0.00001) {
-                $refModule = $this->stockAdjustmentModule((string)$stock['latest_inbound_module']);
+                $refModule = $this->stockAdjustmentModule((string)$stock['latest_inbound_module'], $concernId, $variantId);
                 StockService::move(
                     $concernId,
                     $variantId,
@@ -751,13 +1081,29 @@ class StockController extends Controller {
         return $concernId;
     }
 
-    private function stockAdjustmentModule(string $latestInboundModule): string
+    private function stockAdjustmentModule(string $latestInboundModule, ?int $concernId = null, ?int $variantId = null): string
     {
-        if (in_array($latestInboundModule, ['Production Inward', 'Production Stock Adjustment'], true)) {
+        if (in_array($latestInboundModule, ['Production Inward', 'Production Stock Adjustment', 'Production QC'], true)) {
             return 'Production Stock Adjustment';
         }
         if (in_array($latestInboundModule, ['Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'], true)) {
             return 'Purchase Stock Adjustment';
+        }
+        if ($concernId && $variantId) {
+            $hasProd = DB::fetchValue(
+                "SELECT 1 FROM stock_ledger WHERE concern_id = ? AND variant_id = ? AND ref_module IN ('Production QC', 'Production Inward', 'Production Stock Adjustment') LIMIT 1",
+                [$concernId, $variantId]
+            );
+            if ($hasProd) {
+                return 'Production Stock Adjustment';
+            }
+            $hasPurch = DB::fetchValue(
+                "SELECT 1 FROM stock_ledger WHERE concern_id = ? AND variant_id = ? AND ref_module IN ('Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment') LIMIT 1",
+                [$concernId, $variantId]
+            );
+            if ($hasPurch) {
+                return 'Purchase Stock Adjustment';
+            }
         }
         throw new \RuntimeException('Only own-product and purchase-product stock can be adjusted here.');
     }
@@ -799,13 +1145,15 @@ class StockController extends Controller {
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
         $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp,
-                       c.name AS category_name, sub.name AS subcategory_name,
+                       COALESCE(c.name, 'General') AS category_name, COALESCE(sub.name, ssc.name, '-') AS subcategory_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM stocks s
                 JOIN variants v ON s.variant_id = v.id
+                LEFT JOIN catalogs cat ON v.catalog_id = cat.id
                 LEFT JOIN concerns con ON s.concern_id = con.id
-                LEFT JOIN categories c ON v.category_id = c.id
-                LEFT JOIN subcategories sub ON v.subcategory_id = sub.id";
+                LEFT JOIN categories c ON COALESCE(v.category_id, cat.category_id) = c.id
+                LEFT JOIN subcategories sub ON COALESCE(v.subcategory_id, cat.subcategory_id) = sub.id
+                LEFT JOIN sub_subcategories ssc ON cat.sub_sub_category_id = ssc.id";
         
         $params = [];
         $where = [];
