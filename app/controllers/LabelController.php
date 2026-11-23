@@ -449,6 +449,30 @@ class LabelController extends Controller {
             $productionBatches[$bId]['items'][] = $pItem;
         }
 
+        // Check which stitching batches already have labels generated in label_jobs
+        $labeledStitchingJobs = DB::fetchAll(
+            "SELECT ref_id, COUNT(*) AS job_count, SUM(qty) AS total_printed, MAX(created_at) AS last_printed_at, MAX(id) AS latest_job_id
+             FROM label_jobs 
+             WHERE label_type = 'production' AND ref_id IS NOT NULL 
+             GROUP BY ref_id"
+        );
+        $labeledBatchMap = [];
+        foreach ($labeledStitchingJobs as $lj) {
+            $labeledBatchMap[(int)$lj['ref_id']] = $lj;
+        }
+
+        foreach ($productionBatches as &$pb) {
+            $sId = (int)$pb['stitching_id'];
+            if (isset($labeledBatchMap[$sId])) {
+                $pb['labels_already_generated'] = true;
+                $pb['label_job_info'] = $labeledBatchMap[$sId];
+            } else {
+                $pb['labels_already_generated'] = false;
+                $pb['label_job_info'] = null;
+            }
+        }
+        unset($pb);
+
         // 4. Recent Label Jobs (Audit Trail)
         $jobSql = "SELECT lj.*, u.name AS user_name, con.name AS concern_name, con.code AS concern_code,
                           v.name AS variant_name, v.sku_code, v.category_id, v.subcategory_id
@@ -1075,6 +1099,17 @@ class LabelController extends Controller {
 
                 if (empty($batchItems)) {
                     $this->flash('error', 'No stitched items found for batch #' . $batchId);
+                    $this->redirect('/m/label_generation?tab=production');
+                    return;
+                }
+
+                // Validation: Prevent duplicate label generation if labels have already been generated for this batch
+                $existingJob = DB::fetch(
+                    "SELECT id, qty, created_at FROM label_jobs WHERE label_type = 'production' AND ref_id = ? ORDER BY id DESC LIMIT 1",
+                    [$batchId]
+                );
+                if ($existingJob && empty($_POST['force_reprint'])) {
+                    $this->flash('error', "Validation Alert: Labels have already been generated for this stitching batch on " . date('d M Y, h:i A', strtotime($existingJob['created_at'])) . " (Job #{$existingJob['id']}, {$existingJob['qty']} copies). Duplicate label generation is restricted.");
                     $this->redirect('/m/label_generation?tab=production');
                     return;
                 }

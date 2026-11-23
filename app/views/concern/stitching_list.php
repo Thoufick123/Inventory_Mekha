@@ -149,12 +149,14 @@
                                     <?php foreach ($batches as $b): ?>
                                         <tr>
                                             <td class="ps-3 py-3 fw-bold font-monospace text-dark">
-                                                <a href="<?= \App\Core\Controller::url(\App\Core\Auth::can('stitching_wastage', 'edit') ? ('/production/stitching/edit?id=' . $b['id']) : ('/production/stitching/view?id=' . $b['id'])) ?>" class="text-decoration-none text-primary">
+                                                <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" class="text-decoration-none text-primary" title="View Batch Details">
                                                     <?= htmlspecialchars($b['display_batch_no']) ?>
                                                 </a>
                                             </td>
                                             <td class="py-3 fw-semibold text-dark">
-                                                <?= htmlspecialchars($b['stitching_name'] ?: 'Stitching Batch') ?>
+                                                <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" class="text-decoration-none text-dark" title="View Batch Details">
+                                                    <?= htmlspecialchars($b['stitching_name'] ?: 'Stitching Batch') ?>
+                                                </a>
                                                 <?php if ($b['variant_count'] > 0): ?>
                                                     <span class="badge bg-light text-muted border ms-1"><?= (int)$b['variant_count'] ?> variants</span>
                                                 <?php endif; ?>
@@ -202,9 +204,13 @@
                                             </td>
                                             <td class="text-end pe-3 py-3">
                                                 <div class="btn-group btn-group-sm">
+                                                    <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" 
+                                                       class="btn btn-outline-secondary" title="View Batch Details">
+                                                        <i class="bi bi-eye"></i>
+                                                    </a>
                                                     <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
                                                     <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $b['id']) ?>" 
-                                                       class="btn btn-outline-secondary" title="Edit Batch">
+                                                       class="btn btn-outline-primary" title="Edit Batch">
                                                         <i class="bi bi-pencil"></i>
                                                     </a>
                                                     <?php endif; ?>

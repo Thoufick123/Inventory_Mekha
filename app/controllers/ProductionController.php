@@ -247,6 +247,34 @@ class ProductionController extends Controller {
         $progSql .= " ORDER BY pp.id DESC";
         $programs = DB::fetchAll($progSql, $progParams);
 
+        $programIds = array_column($programs, 'id');
+        $programRollsMap = [];
+        if (!empty($programIds)) {
+            $inClause = implode(',', array_map('intval', $programIds));
+            $allRolls = DB::fetchAll("
+                SELECT pr.*, 
+                       pbi.item_code AS original_piece_tag, pbi.item_name AS roll_material, pbi.color AS roll_color, pbi.unit AS roll_unit, pbi.qty AS original_roll_qty,
+                       cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
+                       COALESCE(c.name, CONCAT_WS(' > ', cat.name, sub.name, subsub.name)) AS catalog_style_name,
+                       c.style_code AS catalog_style_code
+                FROM program_rolls pr
+                LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
+                LEFT JOIN categories cat ON pr.category_id = cat.id
+                LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
+                LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
+                LEFT JOIN catalogs c ON pr.catalog_id = c.id
+                WHERE pr.program_id IN ($inClause)
+                ORDER BY pr.id ASC
+            ");
+            foreach ($allRolls as $r) {
+                $programRollsMap[(int)$r['program_id']][] = $r;
+            }
+        }
+        foreach ($programs as &$p) {
+            $p['rolls'] = $programRollsMap[(int)$p['id']] ?? [];
+        }
+        unset($p);
+
         $this->render('concern/catalog_program', [
             'pageTitle'     => 'Production Catalog',
             'currentModule' => 'catalog_program',
@@ -1224,6 +1252,34 @@ class ProductionController extends Controller {
         $progSql .= " ORDER BY pp.id DESC";
         $programs = DB::fetchAll($progSql, $progParams);
 
+        $programIds = array_column($programs, 'id');
+        $programRollsMap = [];
+        if (!empty($programIds)) {
+            $inClause = implode(',', array_map('intval', $programIds));
+            $allRolls = DB::fetchAll("
+                SELECT pr.*, 
+                       pbi.item_code AS original_piece_tag, pbi.item_name AS roll_material, pbi.color AS roll_color, pbi.unit AS roll_unit, pbi.qty AS original_roll_qty,
+                       cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
+                       COALESCE(c.name, CONCAT_WS(' > ', cat.name, sub.name, subsub.name)) AS catalog_style_name,
+                       c.style_code AS catalog_style_code
+                FROM program_rolls pr
+                LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
+                LEFT JOIN categories cat ON pr.category_id = cat.id
+                LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
+                LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
+                LEFT JOIN catalogs c ON pr.catalog_id = c.id
+                WHERE pr.program_id IN ($inClause)
+                ORDER BY pr.id ASC
+            ");
+            foreach ($allRolls as $r) {
+                $programRollsMap[(int)$r['program_id']][] = $r;
+            }
+        }
+        foreach ($programs as &$p) {
+            $p['rolls'] = $programRollsMap[(int)$p['id']] ?? [];
+        }
+        unset($p);
+
         if ($cid) {
             $catalogs = DB::fetchAll("SELECT * FROM catalogs WHERE concern_id = ?", [$cid]);
             $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
@@ -1317,7 +1373,12 @@ class ProductionController extends Controller {
                                 JOIN production_programs pp ON pr.program_id = pp.id 
                                 WHERE pr.purchase_bill_item_id = pbi.id 
                                   AND pp.status != 'cancelled'
-                            ), 0.00) AS allocated_qty
+                            ), 0.00) AS allocated_qty,
+                            COALESCE((
+                                SELECT SUM(qty)
+                                FROM purchase_damage_quarantine
+                                WHERE item_type = 'rolls' AND purchase_bill_item_id = pbi.id
+                            ), 0.00) AS damaged_qty
                      FROM purchase_bill_items pbi
                      JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                      LEFT JOIN suppliers s ON pb.supplier_id = s.id
@@ -1330,7 +1391,8 @@ class ProductionController extends Controller {
         foreach ($rawRolls as $r) {
             $total = (float)$r['total_qty'];
             $allocated = (float)$r['allocated_qty'];
-            $remaining = max(0.00, $total - $allocated);
+            $damaged = (float)$r['damaged_qty'];
+            $remaining = max(0.00, $total - $allocated - $damaged);
             $r['remaining_qty'] = $remaining;
             $unit = $r['unit'] ?: 'kg';
             $r['unit_price'] = (float)($r['unit_price'] ?? 0.00);
@@ -1619,7 +1681,7 @@ class ProductionController extends Controller {
         $rollAllocationsByItem = [];
         foreach ($rolls as $idx => $r) {
             $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
-            $allocatedQty = (float)($r['allocated_qty'] ?? 0);
+            $allocatedQty = (float)floor((float)($r['allocated_qty'] ?? 0));
             if ($rollItemId > 0) {
                 if (!isset($rollAllocationsByItem[$rollItemId])) {
                     $rollAllocationsByItem[$rollItemId] = [
@@ -1672,7 +1734,7 @@ class ProductionController extends Controller {
 
         foreach ($rolls as $index => $r) {
             $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
-            $allocatedQty = (float)($r['allocated_qty'] ?? 0);
+            $allocatedQty = (float)floor((float)($r['allocated_qty'] ?? 0));
             $targetPieces = (int)($r['target_pieces'] ?? 0);
             $catId = !empty($r['category_id']) ? (int)$r['category_id'] : null;
             $subcatId = !empty($r['subcategory_id']) ? (int)$r['subcategory_id'] : null;
@@ -1712,7 +1774,12 @@ class ProductionController extends Controller {
                                    JOIN production_programs pp ON pr.program_id = pp.id 
                                    WHERE pr.purchase_bill_item_id = pbi.id 
                                      AND pp.status != 'cancelled'
-                               ), 0.00) AS used_qty
+                               ), 0.00) AS used_qty,
+                               COALESCE((
+                                   SELECT SUM(qty)
+                                   FROM purchase_damage_quarantine
+                                   WHERE item_type = 'rolls' AND purchase_bill_item_id = pbi.id
+                               ), 0.00) AS damaged_qty
                         FROM purchase_bill_items pbi 
                         JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                         WHERE pbi.id = ?
@@ -1731,7 +1798,8 @@ class ProductionController extends Controller {
 
             $totalRollQty = (float)$rollItem['qty'];
             $usedQty = (float)$rollItem['used_qty'];
-            $availableQty = max(0.00, $totalRollQty - $usedQty);
+            $damagedQty = (float)$rollItem['damaged_qty'];
+            $availableQty = max(0.00, $totalRollQty - $usedQty - $damagedQty);
 
             // Strict Out-of-Qty validation!
             if ($allocatedQty > ($availableQty + 0.001)) {
@@ -2194,7 +2262,7 @@ class ProductionController extends Controller {
         $rollAllocationsByItem = [];
         foreach ($rolls as $idx => $r) {
             $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
-            $allocatedQty = (float)($r['allocated_qty'] ?? 0);
+            $allocatedQty = (float)floor((float)($r['allocated_qty'] ?? 0));
             if ($rollItemId > 0) {
                 if (!isset($rollAllocationsByItem[$rollItemId])) {
                     $rollAllocationsByItem[$rollItemId] = [
@@ -2264,7 +2332,7 @@ class ProductionController extends Controller {
         foreach ($rolls as $index => $r) {
             $programRollId = !empty($r['program_roll_id']) ? (int)$r['program_roll_id'] : 0;
             $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
-            $allocatedQty = (float)($r['allocated_qty'] ?? 0);
+            $allocatedQty = (float)floor((float)($r['allocated_qty'] ?? 0));
             $targetPieces = (int)($r['target_pieces'] ?? 0);
             $catId = !empty($r['category_id']) ? (int)$r['category_id'] : null;
             $subcatId = !empty($r['subcategory_id']) ? (int)$r['subcategory_id'] : null;
@@ -3003,6 +3071,11 @@ class ProductionController extends Controller {
             exit;
         }
 
+        if (!empty($phone) && !preg_match('/^[6-9]\d{9}$/', $phone)) {
+            echo json_encode(['success' => false, 'message' => 'Phone number must be a valid 10-digit mobile number starting with 6, 7, 8, or 9.']);
+            exit;
+        }
+
         try {
             DB::query(
                 "INSERT INTO cutting_masters (concern_id, name, phone, employee_code, status, created_at)
@@ -3096,7 +3169,7 @@ class ProductionController extends Controller {
 
         $fabricRatePerKg = $totalRollWeight > 0 ? round($totalRollPrice / $totalRollWeight, 2) : 0.00;
 
-        $wastageWeight = (float)($_POST['wastage_qty'] ?? 0.00);
+        $wastageWeight = (float)floor((float)($_POST['wastage_qty'] ?? 0.00));
         if ($wastageWeight < 0) {
             $wastageWeight = 0.00;
         }
@@ -3288,6 +3361,270 @@ class ProductionController extends Controller {
             'sales'         => $sales,
             'selectedCid'   => $cid,
         ]);
+    }
+
+    /**
+     * Edit Cutting Batch Form
+     */
+    public function editCuttingBatch(): void {
+        ModuleGuard::enforce('cutting_wastage', 'edit');
+        $this->ensureCuttingSchema();
+        $cid = Auth::concernId();
+        $id = (int)($_GET['id'] ?? 0);
+
+        if (!$id) {
+            $this->flash('error', 'Invalid cutting batch ID.');
+            $this->redirect('/production/cutting');
+        }
+
+        $batch = DB::fetch(
+            "SELECT cl.*, pp.program_no, pp.program_name, pp.planned_qty, cm.name AS master_name, con.name AS concern_name
+             FROM cutting_logs cl
+             LEFT JOIN production_programs pp ON cl.program_id = pp.id
+             LEFT JOIN cutting_masters cm ON cl.cutting_master_id = cm.id
+             LEFT JOIN concerns con ON cl.concern_id = con.id
+             WHERE cl.id = ?" . ($cid ? " AND cl.concern_id = ?" : ""),
+            $cid ? [$id, $cid] : [$id]
+        );
+
+        if (!$batch) {
+            $this->flash('error', 'Cutting batch not found or access denied.');
+            $this->redirect('/production/cutting');
+        }
+
+        // Fetch cutting items grouped by program_roll_id
+        $items = DB::fetchAll(
+            "SELECT ci.*, pr.roll_piece_tag, pr.fabric_name, pr.color 
+             FROM cutting_items ci
+             LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
+             WHERE ci.cutting_id = ?
+             ORDER BY ci.id ASC",
+            [$id]
+        );
+
+        // Fetch rolls belonging to this batch
+        $rolls = DB::fetchAll(
+            "SELECT pr.*, 
+                    pbi.item_code, pbi.item_name, pbi.pattern, pbi.color, pbi.unit, pbi.net_weight, pbi.unit_price,
+                    cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
+                    c.name AS roll_catalog_name, c.style_code AS roll_style_code, c.sizes AS roll_catalog_sizes
+             FROM program_rolls pr
+             LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
+             LEFT JOIN categories cat ON pr.category_id = cat.id
+             LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
+             LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
+             LEFT JOIN catalogs c ON pr.catalog_id = c.id
+             WHERE pr.id IN (SELECT DISTINCT program_roll_id FROM cutting_items WHERE cutting_id = ? AND program_roll_id IS NOT NULL)
+             ORDER BY pr.id ASC",
+            [$id]
+        );
+
+        // Fallback: if no rolls found through cutting_items, fetch from program
+        if (empty($rolls)) {
+            $rolls = DB::fetchAll(
+                "SELECT pr.*, 
+                        pbi.item_code, pbi.item_name, pbi.pattern, pbi.color, pbi.unit, pbi.net_weight, pbi.unit_price,
+                        cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
+                        c.name AS roll_catalog_name, c.style_code AS roll_style_code, c.sizes AS roll_catalog_sizes
+                 FROM program_rolls pr
+                 LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
+                 LEFT JOIN categories cat ON pr.category_id = cat.id
+                 LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
+                 LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
+                 LEFT JOIN catalogs c ON pr.catalog_id = c.id
+                 WHERE pr.program_id = ?
+                 ORDER BY pr.id ASC",
+                [$batch['program_id']]
+            );
+        }
+
+        // Fetch active cutting masters
+        $cuttingMasters = DB::fetchAll(
+            "SELECT * FROM cutting_masters WHERE status = 'active'" . ($cid ? " AND concern_id = ?" : "") . " ORDER BY name ASC",
+            $cid ? [$cid] : []
+        );
+
+        $this->render('concern/cutting_edit', [
+            'pageTitle'      => 'Edit Cutting Batch: ' . ($batch['batch_no'] ?: $batch['log_no']),
+            'currentModule'  => 'cutting_wastage',
+            'batch'          => $batch,
+            'items'          => $items,
+            'rolls'          => $rolls,
+            'cuttingMasters' => $cuttingMasters,
+            'selectedCid'    => $cid,
+        ]);
+    }
+
+    /**
+     * Update Cutting Batch
+     */
+    public function updateCuttingBatch(): void {
+        ModuleGuard::enforce('cutting_wastage', 'edit');
+        $this->ensureCuttingSchema();
+        $this->validateCsrf();
+        $cid = Auth::concernId();
+        $id = (int)($_POST['id'] ?? 0);
+
+        if (!$id) {
+            $this->flash('error', 'Invalid cutting batch ID.');
+            $this->redirect('/production/cutting');
+        }
+
+        $batch = DB::fetch(
+            "SELECT * FROM cutting_logs WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""),
+            $cid ? [$id, $cid] : [$id]
+        );
+        if (!$batch) {
+            $this->flash('error', 'Cutting batch not found or access denied.');
+            $this->redirect('/production/cutting');
+        }
+
+        $cuttingName = trim($_POST['cutting_name'] ?? '');
+        $status = $_POST['status'] ?? 'in_progress';
+        if (!in_array($status, ['in_progress', 'planned', 'completed'])) {
+            $status = 'in_progress';
+        }
+        $cuttingMasterId = !empty($_POST['cutting_master_id']) ? (int)$_POST['cutting_master_id'] : null;
+        $notes = trim($_POST['notes'] ?? '');
+
+        if (empty($cuttingName)) {
+            $this->flash('error', 'Cutting Name is required.');
+            $this->redirect('/production/cutting/edit?id=' . $id);
+        }
+
+        $masterName = null;
+        if ($cuttingMasterId) {
+            $cm = DB::fetch("SELECT name FROM cutting_masters WHERE id = ?", [$cuttingMasterId]);
+            $masterName = $cm['name'] ?? null;
+        }
+
+        $totalRollWeight = (float)$batch['total_roll_weight'];
+        $totalRollPrice = (float)$batch['total_roll_price'];
+        $fabricRatePerKg = $totalRollWeight > 0 ? round($totalRollPrice / $totalRollWeight, 2) : (float)$batch['fabric_rate_per_kg'];
+
+        $wastageWeight = (float)floor((float)($_POST['wastage_qty'] ?? 0.00));
+        if ($wastageWeight < 0) {
+            $wastageWeight = 0.00;
+        }
+
+        if ($totalRollWeight > 0 && $wastageWeight > $totalRollWeight) {
+            $this->flash('error', "Wastage Fabric Weight ({$wastageWeight} kg) cannot exceed Total Roll Weight ({$totalRollWeight} kg).");
+            $this->redirect('/production/cutting/edit?id=' . $id);
+        }
+
+        $soldWastage = (float)($batch['sold_wastage_qty'] ?? 0.00);
+        if ($wastageWeight < $soldWastage) {
+            $this->flash('error', "Wastage weight cannot be less than already sold scrap ({$soldWastage} kg).");
+            $this->redirect('/production/cutting/edit?id=' . $id);
+        }
+
+        $usedWeight = max(0.00, $totalRollWeight - $wastageWeight);
+        $wastageCost = round($wastageWeight * $fabricRatePerKg, 2);
+        $wastagePct = $totalRollWeight > 0 ? round(($wastageWeight / $totalRollWeight) * 100, 2) : 0.00;
+
+        // Process updated variant cut pieces
+        $submittedRolls = $_POST['rolls'] ?? [];
+        $validatedItems = [];
+        $totalCutPieces = 0;
+
+        if (is_array($submittedRolls)) {
+            foreach ($submittedRolls as $rollId => $rollData) {
+                $varList = $rollData['variants'] ?? [];
+                if (is_array($varList)) {
+                    foreach ($varList as $vData) {
+                        $pieces = (int)($vData['cut_pieces'] ?? 0);
+                        if ($pieces > 0) {
+                            $totalCutPieces += $pieces;
+                            $validatedItems[] = [
+                                'program_roll_id' => (int)$rollId,
+                                'variant_id'      => !empty($vData['variant_id']) ? (int)$vData['variant_id'] : null,
+                                'size'            => trim($vData['size'] ?? ''),
+                                'sku_code'        => trim($vData['sku_code'] ?? ''),
+                                'variant_name'    => trim($vData['variant_name'] ?? ''),
+                                'cut_pieces'      => $pieces,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($totalCutPieces <= 0) {
+            $this->flash('error', 'Please enter cut pieces for at least one variant/size.');
+            $this->redirect('/production/cutting/edit?id=' . $id);
+        }
+
+        $fabricCostPerPiece = $totalCutPieces > 0 ? round(($totalRollPrice - $wastageCost) / $totalCutPieces, 2) : 0.00;
+
+        DB::beginTransaction();
+        try {
+            DB::query(
+                "UPDATE cutting_logs SET
+                    cutting_name = ?,
+                    status = ?,
+                    cutting_master_id = ?,
+                    cutting_master_name = ?,
+                    consumed_qty = ?,
+                    cut_pieces = ?,
+                    wastage_qty = ?,
+                    wastage_cost = ?,
+                    wastage_percent = ?,
+                    used_weight = ?,
+                    fabric_cost_per_piece = ?,
+                    notes = ?,
+                    updated_at = NOW()
+                 WHERE id = ?",
+                [
+                    $cuttingName,
+                    $status,
+                    $cuttingMasterId,
+                    $masterName,
+                    $usedWeight,
+                    $totalCutPieces,
+                    $wastageWeight,
+                    $wastageCost,
+                    $wastagePct,
+                    $usedWeight,
+                    $fabricCostPerPiece,
+                    $notes,
+                    $id
+                ]
+            );
+
+            // Replace cutting items
+            DB::query("DELETE FROM cutting_items WHERE cutting_id = ?", [$id]);
+            foreach ($validatedItems as $it) {
+                DB::query(
+                    "INSERT INTO cutting_items (
+                        cutting_id, program_roll_id, variant_id, size, sku_code, variant_name, cut_pieces, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+                    [
+                        $id,
+                        $it['program_roll_id'],
+                        $it['variant_id'],
+                        $it['size'],
+                        $it['sku_code'],
+                        $it['variant_name'],
+                        $it['cut_pieces']
+                    ]
+                );
+            }
+
+            AuditLog::log('UPDATE', 'cutting_logs', $id, $batch, [
+                'cutting_name' => $cuttingName,
+                'status'       => $status,
+                'cut_pieces'   => $totalCutPieces,
+                'wastage_qty'  => $wastageWeight
+            ]);
+
+            DB::commit();
+            $this->flash('success', "Cutting Batch '{$batch['batch_no']}' updated successfully.");
+            $this->redirect('/production/cutting');
+        } catch (Exception $e) {
+            DB::rollBack();
+            $this->flash('error', 'Failed to update cutting batch: ' . $e->getMessage());
+            $this->redirect('/production/cutting/edit?id=' . $id);
+        }
     }
 
     /**
@@ -4178,6 +4515,11 @@ class ProductionController extends Controller {
 
         if (empty($name)) {
             echo json_encode(['success' => false, 'message' => 'Tailor / Master Name is required.']);
+            exit;
+        }
+
+        if (!empty($phone) && !preg_match('/^[6-9]\d{9}$/', $phone)) {
+            echo json_encode(['success' => false, 'message' => 'Mobile number must be 10 digits starting with 6, 7, 8, or 9.']);
             exit;
         }
 

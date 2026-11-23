@@ -71,14 +71,15 @@ class RollRegistryService {
         }
 
         // Aggregate unique (concern_id, color, design_name) from purchase_bill_items
+        // Deducting rolls allocated to production programs and rolls quarantined as damages
         $sql = "SELECT pbi.concern_id,
                        UPPER(TRIM(pbi.color)) AS color,
                        UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) AS design_name,
-                       SUM(pbi.qty) AS total_qty,
-                       SUM(COALESCE(pbi.net_weight, 0)) AS total_weight,
+                       SUM(GREATEST(0.00, pbi.qty - COALESCE(prog.allocated_qty, 0.00) - COALESCE(dmg.damaged_qty, 0.00))) AS total_qty,
+                       SUM(GREATEST(0.00, COALESCE(pbi.net_weight, 0.00) - COALESCE(prog.allocated_weight, 0.00) - COALESCE(dmg.damaged_weight, 0.00))) AS total_weight,
                        SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(NULLIF(TRIM(pbi.unit), ''), 'Rolls') ORDER BY pbi.id DESC), ',', 1) AS unit,
                        SUBSTRING_INDEX(GROUP_CONCAT(pbi.unit_price ORDER BY pbi.id DESC), ',', 1) AS last_price,
-                       SUM(pbi.total_price) AS total_val,
+                       SUM(GREATEST(0.00, (GREATEST(0.00, pbi.qty - COALESCE(prog.allocated_qty, 0.00) - COALESCE(dmg.damaged_qty, 0.00))) * pbi.unit_price)) AS total_val,
                        COUNT(DISTINCT pb.id) AS bills_count,
                        SUBSTRING_INDEX(GROUP_CONCAT(pb.bill_no ORDER BY pb.id DESC), ',', 1) AS last_bill,
                        SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(s.name, '') ORDER BY pb.id DESC), ',', 1) AS last_supplier,
@@ -86,6 +87,23 @@ class RollRegistryService {
                 FROM purchase_bill_items pbi
                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                 LEFT JOIN suppliers s ON pb.supplier_id = s.id
+                LEFT JOIN (
+                    SELECT pr.purchase_bill_item_id,
+                           SUM(pr.allocated_qty) AS allocated_qty,
+                           SUM(pr.roll_weight) AS allocated_weight
+                    FROM program_rolls pr
+                    JOIN production_programs pp ON pr.program_id = pp.id
+                    WHERE pp.status != 'cancelled' AND pr.purchase_bill_item_id IS NOT NULL
+                    GROUP BY pr.purchase_bill_item_id
+                ) prog ON prog.purchase_bill_item_id = pbi.id
+                LEFT JOIN (
+                    SELECT purchase_bill_item_id,
+                           SUM(qty) AS damaged_qty,
+                           SUM(damaged_weight) AS damaged_weight
+                    FROM purchase_damage_quarantine
+                    WHERE item_type = 'rolls' AND purchase_bill_item_id IS NOT NULL
+                    GROUP BY purchase_bill_item_id
+                ) dmg ON dmg.purchase_bill_item_id = pbi.id
                 WHERE pbi.section_type = 'rolls'
                   AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'
                   AND pbi.color IS NOT NULL AND TRIM(pbi.color) != ''
@@ -94,6 +112,26 @@ class RollRegistryService {
                 GROUP BY pbi.concern_id, UPPER(TRIM(pbi.color)), UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name)))";
 
         $rows = DB::fetchAll($sql, $params);
+
+        // Fetch unlinked spec-level roll damage quarantine (where purchase_bill_item_id is null)
+        $unlinkedDamageSql = "SELECT concern_id,
+                                     UPPER(TRIM(roll_source_color)) AS color,
+                                     UPPER(TRIM(roll_source_design_name)) AS design_name,
+                                     SUM(qty) AS unlinked_qty,
+                                     SUM(damaged_weight) AS unlinked_weight,
+                                     SUM(estimated_loss) AS unlinked_loss
+                              FROM purchase_damage_quarantine
+                              WHERE item_type = 'rolls'
+                                AND (purchase_bill_item_id IS NULL OR purchase_bill_item_id = 0)
+                                AND roll_source_color IS NOT NULL AND TRIM(roll_source_color) != ''
+                                AND roll_source_design_name IS NOT NULL AND TRIM(roll_source_design_name) != ''
+                              GROUP BY concern_id, UPPER(TRIM(roll_source_color)), UPPER(TRIM(roll_source_design_name))";
+        $unlinkedDamages = DB::fetchAll($unlinkedDamageSql);
+        $unlinkedDmgMap = [];
+        foreach ($unlinkedDamages as $ud) {
+            $key = (int)$ud['concern_id'] . '|' . $ud['color'] . '|' . $ud['design_name'];
+            $unlinkedDmgMap[$key] = $ud;
+        }
 
         if ($concernId) {
             DB::query("DELETE FROM fabric_roll_specs WHERE concern_id = ?", [$concernId]);
@@ -107,6 +145,18 @@ class RollRegistryService {
             if (empty($c) || empty($d)) continue;
 
             $unit = ($r['unit'] === 'RQ' || empty($r['unit'])) ? 'Rolls' : $r['unit'];
+            $tQty = (float)$r['total_qty'];
+            $tWeight = (float)$r['total_weight'];
+            $tVal = (float)$r['total_val'];
+            $lastPrice = (float)$r['last_price'];
+
+            $key = (int)$r['concern_id'] . '|' . $c . '|' . $d;
+            if (isset($unlinkedDmgMap[$key])) {
+                $ud = $unlinkedDmgMap[$key];
+                $tQty = max(0.00, $tQty - (float)$ud['unlinked_qty']);
+                $tWeight = max(0.00, $tWeight - (float)$ud['unlinked_weight']);
+                $tVal = max(0.00, $tVal - (float)($ud['unlinked_loss'] ?: ($ud['unlinked_qty'] * $lastPrice)));
+            }
 
             DB::query(
                 "INSERT INTO fabric_roll_specs 
@@ -127,11 +177,11 @@ class RollRegistryService {
                     (int)$r['concern_id'],
                     $c,
                     $d,
-                    (float)$r['total_qty'],
-                    (float)$r['total_weight'],
+                    $tQty,
+                    $tWeight,
                     $unit,
-                    (float)$r['last_price'],
-                    (float)$r['total_val'],
+                    $lastPrice,
+                    $tVal,
                     (int)$r['bills_count'],
                     $r['last_bill'] ?: null,
                     $r['last_supplier'] ?: null,

@@ -332,6 +332,10 @@ $router->get('/m/cutting_wastage', [ProductionController::class, 'cuttingIndex']
 $router->get('/production/cutting/create', [ProductionController::class, 'createCutting'], 'cutting_wastage', 'add');
 $router->post('/production/cutting/store', [ProductionController::class, 'storeCuttingBatch'], 'cutting_wastage', 'add');
 $router->get('/production/cutting/view', [ProductionController::class, 'viewCuttingBatch'], 'cutting_wastage', 'view');
+$router->get('/production/cutting/edit', [ProductionController::class, 'editCuttingBatch'], 'cutting_wastage', 'edit');
+$router->post('/production/cutting/update', [ProductionController::class, 'updateCuttingBatch'], 'cutting_wastage', 'edit');
+$router->get('/m/cutting_wastage/edit', [ProductionController::class, 'editCuttingBatch'], 'cutting_wastage', 'edit');
+$router->post('/m/cutting_wastage/update', [ProductionController::class, 'updateCuttingBatch'], 'cutting_wastage', 'edit');
 $router->post('/production/cutting/delete', [ProductionController::class, 'deleteCuttingBatch'], 'cutting_wastage', 'delete');
 
 // Cutting API Endpoints
@@ -368,6 +372,9 @@ $router->get('/production/stitching/wastage', [ProductionController::class, 'sti
 $router->post('/production/stitching/wastage/sell', [ProductionController::class, 'storeStitchingWastageSale'], 'stitching_wastage', 'add');
 
 // Legacy routes fallback
+$router->get('/m/stitching_wastage/create', [ProductionController::class, 'createStitching'], 'stitching_wastage', 'add');
+$router->get('/m/stitching_wastage/edit', [ProductionController::class, 'editStitchingBatch'], 'stitching_wastage', 'edit');
+$router->get('/m/stitching_wastage/view', [ProductionController::class, 'viewStitchingBatch'], 'stitching_wastage', 'view');
 $router->get('/m/stitching_wastage/export', [ProductionController::class, 'exportStitching'], 'stitching_wastage', 'export');
 $router->post('/m/stitching_wastage/store', [ProductionController::class, 'storeStitchingBatch'], 'stitching_wastage', 'add');
 $router->post('/m/stitching_wastage/update', [ProductionController::class, 'updateStitchingBatch'], 'stitching_wastage', 'edit');
