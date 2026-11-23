@@ -49,7 +49,7 @@
                             <i class="bi bi-upc-scan fs-4"></i>
                         </span>
                         <input type="text" id="inputQrScanner" class="form-control border-start-0 font-monospace fw-bold fs-5" 
-                               placeholder="Scan QR sticker tag (e.g. <?= htmlspecialchars($pieces[0]['tag_code'] ?? 'TTT112601') ?>)..." 
+                               placeholder="Scan QR sticker tag (e.g. <?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GRMMXTXFS007') ?>)..." 
                                autofocus autocomplete="off">
                     </div>
                 </div>
@@ -61,7 +61,7 @@
             </div>
             <div class="small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-info-circle text-primary"></i>
-                <span>Scan product tag code e.g. <strong class="text-danger font-monospace"><?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GAR112601') ?></strong> to locate and highlight the garment piece.</span>
+                <span>Scan product tag code e.g. <strong class="text-danger font-monospace"><?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GRMMXTXFS007') ?></strong> to locate and highlight the garment piece.</span>
             </div>
         </div>
     </div>
@@ -349,24 +349,37 @@ function filterPieces(verdict, btnElem) {
 
 function onScanLocate() {
     const input = document.getElementById('inputQrScanner');
-    const val = input.value.trim().toUpperCase();
+    let val = input.value.trim().toUpperCase();
     if (!val) return;
 
-    let matchedRow = null;
+    // Support both raw variant code and code with piece suffix
+    let baseVal = val;
+    if (baseVal.match(/-\d{1,4}$/)) {
+        baseVal = baseVal.replace(/-\d{1,4}$/, '');
+    }
+
+    let candidateRows = [];
     document.querySelectorAll('#tbodyPieces tr').forEach(tr => {
         const tag = (tr.dataset.tag || '').toUpperCase();
-        if (tag === val || tag.includes(val)) {
-            matchedRow = tr;
+        if (tag === val || tag === baseVal || tag.includes(val) || tag.includes(baseVal)) {
+            candidateRows.push(tr);
         }
     });
 
-    if (matchedRow) {
+    if (candidateRows.length > 0) {
+        // Priority 1: Pick the first matching garment that is still PENDING inspection
+        let matchedRow = candidateRows.find(tr => tr.dataset.verdict === 'PENDING');
+        // Priority 2: If all are already inspected, focus the first candidate
+        if (!matchedRow) {
+            matchedRow = candidateRows[0];
+        }
+
         matchedRow.style.display = '';
         matchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
         matchedRow.classList.add('table-warning');
         setTimeout(() => matchedRow.classList.remove('table-warning'), 2500);
 
-        // Focus defect note or automatically ask to pass
+        // Focus defect note or action
         const noteInput = matchedRow.querySelector('.input-defect-note');
         if (noteInput) noteInput.focus();
         input.value = '';

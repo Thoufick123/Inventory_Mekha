@@ -6967,11 +6967,11 @@ class ProductionController extends Controller {
                     $fgCode = \App\Services\QrService::generateFinishedGoodsCode($variantId);
                 }
                 $skuPrefix = preg_replace('/[^A-Z0-9]/i', '', strtoupper(substr($sku ?: ($size . $color), 0, 3)));
-                $baseProductCode = $fgCode ?: ($skuPrefix ?: 'GAR') . date('md');
+                $baseProductCode = $fgCode ?: (($skuPrefix ?: 'GAR') . date('md'));
 
                 for ($p = 1; $p <= $inspectedQ; $p++) {
-                    // Unique piece tag code based on finished goods product code & sequence
-                    $pieceCode = $baseProductCode . '-' . str_pad((string)$p, 3, '0', STR_PAD_LEFT);
+                    // Single code for one variant's products (matching production QR label code)
+                    $pieceCode = $baseProductCode;
                     
                     if ($submitAction === 'save_and_inspect') {
                         $pVerdict = 'PENDING';
@@ -7073,16 +7073,19 @@ class ProductionController extends Controller {
             ORDER BY qp.id ASC
         ", [$id]);
 
-        // Dynamically heal tag_code if legacy prefix format was stored
+        // Dynamically heal tag_code so every variant has a single code (matching single production QR label)
         foreach ($pieces as &$p) {
             $vId = (int)($p['variant_id'] ?? 0);
-            if ($vId > 0 && !str_starts_with($p['tag_code'], 'GRM')) {
+            if ($vId > 0) {
                 $fgCode = \App\Services\QrService::generateFinishedGoodsCode($vId);
-                if ($fgCode) {
-                    $newCode = $fgCode . '-' . str_pad((string)$p['piece_number'], 3, '0', STR_PAD_LEFT);
-                    DB::query("UPDATE qc_piece_items SET tag_code = ? WHERE id = ?", [$newCode, $p['id']]);
-                    $p['tag_code'] = $newCode;
+                if ($fgCode && ($p['tag_code'] !== $fgCode || str_contains($p['tag_code'], '-'))) {
+                    DB::query("UPDATE qc_piece_items SET tag_code = ? WHERE id = ?", [$fgCode, $p['id']]);
+                    $p['tag_code'] = $fgCode;
                 }
+            } elseif (preg_match('/^(.+)-\d{1,4}$/', $p['tag_code'], $m)) {
+                $cleanCode = $m[1];
+                DB::query("UPDATE qc_piece_items SET tag_code = ? WHERE id = ?", [$cleanCode, $p['id']]);
+                $p['tag_code'] = $cleanCode;
             }
         }
         unset($p);
