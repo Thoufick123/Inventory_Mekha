@@ -151,6 +151,17 @@ class ProductionController extends Controller {
                 DB::query('ALTER TABLE `program_rolls` ADD COLUMN roll_price DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER roll_weight');
             }
 
+            // Align table collations to prevent "1267 Illegal mix of collations" error
+            try {
+                DB::query("ALTER TABLE `purchase_damages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+                DB::query("ALTER TABLE `purchase_damage_quarantine` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+                DB::query("ALTER TABLE `qc_inspection_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+                DB::query("ALTER TABLE `qc_piece_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+                DB::query("ALTER TABLE `suppliers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+            } catch (\Throwable $colEx) {
+                // Ignore if lacks alter privileges
+            }
+
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
             error_log("Schema ensure error: " . $e->getMessage());
@@ -1817,13 +1828,13 @@ class ProductionController extends Controller {
                                           (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                           AND pdq.concern_id = pbi.concern_id
                                           AND (
-                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
                                               OR (
                                                   pdq.roll_source_color IS NOT NULL 
-                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
                                                   AND (
-                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
-                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
                                                   )
                                               )
                                           )
@@ -1945,13 +1956,13 @@ class ProductionController extends Controller {
                                           (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                           AND pdq.concern_id = pbi.concern_id
                                           AND (
-                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
                                               OR (
                                                   pdq.roll_source_color IS NOT NULL 
-                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
                                                   AND (
-                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
-                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
                                                   )
                                               )
                                           )
@@ -2051,13 +2062,13 @@ class ProductionController extends Controller {
                                      (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                      AND pdq.concern_id = pbi.concern_id
                                      AND (
-                                         (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                         (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
                                          OR (
                                              pdq.roll_source_color IS NOT NULL 
-                                             AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                             AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
                                              AND (
-                                                 (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
-                                                 OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                 (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
+                                                 OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
                                              )
                                          )
                                      )
@@ -2096,13 +2107,13 @@ class ProductionController extends Controller {
                                                  (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                                  AND pdq.concern_id = pbi.concern_id
                                                  AND (
-                                                     (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                                     (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
                                                      OR (
                                                          pdq.roll_source_color IS NOT NULL 
-                                                         AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                         AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
                                                          AND (
-                                                             (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
-                                                             OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                             (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
+                                                             OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
                                                          )
                                                      )
                                                  )
@@ -2238,13 +2249,13 @@ class ProductionController extends Controller {
                                              (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                              AND pdq.concern_id = pbi.concern_id
                                              AND (
-                                                 (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                                 (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
                                                  OR (
                                                      pdq.roll_source_color IS NOT NULL 
-                                                     AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                     AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
                                                      AND (
-                                                         (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
-                                                         OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                         (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
+                                                         OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
                                                      )
                                                  )
                                              )
@@ -2690,13 +2701,13 @@ class ProductionController extends Controller {
                                           (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                           AND pdq.concern_id = pbi.concern_id
                                           AND (
-                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
                                               OR (
                                                   pdq.roll_source_color IS NOT NULL 
-                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
                                                   AND (
-                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
-                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
                                                   )
                                               )
                                           )
@@ -2978,13 +2989,13 @@ class ProductionController extends Controller {
                                       (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
                                       AND pdq.concern_id = pbi.concern_id
                                       AND (
-                                          (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                          (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code COLLATE utf8mb4_general_ci)
                                           OR (
                                               pdq.roll_source_color IS NOT NULL 
-                                              AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                              AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color COLLATE utf8mb4_general_ci))
                                               AND (
-                                                  (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
-                                                  OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                  (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name) COLLATE utf8mb4_general_ci)))
+                                                  OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name COLLATE utf8mb4_general_ci)))
                                               )
                                           )
                                       )
