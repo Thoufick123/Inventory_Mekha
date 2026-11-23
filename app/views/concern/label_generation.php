@@ -2167,7 +2167,6 @@ function validateBatchSelect() {
     }
     return true;
 }
-}
 
 // Way 1 stock form validation
 function validateBatchStockSelect() {

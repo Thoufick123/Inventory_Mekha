@@ -1171,6 +1171,211 @@ class ProductionController extends Controller {
         exit;
     }
 
+    public function updateCategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update categories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+        $hsn  = trim($_POST['default_hsn'] ?? '');
+        $gstInput = trim((string)($_POST['default_gst_rate'] ?? ''));
+        $gst = $gstInput === '' ? null : (is_numeric($gstInput) ? (float)$gstInput : -1.0);
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Category ID and Category name are required.']);
+            exit;
+        }
+
+        if (($hsn !== '' && !preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsn)) || ($gst !== null && ($gst < 0 || $gst > 100))) {
+            echo json_encode(['success' => false, 'message' => 'Enter a valid HSN code and GST rate, or leave these optional defaults blank.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        // Check if category exists
+        $category = DB::fetch("SELECT * FROM categories WHERE id = ?", [$id]);
+        if (!$category) {
+            echo json_encode(['success' => false, 'message' => 'Category not found.']);
+            exit;
+        }
+
+        // Check duplicate name excluding self
+        $dupName = DB::fetch(
+            "SELECT id FROM categories 
+             WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $cid, $name]
+        );
+        if ($dupName) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Category '{$name}' already exists. Duplicates are not allowed."]);
+            exit;
+        }
+
+        // Check duplicate code excluding self
+        if (!empty($code)) {
+            $dupCode = DB::fetch(
+                "SELECT id FROM categories 
+                 WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+                   AND code = ? AND status != 'deleted'",
+                [$id, $cid, $code]
+            );
+            if ($dupCode) {
+                echo json_encode(['success' => false, 'message' => "Duplicate Error: Category code '{$code}' already exists. Duplicates are not allowed."]);
+                exit;
+            }
+        }
+
+        try {
+            DB::query(
+                "UPDATE categories SET name = ?, code = ?, default_hsn = ?, default_gst_rate = ? WHERE id = ?",
+                [$name, $code, $hsn, $gst, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'name' => $name,
+                'code' => $code,
+                'default_hsn' => $hsn,
+                'default_gst_rate' => $gst,
+                'message' => "Category '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function updateSubcategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update subcategories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Subcategory ID and name are required.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        $sub = DB::fetch("SELECT * FROM subcategories WHERE id = ?", [$id]);
+        if (!$sub) {
+            echo json_encode(['success' => false, 'message' => 'Subcategory not found.']);
+            exit;
+        }
+
+        $catId = (int)$sub['category_id'];
+
+        // Check duplicate name under parent category excluding self
+        $dupSub = DB::fetch(
+            "SELECT id FROM subcategories 
+             WHERE id != ? AND category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $catId, $cid, $name]
+        );
+        if ($dupSub) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Subcategory '{$name}' already exists under this category."]);
+            exit;
+        }
+
+        try {
+            DB::query(
+                "UPDATE subcategories SET name = ?, code = ? WHERE id = ?",
+                [$name, $code, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'category_id' => $catId,
+                'name' => $name,
+                'code' => $code,
+                'message' => "Subcategory '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function updateSubSubcategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update sub-subcategories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory ID and name are required.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        $subsub = DB::fetch("SELECT * FROM sub_subcategories WHERE id = ?", [$id]);
+        if (!$subsub) {
+            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory not found.']);
+            exit;
+        }
+
+        $subcatId = (int)$subsub['subcategory_id'];
+
+        // Check duplicate name under parent subcategory excluding self
+        $dupSubSub = DB::fetch(
+            "SELECT id FROM sub_subcategories 
+             WHERE id != ? AND subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $subcatId, $cid, $name]
+        );
+        if ($dupSubSub) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Sub-Subcategory '{$name}' already exists under this subcategory."]);
+            exit;
+        }
+
+        try {
+            DB::query(
+                "UPDATE sub_subcategories SET name = ?, code = ? WHERE id = ?",
+                [$name, $code, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'subcategory_id' => $subcatId,
+                'name' => $name,
+                'code' => $code,
+                'message' => "Sub-Subcategory '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
     public function deleteSubcategoryAjax(): void {
         header('Content-Type: application/json');
         if (!Auth::check()) {
@@ -1245,6 +1450,211 @@ class ProductionController extends Controller {
         exit;
     }
 
+    public function updateCategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update categories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+        $hsn  = trim($_POST['default_hsn'] ?? '');
+        $gstInput = trim((string)($_POST['default_gst_rate'] ?? ''));
+        $gst = $gstInput === '' ? null : (is_numeric($gstInput) ? (float)$gstInput : -1.0);
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Category ID and Category name are required.']);
+            exit;
+        }
+
+        if (($hsn !== '' && !preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsn)) || ($gst !== null && ($gst < 0 || $gst > 100))) {
+            echo json_encode(['success' => false, 'message' => 'Enter a valid HSN code and GST rate, or leave these optional defaults blank.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        // Check if category exists
+        $category = DB::fetch("SELECT * FROM categories WHERE id = ?", [$id]);
+        if (!$category) {
+            echo json_encode(['success' => false, 'message' => 'Category not found.']);
+            exit;
+        }
+
+        // Check duplicate name excluding self
+        $dupName = DB::fetch(
+            "SELECT id FROM categories 
+             WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $cid, $name]
+        );
+        if ($dupName) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Category '{$name}' already exists. Duplicates are not allowed."]);
+            exit;
+        }
+
+        // Check duplicate code excluding self
+        if (!empty($code)) {
+            $dupCode = DB::fetch(
+                "SELECT id FROM categories 
+                 WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+                   AND code = ? AND status != 'deleted'",
+                [$id, $cid, $code]
+            );
+            if ($dupCode) {
+                echo json_encode(['success' => false, 'message' => "Duplicate Error: Category code '{$code}' already exists. Duplicates are not allowed."]);
+                exit;
+            }
+        }
+
+        try {
+            DB::query(
+                "UPDATE categories SET name = ?, code = ?, default_hsn = ?, default_gst_rate = ? WHERE id = ?",
+                [$name, $code, $hsn, $gst, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'name' => $name,
+                'code' => $code,
+                'default_hsn' => $hsn,
+                'default_gst_rate' => $gst,
+                'message' => "Category '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function updateSubcategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update subcategories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Subcategory ID and name are required.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        $sub = DB::fetch("SELECT * FROM subcategories WHERE id = ?", [$id]);
+        if (!$sub) {
+            echo json_encode(['success' => false, 'message' => 'Subcategory not found.']);
+            exit;
+        }
+
+        $catId = (int)$sub['category_id'];
+
+        // Check duplicate name under parent category excluding self
+        $dupSub = DB::fetch(
+            "SELECT id FROM subcategories 
+             WHERE id != ? AND category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $catId, $cid, $name]
+        );
+        if ($dupSub) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Subcategory '{$name}' already exists under this category."]);
+            exit;
+        }
+
+        try {
+            DB::query(
+                "UPDATE subcategories SET name = ?, code = ? WHERE id = ?",
+                [$name, $code, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'category_id' => $catId,
+                'name' => $name,
+                'code' => $code,
+                'message' => "Subcategory '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function updateSubSubcategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update sub-subcategories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory ID and name are required.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        $subsub = DB::fetch("SELECT * FROM sub_subcategories WHERE id = ?", [$id]);
+        if (!$subsub) {
+            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory not found.']);
+            exit;
+        }
+
+        $subcatId = (int)$subsub['subcategory_id'];
+
+        // Check duplicate name under parent subcategory excluding self
+        $dupSubSub = DB::fetch(
+            "SELECT id FROM sub_subcategories 
+             WHERE id != ? AND subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $subcatId, $cid, $name]
+        );
+        if ($dupSubSub) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Sub-Subcategory '{$name}' already exists under this subcategory."]);
+            exit;
+        }
+
+        try {
+            DB::query(
+                "UPDATE sub_subcategories SET name = ?, code = ? WHERE id = ?",
+                [$name, $code, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'subcategory_id' => $subcatId,
+                'name' => $name,
+                'code' => $code,
+                'message' => "Sub-Subcategory '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
     public function deleteSubSubcategoryAjax(): void {
         header('Content-Type: application/json');
         if (!Auth::check()) {
@@ -1315,6 +1725,211 @@ class ProductionController extends Controller {
             'deleted_ids' => $deletedIds,
             'skipped' => $skipped
         ]);
+        exit;
+    }
+
+    public function updateCategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update categories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+        $hsn  = trim($_POST['default_hsn'] ?? '');
+        $gstInput = trim((string)($_POST['default_gst_rate'] ?? ''));
+        $gst = $gstInput === '' ? null : (is_numeric($gstInput) ? (float)$gstInput : -1.0);
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Category ID and Category name are required.']);
+            exit;
+        }
+
+        if (($hsn !== '' && !preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsn)) || ($gst !== null && ($gst < 0 || $gst > 100))) {
+            echo json_encode(['success' => false, 'message' => 'Enter a valid HSN code and GST rate, or leave these optional defaults blank.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        // Check if category exists
+        $category = DB::fetch("SELECT * FROM categories WHERE id = ?", [$id]);
+        if (!$category) {
+            echo json_encode(['success' => false, 'message' => 'Category not found.']);
+            exit;
+        }
+
+        // Check duplicate name excluding self
+        $dupName = DB::fetch(
+            "SELECT id FROM categories 
+             WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $cid, $name]
+        );
+        if ($dupName) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Category '{$name}' already exists. Duplicates are not allowed."]);
+            exit;
+        }
+
+        // Check duplicate code excluding self
+        if (!empty($code)) {
+            $dupCode = DB::fetch(
+                "SELECT id FROM categories 
+                 WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+                   AND code = ? AND status != 'deleted'",
+                [$id, $cid, $code]
+            );
+            if ($dupCode) {
+                echo json_encode(['success' => false, 'message' => "Duplicate Error: Category code '{$code}' already exists. Duplicates are not allowed."]);
+                exit;
+            }
+        }
+
+        try {
+            DB::query(
+                "UPDATE categories SET name = ?, code = ?, default_hsn = ?, default_gst_rate = ? WHERE id = ?",
+                [$name, $code, $hsn, $gst, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'name' => $name,
+                'code' => $code,
+                'default_hsn' => $hsn,
+                'default_gst_rate' => $gst,
+                'message' => "Category '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function updateSubcategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update subcategories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Subcategory ID and name are required.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        $sub = DB::fetch("SELECT * FROM subcategories WHERE id = ?", [$id]);
+        if (!$sub) {
+            echo json_encode(['success' => false, 'message' => 'Subcategory not found.']);
+            exit;
+        }
+
+        $catId = (int)$sub['category_id'];
+
+        // Check duplicate name under parent category excluding self
+        $dupSub = DB::fetch(
+            "SELECT id FROM subcategories 
+             WHERE id != ? AND category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $catId, $cid, $name]
+        );
+        if ($dupSub) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Subcategory '{$name}' already exists under this category."]);
+            exit;
+        }
+
+        try {
+            DB::query(
+                "UPDATE subcategories SET name = ?, code = ? WHERE id = ?",
+                [$name, $code, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'category_id' => $catId,
+                'name' => $name,
+                'code' => $code,
+                'message' => "Subcategory '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function updateSubSubcategoryAjax(): void {
+        header('Content-Type: application/json');
+        if (!Auth::check()) {
+            echo json_encode(['success' => false, 'message' => 'Please sign in to update sub-subcategories.']);
+            exit;
+        }
+
+        $cid = Auth::concernId() ?: 1;
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+
+        if (!$id || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory ID and name are required.']);
+            exit;
+        }
+
+        if (empty($code)) {
+            $code = strtoupper(substr($name, 0, 2));
+        }
+
+        $subsub = DB::fetch("SELECT * FROM sub_subcategories WHERE id = ?", [$id]);
+        if (!$subsub) {
+            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory not found.']);
+            exit;
+        }
+
+        $subcatId = (int)$subsub['subcategory_id'];
+
+        // Check duplicate name under parent subcategory excluding self
+        $dupSubSub = DB::fetch(
+            "SELECT id FROM sub_subcategories 
+             WHERE id != ? AND subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
+               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+            [$id, $subcatId, $cid, $name]
+        );
+        if ($dupSubSub) {
+            echo json_encode(['success' => false, 'message' => "Duplicate Error: Sub-Subcategory '{$name}' already exists under this subcategory."]);
+            exit;
+        }
+
+        try {
+            DB::query(
+                "UPDATE sub_subcategories SET name = ?, code = ? WHERE id = ?",
+                [$name, $code, $id]
+            );
+
+            echo json_encode([
+                'success' => true,
+                'id' => $id,
+                'subcategory_id' => $subcatId,
+                'name' => $name,
+                'code' => $code,
+                'message' => "Sub-Subcategory '{$name}' updated successfully."
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        }
         exit;
     }
 
