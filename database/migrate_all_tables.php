@@ -563,6 +563,16 @@ foreach ([
 }
 echo "  + Required columns and defaults aligned with schema.sql\n";
 
+// 21. STOCK COMPLEMENTARY CLASSIFICATION
+echo "\n21. Checking complementary stock classification...\n";
+$variantCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `variants`"), 'Field');
+if (!in_array('is_complementary', $variantCols, true)) {
+    DB::query("ALTER TABLE `variants` ADD COLUMN `is_complementary` TINYINT(1) NOT NULL DEFAULT 0");
+    echo "  + Added `is_complementary` to `variants`\n";
+} else {
+    echo "  . `is_complementary` already exists\n";
+}
+
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";
 echo "========================================================\n";

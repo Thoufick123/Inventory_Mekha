@@ -19,6 +19,7 @@ class ModuleRegistry
             ['code' => 'purchase_stocks', 'name' => 'Purchase Stocks', 'icon' => 'bi-boxes', 'sort_order' => 22, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
             ['code' => 'purchase_damage', 'name' => 'Purchase Damage', 'icon' => 'bi-shield-x', 'sort_order' => 23, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
             ['code' => 'catalog_mapping', 'name' => 'Catalog Mapping', 'icon' => 'bi-diagram-3-fill', 'sort_order' => 24, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
+            ['code' => 'product_adding', 'name' => 'Product Adding', 'icon' => 'bi-plus-square-dotted', 'sort_order' => 25, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
             ['code' => 'catalog_program', 'name' => 'Catalog & Program', 'icon' => 'bi-journal-bookmark', 'sort_order' => 30, 'group_name' => 'Production', 'is_super_admin_only' => 0],
             ['code' => 'cutting_wastage', 'name' => 'Cutting & Wastage', 'icon' => 'bi-scissors', 'sort_order' => 31, 'group_name' => 'Production', 'is_super_admin_only' => 0],
             ['code' => 'stitching_wastage', 'name' => 'Stitching & Wastage', 'icon' => 'bi-layers', 'sort_order' => 32, 'group_name' => 'Production', 'is_super_admin_only' => 0],

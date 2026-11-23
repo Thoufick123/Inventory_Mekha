@@ -4418,20 +4418,8 @@ class ProductionController extends Controller {
                         );
                     }
 
-                    // Inward finished goods to stock
-                    if ($item['stitching_qty'] > 0) {
-                        StockService::move(
-                            $batchConcernId,
-                            $item['variant_id'],
-                            'Main Store',
-                            $item['stitching_qty'],
-                            0.00,
-                            'Stitching',
-                            $stitchingId,
-                            "Stitching Batch [{$batchNo}]: Stitched {$item['stitching_qty']} units ({$item['size']}, {$item['color']})",
-                            Auth::id()
-                        );
-                    }
+                    // Live stock is credited only after QC passes.
+                    // Stitching records remain pending until QC completion.
                 }
             }
 
@@ -5043,6 +5031,23 @@ class ProductionController extends Controller {
 
         $location = $location ?: 'Main Store';
 
+        // Idempotency: a QC record is allowed to credit each variant exactly once.
+        // Repeating direct inward or completing the same QC again adds no stock and no ledger row.
+        $alreadyPosted = DB::fetch(
+            "SELECT id, qty_in
+             FROM stock_ledger
+             WHERE concern_id = ?
+               AND variant_id = ?
+               AND location = ?
+               AND ref_module = 'Production QC'
+               AND ref_id = ?
+             LIMIT 1",
+            [$cid, $variantId, $location, $qcId]
+        );
+        if ($alreadyPosted) {
+            return;
+        }
+
         // 1. Credit stocks table (stocks table primary key is (concern_id, variant_id, location))
         $existing = DB::fetch(
             "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ?",
@@ -5350,6 +5355,19 @@ class ProductionController extends Controller {
             return;
         }
 
+        $existingQc = DB::fetch(
+            "SELECT id, qc_no, status
+             FROM qc_inspections
+             WHERE stitching_batch_id = ? AND concern_id = ? AND status != 'CANCELLED'
+             ORDER BY id DESC LIMIT 1",
+            [$stitchingBatchId, $cid]
+        );
+        if ($existingQc) {
+            $this->flash('warning', "Stitching Batch {$batch['display_batch_no']} already has QC {$existingQc['qc_no']}. It cannot create another stock entry.");
+            $this->redirect("/production/qc/details?id=" . (int)$existingQc['id']);
+            return;
+        }
+
         $inspector = DB::fetch("SELECT name FROM users WHERE id = ?", [$inspectorId]);
         $inspectorName = $inspector['name'] ?? 'System Administrator';
 
@@ -5651,6 +5669,17 @@ class ProductionController extends Controller {
         if (!$qc) {
             $this->flash('error', 'QC inspection record not found.');
             $this->redirect('/production/qc');
+            return;
+        }
+
+        $terminalStatus = strtoupper((string)($qc['status'] ?? ''));
+        $pendingPieces = (int)DB::fetchValue(
+            "SELECT COUNT(*) FROM qc_piece_items WHERE qc_id = ? AND verdict = 'PENDING'",
+            [$id]
+        );
+        if ($pendingPieces === 0 && in_array($terminalStatus, ['PASSED', 'PARTIAL', 'REJECTED', 'REWORK', 'COMPLETED'], true)) {
+            $this->flash('warning', "QC {$qc['qc_no']} has already been completed. Stock is not credited again.");
+            $this->redirect("/production/qc/details?id={$id}");
             return;
         }
 

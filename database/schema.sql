@@ -1,7 +1,8 @@
 -- ========================================================
 -- INVENTO: Multi-Concern Inventory Management System Schema
 -- Compatible with Local (XAMPP) & Live Hosting (Hostinger/cPanel)
--- Fresh-install baseline; use live_db_update.sql to upgrade an existing database.
+-- Safe baseline: creates missing tables only; it does not alter existing tables or data.
+-- Import this first if core tables are missing, then run live_db_update.sql.
 -- ========================================================
 
 -- Disable foreign key checks for clean creation
