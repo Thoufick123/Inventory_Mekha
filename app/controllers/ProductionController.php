@@ -5031,7 +5031,7 @@ class ProductionController extends Controller {
 
         $location = $location ?: 'Main Store';
 
-        // Idempotency: a QC record is allowed to credit each variant exactly once.
+        // Idempotency: A QC record is allowed to credit each variant exactly once.
         // Repeating direct inward or completing the same QC again adds no stock and no ledger row.
         $alreadyPosted = DB::fetch(
             "SELECT id, qty_in
