@@ -59,6 +59,79 @@ abstract class Controller {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
 
+            // Self-healing QC schema and tables
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `qc_inspections` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `concern_id` INT NULL,
+                    `qc_no` VARCHAR(50) NOT NULL,
+                    `batch_no` VARCHAR(50) NULL,
+                    `variant_id` INT NULL,
+                    `program_id` INT NULL,
+                    `stitching_batch_id` INT NULL,
+                    `cutting_batch_id` INT NULL,
+                    `inspected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `passed_qty` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `location` VARCHAR(100) NULL DEFAULT 'Main Store',
+                    `defect_notes` TEXT NULL,
+                    `rework_notes` TEXT NULL,
+                    `status` VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+                    `inspector_id` INT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`concern_id`),
+                    INDEX (`stitching_batch_id`),
+                    INDEX (`status`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `qc_inspection_items` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `qc_id` INT NOT NULL,
+                    `catalog_id` INT NULL,
+                    `variant_id` INT NULL,
+                    `stitching_item_id` INT NULL,
+                    `size` VARCHAR(50) NULL,
+                    `color` VARCHAR(50) NULL,
+                    `sku_code` VARCHAR(100) NULL,
+                    `variant_name` VARCHAR(255) NULL,
+                    `inspected_qty` INT NOT NULL DEFAULT 0,
+                    `passed_qty` INT NOT NULL DEFAULT 0,
+                    `rejected_qty` INT NOT NULL DEFAULT 0,
+                    `rework_qty` INT NOT NULL DEFAULT 0,
+                    `defect_notes` TEXT NULL,
+                    `rework_notes` TEXT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`qc_id`),
+                    INDEX (`variant_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `qc_piece_items` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `qc_id` INT NOT NULL,
+                    `qc_item_id` INT NULL,
+                    `variant_id` INT NULL,
+                    `stitching_item_id` INT NULL,
+                    `tag_code` VARCHAR(100) NOT NULL,
+                    `piece_number` INT NOT NULL DEFAULT 1,
+                    `total_variant_pieces` INT NOT NULL DEFAULT 1,
+                    `size` VARCHAR(50) NULL,
+                    `color` VARCHAR(50) NULL,
+                    `catalog_name` VARCHAR(255) NULL,
+                    `verdict` ENUM('PENDING','PASSED','REJECTED','REWORK') NOT NULL DEFAULT 'PENDING',
+                    `defect_reason` TEXT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`qc_id`),
+                    INDEX (`tag_code`),
+                    INDEX (`verdict`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
             // Self-healing columns for inwards, inward_items, batches, qc_inspections, outwards
             $inCols = array_column(DB::fetchAll("DESCRIBE `inwards`"), 'Field');
             if (!in_array('production_unit_id', $inCols)) DB::query("ALTER TABLE `inwards` ADD COLUMN `production_unit_id` INT NULL AFTER `concern_id`");
@@ -94,13 +167,39 @@ abstract class Controller {
             if (!in_array('approved_at', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `approved_at` DATETIME NULL AFTER `approved_by`");
 
             $qcCols = array_column(DB::fetchAll("DESCRIBE `qc_inspections`"), 'Field');
-            if (!in_array('batch_no', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `batch_no` VARCHAR(50) NULL AFTER `qc_no`");
-            if (!in_array('program_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `program_id` INT NULL AFTER `variant_id`");
-            if (!in_array('cutting_batch_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `cutting_batch_id` INT NULL AFTER `variant_id`");
-            if (!in_array('stitching_batch_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `stitching_batch_id` INT NULL AFTER `cutting_batch_id`");
-            if (!in_array('rework_qty', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_qty` DECIMAL(12,2) DEFAULT 0.00 AFTER `passed_qty`");
-            if (!in_array('rework_notes', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_notes` TEXT NULL AFTER `defect_notes`");
-            if (!in_array('status', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `status` VARCHAR(50) DEFAULT 'COMPLETED' AFTER `rework_notes`");
+            if (!in_array('batch_no', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `batch_no` VARCHAR(50) NULL");
+            if (!in_array('program_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `program_id` INT NULL");
+            if (!in_array('cutting_batch_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `cutting_batch_id` INT NULL");
+            if (!in_array('stitching_batch_id', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `stitching_batch_id` INT NULL");
+            if (!in_array('rework_qty', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_qty` DECIMAL(12,2) DEFAULT 0.00");
+            if (!in_array('rework_notes', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_notes` TEXT NULL");
+            if (!in_array('status', $qcCols)) DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `status` VARCHAR(50) DEFAULT 'COMPLETED'");
+            // Ensure variant_id is nullable in qc_inspections
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `variant_id` INT NULL");
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `inspected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `passed_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+
+            // Ensure qc_stocks module is enabled in concern_modules for all active concerns
+            $qcModId = DB::fetchValue("SELECT id FROM modules WHERE code = 'qc_stocks'");
+            if ($qcModId) {
+                $concerns = DB::fetchAll("SELECT id FROM concerns WHERE status = 'active' OR status IS NULL OR status = ''");
+                foreach ($concerns as $cn) {
+                    $hasCm = DB::fetchValue("SELECT id FROM concern_modules WHERE concern_id = ? AND module_id = ?", [$cn['id'], $qcModId]);
+                    if (!$hasCm) {
+                        DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)", [$cn['id'], $qcModId]);
+                    }
+                }
+                // Also ensure Concern Administrator roles have permissions for qc_stocks
+                $adminRoles = DB::fetchAll("SELECT id FROM roles WHERE name LIKE '%Admin%' AND id > 1");
+                foreach ($adminRoles as $ar) {
+                    $hasRp = DB::fetchValue("SELECT id FROM role_permissions WHERE role_id = ? AND module_id = ?", [$ar['id'], $qcModId]);
+                    if (!$hasRp) {
+                        DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 1, 1, 1)", [$ar['id'], $qcModId]);
+                    }
+                }
+            }
 
             $outCols = array_column(DB::fetchAll("DESCRIBE `outwards`"), 'Field');
             if (!in_array('production_unit_id', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `production_unit_id` INT NULL AFTER `concern_id`");

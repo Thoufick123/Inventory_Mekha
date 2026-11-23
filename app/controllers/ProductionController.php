@@ -6276,12 +6276,32 @@ class ProductionController extends Controller {
             ");
 
             $cols = array_column(DB::fetchAll("DESCRIBE `qc_inspections`"), 'Field');
+            if (!in_array('batch_no', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `batch_no` VARCHAR(50) NULL");
+            }
+            if (!in_array('program_id', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `program_id` INT NULL");
+            }
+            if (!in_array('cutting_batch_id', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `cutting_batch_id` INT NULL");
+            }
             if (!in_array('stitching_batch_id', $cols)) {
-                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `stitching_batch_id` INT NULL AFTER `program_id`");
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `stitching_batch_id` INT NULL");
+            }
+            if (!in_array('rework_qty', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_qty` DECIMAL(12,2) DEFAULT 0.00");
             }
             if (!in_array('rework_notes', $cols)) {
-                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_notes` TEXT NULL AFTER `defect_notes`");
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `rework_notes` TEXT NULL");
             }
+            if (!in_array('status', $cols)) {
+                DB::query("ALTER TABLE `qc_inspections` ADD COLUMN `status` VARCHAR(50) DEFAULT 'COMPLETED'");
+            }
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `variant_id` INT NULL");
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `inspected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `passed_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+            DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
         } catch (\Throwable $e) {}
     }
 
@@ -6727,9 +6747,17 @@ class ProductionController extends Controller {
                 $qcItemId = (int)DB::lastInsertId();
 
                 // Generate piece records for the QR scanner
+                // Format code matching Finished Goods Product label base (variant-wise)
+                $fgCode = null;
+                if ($variantId > 0) {
+                    $fgCode = \App\Services\QrService::generateFinishedGoodsCode($variantId);
+                }
                 $skuPrefix = preg_replace('/[^A-Z0-9]/i', '', strtoupper(substr($sku ?: ($size . $color), 0, 3)));
+                $baseProductCode = $fgCode ?: ($skuPrefix ?: 'GAR') . date('md');
+
                 for ($p = 1; $p <= $inspectedQ; $p++) {
-                    $pieceCode = ($skuPrefix ?: 'GAR') . date('md') . str_pad((string)$tagSeq, 3, '0', STR_PAD_LEFT);
+                    // Unique piece tag code based on finished goods product code & sequence
+                    $pieceCode = $baseProductCode . '-' . str_pad((string)$p, 3, '0', STR_PAD_LEFT);
                     
                     if ($submitAction === 'save_and_inspect') {
                         $pVerdict = 'PENDING';
@@ -6831,6 +6859,20 @@ class ProductionController extends Controller {
             ORDER BY qp.id ASC
         ", [$id]);
 
+        // Dynamically heal tag_code if legacy prefix format was stored
+        foreach ($pieces as &$p) {
+            $vId = (int)($p['variant_id'] ?? 0);
+            if ($vId > 0 && !str_starts_with($p['tag_code'], 'GRM')) {
+                $fgCode = \App\Services\QrService::generateFinishedGoodsCode($vId);
+                if ($fgCode) {
+                    $newCode = $fgCode . '-' . str_pad((string)$p['piece_number'], 3, '0', STR_PAD_LEFT);
+                    DB::query("UPDATE qc_piece_items SET tag_code = ? WHERE id = ?", [$newCode, $p['id']]);
+                    $p['tag_code'] = $newCode;
+                }
+            }
+        }
+        unset($p);
+
         $this->render('concern/qc_inspect', [
             'pageTitle'     => "2D QR Garment Scanner — {$qc['qc_no']}",
             'currentModule' => 'qc_stocks',
@@ -6845,6 +6887,7 @@ class ProductionController extends Controller {
      */
     public function updateQcPiece(): void {
         header('Content-Type: application/json');
+        ModuleGuard::enforce('qc_stocks', 'edit|add');
         $this->ensureQcSchema();
         $pieceId = (int)($_POST['piece_id'] ?? 0);
         $verdict = strtoupper(trim($_POST['verdict'] ?? ''));
@@ -6891,6 +6934,7 @@ class ProductionController extends Controller {
      */
     public function passAllQcPieces(): void {
         header('Content-Type: application/json');
+        ModuleGuard::enforce('qc_stocks', 'edit|add');
         $this->ensureQcSchema();
         $qcId = (int)($_POST['qc_id'] ?? 0);
 

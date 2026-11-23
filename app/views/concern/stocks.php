@@ -52,6 +52,7 @@
     </div>
 
     <?php
+    $effectiveCanDelete = !empty($canEditStock) && (!isset($canDeleteStock) || !empty($canDeleteStock));
     $showConcernColumn = $isSuperAdmin && empty($selectedCid);
     $stockColumnCount = $showConcernColumn ? 9 : 8;
     $stockGroups = [
@@ -282,7 +283,7 @@
                                                         <i class="bi bi-pencil-square"></i> Edit
                                                     </button>
                                                 <?php endif; ?>
-                                                <?php if (!empty($canDeleteStock)): ?>
+                                                <?php if (!empty($effectiveCanDelete)): ?>
                                                     <form method="post"
                                                           action="<?= \App\Core\Controller::url('/m/stocks/delete-line') ?>"
                                                           data-stock-delete-form
@@ -822,7 +823,7 @@ document.querySelectorAll('[data-stock-source-tab]').forEach(button => {
         const emptyRow = document.getElementById('stock-source-empty-row');
         if (emptyRow) {
             emptyRow.classList.toggle('d-none', visibleCount > 0);
-            emptyRow.querySelector('td').textContent = `No ${source === 'own' ? 'own' : 'purchase'} product stock available.`;
+            emptyRow.querySelector('td').textContent = `No ${source === 'own' ? 'own' : (source === 'purchase' ? 'purchase' : 'other')} product stock available.`;
         }
     });
 });

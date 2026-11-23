@@ -36,10 +36,36 @@ class StockController extends Controller {
                        CASE COALESCE(latest_inbound.ref_module, latest_variant_source.ref_module)
                            WHEN 'Production Inward' THEN 'own'
                            WHEN 'Production Stock Adjustment' THEN 'own'
+                           WHEN 'Production QC' THEN 'own'
                            WHEN 'Purchase Inward' THEN 'purchase'
                            WHEN 'Purchase Inward Item' THEN 'purchase'
                            WHEN 'Purchase Stock Adjustment' THEN 'purchase'
-                           ELSE 'other'
+                           ELSE CASE
+                               WHEN EXISTS (
+                                   SELECT 1 FROM stock_ledger sl_prod 
+                                   WHERE sl_prod.concern_id = s.concern_id 
+                                     AND sl_prod.variant_id = s.variant_id 
+                                     AND sl_prod.ref_module IN ('Production QC', 'Production Inward', 'Production Stock Adjustment')
+                               ) THEN 'own'
+                               WHEN EXISTS (
+                                   SELECT 1 FROM qc_inspection_items qii_chk 
+                                   WHERE qii_chk.variant_id = s.variant_id
+                               ) THEN 'own'
+                               WHEN EXISTS (
+                                   SELECT 1 FROM stitching_items sti_chk 
+                                   WHERE sti_chk.variant_id = s.variant_id
+                               ) THEN 'own'
+                               WHEN EXISTS (
+                                   SELECT 1 FROM batches b_chk 
+                                   WHERE b_chk.variant_id = s.variant_id
+                               ) THEN 'own'
+                               WHEN EXISTS (
+                                   SELECT 1 FROM purchase_bill_items pbi_chk
+                                   WHERE pbi_chk.concern_id = s.concern_id
+                                     AND (pbi_chk.variant_id = v.id OR (v.catalog_id IS NOT NULL AND pbi_chk.catalog_id = v.catalog_id))
+                               ) THEN 'purchase'
+                               ELSE 'other'
+                           END
                        END AS stock_source
                 FROM stocks s
                 JOIN variants v ON s.variant_id = v.id
@@ -54,7 +80,7 @@ class StockController extends Controller {
                         FROM stock_ledger
                         WHERE qty_in > 0
                           AND ref_module IN (
-                              'Production Inward', 'Production Stock Adjustment',
+                              'Production Inward', 'Production Stock Adjustment', 'Production QC',
                               'Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'
                           )
                         GROUP BY concern_id, variant_id, location
@@ -71,7 +97,7 @@ class StockController extends Controller {
                         FROM stock_ledger
                         WHERE qty_in > 0
                           AND ref_module IN (
-                              'Production Inward', 'Production Stock Adjustment',
+                              'Production Inward', 'Production Stock Adjustment', 'Production QC',
                               'Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'
                           )
                         GROUP BY concern_id, variant_id
@@ -464,7 +490,7 @@ class StockController extends Controller {
             $targetQuantity = (float)$newQuantity;
             $difference = $targetQuantity - $currentQuantity;
             if (abs($difference) > 0.00001) {
-                $refModule = $this->stockAdjustmentModule((string)$stock['latest_inbound_module']);
+                $refModule = $this->stockAdjustmentModule((string)$stock['latest_inbound_module'], $concernId, $variantId);
                 StockService::move(
                     $concernId,
                     $variantId,
@@ -551,7 +577,7 @@ class StockController extends Controller {
             $targetQuantity = $remove ? 0.0 : (float)$newQuantity;
             $difference = $targetQuantity - $currentQuantity;
             if (abs($difference) > 0.00001) {
-                $refModule = $this->stockAdjustmentModule((string)$stock['latest_inbound_module']);
+                $refModule = $this->stockAdjustmentModule((string)$stock['latest_inbound_module'], $concernId, $variantId);
                 StockService::move(
                     $concernId,
                     $variantId,
@@ -751,13 +777,29 @@ class StockController extends Controller {
         return $concernId;
     }
 
-    private function stockAdjustmentModule(string $latestInboundModule): string
+    private function stockAdjustmentModule(string $latestInboundModule, ?int $concernId = null, ?int $variantId = null): string
     {
-        if (in_array($latestInboundModule, ['Production Inward', 'Production Stock Adjustment'], true)) {
+        if (in_array($latestInboundModule, ['Production Inward', 'Production Stock Adjustment', 'Production QC'], true)) {
             return 'Production Stock Adjustment';
         }
         if (in_array($latestInboundModule, ['Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment'], true)) {
             return 'Purchase Stock Adjustment';
+        }
+        if ($concernId && $variantId) {
+            $hasProd = DB::fetchValue(
+                "SELECT 1 FROM stock_ledger WHERE concern_id = ? AND variant_id = ? AND ref_module IN ('Production QC', 'Production Inward', 'Production Stock Adjustment') LIMIT 1",
+                [$concernId, $variantId]
+            );
+            if ($hasProd) {
+                return 'Production Stock Adjustment';
+            }
+            $hasPurch = DB::fetchValue(
+                "SELECT 1 FROM stock_ledger WHERE concern_id = ? AND variant_id = ? AND ref_module IN ('Purchase Inward', 'Purchase Inward Item', 'Purchase Stock Adjustment') LIMIT 1",
+                [$concernId, $variantId]
+            );
+            if ($hasPurch) {
+                return 'Purchase Stock Adjustment';
+            }
         }
         throw new \RuntimeException('Only own-product and purchase-product stock can be adjusted here.');
     }

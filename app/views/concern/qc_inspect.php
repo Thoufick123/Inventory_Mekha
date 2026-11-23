@@ -267,12 +267,16 @@ function setPieceVerdict(pieceId, verdict) {
     const note = document.getElementById('note_' + pieceId)?.value || '';
 
     const formData = new FormData();
+    formData.append('csrf_token', '<?= htmlspecialchars($csrfToken) ?>');
     formData.append('piece_id', pieceId);
     formData.append('verdict', verdict);
     formData.append('defect_reason', note);
 
     fetch('<?= \App\Core\Controller::url('/production/qc/update-piece') ?>', {
         method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
         body: formData
     })
     .then(res => res.json())
@@ -298,17 +302,24 @@ function setPieceVerdict(pieceId, verdict) {
             alert(data.message || 'Error updating piece verdict.');
         }
     })
-    .catch(err => console.error(err));
+    .catch(err => {
+        console.error(err);
+        alert('Network or server error updating piece verdict.');
+    });
 }
 
 function passAllPieces() {
     if (!confirm('Mark all pending pieces as PASSED?')) return;
 
     const formData = new FormData();
+    formData.append('csrf_token', '<?= htmlspecialchars($csrfToken) ?>');
     formData.append('qc_id', '<?= (int)$qc['id'] ?>');
 
     fetch('<?= \App\Core\Controller::url('/production/qc/pass-all') ?>', {
         method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
         body: formData
     })
     .then(res => res.json())
@@ -329,7 +340,10 @@ function passAllPieces() {
             alert(data.message || 'Error updating pieces.');
         }
     })
-    .catch(err => console.error(err));
+    .catch(err => {
+        console.error(err);
+        alert('Network or server error updating pieces.');
+    });
 }
 
 function updateBadgeCounts(counts) {
