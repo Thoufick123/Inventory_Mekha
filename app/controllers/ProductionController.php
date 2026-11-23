@@ -2657,17 +2657,22 @@ class ProductionController extends Controller {
             "SELECT pr.*, 
                     pbi.item_code AS current_roll_code, pbi.item_name AS current_roll_name, pbi.color AS current_roll_color, pbi.unit AS current_unit, pbi.qty AS original_total_qty,
                     cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
-                    COALESCE(c.id, c_match.id) AS resolved_catalog_id,
-                    COALESCE(c.name, c_match.name) AS catalog_name,
-                    COALESCE(c.style_code, c_match.style_code) AS catalog_style_code
+                    c.id AS resolved_catalog_id,
+                    c.name AS catalog_name,
+                    c.style_code AS catalog_style_code
              FROM program_rolls pr
              LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
              LEFT JOIN categories cat ON pr.category_id = cat.id
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-             LEFT JOIN catalogs c ON pr.catalog_id = c.id
-             LEFT JOIN catalogs c_match ON (pr.sub_sub_category_id IS NOT NULL AND pr.sub_sub_category_id = c_match.sub_sub_category_id)
+             LEFT JOIN catalogs c ON c.id = COALESCE(
+                 pr.catalog_id,
+                 (SELECT c_m.id FROM catalogs c_m WHERE pr.sub_sub_category_id IS NOT NULL AND c_m.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c_m.id ASC LIMIT 1),
+                 (SELECT c_s.id FROM catalogs c_s WHERE pr.subcategory_id IS NOT NULL AND c_s.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c_s.category_id = pr.category_id) ORDER BY c_s.id ASC LIMIT 1),
+                 (SELECT c_c.id FROM catalogs c_c WHERE pr.category_id IS NOT NULL AND c_c.category_id = pr.category_id ORDER BY c_c.id ASC LIMIT 1)
+             )
              WHERE pr.program_id = ?
+             GROUP BY pr.id
              ORDER BY pr.id ASC",
             [$id]
         );
@@ -3556,25 +3561,29 @@ class ProductionController extends Controller {
             "SELECT pr.*, 
                     pbi.item_code, pbi.item_name, pbi.pattern, pbi.color, pbi.unit, pbi.net_weight, pbi.unit_price,
                     cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
-                    COALESCE(c.id, c_subsub.id, c_sub.id, c_cat.id) AS roll_catalog_id,
-                    COALESCE(c.name, c_subsub.name, c_sub.name, c_cat.name) AS roll_catalog_name,
-                    COALESCE(c.style_code, c_subsub.style_code, c_sub.style_code, c_cat.style_code) AS roll_style_code,
-                    COALESCE(c.sizes, c_subsub.sizes, c_sub.sizes, c_cat.sizes) AS roll_catalog_sizes
+                    c.id AS roll_catalog_id,
+                    c.name AS roll_catalog_name,
+                    c.style_code AS roll_style_code,
+                    c.sizes AS roll_catalog_sizes
              FROM program_rolls pr
              LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
              LEFT JOIN categories cat ON pr.category_id = cat.id
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-             LEFT JOIN catalogs c ON pr.catalog_id = c.id
-             LEFT JOIN catalogs c_subsub ON (pr.sub_sub_category_id IS NOT NULL AND pr.sub_sub_category_id = c_subsub.sub_sub_category_id)
-             LEFT JOIN catalogs c_sub ON (pr.subcategory_id IS NOT NULL AND pr.subcategory_id = c_sub.subcategory_id AND (pr.category_id IS NULL OR pr.category_id = c_sub.category_id))
-             LEFT JOIN catalogs c_cat ON (pr.category_id IS NOT NULL AND pr.category_id = c_cat.category_id AND (c_cat.subcategory_id IS NULL OR c_cat.subcategory_id = 0))
+             LEFT JOIN catalogs c ON c.id = COALESCE(
+                 pr.catalog_id,
+                 (SELECT pp.catalog_id FROM production_programs pp WHERE pp.id = pr.program_id),
+                 (SELECT c1.id FROM catalogs c1 WHERE pr.sub_sub_category_id IS NOT NULL AND c1.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c1.id ASC LIMIT 1),
+                 (SELECT c2.id FROM catalogs c2 WHERE pr.subcategory_id IS NOT NULL AND c2.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c2.category_id = pr.category_id) ORDER BY c2.id ASC LIMIT 1),
+                 (SELECT c3.id FROM catalogs c3 WHERE pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
+             )
              WHERE pr.program_id = ?
                AND pr.id NOT IN (
                    SELECT DISTINCT program_roll_id 
                    FROM cutting_items 
                    WHERE program_roll_id IS NOT NULL AND cut_pieces > 0
                )
+             GROUP BY pr.id
              ORDER BY pr.id ASC",
             [$progId]
         );
@@ -5019,9 +5028,9 @@ class ProductionController extends Controller {
                     pr.catalog_id AS roll_catalog_id,
                     pr.category_id, pr.subcategory_id, pr.sub_sub_category_id,
                     cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
-                    COALESCE(c_roll.id, c_var.id, c_subsub.id, c_sub.id, c_cat.id) AS cat_id,
-                    COALESCE(c_roll.name, c_var.name, c_subsub.name, c_sub.name, c_cat.name) AS cat_name,
-                    COALESCE(c_roll.style_code, c_var.style_code, c_subsub.style_code, c_sub.style_code, c_cat.style_code) AS cat_code,
+                    COALESCE(c_roll.id, c_var.id, c_fallback.id) AS cat_id,
+                    COALESCE(c_roll.name, c_var.name, c_fallback.name) AS cat_name,
+                    COALESCE(c_roll.style_code, c_var.style_code, c_fallback.style_code) AS cat_code,
                     v.id AS var_id, v.name AS var_name, v.sku_code AS var_sku, v.size AS var_size,
                     v.catalog_id AS var_cat_id, v.mrp AS var_mrp, v.price AS var_sp,
                     COALESCE(pr.color, pbi.color, 'Standard') AS roll_color,
@@ -5035,10 +5044,13 @@ class ProductionController extends Controller {
              LEFT JOIN catalogs c_roll ON pr.catalog_id = c_roll.id
              LEFT JOIN variants v ON ci.variant_id = v.id
              LEFT JOIN catalogs c_var ON v.catalog_id = c_var.id
-             LEFT JOIN catalogs c_subsub ON (pr.sub_sub_category_id IS NOT NULL AND pr.sub_sub_category_id = c_subsub.sub_sub_category_id)
-             LEFT JOIN catalogs c_sub ON (pr.subcategory_id IS NOT NULL AND pr.subcategory_id = c_sub.subcategory_id AND (pr.category_id IS NULL OR pr.category_id = c_sub.category_id))
-             LEFT JOIN catalogs c_cat ON (pr.category_id IS NOT NULL AND pr.category_id = c_cat.category_id AND (c_cat.subcategory_id IS NULL OR c_cat.subcategory_id = 0))
+             LEFT JOIN catalogs c_fallback ON c_fallback.id = COALESCE(
+                 (SELECT c1.id FROM catalogs c1 WHERE pr.sub_sub_category_id IS NOT NULL AND c1.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c1.id ASC LIMIT 1),
+                 (SELECT c2.id FROM catalogs c2 WHERE pr.subcategory_id IS NOT NULL AND c2.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c2.category_id = pr.category_id) ORDER BY c2.id ASC LIMIT 1),
+                 (SELECT c3.id FROM catalogs c3 WHERE pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
+             )
              WHERE ci.cutting_id = ?
+             GROUP BY ci.id
              ORDER BY ci.id ASC",
             [$cuttingId]
         );
