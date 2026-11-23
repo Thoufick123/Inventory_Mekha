@@ -173,7 +173,7 @@ class LabelController extends Controller {
                          s.name AS supplier_name, s.company_name AS supplier_company,
                          fg_concern.name AS item_concern_name,
                          v.sku_code, v.name AS variant_name, v.size AS variant_size, v.catalog_id AS variant_catalog_id,
-                         v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes
+                         v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes,
                          v.category_id, v.subcategory_id,
                          c.name AS category_name, c.code AS category_code,
                          sc.name AS subcategory_name, sc.code AS subcategory_code,
