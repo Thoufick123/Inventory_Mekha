@@ -950,7 +950,12 @@ class SalesController extends Controller {
 
         $sql = "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, COALESCE(s.qty, 0) AS available_qty
                 FROM variants v
-                LEFT JOIN stocks s ON v.id = s.variant_id AND s.concern_id = ? AND s.location = 'Main Store'
+                LEFT JOIN (
+                    SELECT variant_id, concern_id, SUM(qty) AS qty
+                    FROM stocks
+                    WHERE (location = 'Main Store' OR location = 'Main Store (WH-01)')
+                    GROUP BY variant_id, concern_id
+                ) s ON v.id = s.variant_id AND s.concern_id = ?
                 LEFT JOIN catalogs c ON c.id = v.catalog_id AND c.concern_id = v.concern_id
                 WHERE v.concern_id = ? AND v.status = 'active'";
         $params = [$cid, $cid];
@@ -1385,7 +1390,7 @@ class SalesController extends Controller {
             ksort($requestedQtyByVariant);
             foreach ($requestedQtyByVariant as $variantId => $requestedQty) {
                 $availableQty = (float)(DB::fetchValue(
-                    "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store' FOR UPDATE",
+                    "SELECT COALESCE(SUM(qty), 0) FROM stocks WHERE concern_id = ? AND variant_id = ? AND (location = 'Main Store' OR location = 'Main Store (WH-01)') FOR UPDATE",
                     [$cid, (int)$variantId]
                 ) ?: 0);
                 if ($requestedQty > $availableQty) {
@@ -1452,10 +1457,12 @@ class SalesController extends Controller {
                 );
 
                 // Deduct stock via StockService::move
+                $msQty = (float)DB::fetchValue("SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'", [$cid, $item['variant_id']]);
+                $moveLocation = ($msQty >= $item['qty']) ? 'Main Store' : (DB::fetchValue("SELECT location FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store (WH-01)'", [$cid, $item['variant_id']]) ? 'Main Store (WH-01)' : 'Main Store');
                 StockService::move(
                     $cid,
                     $item['variant_id'],
-                    'Main Store',
+                    $moveLocation,
                     0.00,
                     $item['qty'],
                     'Billing',

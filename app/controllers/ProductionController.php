@@ -7303,20 +7303,6 @@ class ProductionController extends Controller {
             return;
         }
 
-        $pieceCounts = DB::fetch("
-            SELECT 
-                COUNT(*) AS total,
-                SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
-                SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
-                SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework
-            FROM qc_piece_items WHERE qc_id = ?
-        ", [$id]);
-        if (!empty($pieceCounts['total'])) {
-            $qc['passed_qty'] = (float)$pieceCounts['passed'];
-            $qc['rejected_qty'] = (float)$pieceCounts['rejected'];
-            $qc['rework_qty'] = (float)$pieceCounts['rework'];
-        }
-
         $terminalStatus = strtoupper((string)($qc['status'] ?? ''));
         $pendingPieces = (int)DB::fetchValue(
             "SELECT COUNT(*) FROM qc_piece_items WHERE qc_id = ? AND verdict = 'PENDING'",
