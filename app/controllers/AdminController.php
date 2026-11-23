@@ -153,7 +153,14 @@ class AdminController extends Controller {
         
         $concerns = DB::fetchAll(
             "SELECT c.*, 
-                    (SELECT COUNT(*) FROM concern_modules cm WHERE cm.concern_id = c.id AND cm.enabled = 1) AS active_modules_count,
+                    (SELECT COUNT(*) 
+                     FROM concern_modules cm 
+                     JOIN modules m ON cm.module_id = m.id 
+                     WHERE cm.concern_id = c.id 
+                       AND cm.enabled = 1 
+                       AND m.code != 'concern_dashboard' 
+                       AND m.is_super_admin_only = 0 
+                       AND m.code != 'cash') AS active_modules_count,
                     (SELECT COUNT(*) FROM users u WHERE u.concern_id = c.id) AS users_count
              FROM concerns c 
              ORDER BY c.id DESC"
@@ -183,7 +190,14 @@ class AdminController extends Controller {
         $this->ensureSchema();
         $concerns = DB::fetchAll(
             "SELECT c.*, 
-                    (SELECT COUNT(*) FROM concern_modules cm WHERE cm.concern_id = c.id AND cm.enabled = 1) AS active_modules_count,
+                    (SELECT COUNT(*) 
+                     FROM concern_modules cm 
+                     JOIN modules m ON cm.module_id = m.id 
+                     WHERE cm.concern_id = c.id 
+                       AND cm.enabled = 1 
+                       AND m.code != 'concern_dashboard' 
+                       AND m.is_super_admin_only = 0 
+                       AND m.code != 'cash') AS active_modules_count,
                     (SELECT COUNT(*) FROM users u WHERE u.concern_id = c.id) AS users_count,
                     (SELECT COUNT(*) FROM variants v WHERE v.concern_id = c.id) AS variants_count
              FROM concerns c 
@@ -947,7 +961,14 @@ class AdminController extends Controller {
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
         $sql = "SELECT c.*, 
-                       (SELECT COUNT(*) FROM concern_modules cm WHERE cm.concern_id = c.id AND cm.enabled = 1) AS active_modules_count,
+                       (SELECT COUNT(*) 
+                        FROM concern_modules cm 
+                        JOIN modules m ON cm.module_id = m.id 
+                        WHERE cm.concern_id = c.id 
+                          AND cm.enabled = 1 
+                          AND m.code != 'concern_dashboard' 
+                          AND m.is_super_admin_only = 0 
+                          AND m.code != 'cash') AS active_modules_count,
                        (SELECT COUNT(*) FROM users u WHERE u.concern_id = c.id) AS users_count,
                        (SELECT COUNT(*) FROM variants v WHERE v.concern_id = c.id) AS variants_count
                 FROM concerns c";
