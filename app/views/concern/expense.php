@@ -407,6 +407,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('expense', 'add')): ?>
 <!-- RECORD WAREHOUSE EXPENSE MODAL -->
 <div class="modal fade" id="modalAddExpense" tabindex="-1" aria-labelledby="modalAddExpenseLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -575,6 +576,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- VIEW VOUCHER MODAL -->
 <div class="modal fade" id="modalViewVoucher" tabindex="-1" aria-hidden="true">
@@ -647,6 +649,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('expense', 'edit')): ?>
 <!-- EDIT EXPENSE MODAL -->
 <div class="modal fade" id="modalEditExpense" tabindex="-1" aria-labelledby="modalEditExpenseLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -729,6 +732,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 let expenseCategories = <?= json_encode($categoriesList) ?>;

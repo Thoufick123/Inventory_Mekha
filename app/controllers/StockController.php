@@ -121,6 +121,7 @@ class StockController extends Controller {
             'totalValuation' => $totalValuation,
             'selectedCid'    => $cid,
             'canEditStock'   => Auth::isSuperAdmin() || Auth::can('stocks', 'edit'),
+            'canDeleteStock' => Auth::isSuperAdmin() || Auth::can('stocks', 'delete'),
             'categories'     => $categories,
             'subcategories'  => $subcategories,
         ]);
@@ -501,7 +502,7 @@ class StockController extends Controller {
 
     private function changeStockQuantity(bool $remove): void
     {
-        ModuleGuard::enforce('stocks', 'edit');
+        ModuleGuard::enforce('stocks', $remove ? 'delete' : 'edit');
         $this->validateCsrf();
 
         try {

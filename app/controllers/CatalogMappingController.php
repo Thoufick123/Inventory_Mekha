@@ -327,6 +327,17 @@ class CatalogMappingController extends Controller
             $this->flash('error', 'Finished good item not found or access denied.');
             $this->redirect('/production/catalog-mapping');
         }
+
+        $isMapped = (!empty($item['mapping_id']) && $item['mapping_status'] === 'mapped') || (!empty($item['catalog_id']) && !empty($item['variant_id'])) || !empty($item['mapped_catalog_id']);
+        if ($isMapped && !Auth::can('catalog_mapping', 'edit')) {
+            $this->flash('error', 'You do not have permission to edit catalog mappings.');
+            $this->redirect('/production/catalog-mapping');
+        }
+        if (!$isMapped && !Auth::can('catalog_mapping', 'add')) {
+            $this->flash('error', 'You do not have permission to create catalog mappings.');
+            $this->redirect('/production/catalog-mapping');
+        }
+
         $cid = $cid ?: (int) ($item['concern_id'] ?? 1);
 
         $existingVariantRows = [];
@@ -553,6 +564,16 @@ class CatalogMappingController extends Controller
         $cid = (int) ($item['concern_id'] ?? $userCid ?? 0);
         if ($cid <= 0 || !DB::fetch('SELECT id FROM concerns WHERE id = ?', [$cid])) {
             $this->flash('error', 'Finished good item has no valid concern for catalog mapping.');
+            $this->redirect('/production/catalog-mapping');
+        }
+
+        $isMapped = (!empty($item['catalog_id']) && !empty($item['variant_id'])) || (bool)DB::fetchValue("SELECT id FROM catalog_mappings WHERE purchase_bill_item_id = ?", [$itemId]);
+        if ($isMapped && !Auth::can('catalog_mapping', 'edit')) {
+            $this->flash('error', 'You do not have permission to edit catalog mappings.');
+            $this->redirect('/production/catalog-mapping');
+        }
+        if (!$isMapped && !Auth::can('catalog_mapping', 'add')) {
+            $this->flash('error', 'You do not have permission to create catalog mappings.');
             $this->redirect('/production/catalog-mapping');
         }
 

@@ -441,6 +441,17 @@ class Auth {
             return false;
         }
 
+        // Support alternative actions separated by '|' (e.g. 'add|edit')
+        if (str_contains($action, '|')) {
+            $actions = explode('|', $action);
+            foreach ($actions as $subAction) {
+                if (self::can($moduleCode, trim($subAction))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // Action normalization: support 'view', 'add'/'create', 'edit', 'delete', plus operational actions
         $act = strtolower($action);
         $actionAlias = null;

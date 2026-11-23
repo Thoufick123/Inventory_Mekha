@@ -202,6 +202,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('qc_stocks', 'add')): ?>
 <!-- Modal 1: New QC Batch -->
 <div class="modal fade" id="modalAddQc" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -266,6 +267,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Modal 2: View QC Details -->
 <div class="modal fade" id="modalViewQc" tabindex="-1" aria-hidden="true">
@@ -334,6 +336,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('qc_stocks', 'edit')): ?>
 <!-- Modal 3: Re-inspect / Cycle Rework Garments -->
 <div class="modal fade" id="modalReinspectQc" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -373,6 +376,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 function autoCalculatePassQty() {

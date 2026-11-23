@@ -553,13 +553,12 @@ DB::query("UPDATE `qc_inspections` SET `status` = 'COMPLETED' WHERE `status` IS 
 DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'COMPLETED'");
 
 foreach ([
-    'can_view' => 1,
-    'can_add' => 0,
-    'can_edit' => 0,
-    'can_delete' => 0,
-] as $permission => $default) {
-    DB::query("UPDATE `user_permissions` SET `{$permission}` = {$default} WHERE `{$permission}` IS NULL");
-    DB::query("ALTER TABLE `user_permissions` MODIFY COLUMN `{$permission}` TINYINT(1) NOT NULL DEFAULT {$default}");
+    'can_view',
+    'can_add',
+    'can_edit',
+    'can_delete',
+] as $permission) {
+    DB::query("ALTER TABLE `user_permissions` MODIFY COLUMN `{$permission}` TINYINT(1) NULL DEFAULT NULL");
 }
 echo "  + Required columns and defaults aligned with schema.sql\n";
 

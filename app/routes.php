@@ -95,7 +95,7 @@ $router->get('/m/stocks/details', [StockController::class, 'details'], 'stocks',
 $router->get('/m/stocks/view-label', [LabelController::class, 'previewPurchaseFinishedGoodLabel'], 'stocks', 'view');
 $router->post('/m/stocks/update-details', [StockController::class, 'updateDetails'], 'stocks', 'edit');
 $router->post('/m/stocks/update-quantity', [StockController::class, 'updateQuantity'], 'stocks', 'edit');
-$router->post('/m/stocks/delete-line', [StockController::class, 'deleteStockLine'], 'stocks', 'edit');
+$router->post('/m/stocks/delete-line', [StockController::class, 'deleteStockLine'], 'stocks', 'delete');
 $router->post('/m/stocks/bulk-update-price', [StockController::class, 'bulkUpdatePrice'], 'stocks', 'edit');
 $router->post('/m/stocks/bulk-assign-complementary', [StockController::class, 'bulkAssignComplementary'], 'stocks', 'edit');
 $router->post('/m/stocks/bulk-unassign-complementary', [StockController::class, 'bulkUnassignComplementary'], 'stocks', 'edit');
@@ -169,8 +169,8 @@ $router->get('/m/customers', [SalesController::class, 'customers'], 'customers',
 $router->get('/shop/customers', [SalesController::class, 'customers'], 'customers', 'view');
 $router->post('/m/customers/store', [SalesController::class, 'storeCustomer'], 'customers', 'add');
 $router->post('/shop/customers/store', [SalesController::class, 'storeCustomer'], 'customers', 'add');
-$router->post('/m/customers/update', [SalesController::class, 'updateCustomer'], 'customers', 'add');
-$router->post('/shop/customers/update', [SalesController::class, 'updateCustomer'], 'customers', 'add');
+$router->post('/m/customers/update', [SalesController::class, 'updateCustomer'], 'customers', 'edit');
+$router->post('/shop/customers/update', [SalesController::class, 'updateCustomer'], 'customers', 'edit');
 $router->post('/m/customers/delete', [SalesController::class, 'deleteCustomer'], 'customers', 'delete');
 $router->post('/shop/customers/delete', [SalesController::class, 'deleteCustomer'], 'customers', 'delete');
 $router->get('/m/customers/export', [SalesController::class, 'exportCustomers'], 'customers', 'export');
@@ -297,15 +297,15 @@ $router->get('/api/programs/details', [ProductionController::class, 'apiProgramD
 // Catalog Mapping Module (Purchased Finished Goods -> 3-Tier Hierarchy & Attributes)
 $router->get('/production/catalog-mapping', [CatalogMappingController::class, 'index'], 'catalog_mapping', 'view');
 $router->get('/m/catalog_mapping', [CatalogMappingController::class, 'index'], 'catalog_mapping', 'view');
-$router->get('/production/catalog-mapping/map', [CatalogMappingController::class, 'mapItemForm'], 'catalog_mapping', 'add');
-$router->get('/m/catalog_mapping/map', [CatalogMappingController::class, 'mapItemForm'], 'catalog_mapping', 'add');
-$router->post('/production/catalog-mapping/save', [CatalogMappingController::class, 'saveMapping'], 'catalog_mapping', 'add');
-$router->post('/m/catalog_mapping/save', [CatalogMappingController::class, 'saveMapping'], 'catalog_mapping', 'add');
+$router->get('/production/catalog-mapping/map', [CatalogMappingController::class, 'mapItemForm'], 'catalog_mapping', 'add|edit');
+$router->get('/m/catalog_mapping/map', [CatalogMappingController::class, 'mapItemForm'], 'catalog_mapping', 'add|edit');
+$router->post('/production/catalog-mapping/save', [CatalogMappingController::class, 'saveMapping'], 'catalog_mapping', 'add|edit');
+$router->post('/m/catalog_mapping/save', [CatalogMappingController::class, 'saveMapping'], 'catalog_mapping', 'add|edit');
 $router->post('/production/catalog-mapping/unmap', [CatalogMappingController::class, 'unmapItem'], 'catalog_mapping', 'delete');
 $router->post('/m/catalog_mapping/unmap', [CatalogMappingController::class, 'unmapItem'], 'catalog_mapping', 'delete');
 $router->post('/production/catalog-mapping/quick-category', [CatalogMappingController::class, 'quickCreateCategory'], 'catalog_mapping', 'add');
 $router->post('/production/catalog-mapping/quick-attribute', [CatalogMappingController::class, 'quickCreateAttribute'], 'catalog_mapping', 'add');
-$router->post('/production/catalog-mapping/delete-hierarchy', [CatalogMappingController::class, 'deleteHierarchy'], 'catalog_mapping', 'view');
+$router->post('/production/catalog-mapping/delete-hierarchy', [CatalogMappingController::class, 'deleteHierarchy'], 'catalog_mapping', 'delete');
 $router->get('/api/catalog-mapping/item-details', [CatalogMappingController::class, 'apiItemDetails'], 'catalog_mapping', 'view');
 
 // APIs for 3-Tier Hierarchy & HSN Lookups

@@ -266,6 +266,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('outward', 'create')): ?>
 <!-- Modal: New Outward Dispatch (Two Labels: 1. Production Batch | 2. Finishing Good) -->
 <div class="modal fade" id="modalAddOutward" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -563,7 +564,9 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if (\App\Core\Auth::can('outward', 'edit')): ?>
 <!-- Modal 2: Edit Outward Dispatch -->
 <div class="modal fade" id="modalEditOutward" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -636,6 +639,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Modal 3: Traceability Details Modal -->
 <div class="modal fade" id="modalTraceability" tabindex="-1" aria-hidden="true">

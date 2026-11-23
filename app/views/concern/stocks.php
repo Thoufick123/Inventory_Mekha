@@ -281,6 +281,8 @@
                                                             aria-label="Edit details for <?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>">
                                                         <i class="bi bi-pencil-square"></i> Edit
                                                     </button>
+                                                <?php endif; ?>
+                                                <?php if (!empty($canDeleteStock)): ?>
                                                     <form method="post"
                                                           action="<?= \App\Core\Controller::url('/m/stocks/delete-line') ?>"
                                                           data-stock-delete-form

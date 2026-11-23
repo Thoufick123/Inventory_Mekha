@@ -25,9 +25,11 @@
             <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
                 <i class="bi bi-arrow-left me-1"></i> Back to QC List
             </a>
+            <?php if (\App\Core\Auth::can('qc_stocks', 'edit')): ?>
             <a href="<?= \App\Core\Controller::url('/production/qc/inspect?id=' . (int)$qc['id']) ?>" class="btn btn-outline-primary btn-sm px-3 fw-semibold">
                 <i class="bi bi-qr-code-scan me-1"></i> Open QR Scanner
             </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/stocks?tab=live_stock') ?>" class="btn btn-success btn-sm px-3 fw-semibold">
                 <i class="bi bi-box-seam me-1"></i> View Live Stock
             </a>
@@ -208,6 +210,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('qc_stocks', 'edit')): ?>
 <!-- MODAL: RE-INSPECT REWORK -->
 <div class="modal fade" id="modalReinspect" tabindex="-1">
     <div class="modal-dialog">
@@ -249,3 +252,4 @@
         </form>
     </div>
 </div>
+<?php endif; ?>

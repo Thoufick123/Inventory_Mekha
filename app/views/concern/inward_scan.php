@@ -172,8 +172,8 @@
 
                 <div class="input-group input-group-lg my-2 shadow-sm">
                     <span class="input-group-text bg-white border-end-0 text-primary"><i class="bi bi-qr-code fs-4"></i></span>
-                    <input type="text" class="form-control border-start-0 border-end-0 font-monospace fs-6" id="inputQrScanner" placeholder="Scan Variant QR / Barcode / SKU / Master Carton..." autofocus autocomplete="off">
-                    <button class="btn btn-primary px-4 fw-bold d-flex align-items-center gap-1" type="button" onclick="processManualScan()">
+                    <input type="text" class="form-control border-start-0 border-end-0 font-monospace fs-6" id="inputQrScanner" placeholder="<?= \App\Core\Auth::can('inward', 'add') ? 'Scan Variant QR / Barcode / SKU / Master Carton...' : 'View-only access - scanner disabled' ?>" autofocus autocomplete="off" <?= !\App\Core\Auth::can('inward', 'add') ? 'disabled' : '' ?>>
+                    <button class="btn btn-primary px-4 fw-bold d-flex align-items-center gap-1" type="button" onclick="processManualScan()" <?= !\App\Core\Auth::can('inward', 'add') ? 'disabled' : '' ?>>
                         <i class="bi bi-upc-scan"></i> Scan
                     </button>
                 </div>
@@ -277,6 +277,7 @@
             </div>
 
             <!-- Bottom CTA Button / Form Submission -->
+            <?php if (\App\Core\Auth::can('inward', 'add')): ?>
             <form action="<?= \App\Core\Controller::url('/m/inward/credit') ?>" method="POST" id="formCreditStock" onsubmit="return validateCreditSubmission(event)">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                 <input type="hidden" name="outward_id" value="<?= (int)$outward['id'] ?>">
@@ -290,6 +291,11 @@
                     Update / Credit Inward Stock (+<span id="btnIncrementalQty">0</span> pcs) to <?= htmlspecialchars($outward['dest_warehouse_name']) ?> Inventory
                 </button>
             </form>
+            <?php else: ?>
+            <div class="alert alert-secondary text-center small py-3 mb-0 rounded-3">
+                <i class="bi bi-eye me-1"></i> View-only access: Inward stock crediting is restricted to staff with create/add permissions.
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>

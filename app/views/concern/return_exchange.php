@@ -18,6 +18,7 @@
     include __DIR__ . '/../partials/export_card.php';
     ?>
 
+    <?php if (\App\Core\Auth::can('return_exchange', 'add')): ?>
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body p-3 p-md-4">
             <label for="shop_return_phone" class="form-label fw-semibold small mb-2">
@@ -34,6 +35,7 @@
             <div id="shop_return_invoice_list" class="list-group mt-2 d-none" aria-label="Customer invoices"></div>
         </div>
     </div>
+    <?php endif; ?>
 
     <div class="card border-0 shadow-sm rounded-3">
         <div id="returnTransactions"></div>
@@ -122,6 +124,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('return_exchange', 'add')): ?>
 <div class="modal fade" id="modalShopReturn" tabindex="-1" aria-labelledby="modalShopReturnTitle" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <form action="<?= \App\Core\Controller::url('/production/returns/store') ?>" method="POST" id="shopReturnForm" class="modal-content border-0 shadow-lg">
@@ -238,7 +241,9 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if (\App\Core\Auth::can('return_exchange', 'edit')): ?>
 <!-- Modal Edit Return -->
 <div class="modal fade" id="modalEditReturn" tabindex="-1">
     <div class="modal-dialog">
@@ -271,6 +276,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Modal View Return -->
 <div class="modal fade" id="modalViewReturn" tabindex="-1">

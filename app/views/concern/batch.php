@@ -258,6 +258,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('batch', 'edit')): ?>
 <!-- Modal 2: Edit Batch Details -->
 <div class="modal fade" id="modalEditBatch" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -302,6 +303,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Modal 3: View Individual Piece QR Codes -->
 <div class="modal fade" id="modalPieceQr" tabindex="-1" aria-hidden="true">

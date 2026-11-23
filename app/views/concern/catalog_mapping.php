@@ -257,22 +257,34 @@
                                         </td>
                                         <td class="text-center">
                                             <div class="d-inline-flex align-items-center gap-1">
-                                                <?php if (\App\Core\Auth::can('catalog_mapping', 'add') || \App\Core\Auth::can('catalog_mapping', 'edit')): ?>
-                                                    <?php if (!$it['is_mapped']): ?>
+                                                <?php 
+                                                    $canMap = \App\Core\Auth::can('catalog_mapping', 'add');
+                                                    $canEditMap = \App\Core\Auth::can('catalog_mapping', 'edit');
+                                                    $canUnmap = \App\Core\Auth::can('catalog_mapping', 'delete');
+                                                    $hasAnyAction = false;
+                                                ?>
+                                                <?php if (!$it['is_mapped']): ?>
+                                                    <?php if ($canMap): ?>
+                                                        <?php $hasAnyAction = true; ?>
                                                         <a href="<?= \App\Core\Controller::url('/production/catalog-mapping/map?id=' . $it['id']) ?>" class="btn btn-sm btn-primary rounded-3 px-2 py-1 shadow-xs fw-semibold" title="Map to Catalog Style & 3-Tier Hierarchy">
                                                             <i class="bi bi-diagram-3 me-1"></i> Map
                                                         </a>
-                                                    <?php else: ?>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <?php if ($canEditMap): ?>
+                                                        <?php $hasAnyAction = true; ?>
                                                         <a href="<?= \App\Core\Controller::url('/production/catalog-mapping/map?id=' . $it['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Catalog Mapping">
                                                             <i class="bi bi-pencil"></i>
                                                         </a>
-                                                        <?php if (\App\Core\Auth::can('catalog_mapping', 'delete')): ?>
+                                                    <?php endif; ?>
+                                                    <?php if ($canUnmap): ?>
+                                                        <?php $hasAnyAction = true; ?>
                                                         <button type="button" class="btn btn-sm btn-outline-danger rounded-3 p-1.5" title="Unmap from Catalog" onclick="confirmUnmap(<?= $it['id'] ?>, '<?= htmlspecialchars(addslashes($it['item_name'])) ?>')">
                                                             <i class="bi bi-link-45deg"></i>
                                                         </button>
-                                                        <?php endif; ?>
                                                     <?php endif; ?>
-                                                <?php else: ?>
+                                                <?php endif; ?>
+                                                <?php if (!$hasAnyAction): ?>
                                                     <span class="text-muted small fst-italic">Read-only</span>
                                                 <?php endif; ?>
                                             </div>
@@ -463,9 +475,11 @@
                                             ?>
                                                 <span class="badge bg-white text-dark border px-3 py-2 fs-6 shadow-xs font-monospace d-inline-flex align-items-center gap-1.5">
                                                     <span><?= htmlspecialchars($sv) ?></span>
+                                                    <?php if (\App\Core\Auth::can('catalog_mapping', 'delete')): ?>
                                                     <button type="button" class="btn btn-link text-danger p-0 ms-1 text-decoration-none shadow-none" style="font-size: 0.8rem; line-height: 1;" title="Delete Attribute <?= htmlspecialchars($sv) ?>" onclick="confirmDeleteHierarchy('attribute', <?= $sa['id'] ?>, '<?= htmlspecialchars(addslashes($sv)) ?>', '<?= htmlspecialchars(addslashes($sv)) ?>')">
                                                         <i class="bi bi-x-circle-fill"></i>
                                                     </button>
+                                                    <?php endif; ?>
                                                 </span>
                                             <?php endforeach; endforeach; ?>
                                         </div>
@@ -557,6 +571,7 @@
     </div>
 </div>
 
+<?php if (\App\Core\Auth::can('catalog_mapping', 'add')): ?>
 <!-- MODAL: ADD TIER-1 CATEGORY -->
 <div class="modal fade" id="modalAddCategory" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -730,7 +745,9 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if (\App\Core\Auth::can('catalog_mapping', 'delete')): ?>
 <!-- CONFIRM UNMAP MODAL -->
 <div class="modal fade" id="modalConfirmUnmap" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -783,6 +800,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 function handleAttributeTypeChange(val) {

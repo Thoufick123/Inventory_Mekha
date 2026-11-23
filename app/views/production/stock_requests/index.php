@@ -172,7 +172,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                                             <a href="<?= \App\Core\Controller::url('/production/stock-requests/view/' . $req['id']) ?>" class="btn btn-outline-primary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <?php if (in_array($req['status'], ['DISPATCHED', 'IN_TRANSIT'], true)): ?>
+                                            <?php if (\App\Core\Auth::can('request', 'edit') && in_array($req['status'], ['DISPATCHED', 'IN_TRANSIT'], true)): ?>
                                                 <button type="button" class="btn btn-success" title="Confirm Receipt" 
                                                         onclick="openQuickReceive(<?= $req['id'] ?>, '<?= htmlspecialchars($req['request_no']) ?>', <?= (float)$req['in_transit_qty'] ?: (float)$req['dispatched_qty'] ?>)">
                                                     <i class="bi bi-box-arrow-in-down"></i> Receive
@@ -205,9 +205,11 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                 </div>
                 <div class="d-flex gap-2 align-items-center">
                     <span class="badge bg-light text-secondary border px-2 py-1"><?= count($sentRequests) ?> records</span>
+                    <?php if (\App\Core\Auth::can('request', 'add')): ?>
                     <button type="button" class="btn btn-sm btn-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalIndentStock">
                         <i class="bi bi-plus-lg me-1"></i> New Indent
                     </button>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="table-responsive">
@@ -232,9 +234,11 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                                         <i class="bi bi-send text-muted" style="font-size: 3.5rem; opacity: 0.4;"></i>
                                         <h5 class="fw-bold text-secondary mt-3 mb-1">No Sent Requisitions Found</h5>
                                         <p class="text-muted small mb-3">No stock requisitions have been sent from this concern yet.</p>
+                                        <?php if (\App\Core\Auth::can('request', 'add')): ?>
                                         <button type="button" class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#modalIndentStock">
                                             <i class="bi bi-plus-lg me-1"></i> Indent Stock Now
                                         </button>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -300,6 +304,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
     <?php endif; ?>
 </div>
 
+<?php if (\App\Core\Auth::can('request', 'add')): ?>
 <!-- ======================================================= -->
 <!-- INDENT STOCK MODAL (IMAGE 2)                            -->
 <!-- ======================================================= -->
@@ -389,10 +394,12 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- ======================================================= -->
 <!-- QUICK RECEIVE MODAL                                     -->
 <!-- ======================================================= -->
+<?php if (\App\Core\Auth::can('request', 'edit')): ?>
 <div class="modal fade" id="modalQuickReceive" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
@@ -437,6 +444,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 // Precomputed concern stocks map: { concernId: { variantId: qty } }
