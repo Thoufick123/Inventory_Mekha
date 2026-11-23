@@ -26,6 +26,10 @@ class Variant extends Model {
                 LEFT JOIN (
                     SELECT variant_id, SUM(qty) AS total_qty 
                     FROM stocks 
+                    WHERE location NOT LIKE '%:DAMAGED%'
+                      AND location NOT LIKE '%:QUARANTINE%'
+                      AND location NOT LIKE '%:RESERVED%'
+                      AND location NOT LIKE '%:IN_TRANSIT%'
                     GROUP BY variant_id
                 ) stk ON v.id = stk.variant_id";
         
@@ -56,6 +60,10 @@ class Variant extends Model {
                 LEFT JOIN (
                     SELECT variant_id, SUM(qty) AS total_qty 
                     FROM stocks 
+                    WHERE location NOT LIKE '%:DAMAGED%'
+                      AND location NOT LIKE '%:QUARANTINE%'
+                      AND location NOT LIKE '%:RESERVED%'
+                      AND location NOT LIKE '%:IN_TRANSIT%'
                     GROUP BY variant_id
                 ) stk ON v.id = stk.variant_id
                 WHERE v.id = ?";

@@ -30,6 +30,7 @@ class StockController extends Controller {
 
     public function index(): void {
         self::ensureVariantSchema();
+        \App\Services\StockService::consolidateLegacyLocations();
         $cid = Auth::concernId();
 
         $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp, v.catalog_id,
@@ -143,7 +144,11 @@ class StockController extends Controller {
                  AND latest_purchase.variant_id = s.variant_id
                  AND latest_purchase.location = s.location";
         
-        $sql .= " WHERE s.qty > 0";
+        $sql .= " WHERE s.qty > 0 
+                   AND s.location NOT LIKE '%:DAMAGED%' 
+                   AND s.location NOT LIKE '%:QUARANTINE%'
+                   AND s.location NOT LIKE '%:RESERVED%'
+                   AND s.location NOT LIKE '%:IN_TRANSIT%'";
         $params = [];
         if ($cid) {
             $sql .= " AND s.concern_id = ?";
@@ -1204,7 +1209,13 @@ class StockController extends Controller {
                 LEFT JOIN sub_subcategories ssc ON cat.sub_sub_category_id = ssc.id";
         
         $params = [];
-        $where = [];
+        $where = [
+            "s.qty > 0",
+            "s.location NOT LIKE '%:DAMAGED%'",
+            "s.location NOT LIKE '%:QUARANTINE%'",
+            "s.location NOT LIKE '%:RESERVED%'",
+            "s.location NOT LIKE '%:IN_TRANSIT%'"
+        ];
         if ($cid) {
             $where[] = "s.concern_id = ?";
             $params[] = $cid;
@@ -1286,7 +1297,13 @@ class StockController extends Controller {
                 LEFT JOIN users u ON sl.created_by = u.id";
 
         $params = [];
-        $where = [];
+        $where = [
+            "s.qty > 0",
+            "s.location NOT LIKE '%:DAMAGED%'",
+            "s.location NOT LIKE '%:QUARANTINE%'",
+            "s.location NOT LIKE '%:RESERVED%'",
+            "s.location NOT LIKE '%:IN_TRANSIT%'"
+        ];
         if ($cid) {
             $where[] = "sl.concern_id = ?";
             $params[] = $cid;

@@ -14,6 +14,7 @@ use Exception;
 
 class DamageController extends Controller {
     public function index(): void {
+        \App\Services\StockService::consolidateLegacyLocations();
         $cid = $this->requestConcernId();
         $rawSearch = $_GET['search'] ?? '';
         $rawSourceType = $_GET['source'] ?? '';
@@ -131,6 +132,7 @@ class DamageController extends Controller {
 
     public function entry(): void {
         ModuleGuard::enforce('concern_damage', 'add');
+        \App\Services\StockService::consolidateLegacyLocations();
         $cid = $this->requestConcernId();
         $locations = $cid ? $this->getAvailableLocations($cid) : [];
         $concernName = $cid
