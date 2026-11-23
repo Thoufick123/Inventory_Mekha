@@ -167,8 +167,10 @@ function hsnGstMasterRows(): array
             $code,
             'Garments',
             $description,
-            5.00,
-            'Standard garment rate 5% (12% if piece value > ₹1000).'
+            $code === '6109' ? null : 5.00,
+            $code === '6109'
+                ? 'Standard garment GST is conditional: confirm the applicable 5% or 12% rate against the garment sale value and current GST notification.'
+                : 'Standard garment rate 5%; confirm the applicable 12% threshold against the piece value and current GST notification.'
         );
     }
 

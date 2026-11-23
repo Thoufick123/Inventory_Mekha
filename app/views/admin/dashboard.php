@@ -123,7 +123,7 @@
 
     <!-- Concerns Summary Table -->
     <div class="row g-4 mb-4">
-        <div class="col-lg-8">
+        <div class="col-12">
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-building me-2 text-primary"></i> Registered Concerns Overview</h6>
@@ -171,38 +171,6 @@
                             <?php endforeach; ?>
                         </tbody>
                     </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recent Audit Log Feed -->
-        <div class="col-lg-4">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-header bg-white py-3 border-bottom">
-                    <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-shield-shaded me-2 text-danger"></i> System Audit Log</h6>
-                </div>
-                <div class="card-body p-0">
-                    <ul class="list-group list-group-flush small">
-                        <?php if (empty($recentAudits)): ?>
-                            <li class="list-group-item text-muted py-3 text-center">No recent audit logs.</li>
-                        <?php else: ?>
-                            <?php foreach ($recentAudits as $a): ?>
-                                <li class="list-group-item p-3">
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <span class="badge bg-dark"><?= htmlspecialchars($a['action']) ?></span>
-                                        <span class="text-muted" style="font-size: 0.72rem;"><?= htmlspecialchars($a['created_at']) ?></span>
-                                    </div>
-                                    <div class="text-dark fw-medium">
-                                        Table: <code><?= htmlspecialchars($a['table_name']) ?></code> #<?= (int)$a['row_id'] ?>
-                                    </div>
-                                    <div class="text-muted small">
-                                        By: <?= htmlspecialchars($a['user_name'] ?? 'System') ?> 
-                                        <?= !empty($a['concern_name']) ? "(".htmlspecialchars($a['concern_name']).")" : "" ?>
-                                    </div>
-                                </li>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </ul>
                 </div>
             </div>
         </div>

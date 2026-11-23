@@ -60,13 +60,13 @@ CREATE TABLE IF NOT EXISTS `production_outward_batches` (
 -- HSN / SAC Masters
 CREATE TABLE IF NOT EXISTS `hsn_masters` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `concern_id` INT NOT NULL,
-    `code_type` ENUM('hsn', 'sac') NOT NULL DEFAULT 'hsn',
-    `hsn_code` VARCHAR(20) NOT NULL,
-    `description` VARCHAR(255) NOT NULL,
-    `category` VARCHAR(50) NOT NULL DEFAULT 'fabrics',
-    `gst_rate` DECIMAL(5,2) NOT NULL DEFAULT 5.00,
-    `rate_note` VARCHAR(255) NULL,
+    `concern_id` INT NULL,
+    `code_type` ENUM('HSN', 'SAC') NOT NULL DEFAULT 'HSN',
+    `hsn_code` VARCHAR(50) NOT NULL,
+    `description` VARCHAR(255) NULL,
+    `category` VARCHAR(100) NULL,
+    `gst_rate` DECIMAL(5,2) NULL DEFAULT NULL,
+    `rate_note` VARCHAR(500) NULL,
     `is_active` TINYINT(1) NOT NULL DEFAULT 1,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_hsn_concern` (`concern_id`),
@@ -469,11 +469,34 @@ CALL AddColSafe('inward_items', 'rejection_reason', 'VARCHAR(255) NULL AFTER `re
 CALL AddColSafe('program_rolls', 'roll_weight', 'DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `allocated_qty`');
 CALL AddColSafe('program_rolls', 'roll_price', 'DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `roll_weight`');
 
+-- Align `hsn_masters` with the application seed and allow global master records.
+CALL AddColSafe('hsn_masters', 'concern_id', 'INT NULL AFTER `id`');
+CALL AddColSafe('hsn_masters', 'code_type', "ENUM('HSN', 'SAC') NOT NULL DEFAULT 'HSN' AFTER `concern_id`");
+CALL AddColSafe('hsn_masters', 'hsn_code', 'VARCHAR(50) NOT NULL AFTER `code_type`');
+CALL AddColSafe('hsn_masters', 'description', 'VARCHAR(255) NULL AFTER `hsn_code`');
+CALL AddColSafe('hsn_masters', 'category', 'VARCHAR(100) NULL AFTER `description`');
+CALL AddColSafe('hsn_masters', 'gst_rate', 'DECIMAL(5,2) NULL DEFAULT NULL AFTER `category`');
+CALL AddColSafe('hsn_masters', 'rate_note', 'VARCHAR(500) NULL AFTER `gst_rate`');
+CALL AddColSafe('hsn_masters', 'is_active', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER `rate_note`');
+ALTER TABLE `hsn_masters`
+    MODIFY COLUMN `concern_id` INT NULL,
+    MODIFY COLUMN `code_type` ENUM('HSN', 'SAC') NOT NULL DEFAULT 'HSN',
+    MODIFY COLUMN `hsn_code` VARCHAR(50) NOT NULL,
+    MODIFY COLUMN `description` VARCHAR(255) NULL,
+    MODIFY COLUMN `category` VARCHAR(100) NULL,
+    MODIFY COLUMN `gst_rate` DECIMAL(5,2) NULL DEFAULT NULL,
+    MODIFY COLUMN `rate_note` VARCHAR(500) NULL,
+    MODIFY COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1;
+
 -- Align `purchase_bills` table
+CALL AddColSafe('purchase_bills', 'source_module', "VARCHAR(50) NOT NULL DEFAULT 'purchase_billing' AFTER `supplier_invoice_no`");
 CALL AddColSafe('purchase_bills', 'inward_status', "ENUM('pending', 'completed') NOT NULL DEFAULT 'pending'");
 CALL AddColSafe('purchase_bills', 'inward_at', 'DATETIME NULL');
 CALL AddColSafe('purchase_bills', 'attachment_paths', 'JSON NULL');
 CALL AddColSafe('purchase_bills', 'fabric_description', 'VARCHAR(255) NULL');
+
+-- Track Product Adding label jobs separately from Label Generation jobs.
+CALL AddColSafe('label_jobs', 'source_module', "VARCHAR(50) NOT NULL DEFAULT 'label_generation' AFTER `label_type`");
 
 -- Align `purchase_bill_items` table
 CALL AddColSafe('purchase_bill_items', 'inward_status', "ENUM('pending', 'completed') NOT NULL DEFAULT 'pending'");

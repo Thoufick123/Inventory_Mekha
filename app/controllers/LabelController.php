@@ -12,6 +12,7 @@ use App\Services\QrService;
 use App\Services\AuditLog;
 use App\Services\StockService;
 use App\Services\RollRegistryService;
+use App\Services\PurchaseBillSourceService;
 use App\Services\PurchaseStockItemOverrideService;
 use Exception;
 
@@ -567,6 +568,250 @@ class LabelController extends Controller {
     public function generate(): void {
         $this->validateCsrf();
         $this->renderGeneratedLabels(false);
+    }
+
+    public function generateProductAddingLabels(): void
+    {
+        $this->validateCsrf();
+        PurchaseBillSourceService::ensureSchema();
+        PurchaseStockItemOverrideService::initTable();
+
+        $billId = (int)($_POST['bill_id'] ?? 0);
+        $rawItemIds = $_POST['item_ids'] ?? [];
+        if (!is_array($rawItemIds)) {
+            $rawItemIds = [];
+        }
+        if (isset($_POST['item_id'])) {
+            $rawItemIds[] = $_POST['item_id'];
+        }
+        $itemIds = array_values(array_unique(array_filter(
+            array_map('intval', $rawItemIds),
+            static fn(int $id): bool => $id > 0
+        )));
+        if ($billId <= 0 || !$itemIds || count($itemIds) > 100) {
+            $this->flash('error', 'Choose one or more valid Product Adding lines to print labels.');
+            $this->redirect($billId > 0 ? '/m/product_adding?bill_id=' . $billId : '/m/product_adding');
+            return;
+        }
+
+        $cid = Auth::concernId();
+        $billSql = "SELECT pb.*, s.name AS supplier_name
+                    FROM purchase_bills pb
+                    LEFT JOIN suppliers s ON s.id = pb.supplier_id
+                    WHERE pb.id = ? AND pb.source_module = 'product_adding'";
+        $billParams = [$billId];
+        if ($cid) {
+            $billSql .= " AND pb.concern_id = ?";
+            $billParams[] = $cid;
+        }
+        $bill = DB::fetch($billSql, $billParams);
+        if (!$bill) {
+            $this->flash('error', 'Product Adding bill not found or access denied.');
+            $this->redirect('/m/product_adding');
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
+        $items = DB::fetchAll(
+            "SELECT pbi.*, pb.bill_no, pb.bill_date, s.name AS supplier_name,
+                    fg_concern.name AS item_concern_name,
+                    v.sku_code, v.name AS variant_name, v.size AS variant_size,
+                    v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes,
+                    v.category_id, v.subcategory_id, c.name AS catalog_category_name
+             FROM purchase_bill_items pbi
+             JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+             LEFT JOIN suppliers s ON s.id = pb.supplier_id
+             LEFT JOIN concerns fg_concern ON fg_concern.id = pbi.concern_id
+             LEFT JOIN variants v ON v.id = pbi.variant_id
+             LEFT JOIN categories c ON c.id = v.category_id
+             WHERE pbi.purchase_bill_id = ? AND pbi.concern_id = ?
+               AND pbi.id IN ({$placeholders})
+             ORDER BY pbi.id ASC",
+            array_merge([$billId, (int)$bill['concern_id']], $itemIds)
+        );
+        if (count($items) !== count($itemIds)) {
+            $this->flash('error', 'One or more selected lines do not belong to this Product Adding bill.');
+            $this->redirect('/m/product_adding?bill_id=' . $billId);
+            return;
+        }
+
+        $items = PurchaseStockItemOverrideService::applyToItems($items, false);
+        $multiLabels = [];
+        $totalCopies = 0;
+        $totalBillLines = count($items);
+        $labelJobs = [];
+        $concern = DB::fetch('SELECT name FROM concerns WHERE id = ?', [(int)$bill['concern_id']]);
+        $concernName = $concern['name'] ?? 'GRM Inventory';
+        $labelData = null;
+        $batchNo = (string)$bill['bill_no'];
+
+        foreach ($items as $item) {
+            $copies = (int)ceil((float)$item['qty']);
+            if ($copies < 1 || $copies > 500 || $totalCopies + $copies > 2000) {
+                $this->flash('error', 'Each line must have between 1 and 500 labels; a bulk print is limited to 2,000 labels.');
+                $this->redirect('/m/product_adding?bill_id=' . $billId);
+                return;
+            }
+
+            $sectionType = (string)$item['section_type'];
+            if ($sectionType === 'finished_goods') {
+                $variantId = (int)($item['variant_id'] ?? 0);
+                $tagCode = QrService::generateFinishedGoodsCode($variantId);
+                if ($variantId <= 0 || $tagCode === null) {
+                    $this->flash('error', "Map '{$item['item_name']}' to a valid catalog variant before printing labels.");
+                    $this->redirect('/m/product_adding?bill_id=' . $billId);
+                    return;
+                }
+                $attributes = json_decode((string)($item['variant_attributes'] ?? ''), true);
+                $attributes = is_array($attributes) ? $attributes : [];
+                $variantSize = trim((string)($item['variant_size'] ?? ''));
+                $variantName = trim((string)($item['variant_name'] ?? '')) ?: $item['item_name'];
+                $labelColor = trim((string)($attributes['color'] ?? ''))
+                    ?: trim((string)($item['color'] ?? ''))
+                    ?: 'STANDARD';
+                $design = trim((string)($item['pattern'] ?? ''))
+                    ?: trim((string)($item['specification'] ?? ''))
+                    ?: 'STANDARD';
+                $price = (float)($item['variant_mrp'] ?: ($item['mrp'] ?: $item['unit_price']));
+                $variantAttributes = self::buildLabelVariantAttributes($attributes, $variantSize);
+                $lineLabel = [
+                    'concern_name' => $concernName,
+                    'ref_no' => $bill['bill_no'],
+                    'header_title' => $variantName,
+                    'label_1_name' => 'Product',
+                    'label_1_val' => $item['category_name'] ?: ($item['catalog_category_name'] ?: 'Ready-Made Garment'),
+                    'label_2_name' => 'Color',
+                    'label_2_val' => $labelColor,
+                    'label_3_name' => 'Design',
+                    'label_3_val' => $design,
+                    'design' => $design,
+                    'variant_id' => $variantId,
+                    'variant_size' => $variantSize,
+                    'variant_attributes' => $variantAttributes,
+                    'label_4_name' => 'Price',
+                    'label_4_val' => '₹' . number_format($price, 2),
+                    'price' => $price,
+                    'price_mrp' => $price,
+                    'tag_code' => $tagCode,
+                    'qr_payload' => $tagCode,
+                    'section_title' => 'PURCHASE FINISHED GOODS',
+                    'section_badge' => 'READY-MADE GARMENT',
+                    'item_title' => $variantName,
+                    'item_code' => $tagCode,
+                    'stock_tab' => 'finished_goods',
+                    'extra_details' => $variantAttributes,
+                ];
+                $jobType = 'purchase_fg';
+            } elseif (in_array($sectionType, ['rolls', 'garment_other'], true)) {
+                $isRoll = $sectionType === 'rolls';
+                $design = trim((string)($item['pattern'] ?? ''))
+                    ?: trim((string)($item['specification'] ?? ''))
+                    ?: ($isRoll ? 'PLAIN' : 'STANDARD');
+                $productName = trim((string)($item['item_name'] ?? '')) ?: 'Purchase Item';
+                $tagCode = QrService::generateTagCode(
+                    $productName,
+                    (string)($item['color'] ?? ''),
+                    $design,
+                    (string)$item['id']
+                );
+                $lineLabel = [
+                    'concern_name' => $concernName,
+                    'ref_no' => $bill['bill_no'],
+                    'header_title' => $isRoll ? '' : $productName,
+                    'label_1_name' => $isRoll ? 'Fabric' : 'Item',
+                    'label_1_val' => $productName,
+                    'label_2_name' => 'Color',
+                    'label_2_val' => $item['color'] ?: 'STANDARD',
+                    'label_3_name' => 'Design',
+                    'label_3_val' => $design,
+                    'design' => $design,
+                    'label_4_name' => 'Price',
+                    'label_4_val' => '₹' . number_format((float)$item['unit_price'], 2),
+                    'price' => (float)$item['unit_price'],
+                    'price_mrp' => (float)$item['unit_price'],
+                    'tag_code' => $tagCode,
+                    'qr_payload' => $tagCode,
+                    'section_title' => $isRoll ? 'FABRIC ROLL LABEL' : 'TRIMS & ACCESSORIES',
+                    'section_badge' => $isRoll ? 'RAW MATERIAL' : 'PURCHASE TRIM',
+                    'item_title' => $productName,
+                    'item_code' => $tagCode,
+                    'stock_tab' => $isRoll ? 'rolls' : 'garment_other',
+                    'extra_details' => [],
+                ];
+                $jobType = 'purchase_raw';
+            } else {
+                $this->flash('error', 'This Product Adding line type cannot generate purchase labels.');
+                $this->redirect('/m/product_adding?bill_id=' . $billId);
+                return;
+            }
+
+            if ($labelData === null) {
+                $labelData = $lineLabel;
+            }
+            for ($copy = 0; $copy < $copies; $copy++) {
+                $multiLabels[] = $lineLabel;
+            }
+            $totalCopies += $copies;
+            $labelJobs[] = [
+                'concern_id' => (int)$item['concern_id'],
+                'label_type' => $jobType,
+                'item_id' => (int)$item['id'],
+                'variant_id' => (int)($item['variant_id'] ?? 0) ?: null,
+                'item_title' => $lineLabel['item_title'],
+                'item_code' => $lineLabel['item_code'],
+                'qr_payload' => $lineLabel['qr_payload'],
+                'qty' => $copies,
+            ];
+        }
+
+        try {
+            DB::beginTransaction();
+            foreach ($labelJobs as $labelJob) {
+                DB::query(
+                    "INSERT INTO label_jobs (concern_id, label_type, source_module, ref_id, variant_id, item_title, item_code, qr_payload, qty, printed_by, created_at)
+                     VALUES (?, ?, 'product_adding', ?, ?, ?, ?, ?, ?, ?, NOW())",
+                    [
+                        $labelJob['concern_id'],
+                        $labelJob['label_type'],
+                        $labelJob['item_id'],
+                        $labelJob['variant_id'],
+                        $labelJob['item_title'],
+                        $labelJob['item_code'],
+                        $labelJob['qr_payload'],
+                        $labelJob['qty'],
+                        Auth::id(),
+                    ]
+                );
+                $jobId = (int)DB::lastInsertId();
+                AuditLog::log('GENERATE_LABELS', 'label_jobs', $jobId, null, [
+                    'label_type' => $labelJob['label_type'],
+                    'item_title' => $labelJob['item_title'],
+                    'item_code' => $labelJob['item_code'],
+                    'qty' => $labelJob['qty'],
+                    'qr_payload' => $labelJob['qr_payload'],
+                ]);
+            }
+            DB::commit();
+        } catch (Exception $e) {
+            if (DB::pdo()->inTransaction()) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Could not save the Product Adding label jobs: ' . $e->getMessage());
+            $this->redirect('/m/product_adding?bill_id=' . $billId);
+            return;
+        }
+        $this->render('concern/label_print_sheet', [
+            'pageTitle' => "Product Adding Labels - {$totalCopies} Copies",
+            'noLayout' => true,
+            'labelData' => $labelData,
+            'qty' => $totalCopies,
+            'qrCodeText' => $labelData['qr_payload'],
+            'jobId' => 0,
+            'labelType' => 'product_adding',
+            'multiLabels' => $multiLabels,
+            'variantCount' => $totalBillLines,
+            'batchNo' => $batchNo,
+        ]);
     }
 
     public function previewPurchaseFinishedGoodLabel(): void
@@ -1842,7 +2087,10 @@ class LabelController extends Controller {
             return;
         }
         $this->validateCsrf();
+        PurchaseBillSourceService::ensureSchema();
+        PurchaseStockItemOverrideService::initTable();
 
+        $isProductAddingRequest = ($_POST['product_adding'] ?? '') === '1';
         $cid = Auth::concernId();
         $billId = (int)($_POST['bill_id'] ?? ($_GET['bill_id'] ?? 0));
         $rawItemId = $_POST['item_id'] ?? ($_GET['item_id'] ?? 0);
@@ -1895,7 +2143,7 @@ class LabelController extends Controller {
 
             // Priority 1: Inward individual item strictly when item_id is provided
             if ($itemId > 0) {
-                $itemSql = "SELECT pbi.*, pb.bill_no, pb.concern_id AS b_cid 
+                $itemSql = "SELECT pbi.*, pb.bill_no, pb.concern_id AS b_cid, pb.source_module
                             FROM purchase_bill_items pbi 
                             JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id 
                             WHERE pbi.id = ?";
@@ -1909,6 +2157,9 @@ class LabelController extends Controller {
                     throw new Exception("Purchase item #{$itemId} not found or access denied.");
                 }
 
+                if (($item['source_module'] ?? '') === 'product_adding') {
+                    $this->assertProductAddingLabelCoverage($itemId);
+                }
                 if (($item['inward_status'] ?? '') === 'completed') {
                     $itemLabel = ($item['section_type'] === 'rolls') ? 'Fabric roll' : 'Purchase item';
                     throw new Exception("{$itemLabel} '{$item['item_name']}' has already been added to stock.");
@@ -1941,7 +2192,11 @@ class LabelController extends Controller {
                     $targetTab = 'garment_other';
                 } elseif ($item['section_type'] === 'finished_goods') {
                     $targetTab = 'finished_goods';
-                    $this->inwardPurchaseFinishedGood($concernId, $item, $billNo);
+                    if (($item['source_module'] ?? '') === 'product_adding') {
+                        $this->inwardProductAddingFinishedGood($concernId, $item, $billNo);
+                    } else {
+                        $this->inwardPurchaseFinishedGood($concernId, $item, $billNo);
+                    }
                 }
 
                 if ($preferredTab && in_array($preferredTab, ['rolls', 'garment_other', 'finished_goods'], true)) {
@@ -1953,7 +2208,9 @@ class LabelController extends Controller {
                 }
 
                 $this->flash('success', "Item '{$item['item_name']}' from Bill '{$billNo}' added to stock successfully!");
-                $this->redirect($targetTab === 'finished_goods' ? '/m/stocks' : "/m/purchase_stocks?tab={$targetTab}");
+                $this->redirect($isProductAddingRequest
+                    ? '/m/product_adding?bill_id=' . $billId
+                    : ($targetTab === 'finished_goods' ? '/m/stocks' : "/m/purchase_stocks?tab={$targetTab}"));
                 return;
             }
 
@@ -1968,6 +2225,20 @@ class LabelController extends Controller {
                 $bill = DB::fetch($billSql, $billParams);
                 if (!$bill) {
                     throw new Exception("Purchase bill #{$billId} not found or access denied.");
+                }
+
+                if (($bill['source_module'] ?? '') === 'product_adding') {
+                    $pendingSql = "SELECT id FROM purchase_bill_items
+                                   WHERE purchase_bill_id = ?
+                                     AND COALESCE(inward_status, 'pending') != 'completed'";
+                    $pendingParams = [$billId];
+                    if ($preferredTab && in_array($preferredTab, ['rolls', 'garment_other', 'finished_goods'], true)) {
+                        $pendingSql .= " AND section_type = ?";
+                        $pendingParams[] = $preferredTab;
+                    }
+                    foreach (DB::fetchAll($pendingSql, $pendingParams) as $pendingItem) {
+                        $this->assertProductAddingLabelCoverage((int)$pendingItem['id']);
+                    }
                 }
 
                 $concernId = (int)$bill['concern_id'];
@@ -2022,7 +2293,11 @@ class LabelController extends Controller {
                     if ($it['section_type'] === 'rolls') {
                         $hasRolls = true;
                     } elseif ($it['section_type'] === 'finished_goods' && !empty($it['variant_id'])) {
-                        $this->inwardPurchaseFinishedGood($concernId, $it, $billNo);
+                        if (($bill['source_module'] ?? '') === 'product_adding') {
+                            $this->inwardProductAddingFinishedGood($concernId, $it, $billNo);
+                        } else {
+                            $this->inwardPurchaseFinishedGood($concernId, $it, $billNo);
+                        }
                     }
                 }
 
@@ -2050,7 +2325,9 @@ class LabelController extends Controller {
                     : "{$sectionLabel} from Purchase Bill '{$billNo}' added to stock successfully! Other sections remain pending.";
 
                 $this->flash('success', $msg);
-                $this->redirect($targetTab === 'finished_goods' ? '/m/stocks' : "/m/purchase_stocks?tab={$targetTab}");
+                $this->redirect($isProductAddingRequest
+                    ? '/m/product_adding?bill_id=' . $billId
+                    : ($targetTab === 'finished_goods' ? '/m/stocks' : "/m/purchase_stocks?tab={$targetTab}"));
                 return;
             }
 
@@ -2059,7 +2336,67 @@ class LabelController extends Controller {
                 DB::rollBack();
             }
             $this->flash('error', 'Error adding item to stock: ' . $e->getMessage());
-            $this->redirect('/m/label_generation' . ($billId ? "?bill_id={$billId}" : ''));
+            $this->redirect($isProductAddingRequest
+                ? '/m/product_adding?bill_id=' . $billId
+                : '/m/label_generation' . ($billId ? "?bill_id={$billId}" : ''));
+        }
+    }
+
+    public function addProductAddingToStock(): void
+    {
+        PurchaseBillSourceService::ensureSchema();
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        $cid = Auth::concernId();
+        $sql = "SELECT pbi.id
+                FROM purchase_bill_items pbi
+                JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+                WHERE pbi.id = ? AND pb.source_module = 'product_adding'";
+        $params = [$itemId];
+        if ($cid) {
+            $sql .= ' AND pbi.concern_id = ?';
+            $params[] = $cid;
+        }
+        if ($itemId <= 0 || !DB::fetchValue($sql, $params)) {
+            $this->flash('error', 'Choose a valid Product Adding line to add to stock.');
+            $this->redirect('/m/product_adding');
+            return;
+        }
+        $_POST['product_adding'] = '1';
+        $this->addToStock();
+    }
+
+    private function assertProductAddingLabelCoverage(int $itemId): void
+    {
+        $item = DB::fetch(
+            "SELECT pbi.*, COALESCE(pso.label_job_baseline_id, 0) AS label_job_baseline_id
+             FROM purchase_bill_items pbi
+             LEFT JOIN purchase_stock_item_overrides pso
+               ON pso.purchase_bill_item_id = pbi.id AND pso.concern_id = pbi.concern_id
+             WHERE pbi.id = ?",
+            [$itemId]
+        );
+        if (!$item) {
+            throw new Exception("Product Adding line #{$itemId} was not found.");
+        }
+        $item = PurchaseStockItemOverrideService::applyToItems([$item], false)[0];
+        $requiredQty = max(1, (int)ceil((float)$item['qty']));
+        $labelType = $item['section_type'] === 'finished_goods' ? 'purchase_fg' : 'purchase_raw';
+        $generatedQty = (int)DB::fetchValue(
+            "SELECT COALESCE(SUM(qty), 0)
+             FROM label_jobs
+             WHERE concern_id = ? AND ref_id = ? AND label_type = ?
+               AND source_module = 'product_adding' AND id > ?",
+            [
+                (int)$item['concern_id'],
+                $itemId,
+                $labelType,
+                (int)($item['label_job_baseline_id'] ?? 0),
+            ]
+        );
+        if ($generatedQty < $requiredQty) {
+            throw new Exception(
+                "Print at least {$requiredQty} labels for '{$item['item_name']}' before adding it to stock ({$generatedQty} generated)."
+            );
         }
     }
 
@@ -2114,6 +2451,36 @@ class LabelController extends Controller {
                 "Item '{$item['item_name']}' inward from Bill #{$billNo}"
             );
         }
+    }
+
+    private function inwardProductAddingFinishedGood(int $concernId, array $item, string $billNo): void
+    {
+        $item = PurchaseStockItemOverrideService::applyToItems([$item], false)[0];
+        $variantId = (int)($item['variant_id'] ?? 0);
+        if ($variantId <= 0) {
+            throw new Exception("Finished good '{$item['item_name']}' must be mapped to a catalog variant before adding it to stock.");
+        }
+
+        $alreadyLedger = DB::fetchValue(
+            "SELECT id FROM stock_ledger
+             WHERE concern_id = ? AND variant_id = ? AND ref_module = 'Purchase Inward Item' AND ref_id = ?
+             LIMIT 1",
+            [$concernId, $variantId, (int)$item['id']]
+        );
+        if ($alreadyLedger) {
+            return;
+        }
+
+        StockService::move(
+            $concernId,
+            $variantId,
+            'Main Store',
+            (float)$item['qty'],
+            0.00,
+            'Purchase Inward Item',
+            (int)$item['id'],
+            "Product Adding item '{$item['item_name']}' inward from Bill #{$billNo}"
+        );
     }
 
     private static function allocatePurchaseStockQuantity(float $quantity, array $variants, int $primaryVariantId): array

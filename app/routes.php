@@ -20,8 +20,6 @@ use App\Controllers\DamageController;
 use App\Controllers\StaffController;
 use App\Controllers\ProductionReturnController;
 use App\Controllers\ProductionStockRequestController;
-use App\Controllers\WarehouseDamageController;
-use App\Controllers\ShopDamageController;
 use App\Controllers\BatchController;
 use App\Controllers\OutwardController;
 use App\Controllers\ProductAddingController;
@@ -68,7 +66,14 @@ $router->get('/admin/reports/export', [AdminController::class, 'exportReports'],
 
 // Catalog-only product creation
 $router->get('/m/product_adding', [ProductAddingController::class, 'index'], 'product_adding', 'view');
-$router->post('/m/product_adding/store', [ProductAddingController::class, 'store'], 'product_adding', 'add');
+$router->post('/m/product_adding/store', [PurchaseController::class, 'storeBill'], 'product_adding', 'add');
+$router->post('/m/product_adding/generate_labels', [LabelController::class, 'generateProductAddingLabels'], 'product_adding', 'add');
+$router->post('/m/product_adding/add_to_stock', [LabelController::class, 'addProductAddingToStock'], 'product_adding', 'add');
+$router->post('/m/product_adding/save_hsn', [PurchaseController::class, 'saveHsnAjax'], 'product_adding', 'add');
+$router->post('/m/product_adding/save_roll_spec', [PurchaseController::class, 'saveRollSpecAjax'], 'product_adding', 'add');
+$router->post('/m/product_adding/suppliers/store', [PurchaseController::class, 'storeSupplierAjax'], 'product_adding', 'add');
+$router->post('/m/product_adding/categories/store', [ProductAddingController::class, 'storeHierarchyAjax'], 'product_adding', 'add');
+$router->post('/m/product_adding/attributes/store', [ProductAddingController::class, 'storeAttributeAjax'], 'product_adding', 'add');
 $router->get('/api/product-adding/subcategories', [ProductAddingController::class, 'subcategories'], 'product_adding', 'view');
 $router->get('/api/product-adding/sub-subcategories', [ProductAddingController::class, 'subSubcategories'], 'product_adding', 'view');
 
