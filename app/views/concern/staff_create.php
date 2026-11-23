@@ -83,20 +83,20 @@ foreach ($modules as $m) {
                         <p class="text-secondary small mb-2" style="font-size: 0.73rem;">
                             Choose which business units or retail outlets this staff member can access and operate:
                         </p>
-                        <div class="row g-2" id="create_concern_checkboxes_grid">
+                        <div class="row g-2 mb-1" id="create_concern_checkboxes_grid">
                             <?php foreach ($allConcerns as $c): ?>
                                 <?php 
-                                    $isPrimary = ($selectedCid == $c['id']); 
+                                    $isPrimary = ($selectedCid ? ($selectedCid == $c['id']) : false); 
                                     $isChecked = !empty($oldInput['concern_ids']) 
                                         ? in_array((int)$c['id'], array_map('intval', (array)$oldInput['concern_ids']), true) 
                                         : $isPrimary;
                                 ?>
                                 <div class="col-md-6" data-name="<?= htmlspecialchars($c['name']) ?>" data-code="<?= htmlspecialchars($c['code']) ?>">
-                                    <div class="p-2.5 border rounded-3 bg-white d-flex align-items-center gap-2.5 concern-check-card" id="box_cid_<?= $c['id'] ?>" style="transition: all 0.18s ease; cursor: pointer;">
+                                    <div class="p-2.5 border rounded-3 bg-white d-flex align-items-center gap-2.5 concern-check-card" id="box_cid_<?= $c['id'] ?>" style="transition: all 0.18s ease; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT') { const cb = document.getElementById('create_cid_<?= $c['id'] ?>'); if(cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); } }">
                                         <input class="form-check-input create-concern-check m-0" type="checkbox" name="concern_ids[]" value="<?= (int)$c['id'] ?>" id="create_cid_<?= $c['id'] ?>" <?= $isChecked ? 'checked' : '' ?> style="width: 17px; height: 17px; cursor: pointer;">
                                         <label class="form-check-label flex-grow-1 cursor-pointer mb-0 small d-flex justify-content-between align-items-center" for="create_cid_<?= $c['id'] ?>" style="cursor: pointer;">
-                                            <span class="fw-semibold text-dark" style="font-size: 0.82rem;"><?= htmlspecialchars($c['name']) ?></span>
-                                            <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;"><?= htmlspecialchars($c['code']) ?></span>
+                                            <span class="fw-bold text-dark" style="font-size: 0.85rem;"><i class="bi bi-building text-primary me-1.5"></i><?= htmlspecialchars($c['name']) ?></span>
+                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 font-monospace" style="font-size: 0.72rem;"><?= htmlspecialchars($c['code']) ?></span>
                                         </label>
                                     </div>
                                 </div>
@@ -451,9 +451,13 @@ function renderConcernTabs() {
     pillsUl.innerHTML = '';
 
     if (cids.length === 0) {
-        pillsUl.innerHTML = '<li class="nav-item p-2 text-muted small"><i class="bi bi-info-circle me-1"></i> Please check at least one concern above to configure permissions.</li>';
+        pillsUl.innerHTML = '<li class="nav-item p-2 text-muted small"><i class="bi bi-info-circle me-1"></i> Please check at least one concern in Section 1 above to configure permissions.</li>';
         const badge = document.getElementById('active_tab_module_count_badge');
         if (badge) badge.textContent = 'No concern selected';
+        
+        // Hide module rows and group headers when no concern is selected
+        document.querySelectorAll('.matrix-mod-row').forEach(row => row.style.display = 'none');
+        document.querySelectorAll('.matrix-group-header').forEach(header => header.style.display = 'none');
         return;
     }
 
@@ -584,7 +588,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function toggleHeaderColumn(action, checked) {
-    if (!window.activeConcernId) return;
+    if (!window.activeConcernId) {
+        alert('Please select at least one Business Concern in Section 1 (e.g., GRM GARMENTS or GRM ELITE WEAR) before configuring permissions.');
+        return;
+    }
     const allowed = window.concernModules[window.activeConcernId] || [];
     document.querySelectorAll('.matrix-perm-' + action).forEach(cb => {
         const row = cb.closest('tr');
@@ -671,7 +678,10 @@ function onRoleChangedInCreate(roleId) {
 }
 
 function setAllMatrixPerms(checked) {
-    if (!window.activeConcernId) return;
+    if (!window.activeConcernId) {
+        alert('Please select at least one Business Concern in Section 1 (e.g., GRM GARMENTS or GRM ELITE WEAR) before configuring permissions.');
+        return;
+    }
     const allowed = window.concernModules[window.activeConcernId] || [];
     document.querySelectorAll('.matrix-perm-check').forEach(cb => {
         const row = cb.closest('tr');
@@ -693,7 +703,10 @@ function setAllMatrixPerms(checked) {
 }
 
 function setAllMatrixReadOnly() {
-    if (!window.activeConcernId) return;
+    if (!window.activeConcernId) {
+        alert('Please select at least one Business Concern in Section 1 (e.g., GRM GARMENTS or GRM ELITE WEAR) before configuring permissions.');
+        return;
+    }
     const allowed = window.concernModules[window.activeConcernId] || [];
     document.querySelectorAll('.matrix-perm-check').forEach(cb => {
         const row = cb.closest('tr');
