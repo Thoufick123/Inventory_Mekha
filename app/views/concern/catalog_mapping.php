@@ -502,10 +502,15 @@
                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" id="catalogHsnCount">
                                     <?= count($hsnCodes) ?> HSN Codes
                                 </span>
-                                <div class="input-group input-group-sm" style="width: min(100%, 300px);">
+                                <div class="input-group input-group-sm" style="width: min(100%, 260px);">
                                     <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
                                     <input type="search" class="form-control" id="catalogHsnSearch" placeholder="Search HSN, description, or category" aria-label="Search HSN master">
                                 </div>
+                                <?php if (\App\Core\Auth::can('catalog_mapping', 'add')): ?>
+                                <button type="button" class="btn btn-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 text-nowrap" data-bs-toggle="modal" data-bs-target="#modalAddHsn">
+                                    <i class="bi bi-plus-circle"></i> Add HSN Code
+                                </button>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <div class="card-body p-0">
@@ -524,20 +529,27 @@
                                                 <th>Category</th>
                                                 <th class="text-nowrap">GST Rate</th>
                                                 <th>Rate Conditions</th>
-                                                <th class="pe-3 text-nowrap">Scope</th>
+                                                <th class="text-nowrap">Scope</th>
+                                                <th class="pe-3 text-end text-nowrap" style="width: 100px;">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody id="catalogHsnTableBody">
                                             <?php foreach ($hsnCodes as $hsn): ?>
                                                 <tr class="catalog-hsn-row" data-search="<?= htmlspecialchars(strtolower(implode(' ', [
                                                     $hsn['hsn_code'] ?? '',
+                                                    $hsn['code_type'] ?? '',
                                                     $hsn['description'] ?? '',
                                                     $hsn['category'] ?? '',
                                                     $hsn['rate_note'] ?? '',
                                                     $hsn['concern_name'] ?? '',
                                                 ])), ENT_QUOTES, 'UTF-8') ?>">
                                                     <td class="ps-3">
-                                                        <span class="font-monospace fw-semibold text-primary"><?= htmlspecialchars($hsn['hsn_code']) ?></span>
+                                                        <div class="d-flex align-items-center gap-1.5">
+                                                            <span class="font-monospace fw-semibold text-primary"><?= htmlspecialchars($hsn['hsn_code']) ?></span>
+                                                            <?php if (($hsn['code_type'] ?? 'HSN') === 'SAC'): ?>
+                                                                <span class="badge bg-secondary-subtle text-secondary border font-monospace" style="font-size: 0.65rem;">SAC</span>
+                                                            <?php endif; ?>
+                                                        </div>
                                                     </td>
                                                     <td><?= htmlspecialchars($hsn['description'] ?: '—') ?></td>
                                                     <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($hsn['category'] ?: 'Uncategorized') ?></span></td>
@@ -549,7 +561,27 @@
                                                         <?php endif; ?>
                                                     </td>
                                                     <td><small class="text-muted"><?= htmlspecialchars($hsn['rate_note'] ?: '—') ?></small></td>
-                                                    <td class="pe-3"><small class="text-muted"><?= htmlspecialchars($hsn['concern_name']) ?></small></td>
+                                                    <td><small class="text-muted"><?= htmlspecialchars($hsn['concern_name']) ?></small></td>
+                                                    <td class="pe-3 text-end text-nowrap">
+                                                        <?php 
+                                                        $canEditHsn = \App\Core\Auth::can('catalog_mapping', 'edit') && (\App\Core\Auth::isSuperAdmin() || $hsn['concern_id'] !== null);
+                                                        $canDeleteHsn = \App\Core\Auth::can('catalog_mapping', 'delete') && (\App\Core\Auth::isSuperAdmin() || $hsn['concern_id'] !== null);
+                                                        ?>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <?php if ($canEditHsn): ?>
+                                                            <button type="button" class="btn btn-outline-primary btn-sm px-2 py-0.5" title="Edit HSN Code"
+                                                                    onclick='openEditHsnModal(<?= json_encode($hsn, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
+                                                                <i class="bi bi-pencil-square"></i>
+                                                            </button>
+                                                            <?php endif; ?>
+                                                            <?php if ($canDeleteHsn): ?>
+                                                            <button type="button" class="btn btn-outline-danger btn-sm px-2 py-0.5" title="Delete HSN Code"
+                                                                    onclick="confirmDeleteHsn(<?= (int)$hsn['id'] ?>, '<?= htmlspecialchars($hsn['hsn_code'], ENT_QUOTES) ?>', '<?= htmlspecialchars($hsn['description'] ?? '', ENT_QUOTES) ?>')">
+                                                                <i class="bi bi-trash3"></i>
+                                                            </button>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -802,6 +834,215 @@
 </div>
 <?php endif; ?>
 
+<!-- DATALIST FOR HSN CATEGORIES AUTOCOMPLETE -->
+<datalist id="hsnCategoriesList">
+    <?php foreach (($hsnCategories ?? []) as $catName): ?>
+        <option value="<?= htmlspecialchars($catName) ?>">
+    <?php endforeach; ?>
+</datalist>
+
+<?php if (\App\Core\Auth::can('catalog_mapping', 'add')): ?>
+<!-- MODAL: ADD HSN / SAC MASTER CODE -->
+<div class="modal fade" id="modalAddHsn" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/create-hsn') ?>" method="POST" class="modal-content border-0 shadow">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::csrfToken()) ?>">
+            <input type="hidden" name="return_url" value="/production/catalog-mapping?tab=hierarchy">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-upc-scan text-primary me-1.5"></i> Add HSN / SAC Master Code</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Code Type <span class="text-danger">*</span></label>
+                        <select name="code_type" class="form-select" required>
+                            <option value="HSN" selected>HSN (Goods)</option>
+                            <option value="SAC">SAC (Services)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">HSN / SAC Code <span class="text-danger">*</span></label>
+                        <input type="text" name="hsn_code" class="form-control font-monospace fw-bold" placeholder="e.g. 6109, 6203, 5208" required maxlength="50">
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label small fw-semibold">Category</label>
+                        <input type="text" name="category" list="hsnCategoriesList" class="form-control" placeholder="e.g. Apparel, Fabric, Packaging" maxlength="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">GST Rate (%)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" min="0" max="100" name="gst_rate" class="form-control font-monospace" placeholder="e.g. 5.00, 12.00, 18.00">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label small fw-semibold">Rate Conditions / Notes</label>
+                        <input type="text" name="rate_note" class="form-control" placeholder="e.g. 5% if sale value <= 1000, 12% if > 1000" maxlength="500">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-semibold">Description</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="e.g. T-shirts, singlets and other vests, knitted or crocheted" maxlength="255"></textarea>
+                    </div>
+                    <?php if (\App\Core\Auth::isSuperAdmin()): ?>
+                    <div class="col-12 pt-2 border-top">
+                        <label class="form-label small fw-semibold text-muted d-block mb-2">Scope & Visibility</label>
+                        <div class="d-flex align-items-center gap-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="scope" id="addHsnScopeGlobal" value="global" checked onchange="toggleAddHsnConcern(this.value)">
+                                <label class="form-check-label small" for="addHsnScopeGlobal">
+                                    <i class="bi bi-globe text-primary me-1"></i> Global (Available to All Concerns)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="scope" id="addHsnScopeConcern" value="concern" onchange="toggleAddHsnConcern(this.value)">
+                                <label class="form-check-label small" for="addHsnScopeConcern">
+                                    <i class="bi bi-building text-secondary me-1"></i> Concern-Specific
+                                </label>
+                            </div>
+                        </div>
+                        <div class="d-none mt-2" id="addHsnConcernSelectWrapper">
+                            <label class="form-label small fw-semibold">Select Concern</label>
+                            <select name="concern_id" class="form-select form-select-sm">
+                                <?php foreach (($allConcerns ?? []) as $c): ?>
+                                    <option value="<?= $c['id'] ?>" <?= ((int)($selectedCid ?? 0) === (int)$c['id']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code'] ?? '') ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm px-3"><i class="bi bi-check-circle me-1"></i> Save HSN Code</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if (\App\Core\Auth::can('catalog_mapping', 'edit')): ?>
+<!-- MODAL: EDIT HSN / SAC MASTER CODE -->
+<div class="modal fade" id="modalEditHsn" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/update-hsn') ?>" method="POST" class="modal-content border-0 shadow">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::csrfToken()) ?>">
+            <input type="hidden" name="return_url" value="/production/catalog-mapping?tab=hierarchy">
+            <input type="hidden" name="id" id="editHsnId" value="">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-pencil-square text-primary me-1.5"></i> Edit HSN / SAC Master Code</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Code Type <span class="text-danger">*</span></label>
+                        <select name="code_type" id="editHsnCodeType" class="form-select" required>
+                            <option value="HSN">HSN (Goods)</option>
+                            <option value="SAC">SAC (Services)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">HSN / SAC Code <span class="text-danger">*</span></label>
+                        <input type="text" name="hsn_code" id="editHsnCode" class="form-control font-monospace fw-bold" required maxlength="50">
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label small fw-semibold">Category</label>
+                        <input type="text" name="category" id="editHsnCategory" list="hsnCategoriesList" class="form-control" maxlength="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">GST Rate (%)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" min="0" max="100" name="gst_rate" id="editHsnGstRate" class="form-control font-monospace">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label small fw-semibold">Rate Conditions / Notes</label>
+                        <input type="text" name="rate_note" id="editHsnRateNote" class="form-control" maxlength="500">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Status</label>
+                        <select name="is_active" id="editHsnIsActive" class="form-select">
+                            <option value="1">Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-semibold">Description</label>
+                        <textarea name="description" id="editHsnDescription" class="form-control" rows="2" maxlength="255"></textarea>
+                    </div>
+                    <?php if (\App\Core\Auth::isSuperAdmin()): ?>
+                    <div class="col-12 pt-2 border-top">
+                        <label class="form-label small fw-semibold text-muted d-block mb-2">Scope & Visibility</label>
+                        <div class="d-flex align-items-center gap-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="scope" id="editHsnScopeGlobal" value="global" onchange="toggleEditHsnConcern(this.value)">
+                                <label class="form-check-label small" for="editHsnScopeGlobal">
+                                    <i class="bi bi-globe text-primary me-1"></i> Global (Available to All Concerns)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="scope" id="editHsnScopeConcern" value="concern" onchange="toggleEditHsnConcern(this.value)">
+                                <label class="form-check-label small" for="editHsnScopeConcern">
+                                    <i class="bi bi-building text-secondary me-1"></i> Concern-Specific
+                                </label>
+                            </div>
+                        </div>
+                        <div class="d-none mt-2" id="editHsnConcernSelectWrapper">
+                            <label class="form-label small fw-semibold">Select Concern</label>
+                            <select name="concern_id" id="editHsnConcernId" class="form-select form-select-sm">
+                                <?php foreach (($allConcerns ?? []) as $c): ?>
+                                    <option value="<?= $c['id'] ?>">
+                                        <?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code'] ?? '') ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm px-3"><i class="bi bi-check-circle me-1"></i> Update HSN Code</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if (\App\Core\Auth::can('catalog_mapping', 'delete')): ?>
+<!-- CONFIRM DELETE HSN MODAL -->
+<div class="modal fade" id="modalConfirmDeleteHsn" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form action="<?= \App\Core\Controller::url('/production/catalog-mapping/delete-hsn') ?>" method="POST" class="modal-content border-0 shadow">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::csrfToken()) ?>">
+            <input type="hidden" name="id" id="deleteHsnId" value="">
+            <input type="hidden" name="return_url" value="/production/catalog-mapping?tab=hierarchy">
+            <div class="modal-header bg-danger text-white">
+                <h6 class="modal-title fw-bold"><i class="bi bi-trash-fill me-2"></i> Delete HSN Code</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-2 d-block"></i>
+                <h5 class="fw-bold text-dark mb-2">Delete <span id="deleteHsnCodeDisplay"></span>?</h5>
+                <p class="text-secondary small mb-0">
+                    Are you sure you want to delete this HSN code? If it is currently referenced in active catalog styles or categories, it will be safely deactivated to protect historical records.
+                </p>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger btn-sm px-3 fw-bold"><i class="bi bi-trash me-1"></i> Yes, Delete HSN</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
 <script>
 function handleAttributeTypeChange(val) {
     const box = document.getElementById('containerNewAttributeType');
@@ -821,6 +1062,51 @@ function confirmUnmap(id, name) {
     document.getElementById('unmapItemId').value = id;
     document.getElementById('unmapItemName').textContent = `Unmap "${name}"?`;
     new bootstrap.Modal(document.getElementById('modalConfirmUnmap')).show();
+}
+
+function toggleAddHsnConcern(val) {
+    const w = document.getElementById('addHsnConcernSelectWrapper');
+    if (w) w.classList.toggle('d-none', val !== 'concern');
+}
+
+function toggleEditHsnConcern(val) {
+    const w = document.getElementById('editHsnConcernSelectWrapper');
+    if (w) w.classList.toggle('d-none', val !== 'concern');
+}
+
+function openEditHsnModal(data) {
+    if (!data) return;
+    document.getElementById('editHsnId').value = data.id || '';
+    document.getElementById('editHsnCodeType').value = data.code_type || 'HSN';
+    document.getElementById('editHsnCode').value = data.hsn_code || '';
+    document.getElementById('editHsnCategory').value = data.category || '';
+    document.getElementById('editHsnGstRate').value = (data.gst_rate !== null && data.gst_rate !== undefined) ? data.gst_rate : '';
+    document.getElementById('editHsnRateNote').value = data.rate_note || '';
+    document.getElementById('editHsnDescription').value = data.description || '';
+    if (document.getElementById('editHsnIsActive')) {
+        document.getElementById('editHsnIsActive').value = (data.is_active != null) ? data.is_active : '1';
+    }
+    const editScopeGlobal = document.getElementById('editHsnScopeGlobal');
+    const editScopeConcern = document.getElementById('editHsnScopeConcern');
+    const editConcernSelect = document.getElementById('editHsnConcernId');
+    const editConcernWrapper = document.getElementById('editHsnConcernSelectWrapper');
+    if (editScopeGlobal && editScopeConcern) {
+        if (data.concern_id) {
+            editScopeConcern.checked = true;
+            if (editConcernSelect) editConcernSelect.value = data.concern_id;
+            if (editConcernWrapper) editConcernWrapper.classList.remove('d-none');
+        } else {
+            editScopeGlobal.checked = true;
+            if (editConcernWrapper) editConcernWrapper.classList.add('d-none');
+        }
+    }
+    new bootstrap.Modal(document.getElementById('modalEditHsn')).show();
+}
+
+function confirmDeleteHsn(id, code, desc) {
+    document.getElementById('deleteHsnId').value = id;
+    document.getElementById('deleteHsnCodeDisplay').textContent = code + (desc ? ' (' + desc + ')' : '');
+    new bootstrap.Modal(document.getElementById('modalConfirmDeleteHsn')).show();
 }
 
 function confirmDeleteHierarchy(type, id, name, value = '') {

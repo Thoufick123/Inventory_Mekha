@@ -246,11 +246,11 @@ class CatalogMappingController extends Controller
             $catalogs = DB::fetchAll('SELECT id, style_code, short_code, name FROM catalogs ORDER BY id DESC');
         }
 
-        $hsnSql = "SELECT hm.hsn_code, hm.description, hm.category, hm.gst_rate, hm.rate_note,
+        $hsnSql = "SELECT hm.id, hm.concern_id, hm.code_type, hm.hsn_code, hm.description, hm.category, hm.gst_rate, hm.rate_note, hm.is_active,
                           COALESCE(con.name, 'Global') AS concern_name
                    FROM hsn_masters hm
                    LEFT JOIN concerns con ON con.id = hm.concern_id
-                   WHERE hm.is_active = 1 AND hm.code_type = 'HSN'";
+                   WHERE hm.is_active = 1";
         $hsnParams = [];
         if ($cid) {
             $hsnSql .= ' AND (hm.concern_id = ? OR hm.concern_id IS NULL)';
@@ -258,6 +258,9 @@ class CatalogMappingController extends Controller
         }
         $hsnSql .= ' ORDER BY hm.hsn_code ASC, hm.concern_id IS NULL DESC, hm.concern_id ASC';
         $hsnCodes = DB::fetchAll($hsnSql, $hsnParams);
+
+        $hsnCategories = array_values(array_filter(array_unique(array_column($hsnCodes, 'category'))));
+        sort($hsnCategories);
 
         $activeTab = $_GET['tab'] ?? 'mappings';
         $attributeTypes = array_values(array_unique(array_filter(array_column($attributes, 'attribute_type'))));
@@ -272,6 +275,7 @@ class CatalogMappingController extends Controller
             'subSubcategories' => $subSubcategories,
             'attributes' => $attributes,
             'hsnCodes' => $hsnCodes,
+            'hsnCategories' => $hsnCategories,
             'attributeTypes' => $attributeTypes,
             'catalogs' => $catalogs,
             'metrics' => [
@@ -1431,6 +1435,30 @@ class CatalogMappingController extends Controller
                     }
                 }
                 $this->flash('success', 'Attribute was deleted successfully.');
+            } elseif ($type === 'hsn') {
+                $hsn = DB::fetch('SELECT * FROM hsn_masters WHERE id = ?', [$id]);
+                if (!$hsn) {
+                    throw new Exception('HSN record not found.');
+                }
+                if (!Auth::isSuperAdmin()) {
+                    $userCid = Auth::concernId();
+                    if ($hsn['concern_id'] === null) {
+                        throw new Exception('Only Super Admin can delete Global HSN codes.');
+                    }
+                    if ((int)$hsn['concern_id'] !== (int)$userCid) {
+                        throw new Exception('Unauthorized to delete HSN code belonging to another concern.');
+                    }
+                }
+                $code = $hsn['hsn_code'];
+                $catalogCount = (int) DB::fetchValue('SELECT COUNT(*) FROM catalogs WHERE hsn_code = ?', [$code]);
+                $categoryCount = (int) DB::fetchValue('SELECT COUNT(*) FROM categories WHERE default_hsn = ?', [$code]);
+                if ($catalogCount > 0 || $categoryCount > 0) {
+                    DB::query('UPDATE hsn_masters SET is_active = 0 WHERE id = ?', [$id]);
+                    $this->flash('success', "HSN Code '{$code}' is currently linked and was deactivated rather than deleted.");
+                } else {
+                    DB::query('DELETE FROM hsn_masters WHERE id = ?', [$id]);
+                    $this->flash('success', "HSN Code '{$code}' was deleted successfully.");
+                }
             } else {
                 throw new Exception('Unknown hierarchy type.');
             }
@@ -1472,5 +1500,264 @@ class CatalogMappingController extends Controller
 
         echo json_encode(['success' => true, 'item' => $item]);
         exit;
+    }
+
+    /**
+     * Create HSN/SAC master code
+     */
+    public function createHsn(): void
+    {
+        $this->ensureSchema();
+        $this->validateCsrf();
+        if (!Auth::can('catalog_mapping', 'add') && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Unauthorized to add HSN codes.');
+            $this->redirect('/production/catalog-mapping?tab=hierarchy');
+            return;
+        }
+
+        $codeType = strtoupper(trim($_POST['code_type'] ?? 'HSN'));
+        if (!in_array($codeType, ['HSN', 'SAC'], true)) {
+            $codeType = 'HSN';
+        }
+
+        $hsnCode = trim($_POST['hsn_code'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $category = trim($_POST['category'] ?? '');
+        $rawGst = trim($_POST['gst_rate'] ?? '');
+        $gstRate = $rawGst !== '' ? (float) $rawGst : null;
+        $rateNote = trim($_POST['rate_note'] ?? '');
+        $returnUrl = $_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy';
+
+        if (empty($hsnCode)) {
+            $this->flash('error', 'HSN/SAC Code is required.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        // Scope determination
+        $concernId = null;
+        if (Auth::isSuperAdmin()) {
+            $scope = trim($_POST['scope'] ?? 'global');
+            if ($scope === 'concern') {
+                $concernId = !empty($_POST['concern_id']) ? (int) $_POST['concern_id'] : (Auth::concernId() ?: null);
+            } else {
+                $concernId = null; // Global
+            }
+        } else {
+            $concernId = Auth::concernId();
+        }
+
+        try {
+            // Check duplicate
+            $dupSql = "SELECT id, is_active FROM hsn_masters WHERE hsn_code = ? AND code_type = ? AND " . 
+                      ($concernId === null ? "concern_id IS NULL" : "concern_id = ?");
+            $dupParams = $concernId === null ? [$hsnCode, $codeType] : [$hsnCode, $codeType, $concernId];
+            $existing = DB::fetch($dupSql, $dupParams);
+
+            if ($existing) {
+                if ((int)$existing['is_active'] === 1) {
+                    throw new Exception("The {$codeType} code '{$hsnCode}' already exists for this scope.");
+                } else {
+                    // Reactivate and update
+                    DB::query("UPDATE hsn_masters SET is_active = 1, description = ?, category = ?, gst_rate = ?, rate_note = ? WHERE id = ?", [
+                        $description ?: null,
+                        $category ?: null,
+                        $gstRate,
+                        $rateNote ?: null,
+                        $existing['id']
+                    ]);
+                    $this->flash('success', "{$codeType} code '{$hsnCode}' reactivated and updated successfully.");
+                    $this->redirect($returnUrl);
+                    return;
+                }
+            }
+
+            DB::query("INSERT INTO hsn_masters (concern_id, code_type, hsn_code, description, category, gst_rate, rate_note, is_active)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 1)", [
+                $concernId,
+                $codeType,
+                $hsnCode,
+                $description ?: null,
+                $category ?: null,
+                $gstRate,
+                $rateNote ?: null
+            ]);
+
+            $this->flash('success', "{$codeType} Code '{$hsnCode}' created successfully.");
+        } catch (Exception $e) {
+            $this->flash('error', $e->getMessage());
+        }
+
+        $this->redirect($returnUrl);
+    }
+
+    /**
+     * Update HSN/SAC master code
+     */
+    public function updateHsn(): void
+    {
+        $this->ensureSchema();
+        $this->validateCsrf();
+        if (!Auth::can('catalog_mapping', 'edit') && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Unauthorized to edit HSN codes.');
+            $this->redirect('/production/catalog-mapping?tab=hierarchy');
+            return;
+        }
+
+        $id = (int) ($_POST['id'] ?? 0);
+        $returnUrl = $_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy';
+
+        if (!$id) {
+            $this->flash('error', 'Invalid HSN ID.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        $hsn = DB::fetch('SELECT * FROM hsn_masters WHERE id = ?', [$id]);
+        if (!$hsn) {
+            $this->flash('error', 'HSN record not found.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        // Access check for concern-scoped users
+        if (!Auth::isSuperAdmin()) {
+            $userCid = Auth::concernId();
+            if ($hsn['concern_id'] === null) {
+                $this->flash('error', 'Only Super Admin can edit Global HSN codes.');
+                $this->redirect($returnUrl);
+                return;
+            }
+            if ((int)$hsn['concern_id'] !== (int)$userCid) {
+                $this->flash('error', 'Unauthorized to edit HSN codes belonging to another concern.');
+                $this->redirect($returnUrl);
+                return;
+            }
+        }
+
+        $codeType = strtoupper(trim($_POST['code_type'] ?? $hsn['code_type']));
+        if (!in_array($codeType, ['HSN', 'SAC'], true)) {
+            $codeType = 'HSN';
+        }
+        $hsnCode = trim($_POST['hsn_code'] ?? $hsn['hsn_code']);
+        $description = trim($_POST['description'] ?? '');
+        $category = trim($_POST['category'] ?? '');
+        $rawGst = trim($_POST['gst_rate'] ?? '');
+        $gstRate = $rawGst !== '' ? (float) $rawGst : null;
+        $rateNote = trim($_POST['rate_note'] ?? '');
+        $isActive = isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1;
+
+        if (empty($hsnCode)) {
+            $this->flash('error', 'HSN/SAC Code cannot be empty.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        // Scope check / update if super admin
+        $concernId = $hsn['concern_id'];
+        if (Auth::isSuperAdmin() && isset($_POST['scope'])) {
+            $scope = trim($_POST['scope']);
+            if ($scope === 'global') {
+                $concernId = null;
+            } elseif ($scope === 'concern') {
+                $concernId = !empty($_POST['concern_id']) ? (int) $_POST['concern_id'] : (Auth::concernId() ?: null);
+            }
+        }
+
+        try {
+            // Check duplicate code if code, type or scope changed
+            $dupSql = "SELECT id FROM hsn_masters WHERE hsn_code = ? AND code_type = ? AND id != ? AND " .
+                      ($concernId === null ? "concern_id IS NULL" : "concern_id = ?");
+            $dupParams = $concernId === null ? [$hsnCode, $codeType, $id] : [$hsnCode, $codeType, $id, $concernId];
+            $existing = DB::fetch($dupSql, $dupParams);
+            if ($existing) {
+                throw new Exception("Another {$codeType} record with code '{$hsnCode}' already exists for this scope.");
+            }
+
+            DB::query("UPDATE hsn_masters 
+                       SET concern_id = ?, code_type = ?, hsn_code = ?, description = ?, category = ?, gst_rate = ?, rate_note = ?, is_active = ?
+                       WHERE id = ?", [
+                $concernId,
+                $codeType,
+                $hsnCode,
+                $description ?: null,
+                $category ?: null,
+                $gstRate,
+                $rateNote ?: null,
+                $isActive,
+                $id
+            ]);
+
+            $this->flash('success', "{$codeType} Code '{$hsnCode}' updated successfully.");
+        } catch (Exception $e) {
+            $this->flash('error', $e->getMessage());
+        }
+
+        $this->redirect($returnUrl);
+    }
+
+    /**
+     * Delete or Deactivate HSN/SAC master code
+     */
+    public function deleteHsn(): void
+    {
+        $this->ensureSchema();
+        $this->validateCsrf();
+        if (!Auth::can('catalog_mapping', 'delete') && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Unauthorized to delete HSN codes.');
+            $this->redirect('/production/catalog-mapping?tab=hierarchy');
+            return;
+        }
+
+        $id = (int) ($_POST['id'] ?? 0);
+        $returnUrl = $_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy';
+
+        if (!$id) {
+            $this->flash('error', 'Invalid HSN ID.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        $hsn = DB::fetch('SELECT * FROM hsn_masters WHERE id = ?', [$id]);
+        if (!$hsn) {
+            $this->flash('error', 'HSN record not found.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        if (!Auth::isSuperAdmin()) {
+            $userCid = Auth::concernId();
+            if ($hsn['concern_id'] === null) {
+                $this->flash('error', 'Only Super Admin can delete Global HSN codes.');
+                $this->redirect($returnUrl);
+                return;
+            }
+            if ((int)$hsn['concern_id'] !== (int)$userCid) {
+                $this->flash('error', 'Unauthorized to delete HSN code belonging to another concern.');
+                $this->redirect($returnUrl);
+                return;
+            }
+        }
+
+        try {
+            $code = $hsn['hsn_code'];
+            $catalogCount = (int) DB::fetchValue('SELECT COUNT(*) FROM catalogs WHERE hsn_code = ?', [$code]);
+            $categoryCount = (int) DB::fetchValue('SELECT COUNT(*) FROM categories WHERE default_hsn = ?', [$code]);
+
+            if ($catalogCount > 0 || $categoryCount > 0) {
+                DB::query('UPDATE hsn_masters SET is_active = 0 WHERE id = ?', [$id]);
+                $refs = [];
+                if ($catalogCount > 0) $refs[] = "{$catalogCount} catalog style(s)";
+                if ($categoryCount > 0) $refs[] = "{$categoryCount} category(ies)";
+                $this->flash('success', "HSN Code '{$code}' is currently referenced by " . implode(' and ', $refs) . ". It has been deactivated rather than deleted.");
+            } else {
+                DB::query('DELETE FROM hsn_masters WHERE id = ?', [$id]);
+                $this->flash('success', "HSN Code '{$code}' deleted successfully.");
+            }
+        } catch (Exception $e) {
+            $this->flash('error', $e->getMessage());
+        }
+
+        $this->redirect($returnUrl);
     }
 }

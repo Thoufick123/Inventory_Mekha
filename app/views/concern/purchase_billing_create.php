@@ -6,6 +6,7 @@ $rollSpecSaveUrl = $rollSpecSaveUrl ?? \App\Core\Controller::url('/m/purchase_bi
 $quickSupplierSaveUrl = $quickSupplierSaveUrl ?? '';
 $quickCategorySaveUrl = $quickCategorySaveUrl ?? '';
 $quickAttributeSaveUrl = $quickAttributeSaveUrl ?? '';
+$invoiceCheckUrl = $invoiceCheckUrl ?? '';
 $isProductAddingForm = ($currentModule ?? '') === 'product_adding';
 $backUrl = $backUrl ?? \App\Core\Controller::url('/m/purchase_billing');
 $backLabel = $backLabel ?? 'Back to Purchases';
@@ -131,6 +132,58 @@ if ($isEdit && !empty($existingItems)) {
     font-weight: 700;
     text-align: right;
 }
+.fg-attribute-option-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    max-height: 5.5rem;
+    overflow-y: auto;
+    padding: .15rem;
+}
+.fg-attribute-option {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .3rem .55rem;
+    margin: 0;
+    border: 1px solid #d5deea;
+    border-radius: .45rem;
+    background: #fff;
+    cursor: pointer;
+    font-size: .82rem;
+    line-height: 1.2;
+}
+.fg-attribute-option.is-selected {
+    background: #eef2ff;
+    border-color: #818cf8;
+    color: #3730a3;
+}
+.fg-attribute-option .form-check-input {
+    margin: 0;
+}
+.fg-quick-fill-panel {
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+}
+.fg-quick-fill-panel .form-control {
+    min-width: 0;
+}
+.fg-quick-fill-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: .5rem;
+}
+.fg-quick-fill-label {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 1.25rem;
+    margin-bottom: .35rem;
+    color: #475569;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
 @media (max-width: 767.98px) {
     .fg-variant-matrix-scroll {
         max-height: 70vh;
@@ -172,9 +225,10 @@ if ($isEdit && !empty($existingItems)) {
             <?php if (empty($savedBillItems)): ?>
                 <div class="card-body text-muted">This saved bill has no printable lines.</div>
             <?php else: ?>
-                <form action="<?= $productAddingLabelUrl ?>" method="POST" target="_blank" id="productAddingBulkLabelForm">
+                <form action="<?= $productAddingLabelUrl ?>" method="POST" target="productAddingLabelPreviewFrame" id="productAddingBulkLabelForm">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                     <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                    <input type="hidden" name="inline_preview" value="1">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
@@ -198,7 +252,20 @@ if ($isEdit && !empty($existingItems)) {
                                     ?>
                                     <tr>
                                         <td class="text-center">
-                                            <input class="form-check-input" type="checkbox" name="item_ids[]" value="<?= $savedItemId ?>" checked aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk printing">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                name="item_ids[]"
+                                                value="<?= $savedItemId ?>"
+                                                data-labels-complete="<?= $savedItem['labels_complete'] ? '1' : '0' ?>"
+                                                data-in-stock="<?= $isSavedItemInStock ? '1' : '0' ?>"
+                                                data-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
+                                                data-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?>"
+                                                data-default-label-count="<?= $requiredLabelQty ?>"
+                                                data-generated-label-count="<?= $generatedLabelQty ?>"
+                                                data-required-label-count="<?= $requiredLabelQty ?>"
+                                                <?= $isSavedItemInStock ? '' : 'checked' ?>
+                                                aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk actions">
                                         </td>
                                         <td>
                                             <div class="fw-semibold"><?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?></div>
@@ -208,23 +275,36 @@ if ($isEdit && !empty($existingItems)) {
                                         <td class="text-end"><?= htmlspecialchars((string)$savedItem['qty']) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></td>
                                         <td class="text-center">
                                             <?php if ($savedItem['labels_complete']): ?>
-                                                <span class="badge text-bg-success"><?= $generatedLabelQty ?> / <?= $requiredLabelQty ?> labels</span>
+                                                <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-success"><?= $generatedLabelQty ?> / <?= $requiredLabelQty ?> labels</span>
                                             <?php else: ?>
-                                                <span class="badge text-bg-warning"><?= $generatedLabelQty ?> / <?= $requiredLabelQty ?> labels</span>
+                                                <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-warning"><?= $generatedLabelQty ?> / <?= $requiredLabelQty ?> labels</span>
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-end text-nowrap">
-                                            <button type="submit" form="productAddingLabelForm<?= $savedItemId ?>" class="btn btn-sm btn-outline-primary">
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-primary"
+                                                data-label-form-id="productAddingLabelForm<?= $savedItemId ?>"
+                                                data-label-item-id="<?= $savedItemId ?>"
+                                                data-label-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
+                                                data-label-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?>"
+                                                data-default-label-count="<?= $requiredLabelQty ?>">
                                                 <i class="bi bi-printer me-1"></i>Print labels
                                             </button>
                                             <?php if ($isSavedItemInStock): ?>
                                                 <span class="badge text-bg-success ms-1">In stock</span>
                                             <?php elseif ($savedItem['labels_complete']): ?>
-                                                <button type="submit" form="productAddingStockForm<?= $savedItemId ?>" class="btn btn-sm btn-success ms-1">
+                                                <button type="submit" form="productAddingStockForm<?= $savedItemId ?>" class="btn btn-sm btn-success ms-1" data-product-adding-stock-button="<?= $savedItemId ?>">
                                                     <i class="bi bi-box-arrow-in-down me-1"></i>Add stock
                                                 </button>
                                             <?php else: ?>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary ms-1" disabled title="Generate enough labels first">Add stock</button>
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-outline-secondary ms-1"
+                                                    data-product-adding-stock-button="<?= $savedItemId ?>"
+                                                    data-stock-form-id="productAddingStockForm<?= $savedItemId ?>"
+                                                    disabled
+                                                    title="Generate enough labels first">Add stock</button>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
@@ -233,10 +313,26 @@ if ($isEdit && !empty($existingItems)) {
                         </table>
                     </div>
                     <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <span class="small text-muted">Bulk printing uses the checked lines and generates labels for their full quantities.</span>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-printer-fill me-1"></i>Print selected lines
-                        </button>
+                        <span class="small text-muted">Bulk printing and stock inward use the checked lines. Stock inward requires complete label coverage.</span>
+                        <div class="d-flex flex-wrap gap-2">
+                            <span id="productAddingBulkLabelFeedback" class="small text-danger align-self-center d-none" role="alert"></span>
+                            <button
+                                type="submit"
+                                id="productAddingBulkStockButton"
+                                class="btn btn-success"
+                                formaction="<?= $productAddingStockUrl ?>"
+                                formmethod="POST"
+                                formtarget="_self"
+                                name="product_adding"
+                                value="1"
+                                disabled
+                                title="Select pending lines with complete label coverage">
+                                <i class="bi bi-box-arrow-in-down me-1"></i>Add selected to stock
+                            </button>
+                            <button type="button" class="btn btn-primary" id="productAddingBulkLabelButton">
+                                <i class="bi bi-printer-fill me-1"></i>Print selected lines
+                            </button>
+                        </div>
                     </div>
                 </form>
                 <?php foreach ($savedBillItems as $savedItem): ?>
@@ -246,10 +342,20 @@ if ($isEdit && !empty($existingItems)) {
                         ? 'finished_goods'
                         : ($savedItem['section_type'] === 'rolls' ? 'rolls' : 'garment_other');
                     ?>
-                    <form id="productAddingLabelForm<?= $savedItemId ?>" action="<?= $productAddingLabelUrl ?>" method="POST" target="_blank" class="d-none">
+                    <form
+                        id="productAddingLabelForm<?= $savedItemId ?>"
+                        action="<?= $productAddingLabelUrl ?>"
+                        method="POST"
+                        target="productAddingLabelPreviewFrame"
+                        class="d-none"
+                        data-label-item-id="<?= $savedItemId ?>"
+                        data-label-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
+                        data-label-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)$savedItem['section_type']))) ?>"
+                        data-default-label-count="<?= (int)$savedItem['required_label_qty'] ?>">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                         <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
                         <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
+                        <input type="hidden" name="inline_preview" value="1">
                     </form>
                     <form id="productAddingStockForm<?= $savedItemId ?>" action="<?= $productAddingStockUrl ?>" method="POST" class="d-none">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -259,8 +365,41 @@ if ($isEdit && !empty($existingItems)) {
                         <input type="hidden" name="product_adding" value="1">
                     </form>
                 <?php endforeach; ?>
+                <div class="card-footer bg-light d-none" id="productAddingLabelPreviewPanel">
+                    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                        <span class="fw-semibold"><i class="bi bi-printer text-primary me-1"></i>Generated labels</span>
+                        <span class="small text-muted">Print from the preview below; it will remain on this Product Adding page.</span>
+                    </div>
+                    <iframe
+                        id="productAddingLabelPreviewFrame"
+                        name="productAddingLabelPreviewFrame"
+                        title="Product Adding label preview"
+                        class="w-100 bg-white border rounded"
+                        style="min-height: 640px; height: 640px;"></iframe>
+                </div>
             <?php endif; ?>
         </section>
+        <div class="modal fade" id="productAddingLabelCountModal" tabindex="-1" aria-labelledby="productAddingLabelCountTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold" id="productAddingLabelCountTitle">Choose label counts</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted mb-3">Counts default to each purchase line quantity. Choose 1–500 labels per line (up to 2,000 labels per print).</p>
+                        <div id="productAddingLabelCountRows"></div>
+                        <div id="productAddingLabelCountError" class="small text-danger mt-2" role="alert"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="confirmProductAddingLabelCounts">
+                            <i class="bi bi-printer-fill me-1"></i>Generate labels
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     <?php endif; ?>
 
     <form action="<?= $formAction ?>" method="POST" enctype="multipart/form-data" id="formPurchaseBill" class="needs-validation" novalidate>
@@ -324,7 +463,8 @@ if ($isEdit && !empty($existingItems)) {
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold">Invoice / Bill Number <span class="text-danger">*</span></label>
                         <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
-                        <div class="invalid-feedback">Invoice / Bill number is required.</div>
+                        <div class="invalid-feedback" id="billSupplierInvoiceFeedback" aria-live="polite">Invoice / Bill number is required.</div>
+                        <div class="form-text small" id="billSupplierInvoiceStatus" aria-live="polite"></div>
                     </div>
                 </div>
 
@@ -1108,6 +1248,7 @@ const productAddingSubSubcategories = <?= json_encode($subSubcategories ?? [], J
 const productAddingAttributes = <?= json_encode($productAttributes ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 const quickCategorySaveUrl = <?= json_encode($quickCategorySaveUrl) ?>;
 const quickAttributeSaveUrl = <?= json_encode($quickAttributeSaveUrl) ?>;
+const invoiceCheckUrl = <?= json_encode($invoiceCheckUrl) ?>;
 
 let rollCounter = 0;
 let otherCounter = 0;
@@ -2087,22 +2228,33 @@ function buildProductAddingAttributeSelectionControls(cardId) {
                 </div>`;
             }
             return `<div class="col-md-3">
-                <label class="form-label small fw-semibold">${escapeHtml(label)} values</label>
-                <select class="form-select form-select-sm" multiple size="3" data-variant-attribute-selector="${escapeHtml(type)}" aria-label="Select multiple ${escapeHtml(label.toLowerCase())} values">
-                    ${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}
-                </select>
-                <div class="form-text">Use Ctrl or Command to select multiple values.</div>
+                <div class="form-label small fw-semibold mb-1">${escapeHtml(label)} values</div>
+                <div class="fg-attribute-picker" data-variant-attribute-selector="${escapeHtml(type)}">
+                    <div class="fg-attribute-option-list">
+                        ${values.map(value => `<label class="fg-attribute-option">
+                            <input type="checkbox" class="form-check-input" data-variant-attribute-option value="${escapeHtml(value)}" onchange="updateProductAddingAttributeSelectionCount(this)">
+                            <span>${escapeHtml(value)}</span>
+                        </label>`).join('')}
+                    </div>
+                    <div class="small text-muted mt-1"><span data-selection-count>0</span> selected</div>
+                </div>
             </div>`;
         }).join('')}
         <div class="col-md-auto d-flex gap-2">
             <button type="button" class="btn btn-sm btn-primary" onclick="generateProductAddingVariantRows(${cardId})">
                 <i class="bi bi-grid me-1"></i>Generate combinations
             </button>
-            <button type="button" class="btn btn-sm btn-outline-success" onclick="quickFillProductAddingVariants(${cardId})" title="Copy category, HSN, quantity, weight and pricing from the first row">
-                <i class="bi bi-lightning-charge me-1"></i>Quick fill
-            </button>
         </div>
     </div>`;
+}
+
+function updateProductAddingAttributeSelectionCount(input) {
+    const picker = input.closest('.fg-attribute-picker');
+    if (!picker) return;
+    const selected = picker.querySelectorAll('[data-variant-attribute-option]:checked').length;
+    const count = picker.querySelector('[data-selection-count]');
+    if (count) count.textContent = String(selected);
+    input.closest('.fg-attribute-option')?.classList.toggle('is-selected', input.checked);
 }
 
 function refreshProductAddingAttributeSelectors() {
@@ -2112,8 +2264,8 @@ function refreshProductAddingAttributeSelectors() {
         const selectedValues = new Map();
         container.querySelectorAll('[data-variant-attribute-selector]').forEach(control => {
             const type = control.dataset.variantAttributeSelector;
-            const values = control.tagName === 'SELECT'
-                ? [...control.selectedOptions].map(option => option.value)
+            const values = control.matches('.fg-attribute-picker')
+                ? [...control.querySelectorAll('[data-variant-attribute-option]:checked')].map(option => option.value)
                 : control.value.split(/[,;|]+/).map(value => value.trim()).filter(Boolean);
             selectedValues.set(type, values);
         });
@@ -2126,8 +2278,13 @@ function refreshProductAddingAttributeSelectors() {
         container.replaceWith(replacement);
         replacement.querySelectorAll('[data-variant-attribute-selector]').forEach(control => {
             const values = selectedValues.get(control.dataset.variantAttributeSelector) || [];
-            if (control.tagName === 'SELECT') {
-                [...control.options].forEach(option => { option.selected = values.includes(option.value); });
+            if (control.matches('.fg-attribute-picker')) {
+                control.querySelectorAll('[data-variant-attribute-option]').forEach(option => {
+                    option.checked = values.includes(option.value);
+                    option.closest('.fg-attribute-option')?.classList.toggle('is-selected', option.checked);
+                });
+                const count = control.querySelector('[data-selection-count]');
+                if (count) count.textContent = String(values.length);
             } else {
                 control.value = values.join(', ');
             }
@@ -2152,6 +2309,69 @@ function buildProductAddingFields(id) {
             </div>
             <div class="card-body pb-2">
                 ${buildProductAddingAttributeSelectionControls(id)}
+            </div>
+            <div class="fg-quick-fill-panel px-3 py-3">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold small text-dark"><i class="bi bi-lightning-charge-fill text-primary me-1"></i>Quick Fill (All Columns)</div>
+                        <div class="small text-muted">Set shared values once and apply them to all variant rows.</div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="applyProductAddingQuickFill(${id})">
+                        <i class="bi bi-check2-all me-1"></i>Apply to All Rows
+                    </button>
+                </div>
+                <div class="fg-quick-fill-grid mt-2">
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickCategory_${id}">Category</label>
+                        <select id="fgQuickCategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="category" onchange="updateProductAddingQuickFillHierarchy(${id}, 'category')">
+                            ${buildProductAddingCategoryOptions()}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickSubcategory_${id}">Subcategory</label>
+                        <select id="fgQuickSubcategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="subcategory" onchange="updateProductAddingQuickFillHierarchy(${id}, 'subcategory')" disabled>
+                            <option value="">-- Optional --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickSubSubcategory_${id}">Sub-subcategory</label>
+                        <select id="fgQuickSubSubcategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="sub-subcategory" disabled>
+                            <option value="">-- Optional --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickQty_${id}">Qty</label>
+                        <input id="fgQuickQty_${id}" type="number" min="1" step="1" class="form-control form-control-sm" data-quick-fill-field="quantity" placeholder="Qty...">
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" id="fgQuickBalance_${id}" data-quick-fill-auto-balance>
+                            <label class="form-check-label small" for="fgQuickBalance_${id}">Auto-Balance total</label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickWeight_${id}">Weight (kg)</label>
+                        <input id="fgQuickWeight_${id}" type="number" min="0" step="0.001" class="form-control form-control-sm" data-quick-fill-field="weight" placeholder="Weight...">
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickHsn_${id}">HSN Code</label>
+                        <input id="fgQuickHsn_${id}" type="text" class="form-control form-control-sm font-monospace" data-quick-fill-field="hsn" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#fgQuickGst_${id}" ${getHsnInputAttributes()} autocomplete="off" placeholder="HSN...">
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickGst_${id}">GST %</label>
+                        <input id="fgQuickGst_${id}" type="number" min="0" max="100" step="0.01" class="form-control form-control-sm" data-quick-fill-gst-preview readonly aria-label="GST rate from selected HSN" placeholder="Auto">
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickCost_${id}">Supplier Cost (₹)</label>
+                        <input id="fgQuickCost_${id}" type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-quick-fill-field="cost" placeholder="Cost...">
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickMrp_${id}">MRP (₹)</label>
+                        <input id="fgQuickMrp_${id}" type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-quick-fill-field="mrp" placeholder="MRP...">
+                    </div>
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickSelling_${id}">Selling (₹)</label>
+                        <input id="fgQuickSelling_${id}" type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-quick-fill-field="selling" placeholder="Selling...">
+                    </div>
+                </div>
             </div>
             <div class="table-responsive fg-variant-matrix-scroll">
                 <table class="table table-sm table-bordered table-hover align-middle mb-0 text-nowrap fg-variant-matrix">
@@ -2277,8 +2497,8 @@ function generateProductAddingVariantRows(fgId) {
     const dimensions = [...selectorContainer.querySelectorAll('[data-variant-attribute-selector]')]
         .map(control => {
             const type = control.dataset.variantAttributeSelector;
-            const values = control.tagName === 'SELECT'
-                ? [...control.selectedOptions].map(option => option.value.trim()).filter(Boolean)
+            const values = control.matches('.fg-attribute-picker')
+                ? [...control.querySelectorAll('[data-variant-attribute-option]:checked')].map(option => option.value.trim()).filter(Boolean)
                 : control.value.split(/[,;|]+/).map(value => value.trim()).filter(Boolean);
             return { type, values: [...new Set(values)] };
         })
@@ -2301,12 +2521,27 @@ function generateProductAddingVariantRows(fgId) {
         );
     }
     const rows = [...tbody.querySelectorAll('.fg-variant-row')];
-    const starterRow = rows.length === 1
-        && !rows[0].querySelector('.fg-variant-name')?.value
-        && !rows[0].querySelector('.fg-variant-category')?.value
-        && !rows[0].querySelector('.fg-variant-qty')?.value
-        && !rows[0].querySelector('.fg-variant-cost')?.value;
-    const activeRows = rows.filter(row => !(starterRow && row === rows[0]));
+    const starterRows = rows.filter(row => {
+        const nameInput = row.querySelector('.fg-variant-name');
+        const weight = parseFloat(row.querySelector('.fg-variant-weight')?.value) || 0;
+        const hasAttributeValue = [...row.querySelectorAll('.fg-variant-attribute')]
+            .some(control => control.value.trim() !== '');
+        const hasVariantData = Boolean(
+            row.querySelector('.fg-variant-category')?.value
+            || row.querySelector('.fg-variant-subcategory')?.value
+            || row.querySelector('.fg-variant-sub-subcategory')?.value
+            || row.querySelector('.fg-variant-qty')?.value
+            || row.querySelector('.fg-variant-hsn')?.value
+            || row.querySelector('.fg-variant-cost')?.value
+            || row.querySelector('.fg-variant-mrp')?.value
+            || row.querySelector('.fg-variant-selling')?.value
+            || weight > 0
+            || hasAttributeValue
+        );
+        return nameInput?.dataset.userEdited !== '1' && !hasVariantData;
+    });
+    const starterRowSet = new Set(starterRows);
+    const activeRows = rows.filter(row => !starterRowSet.has(row));
     const rowCombinationKey = row => JSON.stringify(dimensions.map(dimension => [
         dimension.type,
         [...row.querySelectorAll('.fg-variant-attribute')]
@@ -2328,45 +2563,129 @@ function generateProductAddingVariantRows(fgId) {
         return;
     }
 
-    if (starterRow) rows[0].remove();
+    starterRows.forEach(row => row.remove());
     combinations.forEach(attributes => addFinishedVariantRow(fgId, attributes));
 }
 
-function quickFillProductAddingVariants(fgId) {
-    const tbody = document.getElementById('fgVariantTableBody_' + fgId);
-    const rows = [...(tbody?.querySelectorAll('.fg-variant-row') || [])];
-    if (rows.length < 2) {
-        alert('Add or generate at least two variants before using Quick fill.');
+function updateProductAddingQuickFillHierarchy(fgId, changedTier) {
+    const panel = document.querySelector(`#finishedCard_${fgId} .fg-quick-fill-panel`);
+    if (!panel) return;
+    const category = panel.querySelector('[data-quick-fill-hierarchy="category"]');
+    const subcategory = panel.querySelector('[data-quick-fill-hierarchy="subcategory"]');
+    const subSubcategory = panel.querySelector('[data-quick-fill-hierarchy="sub-subcategory"]');
+    if (!category || !subcategory || !subSubcategory) return;
+
+    if (changedTier === 'category') {
+        const categoryId = category.value;
+        subcategory.innerHTML = '<option value="">-- Optional --</option>';
+        getProductAddingScopedRows(productAddingSubcategories)
+            .filter(item => String(item.category_id) === categoryId)
+            .forEach(item => subcategory.add(new Option(item.name, item.id)));
+        subcategory.disabled = !categoryId;
+        subSubcategory.innerHTML = '<option value="">-- Optional --</option>';
+        subSubcategory.disabled = true;
         return;
     }
-    const sourceRow = rows[0];
-    const commonFields = [
-        '.fg-variant-qty',
-        '.fg-variant-weight',
-        '.fg-variant-hsn',
-        '.fg-variant-gst-rate',
-        '.fg-variant-cost',
-        '.fg-variant-mrp',
-        '.fg-variant-selling'
-    ];
-    const categoryId = sourceRow.querySelector('.fg-variant-category')?.value || '';
-    const subcategoryId = sourceRow.querySelector('.fg-variant-subcategory')?.value || '';
-    const subSubcategoryId = sourceRow.querySelector('.fg-variant-sub-subcategory')?.value || '';
 
-    rows.slice(1).forEach(row => {
-        row.querySelector('.fg-variant-category').value = categoryId;
-        fillFinishedVariantSubcategories(row, categoryId, subcategoryId);
-        fillFinishedVariantSubSubcategories(row, subcategoryId, subSubcategoryId);
-        commonFields.forEach(selector => {
-            const source = sourceRow.querySelector(selector);
-            const target = row.querySelector(selector);
-            if (!source || !target) return;
-            target.value = source.value;
-            if (selector === '.fg-variant-hsn') {
-                target.dataset.hsnGstRate = source.dataset.hsnGstRate || '';
-                target.dataset.hsnRateNote = source.dataset.hsnRateNote || '';
+    const subcategoryId = subcategory.value;
+    subSubcategory.innerHTML = '<option value="">-- Optional --</option>';
+    getProductAddingScopedRows(productAddingSubSubcategories)
+        .filter(item => String(item.subcategory_id) === subcategoryId)
+        .forEach(item => subSubcategory.add(new Option(item.name, item.id)));
+    subSubcategory.disabled = !subcategoryId;
+}
+
+function applyProductAddingQuickFill(fgId) {
+    const tbody = document.getElementById('fgVariantTableBody_' + fgId);
+    const rows = [...(tbody?.querySelectorAll('.fg-variant-row') || [])];
+    const panel = document.querySelector(`#finishedCard_${fgId} .fg-quick-fill-panel`);
+    if (!rows.length || !panel) {
+        alert('Add or generate variant rows before applying Quick Fill.');
+        return;
+    }
+    const field = name => panel.querySelector(`[data-quick-fill-field="${name}"]`)?.value.trim() || '';
+    const quantityValue = field('quantity');
+    const weightValue = field('weight');
+    const hsnValue = field('hsn');
+    const costValue = field('cost');
+    const mrpValue = field('mrp');
+    const sellingValue = field('selling');
+    let quantities = [];
+    if (quantityValue) {
+        const quantity = parseInt(quantityValue, 10);
+        const autoBalance = panel.querySelector('[data-quick-fill-auto-balance]')?.checked;
+        if (!Number.isInteger(quantity) || quantity < 1) {
+            alert('Enter a whole-number quantity greater than zero.');
+            return;
+        }
+        if (autoBalance) {
+            if (quantity < rows.length) {
+                alert(`Auto-Balance needs a total quantity of at least ${rows.length} for these variant rows.`);
+                return;
             }
+            const baseQuantity = Math.floor(quantity / rows.length);
+            const remainder = quantity % rows.length;
+            quantities = rows.map((row, index) => baseQuantity + (index < remainder ? 1 : 0));
+        } else {
+            quantities = rows.map(() => quantity);
+        }
+    }
+
+    if (weightValue !== '' && (!Number.isFinite(Number(weightValue)) || Number(weightValue) < 0)) {
+        alert('Enter a valid non-negative weight.');
+        return;
+    }
+    if (hsnValue && !findHsnMasterRow(hsnValue)) {
+        alert('Select a registered HSN code so its GST rate can be filled automatically.');
+        return;
+    }
+    const hasPricingInput = costValue !== '' || sellingValue !== '' || mrpValue !== '';
+    if (hasPricingInput) {
+        const invalidPricing = rows.some(row => {
+            const cost = Number(costValue || row.querySelector('.fg-variant-cost')?.value || 0);
+            const selling = Number(sellingValue || row.querySelector('.fg-variant-selling')?.value || 0);
+            const mrp = Number(mrpValue || row.querySelector('.fg-variant-mrp')?.value || 0);
+            return !Number.isFinite(cost) || !Number.isFinite(selling) || !Number.isFinite(mrp)
+                || cost <= 0 || selling <= cost || mrp <= selling;
         });
+        if (invalidPricing) {
+            alert('Every variant must satisfy Supplier Cost < Selling Price < MRP.');
+            return;
+        }
+    }
+
+    const categoryId = panel.querySelector('[data-quick-fill-hierarchy="category"]')?.value || '';
+    const subcategoryId = panel.querySelector('[data-quick-fill-hierarchy="subcategory"]')?.value || '';
+    const subSubcategoryId = panel.querySelector('[data-quick-fill-hierarchy="sub-subcategory"]')?.value || '';
+    const selectedSubcategory = getProductAddingScopedRows(productAddingSubcategories)
+        .find(item => String(item.id) === subcategoryId);
+    const selectedSubSubcategory = getProductAddingScopedRows(productAddingSubSubcategories)
+        .find(item => String(item.id) === subSubcategoryId);
+    if ((subcategoryId && (!categoryId || String(selectedSubcategory?.category_id) !== categoryId))
+        || (subSubcategoryId && (!subcategoryId || String(selectedSubSubcategory?.subcategory_id) !== subcategoryId))) {
+        alert('Choose a valid category, subcategory, and sub-subcategory combination.');
+        return;
+    }
+
+    if (categoryId) onFinishedVariantCategoryChange(fgId, parseInt(rows[0].dataset.rowIndex, 10));
+    rows.forEach((row, index) => {
+        if (categoryId) {
+            fillFinishedVariantSubcategories(row, categoryId, subcategoryId);
+            fillFinishedVariantSubSubcategories(row, subcategoryId, subSubcategoryId);
+        }
+        if (quantities.length) {
+            row.querySelector('.fg-variant-qty').value = String(quantities[index]);
+        }
+        if (weightValue !== '') row.querySelector('.fg-variant-weight').value = weightValue;
+        if (hsnValue !== '') {
+            const hsn = row.querySelector('.fg-variant-hsn');
+            hsn.value = hsnValue;
+            resolveHsnInputMetadata(hsn);
+            onFinishedVariantHsnChange(fgId, parseInt(row.dataset.rowIndex, 10));
+        }
+        if (costValue !== '') row.querySelector('.fg-variant-cost').value = costValue;
+        if (mrpValue !== '') row.querySelector('.fg-variant-mrp').value = mrpValue;
+        if (sellingValue !== '') row.querySelector('.fg-variant-selling').value = sellingValue;
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
     syncFinishedTable();
@@ -4167,6 +4486,25 @@ document.addEventListener('DOMContentLoaded', function() {
     syncOtherTable();
     syncFinishedTable();
 
+    const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
+    const bulkStockButton = document.getElementById('productAddingBulkStockButton');
+    if (bulkLabelForm && bulkStockButton) {
+        const updateBulkStockButton = function () {
+            const selectedItems = Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]:checked'));
+            const canAddSelected = selectedItems.length > 0 && selectedItems.every(function (input) {
+                return input.dataset.labelsComplete === '1' && input.dataset.inStock !== '1';
+            });
+            bulkStockButton.disabled = !canAddSelected;
+            bulkStockButton.title = canAddSelected
+                ? `Add ${selectedItems.length} selected line(s) to stock`
+                : 'Select pending lines with complete label coverage';
+        };
+        bulkLabelForm.addEventListener('change', function (event) {
+            if (event.target.matches('input[name="item_ids[]"]')) updateBulkStockButton();
+        });
+        updateBulkStockButton();
+    }
+
     // Keep validation messages beside the fields that need attention.
     const form = document.getElementById('formPurchaseBill');
     const getFieldLabel = function (input) {
@@ -4212,6 +4550,118 @@ document.addEventListener('DOMContentLoaded', function() {
             feedback.classList.add('d-none');
         }
     };
+    const invoiceInput = form.querySelector('#billSupplierInvoiceNo');
+    const supplierInput = form.querySelector('#supplierSelect');
+    const invoiceStatus = form.querySelector('#billSupplierInvoiceStatus');
+    let invoiceCheckTimer = null;
+    let invoiceCheckRequest = 0;
+    let invoiceSubmitPending = false;
+    let allowSubmitAfterInvoiceCheck = false;
+    const clearInvoiceError = function () {
+        if (invoiceInput) {
+            invoiceInput.setCustomValidity('');
+            clearFieldError(invoiceInput);
+        }
+        if (invoiceStatus) {
+            invoiceStatus.textContent = '';
+            invoiceStatus.className = 'form-text small';
+        }
+    };
+    const checkSupplierInvoiceNumber = async function () {
+        if (!invoiceInput || !supplierInput || !invoiceCheckUrl) return false;
+        const supplierId = supplierInput.value;
+        const invoiceNo = invoiceInput.value.trim();
+        if (!supplierId || !invoiceNo) {
+            clearInvoiceError();
+            return false;
+        }
+
+        const requestId = ++invoiceCheckRequest;
+        if (invoiceStatus) {
+            invoiceStatus.textContent = 'Checking invoice number...';
+            invoiceStatus.className = 'form-text small text-muted';
+        }
+        const requestData = new FormData();
+        requestData.append('csrf_token', form.querySelector('input[name="csrf_token"]')?.value || '');
+        requestData.append('supplier_id', supplierId);
+        requestData.append('supplier_invoice_no', invoiceNo);
+        requestData.append('bill_id', form.querySelector('input[name="bill_id"]')?.value || '');
+        requestData.append('concern_id', form.querySelector('[name="concern_id"]')?.value || '');
+
+        try {
+            const response = await fetch(invoiceCheckUrl, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: requestData
+            });
+            const result = await response.json();
+            if (requestId !== invoiceCheckRequest) return false;
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Unable to verify this invoice number.');
+            }
+            if (result.duplicate) {
+                const message = result.message || 'This supplier invoice number has already been recorded for the selected supplier.';
+                invoiceInput.setCustomValidity(message);
+                showFieldError(invoiceInput);
+                if (invoiceStatus) invoiceStatus.textContent = '';
+                return true;
+            }
+
+            clearInvoiceError();
+            if (invoiceStatus) {
+                invoiceStatus.textContent = 'Invoice number is available.';
+                invoiceStatus.className = 'form-text small text-success';
+            }
+            return false;
+        } catch (error) {
+            if (requestId !== invoiceCheckRequest) return false;
+            const message = error.message || 'Unable to verify this invoice number. Try again.';
+            invoiceInput.setCustomValidity(message);
+            showFieldError(invoiceInput);
+            if (invoiceStatus) invoiceStatus.textContent = '';
+            return true;
+        }
+    };
+    const scheduleSupplierInvoiceCheck = function () {
+        clearTimeout(invoiceCheckTimer);
+        invoiceCheckRequest++;
+        clearInvoiceError();
+        if (!supplierInput?.value || !invoiceInput?.value.trim()) return;
+        invoiceCheckTimer = setTimeout(checkSupplierInvoiceNumber, 300);
+    };
+    if (invoiceInput && supplierInput) {
+        invoiceInput.addEventListener('input', scheduleSupplierInvoiceCheck);
+        invoiceInput.addEventListener('blur', function () {
+            clearTimeout(invoiceCheckTimer);
+            checkSupplierInvoiceNumber();
+        });
+        supplierInput.addEventListener('change', scheduleSupplierInvoiceCheck);
+
+        form.addEventListener('submit', function (event) {
+            if (allowSubmitAfterInvoiceCheck) {
+                allowSubmitAfterInvoiceCheck = false;
+                return;
+            }
+            event.preventDefault();
+            if (invoiceSubmitPending) return;
+            invoiceSubmitPending = true;
+            clearTimeout(invoiceCheckTimer);
+            checkSupplierInvoiceNumber().then(function (isDuplicate) {
+                if (isDuplicate) {
+                    invoiceInput.focus();
+                    return;
+                }
+                allowSubmitAfterInvoiceCheck = true;
+                if (event.submitter) {
+                    form.requestSubmit(event.submitter);
+                } else {
+                    form.requestSubmit();
+                }
+            }).finally(function () {
+                invoiceSubmitPending = false;
+            });
+        }, true);
+    }
     const attachmentsInput = form.querySelector('input[name="attachments[]"]');
     const hasExistingAttachments = <?= (!empty($existingAttachments)) ? 'true' : 'false' ?>;
     const validateAttachments = function () {
@@ -4286,6 +4736,224 @@ document.addEventListener('DOMContentLoaded', function() {
         if (input === attachmentsInput) validateAttachments();
         if (input && typeof input.checkValidity === 'function' && input.checkValidity()) {
             clearFieldError(input);
+        }
+    });
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
+    const countModalElement = document.getElementById('productAddingLabelCountModal');
+    const countRows = document.getElementById('productAddingLabelCountRows');
+    const countError = document.getElementById('productAddingLabelCountError');
+    const countModal = countModalElement && window.bootstrap
+        ? new bootstrap.Modal(countModalElement)
+        : null;
+    const previewFrame = document.getElementById('productAddingLabelPreviewFrame');
+    const previewPanel = document.getElementById('productAddingLabelPreviewPanel');
+    const bulkLabelFeedback = document.getElementById('productAddingBulkLabelFeedback');
+    const bulkStockButton = document.getElementById('productAddingBulkStockButton');
+    if (!bulkLabelForm || !countModal || !countRows || !previewFrame || !previewPanel) return;
+
+    let pendingLabelForm = null;
+
+    const escapeHtml = function (value) {
+        return String(value).replace(/[&<>"']/g, function (character) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[character];
+        });
+    };
+
+    const openLabelCountModal = function (targetForm, items) {
+        pendingLabelForm = targetForm;
+        countError.textContent = '';
+        countRows.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Selected line</th><th class="text-end">Copies</th></tr></thead>
+                    <tbody>
+                        ${items.map(function (item) {
+                            return `
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">${escapeHtml(item.name)}</div>
+                                        <div class="small text-muted">${escapeHtml(item.section)} · purchased quantity ${escapeHtml(item.defaultCount)}</div>
+                                    </td>
+                                    <td style="width: 120px">
+                                        <input type="number" class="form-control form-control-sm text-end"
+                                            data-label-count-item-id="${item.id}"
+                                            min="1" max="500" step="1" required
+                                            aria-label="Label count for ${escapeHtml(item.name)}"
+                                            value="${item.defaultCount}">
+                                    </td>
+                                </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+        countModal.show();
+    };
+
+    const selectedLineInputs = function () {
+        return Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]:checked'));
+    };
+
+    const itemDataFromCheckbox = function (input) {
+        return {
+            id: input.value,
+            name: input.dataset.itemName || 'Purchase item',
+            section: input.dataset.itemSection || 'Purchase item',
+            defaultCount: input.dataset.defaultLabelCount || '1'
+        };
+    };
+
+    document.querySelectorAll('[data-label-form-id]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const targetForm = document.getElementById(button.dataset.labelFormId);
+            if (!targetForm) return;
+            openLabelCountModal(targetForm, [{
+                id: button.dataset.labelItemId,
+                name: button.dataset.labelItemName || 'Purchase item',
+                section: button.dataset.labelItemSection || 'Purchase item',
+                defaultCount: button.dataset.defaultLabelCount || '1'
+            }]);
+        });
+    });
+
+    const bulkLabelButton = document.getElementById('productAddingBulkLabelButton');
+    if (bulkLabelButton) {
+        bulkLabelButton.addEventListener('click', function () {
+            const items = selectedLineInputs().map(itemDataFromCheckbox);
+            if (!items.length) {
+                bulkLabelFeedback.textContent = 'Select at least one bill line to print labels.';
+                bulkLabelFeedback.classList.remove('d-none');
+                return;
+            }
+            bulkLabelFeedback.textContent = '';
+            bulkLabelFeedback.classList.add('d-none');
+            openLabelCountModal(bulkLabelForm, items);
+        });
+    }
+
+    if (bulkLabelFeedback) {
+        bulkLabelForm.addEventListener('change', function (event) {
+            if (event.target.matches('input[name="item_ids[]"]')) {
+                bulkLabelFeedback.textContent = '';
+                bulkLabelFeedback.classList.add('d-none');
+            }
+        });
+    }
+
+    const confirmCountsButton = document.getElementById('confirmProductAddingLabelCounts');
+    if (confirmCountsButton) {
+        confirmCountsButton.addEventListener('click', function () {
+            if (!pendingLabelForm) return;
+            const inputs = Array.from(countRows.querySelectorAll('[data-label-count-item-id]'));
+            let totalCopies = 0;
+            for (const input of inputs) {
+                if (!input.checkValidity()) {
+                    input.reportValidity();
+                    return;
+                }
+                totalCopies += Number(input.value);
+            }
+            if (totalCopies > 2000) {
+                countError.textContent = 'A single print is limited to 2,000 labels. Reduce the selected line counts.';
+                return;
+            }
+
+            pendingLabelForm.querySelectorAll('[data-generated-label-count]').forEach(function (input) {
+                input.remove();
+            });
+            inputs.forEach(function (input) {
+                const hiddenCount = document.createElement('input');
+                hiddenCount.type = 'hidden';
+                hiddenCount.name = `label_counts[${input.dataset.labelCountItemId}]`;
+                hiddenCount.value = input.value;
+                hiddenCount.dataset.generatedLabelCount = '1';
+                pendingLabelForm.appendChild(hiddenCount);
+            });
+
+            countModal.hide();
+            pendingLabelForm.submit();
+            pendingLabelForm = null;
+        });
+    }
+
+    previewFrame.addEventListener('load', function () {
+        const previewDocument = previewFrame.contentDocument;
+        if (!previewDocument || !previewDocument.getElementById('labelGrid')) return;
+        previewPanel.classList.remove('d-none');
+        const contentHeight = Math.max(
+            previewDocument.documentElement.scrollHeight,
+            previewDocument.body ? previewDocument.body.scrollHeight : 0
+        );
+        previewFrame.style.height = `${Math.max(640, contentHeight + 8)}px`;
+        previewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    window.addEventListener('message', function (event) {
+        if (event.origin !== window.location.origin || event.source !== previewFrame.contentWindow || !event.data) return;
+        if (event.data.type === 'product-adding-label-error') {
+            if (bulkLabelFeedback) {
+                bulkLabelFeedback.textContent = event.data.message || 'Could not generate labels.';
+                bulkLabelFeedback.classList.remove('d-none');
+            }
+            previewPanel.classList.remove('d-none');
+            previewFrame.style.height = '140px';
+            previewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+        if (
+            event.data.type !== 'product-adding-labels-generated' ||
+            !event.data.itemCounts ||
+            typeof event.data.itemCounts !== 'object'
+        ) return;
+
+        Object.keys(event.data.itemCounts).forEach(function (itemId) {
+            const checkbox = Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]'))
+                .find(function (input) { return input.value === itemId; });
+            if (!checkbox) return;
+
+            const generatedCount = (Number(checkbox.dataset.generatedLabelCount) || 0)
+                + (Number(event.data.itemCounts[itemId]) || 0);
+            const requiredCount = Number(checkbox.dataset.requiredLabelCount) || 1;
+            checkbox.dataset.generatedLabelCount = String(generatedCount);
+            checkbox.dataset.labelsComplete = generatedCount >= requiredCount ? '1' : '0';
+
+            const progress = document.getElementById(`productAddingLabelProgress${itemId}`);
+            if (progress) {
+                progress.textContent = `${generatedCount} / ${requiredCount} labels`;
+                progress.classList.toggle('text-bg-success', generatedCount >= requiredCount);
+                progress.classList.toggle('text-bg-warning', generatedCount < requiredCount);
+            }
+
+            const stockButton = document.querySelector(`[data-product-adding-stock-button="${itemId}"]`);
+            if (stockButton && checkbox.dataset.inStock !== '1' && generatedCount >= requiredCount && stockButton.disabled) {
+                stockButton.type = 'submit';
+                stockButton.setAttribute('form', stockButton.dataset.stockFormId);
+                stockButton.disabled = false;
+                stockButton.classList.remove('btn-outline-secondary');
+                stockButton.classList.add('btn-success');
+                stockButton.title = 'Add this labeled line to stock';
+                stockButton.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i>Add stock';
+            }
+        });
+
+        if (bulkStockButton) {
+            const selectedItems = selectedLineInputs();
+            const canAddSelected = selectedItems.length > 0 && selectedItems.every(function (input) {
+                return input.dataset.labelsComplete === '1' && input.dataset.inStock !== '1';
+            });
+            bulkStockButton.disabled = !canAddSelected;
+            bulkStockButton.title = canAddSelected
+                ? `Add ${selectedItems.length} selected line(s) to stock`
+                : 'Select pending lines with complete label coverage';
         }
     });
 });

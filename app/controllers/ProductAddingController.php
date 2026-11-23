@@ -15,12 +15,27 @@ class ProductAddingController extends Controller
 {
     public function index(): void
     {
+        $billId = (int)($_GET['bill_id'] ?? 0);
+        if ($billId > 0 || isset($_GET['variant_ids'])) {
+            $this->renderPurchaseForm($billId);
+            return;
+        }
+
+        $this->renderBillList();
+    }
+
+    public function create(): void
+    {
+        $this->renderPurchaseForm();
+    }
+
+    private function renderPurchaseForm(int $billId = 0): void
+    {
         $this->ensureSchema();
         PurchaseBillSourceService::ensureSchema();
         $cid = Auth::concernId();
         $savedBill = null;
         $savedBillItems = [];
-        $billId = (int)($_GET['bill_id'] ?? 0);
         if ($billId > 0) {
             $billSql = "SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company
                         FROM purchase_bills pb
@@ -119,8 +134,8 @@ class ProductAddingController extends Controller
             'quickCategorySaveUrl' => \App\Core\Controller::url('/m/product_adding/categories/store'),
             'quickAttributeSaveUrl' => \App\Core\Controller::url('/m/product_adding/attributes/store'),
             'allowQuickSupplier' => Auth::isSuperAdmin() || Auth::can('product_adding', 'add'),
-            'backUrl' => \App\Core\Controller::url('/m/stocks'),
-            'backLabel' => 'Back to Stock',
+            'backUrl' => \App\Core\Controller::url('/m/product_adding'),
+            'backLabel' => 'Back to Product Adding',
             'submitLabel' => 'Save Product Purchase',
             'pageHeading' => 'Product Adding',
             'pageDescription' => 'Record fabric rolls, garment supplies/accessories and finished goods received from vendors.',
@@ -128,6 +143,72 @@ class ProductAddingController extends Controller
             'savedBillItems' => $savedBillItems,
             'productAddingLabelUrl' => \App\Core\Controller::url('/m/product_adding/generate_labels'),
             'productAddingStockUrl' => \App\Core\Controller::url('/m/product_adding/add_to_stock'),
+            'invoiceCheckUrl' => \App\Core\Controller::url('/m/product_adding/check_invoice'),
+        ]);
+    }
+
+    private function renderBillList(): void
+    {
+        $this->ensureSchema();
+        PurchaseBillSourceService::ensureSchema();
+        $cid = Auth::concernId();
+
+        $summarySql = "SELECT COUNT(*) AS total_bills,
+                              COALESCE(SUM(pb.net_amount), 0) AS total_net,
+                              COALESCE(SUM(pb.tax_amount), 0) AS total_tax,
+                              COALESCE(SUM(CASE WHEN COALESCE(pb.inward_status, 'pending') != 'completed' THEN 1 ELSE 0 END), 0) AS pending_bills,
+                              (SELECT COUNT(*)
+                               FROM purchase_bill_items pbi
+                               JOIN purchase_bills item_pb ON item_pb.id = pbi.purchase_bill_id
+                               WHERE item_pb.source_module = 'product_adding'";
+        $summaryParams = [];
+        if ($cid) {
+            $summarySql .= ' AND item_pb.concern_id = ?';
+            $summaryParams[] = $cid;
+        }
+        $summarySql .= ") AS total_items
+                        FROM purchase_bills pb
+                        WHERE pb.source_module = 'product_adding'";
+        if ($cid) {
+            $summarySql .= ' AND pb.concern_id = ?';
+            $summaryParams[] = $cid;
+        }
+        $summary = DB::fetch($summarySql, $summaryParams) ?: [];
+
+        $billSql = "SELECT pb.id, pb.concern_id, pb.bill_no, pb.supplier_invoice_no, pb.bill_date,
+                           pb.total_amount, pb.tax_amount, pb.net_amount, pb.payment_status, pb.inward_status,
+                           s.name AS supplier_name, s.company_name AS supplier_company,
+                           c.name AS concern_name,
+                           COALESCE(item_stats.item_count, 0) AS item_count,
+                           COALESCE(item_stats.total_qty, 0) AS total_qty,
+                           COALESCE(item_stats.stocked_count, 0) AS stocked_count
+                    FROM purchase_bills pb
+                    LEFT JOIN suppliers s ON s.id = pb.supplier_id
+                    LEFT JOIN concerns c ON c.id = pb.concern_id
+                    LEFT JOIN (
+                        SELECT purchase_bill_id,
+                               COUNT(*) AS item_count,
+                               COALESCE(SUM(qty), 0) AS total_qty,
+                               SUM(CASE WHEN COALESCE(NULLIF(inward_status, ''), 'pending') = 'completed' THEN 1 ELSE 0 END) AS stocked_count
+                        FROM purchase_bill_items
+                        GROUP BY purchase_bill_id
+                    ) item_stats ON item_stats.purchase_bill_id = pb.id
+                    WHERE pb.source_module = 'product_adding'";
+        $billParams = [];
+        if ($cid) {
+            $billSql .= ' AND pb.concern_id = ?';
+            $billParams[] = $cid;
+        }
+        $billSql .= ' ORDER BY pb.id DESC';
+        $bills = DB::fetchAll($billSql, $billParams);
+
+        $this->render('concern/product_adding_list', [
+            'pageTitle' => 'Product Adding',
+            'currentModule' => 'product_adding',
+            'selectedCid' => $cid,
+            'summary' => $summary,
+            'bills' => $bills,
+            'createUrl' => \App\Core\Controller::url('/m/product_adding/create'),
         ]);
     }
 

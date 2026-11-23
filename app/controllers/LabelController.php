@@ -173,7 +173,7 @@ class LabelController extends Controller {
                          s.name AS supplier_name, s.company_name AS supplier_company,
                          fg_concern.name AS item_concern_name,
                          v.sku_code, v.name AS variant_name, v.size AS variant_size, v.catalog_id AS variant_catalog_id,
-                         v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes,
+                         v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes
                          v.category_id, v.subcategory_id,
                          c.name AS category_name, c.code AS category_code,
                          sc.name AS subcategory_name, sc.code AS subcategory_code,
@@ -577,6 +577,7 @@ class LabelController extends Controller {
         PurchaseStockItemOverrideService::initTable();
 
         $billId = (int)($_POST['bill_id'] ?? 0);
+        $requestedLabelCounts = $_POST['label_counts'] ?? [];
         $rawItemIds = $_POST['item_ids'] ?? [];
         if (!is_array($rawItemIds)) {
             $rawItemIds = [];
@@ -589,8 +590,11 @@ class LabelController extends Controller {
             static fn(int $id): bool => $id > 0
         )));
         if ($billId <= 0 || !$itemIds || count($itemIds) > 100) {
-            $this->flash('error', 'Choose one or more valid Product Adding lines to print labels.');
-            $this->redirect($billId > 0 ? '/m/product_adding?bill_id=' . $billId : '/m/product_adding');
+            $this->failProductAddingLabel($billId, 'Choose one or more valid Product Adding lines to print labels.');
+            return;
+        }
+        if (!is_array($requestedLabelCounts)) {
+            $this->failProductAddingLabel($billId, 'Label counts must be provided as a list of line counts.');
             return;
         }
 
@@ -606,8 +610,7 @@ class LabelController extends Controller {
         }
         $bill = DB::fetch($billSql, $billParams);
         if (!$bill) {
-            $this->flash('error', 'Product Adding bill not found or access denied.');
-            $this->redirect('/m/product_adding');
+            $this->failProductAddingLabel($billId, 'Product Adding bill not found or access denied.');
             return;
         }
 
@@ -616,22 +619,19 @@ class LabelController extends Controller {
             "SELECT pbi.*, pb.bill_no, pb.bill_date, s.name AS supplier_name,
                     fg_concern.name AS item_concern_name,
                     v.sku_code, v.name AS variant_name, v.size AS variant_size,
-                    v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes,
-                    v.category_id, v.subcategory_id, c.name AS catalog_category_name
+                    v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes
              FROM purchase_bill_items pbi
              JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
              LEFT JOIN suppliers s ON s.id = pb.supplier_id
              LEFT JOIN concerns fg_concern ON fg_concern.id = pbi.concern_id
              LEFT JOIN variants v ON v.id = pbi.variant_id
-             LEFT JOIN categories c ON c.id = v.category_id
              WHERE pbi.purchase_bill_id = ? AND pbi.concern_id = ?
                AND pbi.id IN ({$placeholders})
              ORDER BY pbi.id ASC",
             array_merge([$billId, (int)$bill['concern_id']], $itemIds)
         );
         if (count($items) !== count($itemIds)) {
-            $this->flash('error', 'One or more selected lines do not belong to this Product Adding bill.');
-            $this->redirect('/m/product_adding?bill_id=' . $billId);
+            $this->failProductAddingLabel($billId, 'One or more selected lines do not belong to this Product Adding bill.');
             return;
         }
 
@@ -640,16 +640,22 @@ class LabelController extends Controller {
         $totalCopies = 0;
         $totalBillLines = count($items);
         $labelJobs = [];
+        $generatedItemCounts = [];
         $concern = DB::fetch('SELECT name FROM concerns WHERE id = ?', [(int)$bill['concern_id']]);
         $concernName = $concern['name'] ?? 'GRM Inventory';
         $labelData = null;
         $batchNo = (string)$bill['bill_no'];
 
         foreach ($items as $item) {
-            $copies = (int)ceil((float)$item['qty']);
+            $defaultCopies = (int)ceil((float)$item['qty']);
+            $rawCopies = $requestedLabelCounts[(int)$item['id']] ?? $defaultCopies;
+            if (!is_scalar($rawCopies) || !preg_match('/^\d+$/D', (string)$rawCopies)) {
+                $this->failProductAddingLabel($billId, "Enter a whole-number label count for '{$item['item_name']}'.");
+                return;
+            }
+            $copies = (int)$rawCopies;
             if ($copies < 1 || $copies > 500 || $totalCopies + $copies > 2000) {
-                $this->flash('error', 'Each line must have between 1 and 500 labels; a bulk print is limited to 2,000 labels.');
-                $this->redirect('/m/product_adding?bill_id=' . $billId);
+                $this->failProductAddingLabel($billId, 'Each line must have between 1 and 500 labels; a bulk print is limited to 2,000 labels.');
                 return;
             }
 
@@ -658,8 +664,7 @@ class LabelController extends Controller {
                 $variantId = (int)($item['variant_id'] ?? 0);
                 $tagCode = QrService::generateFinishedGoodsCode($variantId);
                 if ($variantId <= 0 || $tagCode === null) {
-                    $this->flash('error', "Map '{$item['item_name']}' to a valid catalog variant before printing labels.");
-                    $this->redirect('/m/product_adding?bill_id=' . $billId);
+                    $this->failProductAddingLabel($billId, "Map '{$item['item_name']}' to a valid catalog variant before printing labels.");
                     return;
                 }
                 $attributes = json_decode((string)($item['variant_attributes'] ?? ''), true);
@@ -669,9 +674,6 @@ class LabelController extends Controller {
                 $labelColor = trim((string)($attributes['color'] ?? ''))
                     ?: trim((string)($item['color'] ?? ''))
                     ?: 'STANDARD';
-                $design = trim((string)($item['pattern'] ?? ''))
-                    ?: trim((string)($item['specification'] ?? ''))
-                    ?: 'STANDARD';
                 $price = (float)($item['variant_mrp'] ?: ($item['mrp'] ?: $item['unit_price']));
                 $variantAttributes = self::buildLabelVariantAttributes($attributes, $variantSize);
                 $lineLabel = [
@@ -679,12 +681,9 @@ class LabelController extends Controller {
                     'ref_no' => $bill['bill_no'],
                     'header_title' => $variantName,
                     'label_1_name' => 'Product',
-                    'label_1_val' => $item['category_name'] ?: ($item['catalog_category_name'] ?: 'Ready-Made Garment'),
+                    'label_1_val' => $variantName,
                     'label_2_name' => 'Color',
                     'label_2_val' => $labelColor,
-                    'label_3_name' => 'Design',
-                    'label_3_val' => $design,
-                    'design' => $design,
                     'variant_id' => $variantId,
                     'variant_size' => $variantSize,
                     'variant_attributes' => $variantAttributes,
@@ -740,8 +739,7 @@ class LabelController extends Controller {
                 ];
                 $jobType = 'purchase_raw';
             } else {
-                $this->flash('error', 'This Product Adding line type cannot generate purchase labels.');
-                $this->redirect('/m/product_adding?bill_id=' . $billId);
+                $this->failProductAddingLabel($billId, 'This Product Adding line type cannot generate purchase labels.');
                 return;
             }
 
@@ -752,6 +750,7 @@ class LabelController extends Controller {
                 $multiLabels[] = $lineLabel;
             }
             $totalCopies += $copies;
+            $generatedItemCounts[(int)$item['id']] = $copies;
             $labelJobs[] = [
                 'concern_id' => (int)$item['concern_id'],
                 'label_type' => $jobType,
@@ -796,8 +795,7 @@ class LabelController extends Controller {
             if (DB::pdo()->inTransaction()) {
                 DB::rollBack();
             }
-            $this->flash('error', 'Could not save the Product Adding label jobs: ' . $e->getMessage());
-            $this->redirect('/m/product_adding?bill_id=' . $billId);
+            $this->failProductAddingLabel($billId, 'Could not save the Product Adding label jobs: ' . $e->getMessage());
             return;
         }
         $this->render('concern/label_print_sheet', [
@@ -811,7 +809,24 @@ class LabelController extends Controller {
             'multiLabels' => $multiLabels,
             'variantCount' => $totalBillLines,
             'batchNo' => $batchNo,
+            'generatedItemCounts' => $generatedItemCounts,
         ]);
+    }
+
+    private function failProductAddingLabel(int $billId, string $message): void
+    {
+        if (($_POST['inline_preview'] ?? '') === '1') {
+            http_response_code(422);
+            $this->render('concern/product_adding_label_error', [
+                'pageTitle' => 'Product Adding Label Error',
+                'noLayout' => true,
+                'labelError' => $message,
+            ]);
+            return;
+        }
+
+        $this->flash('error', $message);
+        $this->redirect($billId > 0 ? '/m/product_adding?bill_id=' . $billId : '/m/product_adding');
     }
 
     public function previewPurchaseFinishedGoodLabel(): void
@@ -1093,19 +1108,15 @@ class LabelController extends Controller {
             }
             $qrText = $tagCode;
             $mrp = (float)($item['variant_mrp'] ?: ($item['mrp'] ?: $item['unit_price']));
-            $designVal = trim($item['pattern'] ?: ($item['specification'] ?: 'STANDARD'));
 
             $labelData = [
                 'concern_name'   => $concernName,
                 'ref_no'         => $item['bill_no'] ?: ('PO-' . $item['purchase_bill_id']),
                 'header_title'   => $prodName,
                 'label_1_name'   => 'Product',
-                'label_1_val'    => $item['category_name'] ?: 'Ready-Made Garment',
+                'label_1_val'    => $prodName,
                 'label_2_name'   => 'Color',
                 'label_2_val'    => $labelColor,
-                'label_3_name'   => 'Design',
-                'label_3_val'    => $designVal,
-                'design'         => $designVal,
                 'variant_attributes' => $labelVariantAttributes,
                 'label_4_name'   => 'Price',
                 'label_4_val'    => '₹' . number_format($mrp, 2),
@@ -1126,7 +1137,6 @@ class LabelController extends Controller {
                 'stock_tab'      => 'finished_goods',
                 'inward_status'  => $item['inward_status'] ?? 'pending',
                 'extra_details'  => [
-                    'Design'     => $designVal,
                     'Price'      => '₹' . number_format($mrp, 2),
                     'Bill No'    => $item['bill_no'],
                     'Supplier'   => $item['supplier_name'],
@@ -1216,11 +1226,10 @@ class LabelController extends Controller {
                         $variantLabel['variant_id'] = (int)$mappedVariant['id'];
                         $variantLabel['header_title'] = $variantName;
                         $variantLabel['item_title'] = $variantName;
+                        $variantLabel['label_1_val'] = $variantName;
                         $variantLabel['label_2_val'] = $variantColor;
                         $variantLabel['variant_size'] = $variantSize;
                         $variantLabel['variant_attributes'] = $variantAttributes;
-                        $variantLabel['label_3_val'] = $designVal;
-                        $variantLabel['design'] = $designVal;
                         $variantLabel['label_4_val'] = '₹' . number_format($variantMrp, 2);
                         $variantLabel['price'] = $variantMrp;
                         $variantLabel['price_mrp'] = $variantMrp;
@@ -2107,6 +2116,13 @@ class LabelController extends Controller {
         } else {
             $itemId = (int)$rawItemId;
         }
+        $rawSelectedItemIds = $_POST['item_ids'] ?? [];
+        $selectedItemIds = $isProductAddingRequest && is_array($rawSelectedItemIds)
+            ? array_values(array_unique(array_filter(
+                array_map('intval', $rawSelectedItemIds),
+                static fn(int $id): bool => $id > 0
+            )))
+            : [];
 
         // Handle Production Stitched Items Inward - Must be inspected in QC first
         if ($preferredTab === 'production' || $stitchingId > 0) {
@@ -2140,6 +2156,91 @@ class LabelController extends Controller {
 
             $targetTab = 'rolls';
             $billNo = '';
+
+            if ($isProductAddingRequest && $selectedItemIds) {
+                if ($billId <= 0 || count($selectedItemIds) > 100) {
+                    throw new Exception('Choose up to 100 valid Product Adding lines from this bill.');
+                }
+
+                $placeholders = implode(',', array_fill(0, count($selectedItemIds), '?'));
+                $selectedSql = "SELECT pbi.*, pb.bill_no, pb.concern_id AS b_cid, pb.source_module
+                                FROM purchase_bill_items pbi
+                                JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+                                WHERE pb.id = ? AND pb.source_module = 'product_adding'
+                                  AND pbi.id IN ({$placeholders})";
+                $selectedParams = array_merge([$billId], $selectedItemIds);
+                if ($cid) {
+                    $selectedSql .= ' AND pbi.concern_id = ?';
+                    $selectedParams[] = $cid;
+                }
+                $selectedSql .= ' ORDER BY pbi.id ASC';
+                $selectedItems = DB::fetchAll($selectedSql, $selectedParams);
+                if (count($selectedItems) !== count($selectedItemIds)) {
+                    throw new Exception('One or more selected lines do not belong to this Product Adding bill.');
+                }
+
+                $concernId = (int)$selectedItems[0]['concern_id'];
+                $billNo = (string)$selectedItems[0]['bill_no'];
+                $hasRolls = false;
+                $hasOtherItems = false;
+                $hasFinishedGoods = false;
+                foreach ($selectedItems as $selectedItem) {
+                    $this->assertProductAddingLabelCoverage((int)$selectedItem['id']);
+                    if (($selectedItem['inward_status'] ?? 'pending') === 'completed') {
+                        throw new Exception("'{$selectedItem['item_name']}' has already been added to stock. Remove it from the selection and try again.");
+                    }
+                    if ($selectedItem['section_type'] === 'finished_goods' && empty($selectedItem['variant_id'])) {
+                        throw new Exception("Finished good '{$selectedItem['item_name']}' must be mapped to a catalog variant before adding it to stock.");
+                    }
+                    $hasRolls = $hasRolls || $selectedItem['section_type'] === 'rolls';
+                    $hasOtherItems = $hasOtherItems || $selectedItem['section_type'] === 'garment_other';
+                    $hasFinishedGoods = $hasFinishedGoods || $selectedItem['section_type'] === 'finished_goods';
+                }
+
+                foreach ($selectedItems as $selectedItem) {
+                    DB::query(
+                        "UPDATE purchase_bill_items SET inward_status = 'completed' WHERE id = ? AND purchase_bill_id = ?",
+                        [(int)$selectedItem['id'], $billId]
+                    );
+                    if ($selectedItem['section_type'] === 'rolls') {
+                        $hasRolls = true;
+                    } elseif ($selectedItem['section_type'] === 'finished_goods') {
+                        $this->inwardProductAddingFinishedGood($concernId, $selectedItem, $billNo);
+                    }
+                }
+
+                if ($hasRolls) {
+                    RollRegistryService::syncSpecs($concernId);
+                }
+                $pendingCount = (int)DB::fetchValue(
+                    "SELECT COUNT(*) FROM purchase_bill_items WHERE purchase_bill_id = ? AND inward_status = 'pending'",
+                    [$billId]
+                );
+                DB::query(
+                    "UPDATE purchase_bills SET inward_status = ? WHERE id = ?",
+                    [$pendingCount === 0 ? 'completed' : 'pending', $billId]
+                );
+                if (DB::pdo()->inTransaction()) {
+                    DB::commit();
+                }
+
+                $successMessage = count($selectedItems) . " selected line(s) from Bill '{$billNo}' added to stock successfully.";
+                if ($hasFinishedGoods && ($hasRolls || $hasOtherItems)) {
+                    $successMessage .= ' Finished goods are available in Stocks; rolls and other garments are in Purchase Stocks.';
+                }
+                $this->flash('success', $successMessage);
+                $redirectUrl = '/m/product_adding?bill_id=' . $billId;
+                if ($hasFinishedGoods && !$hasRolls && !$hasOtherItems) {
+                    $redirectUrl = '/m/stocks';
+                } elseif (!$hasFinishedGoods && ($hasRolls || $hasOtherItems)) {
+                    $purchaseStockTab = $hasRolls && !$hasOtherItems
+                        ? 'rolls'
+                        : (!$hasRolls && $hasOtherItems ? 'garment_other' : '');
+                    $redirectUrl = '/m/purchase_stocks' . ($purchaseStockTab !== '' ? '?tab=' . $purchaseStockTab : '');
+                }
+                $this->redirect($redirectUrl);
+                return;
+            }
 
             // Priority 1: Inward individual item strictly when item_id is provided
             if ($itemId > 0) {
@@ -2208,9 +2309,7 @@ class LabelController extends Controller {
                 }
 
                 $this->flash('success', "Item '{$item['item_name']}' from Bill '{$billNo}' added to stock successfully!");
-                $this->redirect($isProductAddingRequest
-                    ? '/m/product_adding?bill_id=' . $billId
-                    : ($targetTab === 'finished_goods' ? '/m/stocks' : "/m/purchase_stocks?tab={$targetTab}"));
+                $this->redirect($targetTab === 'finished_goods' ? '/m/stocks' : "/m/purchase_stocks?tab={$targetTab}");
                 return;
             }
 
@@ -2345,20 +2444,39 @@ class LabelController extends Controller {
     public function addProductAddingToStock(): void
     {
         PurchaseBillSourceService::ensureSchema();
-        $itemId = (int)($_POST['item_id'] ?? 0);
+        $billId = (int)($_POST['bill_id'] ?? 0);
+        $rawItemIds = $_POST['item_ids'] ?? [];
+        if (!is_array($rawItemIds)) {
+            $rawItemIds = [];
+        }
+        if (isset($_POST['item_id'])) {
+            $rawItemIds[] = $_POST['item_id'];
+        }
+        $itemIds = array_values(array_unique(array_filter(
+            array_map('intval', $rawItemIds),
+            static fn(int $id): bool => $id > 0
+        )));
         $cid = Auth::concernId();
+        if ($billId <= 0 || !$itemIds || count($itemIds) > 100) {
+            $this->flash('error', 'Choose up to 100 valid Product Adding lines to add to stock.');
+            $this->redirect($billId > 0 ? '/m/product_adding?bill_id=' . $billId : '/m/product_adding');
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
         $sql = "SELECT pbi.id
                 FROM purchase_bill_items pbi
                 JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
-                WHERE pbi.id = ? AND pb.source_module = 'product_adding'";
-        $params = [$itemId];
+                WHERE pb.id = ? AND pb.source_module = 'product_adding'
+                  AND pbi.id IN ({$placeholders})";
+        $params = array_merge([$billId], $itemIds);
         if ($cid) {
             $sql .= ' AND pbi.concern_id = ?';
             $params[] = $cid;
         }
-        if ($itemId <= 0 || !DB::fetchValue($sql, $params)) {
-            $this->flash('error', 'Choose a valid Product Adding line to add to stock.');
-            $this->redirect('/m/product_adding');
+        if (count(DB::fetchAll($sql, $params)) !== count($itemIds)) {
+            $this->flash('error', 'One or more selected lines do not belong to this Product Adding bill.');
+            $this->redirect('/m/product_adding?bill_id=' . $billId);
             return;
         }
         $_POST['product_adding'] = '1';

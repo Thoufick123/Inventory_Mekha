@@ -685,6 +685,7 @@ class PurchaseController extends Controller {
             'savedRollSpecs' => $savedRollSpecs,
             'savedColors'    => $savedColors,
             'savedDesigns'   => $savedDesigns,
+            'invoiceCheckUrl' => \App\Core\Controller::url('/m/purchase_billing/check_invoice'),
         ]);
     }
 
@@ -745,6 +746,7 @@ class PurchaseController extends Controller {
             'savedRollSpecs' => $savedRollSpecs,
             'savedColors'    => $savedColors,
             'savedDesigns'   => $savedDesigns,
+            'invoiceCheckUrl' => \App\Core\Controller::url('/m/purchase_billing/check_invoice'),
         ]);
     }
 
@@ -1129,6 +1131,41 @@ class PurchaseController extends Controller {
         return (bool)DB::fetchValue($sql . " LIMIT 1", $params);
     }
 
+    public function checkSupplierInvoiceNumberAjax(): void
+    {
+        $this->validateCsrf();
+
+        $supplierId = (int)($_POST['supplier_id'] ?? 0);
+        $invoiceNo = trim((string)($_POST['supplier_invoice_no'] ?? ''));
+        $concernId = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        if (!$concernId && $supplierId > 0) {
+            $concernId = (int)DB::fetchValue('SELECT concern_id FROM suppliers WHERE id = ?', [$supplierId]);
+        }
+        if (!$concernId) {
+            $this->renderJson(['success' => false, 'message' => 'Choose a concern before checking the invoice number.'], 422);
+            return;
+        }
+        if ($supplierId <= 0 || $invoiceNo === '') {
+            $this->renderJson(['success' => true, 'duplicate' => false]);
+            return;
+        }
+
+        $billId = (int)($_POST['bill_id'] ?? 0);
+        $duplicate = $this->supplierInvoiceNumberExists(
+            $concernId,
+            $supplierId,
+            $invoiceNo,
+            $billId > 0 ? $billId : null
+        );
+        $this->renderJson([
+            'success' => true,
+            'duplicate' => $duplicate,
+            'message' => $duplicate
+                ? 'This supplier invoice number has already been recorded for the selected supplier.'
+                : '',
+        ]);
+    }
+
     public function storeBill(): void {
         $this->validateCsrf();
         PurchaseBillSourceService::ensureSchema();
@@ -1339,8 +1376,14 @@ class PurchaseController extends Controller {
                     if (!is_array($variantRow)) {
                         continue;
                     }
-                    if ((float)($variantRow['quantity'] ?? 0) <= 0 || (float)($variantRow['supplier_cost'] ?? 0) <= 0) {
-                        $this->flash('error', 'Every new finished-goods variant needs a quantity and supplier cost greater than zero.');
+                    $quantity = (float)($variantRow['quantity'] ?? 0);
+                    $supplierCost = (float)($variantRow['supplier_cost'] ?? 0);
+                    $sellingPrice = (float)($variantRow['selling_price'] ?? 0);
+                    $mrp = (float)($variantRow['mrp'] ?? 0);
+                    if (!is_finite($quantity) || !is_finite($supplierCost) || !is_finite($sellingPrice) || !is_finite($mrp)
+                        || $quantity <= 0 || $supplierCost <= 0
+                        || $sellingPrice <= $supplierCost || $mrp <= $sellingPrice) {
+                        $this->flash('error', 'Every finished-goods variant must satisfy Supplier Cost < Selling Price < MRP and have a quantity greater than zero.');
                         $this->redirect($createRedirect);
                         return;
                     }
@@ -1381,7 +1424,21 @@ class PurchaseController extends Controller {
                         $size = trim((string)($f['size'] ?? ''));
                         $color = trim((string)($f['color'] ?? ''));
                         $hsnCode = strtoupper(trim((string)($f['hsn'] ?? '')));
-                        $catalogGstRate = (float)($f['catalog_gst_rate'] ?? 0);
+                        $hsnMaster = DB::fetch(
+                            "SELECT gst_rate FROM hsn_masters
+                             WHERE hsn_code = ? AND code_type = 'HSN' AND is_active = 1
+                               AND (concern_id = ? OR concern_id IS NULL)
+                             ORDER BY concern_id IS NULL ASC LIMIT 1",
+                            [$hsnCode, $cid]
+                        );
+                        if (!$hsnMaster || $hsnMaster['gst_rate'] === null || $hsnMaster['gst_rate'] === ''
+                            || !is_numeric($hsnMaster['gst_rate'])
+                            || (float)$hsnMaster['gst_rate'] < 0 || (float)$hsnMaster['gst_rate'] > 100) {
+                            $this->flash('error', 'Choose a registered HSN with a valid GST rate for every finished-goods variant.');
+                            $this->redirect($createRedirect);
+                            return;
+                        }
+                        $catalogGstRate = (float)$hsnMaster['gst_rate'];
                         $styleName = trim((string)($f['catalog_style_name'] ?? $productName));
                         $variantName = trim((string)($f['variant_name'] ?? $productName));
                         if ($variantName === '') {
