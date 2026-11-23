@@ -297,7 +297,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold text-dark">Phone Number</label>
-                        <input type="text" id="quickTailorPhone" class="form-control" placeholder="e.g. 9876543210">
+                        <input type="tel" id="quickTailorPhone" class="form-control" placeholder="10-digit mobile number" maxlength="10">
+                        <div id="quickTailorPhoneError" class="text-danger small mt-1 d-none" style="font-size: 0.75rem;"></div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold text-dark">Employee / Master Code</label>
@@ -368,15 +369,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 lblCuttingCodes.textContent = `[${data.cutting.program_no || 'PRG'}] [${data.cutting.batch_no || 'CUT'}]`;
                 lblCuttingUsableWeight.textContent = `${parseFloat(data.cutting.usable_weight || 0).toFixed(2)} kg Usable`;
 
-                let catalogNames = (data.catalogs || []).map(c => `${c.name}${c.style_code ? ' [' + c.style_code + ']' : ''}`).join(', ');
-                lblCuttingCatalogs.innerHTML = `<strong>Assigned Catalog:</strong> <span class="badge bg-primary text-white ms-1">${escapeHtml(catalogNames || 'Standard')}</span>`;
+                const cats = data.catalogs || [];
+                if (cats.length > 0) {
+                    const badges = cats.map(c => 
+                        `<span class="badge bg-primary text-white me-1.5 mb-1 px-2 py-1 font-monospace shadow-2xs">${escapeHtml(c.name)}${c.style_code ? ' [' + escapeHtml(c.style_code) + ']' : ''}</span>`
+                    ).join('');
+                    lblCuttingCatalogs.innerHTML = `<strong>Assigned Catalogs (${cats.length}):</strong><div class="mt-1 d-flex flex-wrap gap-1">${badges}</div>`;
+                } else {
+                    lblCuttingCatalogs.innerHTML = `<strong>Assigned Catalog:</strong> <span class="badge bg-secondary text-white ms-1">Standard</span>`;
+                }
 
                 // Populate bulk catalog dropdown
                 bulkCatalogSelect.innerHTML = '<option value="">-- All Catalogs in Batch --</option>';
-                (data.catalogs || []).forEach(cat => {
+                cats.forEach(cat => {
                     const opt = document.createElement('option');
                     opt.value = cat.id;
-                    opt.textContent = `${cat.name} (${cat.style_code})`;
+                    opt.textContent = `${cat.name} (${cat.style_code || 'CAT'})`;
                     opt.dataset.base = cat.base_price || 0;
                     opt.dataset.disc = cat.discount_price || 0;
                     bulkCatalogSelect.appendChild(opt);
@@ -425,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     <div class="d-flex flex-column">
                         <span class="badge bg-light text-dark border align-self-start mb-1 text-truncate" style="max-width: 250px;">
-                            <i class="bi bi-tag text-primary me-1"></i> ${escapeHtml(it.catalog_name || 'Catalog Item')}
+                            <i class="bi bi-tag text-primary me-1"></i> ${escapeHtml(it.catalog_name || 'Catalog Item')}${it.catalog_code ? ` <span class="badge bg-secondary-subtle text-secondary border font-monospace ms-1" style="font-size:0.65rem;">${escapeHtml(it.catalog_code)}</span>` : ''}
                         </span>
                         <div class="fw-bold text-dark small">
                             ${escapeHtml(it.variant_name || (it.size + ' - ' + it.color))}
@@ -620,16 +628,64 @@ document.addEventListener('DOMContentLoaded', function () {
         return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // Quick Add Tailor AJAX
+    // Quick Add Tailor AJAX with Inline Mobile Validation
     const formQuickAddTailor = document.getElementById('formQuickAddTailor');
+    const quickTailorPhone = document.getElementById('quickTailorPhone');
+    const quickTailorPhoneError = document.getElementById('quickTailorPhoneError');
+
+    function validateTailorPhoneInline() {
+        if (!quickTailorPhone) return true;
+        const val = quickTailorPhone.value.trim();
+        if (!val) {
+            quickTailorPhone.classList.remove('is-invalid', 'is-valid');
+            quickTailorPhoneError.classList.add('d-none');
+            quickTailorPhoneError.textContent = '';
+            return true;
+        }
+        if (!/^[6-9]/.test(val)) {
+            quickTailorPhone.classList.add('is-invalid');
+            quickTailorPhone.classList.remove('is-valid');
+            quickTailorPhoneError.classList.remove('d-none');
+            quickTailorPhoneError.textContent = 'Mobile number must start with 6, 7, 8, or 9.';
+            return false;
+        }
+        if (val.length < 10) {
+            quickTailorPhone.classList.add('is-invalid');
+            quickTailorPhone.classList.remove('is-valid');
+            quickTailorPhoneError.classList.remove('d-none');
+            quickTailorPhoneError.textContent = `Mobile number must be 10 digits (${val.length}/10 entered).`;
+            return false;
+        }
+        quickTailorPhone.classList.remove('is-invalid');
+        quickTailorPhone.classList.add('is-valid');
+        quickTailorPhoneError.classList.add('d-none');
+        quickTailorPhoneError.textContent = '';
+        return true;
+    }
+
+    if (quickTailorPhone) {
+        quickTailorPhone.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 10);
+            validateTailorPhoneInline();
+        });
+        quickTailorPhone.addEventListener('blur', function() {
+            validateTailorPhoneInline();
+        });
+    }
+
     formQuickAddTailor.addEventListener('submit', function (e) {
         e.preventDefault();
         const name = document.getElementById('quickTailorName').value.trim();
-        const phone = document.getElementById('quickTailorPhone').value.trim();
+        const phone = quickTailorPhone ? quickTailorPhone.value.trim() : '';
         const code = document.getElementById('quickTailorCode').value.trim();
         const errDiv = document.getElementById('quickTailorError');
 
         if (!name) return;
+
+        if (phone && !validateTailorPhoneInline()) {
+            quickTailorPhone.focus();
+            return;
+        }
 
         const formData = new FormData();
         formData.append('name', name);

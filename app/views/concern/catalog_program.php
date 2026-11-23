@@ -295,18 +295,72 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                             <div class="small text-muted"><i class="bi bi-person me-1"></i><?= htmlspecialchars($p['planner_name'] ?? 'Planner') ?></div>
                                         </td>
                                         <td>
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
-                                                <i class="bi bi-diagram-3 me-1"></i><?= (int)($p['rolls_count'] ?? 0) ?> Roll(s)
-                                            </span>
+                                            <div class="d-flex flex-column gap-1.5" style="min-width: 200px;">
+                                                <?php if (!empty($p['rolls'])): ?>
+                                                    <?php foreach ($p['rolls'] as $rIdx => $r): ?>
+                                                        <div class="p-1.5 rounded-2 bg-light border border-light-subtle d-flex flex-column gap-1" style="font-size: 0.78rem;">
+                                                            <div class="d-flex align-items-center justify-content-between gap-1">
+                                                                <span class="badge bg-dark-subtle text-dark font-monospace fw-bold" style="font-size: 0.72rem;">
+                                                                    <?= htmlspecialchars($r['roll_piece_tag'] ?: ($r['original_piece_tag'] ?: 'Roll #' . ($rIdx + 1))) ?>
+                                                                </span>
+                                                                <span class="badge bg-primary-subtle text-primary fw-bold" style="font-size: 0.72rem;">
+                                                                    <?= (int)floor((float)$r['allocated_qty']) ?> <?= htmlspecialchars($r['unit'] ?? 'pcs') ?>
+                                                                </span>
+                                                            </div>
+                                                            <div class="text-secondary text-truncate" title="<?= htmlspecialchars(($r['fabric_name'] ?: ($r['roll_material'] ?? 'Fabric Roll')) . (!empty($r['color']) ? ' - ' . $r['color'] : '')) ?>">
+                                                                <?= htmlspecialchars($r['fabric_name'] ?: ($r['roll_material'] ?? 'Fabric Roll')) ?>
+                                                                <?php if (!empty($r['color'])): ?>
+                                                                    <span class="text-muted">(<?= htmlspecialchars($r['color']) ?>)</span>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                            <?php if ((float)($r['roll_weight'] ?? 0) > 0 || (float)($r['roll_price'] ?? 0) > 0): ?>
+                                                                <div class="text-muted small" style="font-size: 0.70rem;">
+                                                                    <?php if ((float)($r['roll_weight'] ?? 0) > 0): ?>
+                                                                        <span><i class="bi bi-speedometer2"></i> <?= number_format((float)$r['roll_weight'], 2) ?> kg</span>
+                                                                    <?php endif; ?>
+                                                                    <?php if ((float)($r['roll_price'] ?? 0) > 0): ?>
+                                                                        <span class="ms-1.5"><i class="bi bi-currency-rupee"></i><?= number_format((float)$r['roll_price'], 2) ?></span>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php else: ?>
+                                                    <span class="badge bg-light text-muted border">0 Rolls</span>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                         <td>
-                                            <span class="badge bg-light text-dark border"><?= htmlspecialchars($p['catalog_name'] ?? 'General / Per-Roll') ?></span>
-                                            <?php if (!empty($p['roll_catalog_names']) && $p['roll_catalog_names'] !== ($p['catalog_name'] ?? '')): ?>
-                                                <div class="small text-muted mt-0.5">Roll styles: <?= htmlspecialchars($p['roll_catalog_names']) ?></div>
-                                            <?php endif; ?>
-                                            <?php if (!empty($p['target_variant_name'])): ?>
-                                                <div class="small text-muted mt-0.5"><?= htmlspecialchars($p['target_variant_name']) ?></div>
-                                            <?php endif; ?>
+                                            <div class="d-flex flex-column gap-1.5" style="min-width: 220px;">
+                                                <?php if (!empty($p['rolls'])): ?>
+                                                    <?php foreach ($p['rolls'] as $rIdx => $r): ?>
+                                                        <?php 
+                                                            $hier = array_filter([$r['category_name'] ?? '', $r['subcategory_name'] ?? '', $r['subsub_name'] ?? '']);
+                                                            $style = $r['catalog_style_name'] ?? '';
+                                                            $code = $r['catalog_style_code'] ?? '';
+                                                        ?>
+                                                        <div class="p-1.5 rounded-2 bg-light border border-light-subtle d-flex flex-column gap-0.5" style="font-size: 0.78rem;">
+                                                            <?php if (!empty($style)): ?>
+                                                                <div class="fw-semibold text-dark text-truncate" title="<?= htmlspecialchars($style) ?>">
+                                                                    <i class="bi bi-tag-fill text-primary me-1"></i><?= !empty($code) ? '[' . htmlspecialchars($code) . '] ' : '' ?><?= htmlspecialchars($style) ?>
+                                                                </div>
+                                                            <?php else: ?>
+                                                                <div class="text-muted"><i class="bi bi-tag me-1"></i>General / Unmapped</div>
+                                                            <?php endif; ?>
+                                                            <?php if (!empty($hier)): ?>
+                                                                <div class="text-secondary small text-truncate" style="font-size: 0.70rem;" title="<?= htmlspecialchars(implode(' > ', $hier)) ?>">
+                                                                    <?= htmlspecialchars(implode(' > ', $hier)) ?>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php else: ?>
+                                                    <span class="badge bg-light text-dark border"><?= htmlspecialchars($p['catalog_name'] ?? 'General / Per-Roll') ?></span>
+                                                    <?php if (!empty($p['roll_catalog_names']) && $p['roll_catalog_names'] !== ($p['catalog_name'] ?? '')): ?>
+                                                        <div class="small text-muted mt-0.5">Roll styles: <?= htmlspecialchars($p['roll_catalog_names']) ?></div>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                         <td><span class="fw-bold text-primary"><?= number_format((float)($p['planned_qty'] ?? 0), 2) ?></span> <span class="small text-muted">Units</span></td>
                                         <td><?= date('d M Y', strtotime($p['start_date'])) ?></td>
@@ -660,25 +714,35 @@ function showProgramDetails(id) {
 
             let rollRows = rolls.map((r, idx) => {
                 const hier = [r.category_name, r.subcategory_name, r.subsub_name].filter(Boolean).join(' > ') || '-';
-                const styleLabel = r.catalog_style_name ? `<span class="badge bg-light text-dark border">${r.catalog_style_code ? '[' + r.catalog_style_code + '] ' : ''}${r.catalog_style_name}</span>` : '<span class="text-muted small">General</span>';
+                const styleLabel = r.catalog_style_name ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-tag-fill me-1"></i>${r.catalog_style_code ? '[' + r.catalog_style_code + '] ' : ''}${r.catalog_style_name}</span>` : '<span class="text-muted small">General</span>';
+                const allocQtyInt = Math.floor(parseFloat(r.allocated_qty || 0));
+                const totalRollQtyInt = Math.floor(parseFloat(r.total_roll_qty || 0));
+                const weightVal = parseFloat(r.roll_weight || 0);
+                const priceVal = parseFloat(r.roll_price || 0);
                 return `
                     <tr>
                         <td class="text-center font-monospace">${idx + 1}</td>
                         <td>
-                            <div class="fw-bold font-monospace text-dark">${r.roll_piece_tag || '-'}</div>
-                            <div class="small text-muted">${r.fabric_name || 'Fabric Roll'}</div>
+                            <div class="fw-bold font-monospace text-dark">${r.roll_piece_tag || r.original_piece_tag || '-'}</div>
+                            <div class="small text-muted">${r.fabric_name || r.roll_material || 'Fabric Roll'}</div>
                             ${r.color ? `<span class="badge bg-light text-secondary border mt-1" style="font-size: 0.72rem;">${r.color}</span>` : ''}
                         </td>
                         <td>
-                            <span class="fw-bold text-primary">${parseFloat(r.allocated_qty || 0).toFixed(2)} ${r.unit || 'kg'}</span>
-                            <div class="small text-muted" style="font-size: 0.75rem;">out of ${parseFloat(r.total_roll_qty || 0).toFixed(2)} ${r.unit || 'kg'} total</div>
+                            <span class="fw-bold text-primary">${allocQtyInt} ${r.unit || 'pcs'}</span>
+                            <div class="small text-muted" style="font-size: 0.75rem;">out of ${totalRollQtyInt} ${r.unit || 'pcs'} total</div>
+                        </td>
+                        <td>
+                            <span class="font-monospace fw-semibold text-dark">${weightVal > 0 ? weightVal.toFixed(2) + ' kg' : '-'}</span>
+                        </td>
+                        <td>
+                            <span class="font-monospace fw-bold text-dark">${priceVal > 0 ? '₹' + priceVal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</span>
                         </td>
                         <td>
                             <span class="fw-bold text-success">${parseInt(r.target_pieces || 0)}</span> <span class="small text-muted">pcs</span>
                         </td>
                         <td>
-                            <div class="small text-secondary mb-1">${hier}</div>
-                            ${styleLabel}
+                            <div class="mb-1">${styleLabel}</div>
+                            <div class="small text-secondary" style="font-size: 0.75rem;"><i class="bi bi-diagram-3 me-1"></i>${hier}</div>
                         </td>
                     </tr>
                 `;
@@ -730,13 +794,15 @@ function showProgramDetails(id) {
                             <tr>
                                 <th class="text-center" style="width: 40px;">#</th>
                                 <th>Roll Tag & Material</th>
-                                <th>Allocated (Out of Total)</th>
+                                <th>Allocated Qty (RQ)</th>
+                                <th>Roll Weight (kg)</th>
+                                <th>Roll Price (₹)</th>
                                 <th>Target Pieces</th>
-                                <th>3-Tier Category & Style</th>
+                                <th>Catalog Style & 3-Tier Hierarchy</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${rollRows || '<tr><td colspan="5" class="text-center py-3 text-muted">No rolls assigned.</td></tr>'}
+                            ${rollRows || '<tr><td colspan="7" class="text-center py-3 text-muted">No rolls assigned.</td></tr>'}
                         </tbody>
                     </table>
                 </div>

@@ -324,8 +324,11 @@ $router->get('/api/catalog-mapping/item-details', [CatalogMappingController::cla
 $router->get('/api/categories/subcategories', [ProductionController::class, 'getSubcategoriesAjax'], 'catalog_program', 'view');
 $router->get('/api/categories/subsubcategories', [ProductionController::class, 'getSubSubcategoriesAjax'], 'catalog_program', 'view');
 $router->post('/api/categories/quick-add', [ProductionController::class, 'quickAddCategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/categories/delete', [ProductionController::class, 'deleteCategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/subcategories/quick-add', [ProductionController::class, 'quickAddSubcategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/subcategories/delete', [ProductionController::class, 'deleteSubcategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/subsubcategories/quick-add', [ProductionController::class, 'quickAddSubSubcategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/subsubcategories/delete', [ProductionController::class, 'deleteSubSubcategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/attributes/quick-add', [ProductionController::class, 'quickAddAttributeAjax'], 'catalog_program', 'add');
 $router->post('/api/attributes/delete', [ProductionController::class, 'deleteAttributeAjax'], 'catalog_program', 'delete');
 $router->get('/api/hsn/search', [ProductionController::class, 'searchHsnAjax']);
@@ -337,6 +340,10 @@ $router->get('/m/cutting_wastage', [ProductionController::class, 'cuttingIndex']
 $router->get('/production/cutting/create', [ProductionController::class, 'createCutting'], 'cutting_wastage', 'add');
 $router->post('/production/cutting/store', [ProductionController::class, 'storeCuttingBatch'], 'cutting_wastage', 'add');
 $router->get('/production/cutting/view', [ProductionController::class, 'viewCuttingBatch'], 'cutting_wastage', 'view');
+$router->get('/production/cutting/edit', [ProductionController::class, 'editCuttingBatch'], 'cutting_wastage', 'edit');
+$router->post('/production/cutting/update', [ProductionController::class, 'updateCuttingBatch'], 'cutting_wastage', 'edit');
+$router->get('/m/cutting_wastage/edit', [ProductionController::class, 'editCuttingBatch'], 'cutting_wastage', 'edit');
+$router->post('/m/cutting_wastage/update', [ProductionController::class, 'updateCuttingBatch'], 'cutting_wastage', 'edit');
 $router->post('/production/cutting/delete', [ProductionController::class, 'deleteCuttingBatch'], 'cutting_wastage', 'delete');
 
 // Cutting API Endpoints
@@ -371,8 +378,14 @@ $router->post('/api/stitching/quick-tailor', [ProductionController::class, 'apiQ
 // Stitching Wastage Selling (Image 2)
 $router->get('/production/stitching/wastage', [ProductionController::class, 'stitchingWastageIndex'], 'stitching_wastage', 'view');
 $router->post('/production/stitching/wastage/sell', [ProductionController::class, 'storeStitchingWastageSale'], 'stitching_wastage', 'add');
+$router->post('/production/stitching/wastage/update', [ProductionController::class, 'updateStitchingWastageSale'], 'stitching_wastage', 'edit');
+$router->post('/production/stitching/wastage/delete', [ProductionController::class, 'deleteStitchingWastageSale'], 'stitching_wastage', 'delete');
+$router->get('/api/stitching/wastage/details', [ProductionController::class, 'apiStitchingWastageDetails'], 'stitching_wastage', 'view');
 
 // Legacy routes fallback
+$router->get('/m/stitching_wastage/create', [ProductionController::class, 'createStitching'], 'stitching_wastage', 'add');
+$router->get('/m/stitching_wastage/edit', [ProductionController::class, 'editStitchingBatch'], 'stitching_wastage', 'edit');
+$router->get('/m/stitching_wastage/view', [ProductionController::class, 'viewStitchingBatch'], 'stitching_wastage', 'view');
 $router->get('/m/stitching_wastage/export', [ProductionController::class, 'exportStitching'], 'stitching_wastage', 'export');
 $router->post('/m/stitching_wastage/store', [ProductionController::class, 'storeStitchingBatch'], 'stitching_wastage', 'add');
 $router->post('/m/stitching_wastage/update', [ProductionController::class, 'updateStitchingBatch'], 'stitching_wastage', 'edit');

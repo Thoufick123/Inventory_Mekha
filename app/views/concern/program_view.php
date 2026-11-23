@@ -82,7 +82,9 @@
                     <tr>
                         <th class="text-center" style="width: 50px;">#</th>
                         <th>Piece Tag & Material</th>
-                        <th>Allocated Qty (Out of Total)</th>
+                        <th>Allocated Qty (RQ)</th>
+                        <th>Roll Weight (kg)</th>
+                        <th>Roll Price (₹)</th>
                         <th>Target Pieces</th>
                         <th>3-Tier Category Hierarchy</th>
                         <th>Catalog Style</th>
@@ -90,21 +92,27 @@
                 </thead>
                 <tbody>
                     <?php if (empty($rolls)): ?>
-                        <tr><td colspan="6" class="text-center py-4 text-muted">No rolls assigned to this program.</td></tr>
+                        <tr><td colspan="8" class="text-center py-4 text-muted">No rolls assigned to this program.</td></tr>
                     <?php else: ?>
                         <?php foreach ($rolls as $idx => $r): ?>
                             <tr>
                                 <td class="text-center font-monospace"><?= $idx + 1 ?></td>
                                 <td>
-                                    <div class="fw-bold font-monospace text-dark"><?= htmlspecialchars($r['roll_piece_tag'] ?: '-') ?></div>
-                                    <div class="small text-muted"><?= htmlspecialchars($r['fabric_name'] ?? 'Fabric Roll') ?></div>
+                                    <div class="fw-bold font-monospace text-dark"><?= htmlspecialchars($r['roll_piece_tag'] ?: ($r['original_piece_tag'] ?? '-')) ?></div>
+                                    <div class="small text-muted"><?= htmlspecialchars($r['fabric_name'] ?: ($r['roll_material'] ?? 'Fabric Roll')) ?></div>
                                     <?php if (!empty($r['color'])): ?>
                                         <span class="badge bg-light text-secondary border mt-1" style="font-size: 0.72rem;"><?= htmlspecialchars($r['color']) ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <span class="fw-bold text-primary font-monospace"><?= number_format((float)$r['allocated_qty'], 2) ?> <?= htmlspecialchars($r['unit']) ?></span>
-                                    <div class="small text-muted" style="font-size: 0.75rem;">out of <?= number_format((float)$r['total_roll_qty'], 2) ?> <?= htmlspecialchars($r['unit']) ?> total</div>
+                                    <span class="fw-bold text-primary font-monospace"><?= (int)floor((float)$r['allocated_qty']) ?> <?= htmlspecialchars($r['unit']) ?></span>
+                                    <div class="small text-muted" style="font-size: 0.75rem;">out of <?= (int)floor((float)$r['total_roll_qty']) ?> <?= htmlspecialchars($r['unit']) ?> total</div>
+                                </td>
+                                <td>
+                                    <span class="font-monospace fw-semibold text-dark"><?= (float)($r['roll_weight'] ?? 0) > 0 ? number_format((float)$r['roll_weight'], 2) . ' kg' : '-' ?></span>
+                                </td>
+                                <td>
+                                    <span class="font-monospace fw-bold text-dark"><?= (float)($r['roll_price'] ?? 0) > 0 ? '₹' . number_format((float)$r['roll_price'], 2) : '-' ?></span>
                                 </td>
                                 <td>
                                     <span class="fw-bold text-success font-monospace"><?= (int)$r['target_pieces'] ?></span> <span class="small text-muted">pcs</span>
@@ -117,8 +125,8 @@
                                 </td>
                                 <td>
                                     <?php if (!empty($r['catalog_style_name'])): ?>
-                                        <span class="badge bg-light text-dark border">
-                                            <?= !empty($r['catalog_style_code']) ? '[' . htmlspecialchars($r['catalog_style_code']) . '] ' : '' ?><?= htmlspecialchars($r['catalog_style_name']) ?>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                            <i class="bi bi-tag-fill me-1"></i><?= !empty($r['catalog_style_code']) ? '[' . htmlspecialchars($r['catalog_style_code']) . '] ' : '' ?><?= htmlspecialchars($r['catalog_style_name']) ?>
                                         </span>
                                     <?php else: ?>
                                         <span class="text-muted small">General / Per-Roll</span>

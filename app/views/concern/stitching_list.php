@@ -149,12 +149,14 @@
                                     <?php foreach ($batches as $b): ?>
                                         <tr>
                                             <td class="ps-3 py-3 fw-bold font-monospace text-dark">
-                                                <a href="<?= \App\Core\Controller::url(\App\Core\Auth::can('stitching_wastage', 'edit') ? ('/production/stitching/edit?id=' . $b['id']) : ('/production/stitching/view?id=' . $b['id'])) ?>" class="text-decoration-none text-primary">
+                                                <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" class="text-decoration-none text-primary" title="View Batch Details">
                                                     <?= htmlspecialchars($b['display_batch_no']) ?>
                                                 </a>
                                             </td>
                                             <td class="py-3 fw-semibold text-dark">
-                                                <?= htmlspecialchars($b['stitching_name'] ?: 'Stitching Batch') ?>
+                                                <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" class="text-decoration-none text-dark" title="View Batch Details">
+                                                    <?= htmlspecialchars($b['stitching_name'] ?: 'Stitching Batch') ?>
+                                                </a>
                                                 <?php if ($b['variant_count'] > 0): ?>
                                                     <span class="badge bg-light text-muted border ms-1"><?= (int)$b['variant_count'] ?> variants</span>
                                                 <?php endif; ?>
@@ -202,9 +204,13 @@
                                             </td>
                                             <td class="text-end pe-3 py-3">
                                                 <div class="btn-group btn-group-sm">
+                                                    <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" 
+                                                       class="btn btn-outline-secondary" title="View Batch Details">
+                                                        <i class="bi bi-eye"></i>
+                                                    </a>
                                                     <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
                                                     <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $b['id']) ?>" 
-                                                       class="btn btn-outline-secondary" title="Edit Batch">
+                                                       class="btn btn-outline-primary" title="Edit Batch">
                                                         <i class="bi bi-pencil"></i>
                                                     </a>
                                                     <?php endif; ?>
@@ -255,12 +261,13 @@
                                     <th class="text-center py-3">Amount Received</th>
                                     <th class="text-center py-3">Sale Date</th>
                                     <th class="text-center py-3">Status</th>
+                                    <th class="text-center pe-3 py-3" style="width: 125px;">ACTIONS</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($wastageSales)): ?>
                                     <tr>
-                                        <td colspan="10" class="text-center py-5 text-muted">
+                                        <td colspan="11" class="text-center py-5 text-muted">
                                             <i class="bi bi-recycle fs-1 d-block mb-2 text-danger opacity-50"></i>
                                             No stitching scrap sales recorded yet. Liquidate trimmings and thread waste via <strong>"Record Scrap Sale"</strong>.
                                         </td>
@@ -315,6 +322,26 @@
                                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Pending</span>
                                                 <?php endif; ?>
                                             </td>
+                                            <td class="text-center pe-3 py-3">
+                                                <div class="d-inline-flex align-items-center gap-1">
+                                                    <button type="button" class="btn btn-sm btn-outline-info p-1.5 rounded-3" title="View Details"
+                                                            onclick="showStitchingScrapSaleDetails(<?= $s['id'] ?>)">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                    <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary p-1.5 rounded-3" title="Edit Scrap Sale"
+                                                            onclick='openEditStitchingScrapSaleModal(<?= json_encode($s, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                    <?php endif; ?>
+                                                    <?php if (\App\Core\Auth::can('stitching_wastage', 'delete')): ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger p-1.5 rounded-3" title="Delete Scrap Sale"
+                                                            onclick="confirmDeleteStitchingScrapSale(<?= $s['id'] ?>, '<?= htmlspecialchars(addslashes($s['sale_no'])) ?>', '<?= number_format($s['total_price'], 2) ?>')">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -356,20 +383,32 @@
                         <label class="form-label fw-semibold text-dark mb-1">
                             Select Stitching Module Batch / Program <span class="text-danger">*</span>
                         </label>
-                        <select name="stitching_id" id="scrapStitchingBatch" class="form-select" required>
-                            <option value="">-- Select Completed / In-Progress Stitching Batch --</option>
-                            <?php foreach ($saleEligibleBatches as $sb): ?>
-                                <option value="<?= $sb['id'] ?>"
-                                        data-name="<?= htmlspecialchars($sb['stitching_name'] ?: 'Stitching Batch') ?>"
-                                        data-batch="<?= htmlspecialchars($sb['display_batch_no']) ?>"
-                                        data-cut="<?= (int)$sb['cut_pieces'] ?>"
-                                        data-stitched="<?= (int)$sb['stitched_pieces'] ?>"
-                                        data-weight="<?= (float)$sb['stitch_weight'] ?>"
-                                        data-sold="<?= (float)$sb['sold_wastage_qty'] ?>">
-                                    <?= htmlspecialchars($sb['display_batch_no'] . ' - ' . ($sb['stitching_name'] ?: 'Lot') . ' (Cut: ' . (int)$sb['cut_pieces'] . ' pcs | Stitched: ' . (int)$sb['stitched_pieces'] . ' pcs)') ?>
-                                </option>
-                            <?php endforeach; ?>
+                        <select name="stitching_id" id="scrapStitchingBatch" class="form-select" required <?= empty($saleEligibleBatches) ? 'disabled' : '' ?>>
+                            <?php if (empty($saleEligibleBatches)): ?>
+                                <option value="" disabled selected>-- No Available Stitching Batches --</option>
+                            <?php else: ?>
+                                <option value="">-- Select Completed / In-Progress Stitching Batch --</option>
+                                <?php foreach ($saleEligibleBatches as $sb): ?>
+                                    <option value="<?= $sb['id'] ?>"
+                                            data-name="<?= htmlspecialchars($sb['stitching_name'] ?: 'Stitching Batch') ?>"
+                                            data-batch="<?= htmlspecialchars($sb['display_batch_no']) ?>"
+                                            data-cut="<?= (int)$sb['cut_pieces'] ?>"
+                                            data-stitched="<?= (int)$sb['stitched_pieces'] ?>"
+                                            data-weight="<?= (float)$sb['stitch_weight'] ?>"
+                                            data-sold="<?= (float)$sb['sold_wastage_qty'] ?>"
+                                            data-wastage="<?= (float)$sb['wastage_weight'] ?>">
+                                        <?= htmlspecialchars($sb['display_batch_no'] . ' - ' . ($sb['stitching_name'] ?: 'Lot') . ' (Cut: ' . (int)$sb['cut_pieces'] . ' pcs | Stitched: ' . (int)$sb['stitched_pieces'] . ' pcs)') ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </select>
+
+                        <?php if (empty($saleEligibleBatches)): ?>
+                            <div class="alert alert-warning border-warning-subtle py-2 px-3 small mt-2 mb-0 d-flex align-items-center gap-2">
+                                <i class="bi bi-exclamation-triangle-fill text-warning fs-6"></i>
+                                <div><strong>No Available Batches:</strong> All existing stitching batches have already completed scrap selling, or no active batches are found.</div>
+                            </div>
+                        <?php endif; ?>
 
                         <!-- Selected Batch Chip -->
                         <div id="scrapBatchChip" class="badge bg-light text-primary border p-2 mt-2" style="display:none; font-size: 0.85rem;">
@@ -497,7 +536,7 @@
                     <button type="button" class="btn btn-outline-secondary fw-semibold" data-bs-dismiss="modal">
                         Cancel
                     </button>
-                    <button type="submit" class="btn btn-danger fw-semibold shadow-sm" id="btnSubmitScrapSale">
+                    <button type="submit" class="btn btn-danger fw-semibold shadow-sm" id="btnSubmitScrapSale" <?= empty($saleEligibleBatches) ? 'disabled' : '' ?>>
                         <i class="bi bi-check2-circle me-1"></i> Record Wastage Sale & Inward Cash
                     </button>
                 </div>
@@ -506,7 +545,218 @@
     </div>
 </div>
 
-<!-- DELETE CONFIRMATION FORM -->
+<!-- ============================================================== -->
+<!-- QUICK VIEW STITCHING SCRAP SALE MODAL                         -->
+<!-- ============================================================== -->
+<div class="modal fade" id="modalViewStitchingScrapSale" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-light border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                    <i class="bi bi-receipt-cutoff text-danger"></i> Stitching Wastage Scrap Sale Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="viewStitchingScrapSaleContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-danger" role="status"></div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2 px-4 d-flex justify-content-between">
+                <span class="text-muted small" id="viewStitchingRecordedBy"></span>
+                <button type="button" class="btn btn-secondary btn-sm px-3 fw-semibold" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- EDIT STITCHING SCRAP SALE MODAL                               -->
+<!-- ============================================================== -->
+<div class="modal fade" id="modalEditStitchingScrapSale" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                    <i class="bi bi-pencil-square text-primary"></i> Edit Stitching Scrap Sale
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="<?= \App\Core\Controller::url('/production/stitching/wastage/update') ?>" method="POST" id="formEditStitchingWastage">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                <input type="hidden" name="id" id="edit_sale_id" value="">
+
+                <div class="modal-body p-4">
+                    <!-- Batch Info Card (Readonly) -->
+                    <div class="card border rounded-3 p-3 bg-light mb-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <div class="text-muted small">Associated Stitching Batch</div>
+                                <strong class="font-monospace text-dark fs-6" id="edit_sale_batch_no">-</strong>
+                                <div class="small text-muted" id="edit_sale_stitching_name">-</div>
+                            </div>
+                            <div class="text-md-end">
+                                <span class="badge bg-danger font-monospace fs-6" id="edit_sale_no_badge">-</span>
+                                <div class="small text-muted mt-1" id="edit_sale_program_info"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Buyer Info -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Scrap Buyer Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="buyer_name" id="edit_buyer_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Buyer Phone (10 digits) <span class="text-danger">*</span>
+                            </label>
+                            <input type="tel" name="buyer_phone" id="edit_buyer_phone" class="form-control font-monospace" 
+                                   pattern="[0-9]{10}" maxlength="10" required>
+                            <div class="form-text small text-muted">Must be exactly 10 numeric digits.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Buyer Company / Organization
+                            </label>
+                            <input type="text" name="buyer_company" id="edit_buyer_company" class="form-control">
+                        </div>
+                    </div>
+
+                    <!-- Wastage Category & Unit -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Stitching Waste Category <span class="text-danger">*</span>
+                            </label>
+                            <select name="wastage_category" id="edit_wastage_category" class="form-select" required>
+                                <option value="Thread & Yarn Waste">Thread & Yarn Waste</option>
+                                <option value="Fabric Trimming / Strips">Fabric Trimming / Strips</option>
+                                <option value="Rejected Cut Pieces / Defective Garments">Rejected Cut Pieces / Defective Garments</option>
+                                <option value="Bale Scrap">Bale Scrap</option>
+                                <option value="General Production Waste">General Production Waste</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Unit Type <span class="text-danger">*</span>
+                            </label>
+                            <select name="unit_type" id="edit_unit_type" class="form-select fw-semibold" required>
+                                <option value="KG">Kilograms (KG)</option>
+                                <option value="Pcs">Pieces (Pcs)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Quantity, Rate & Dynamic Total Price -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Quantity <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="number" step="0.01" name="quantity" id="edit_quantity" class="form-control font-monospace fw-bold" min="0.01" required>
+                                <span class="input-group-text font-monospace small" id="edit_lbl_unit">KG</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Selling Rate (₹ per unit) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" step="0.01" name="selling_rate" id="edit_selling_rate" class="form-control font-monospace fw-bold" min="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Total Sale Price (₹) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" step="0.01" name="total_price" id="edit_total_price" class="form-control font-monospace fw-bold text-success" min="0.01" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic calculation label -->
+                    <div class="p-2 mb-3 bg-light rounded-3 text-center small text-secondary font-monospace" id="edit_calc_display">
+                        0.00 KG × ₹0.00/KG = ₹0.00
+                    </div>
+
+                    <!-- Amount Received, Sale Date & Notes -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Amount Received (₹) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" step="0.01" name="amount_received" id="edit_amount_received" class="form-control font-monospace fw-bold" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                Sale Date <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" name="sale_date" id="edit_sale_date" class="form-control font-monospace" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label fw-semibold text-dark mb-1">Notes / Remarks</label>
+                        <textarea name="notes" id="edit_notes" class="form-control" rows="2" placeholder="Optional notes..."></textarea>
+                    </div>
+
+                </div>
+                <div class="modal-footer border-top bg-light py-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Update Scrap Sale
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- CONFIRM DELETE STITCHING SCRAP SALE MODAL                      -->
+<!-- ============================================================== -->
+<div class="modal fade" id="modalDeleteStitchingScrapSale" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form action="<?= \App\Core\Controller::url('/production/stitching/wastage/delete') ?>" method="POST" class="modal-content border-0 shadow-lg rounded-4">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+            <input type="hidden" name="id" id="delete_stitching_sale_id" value="">
+            <div class="modal-header bg-danger text-white py-3">
+                <h6 class="modal-title fw-bold d-flex align-items-center gap-2 mb-0">
+                    <i class="bi bi-trash3 me-1"></i> Delete Stitching Scrap Sale
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-3 d-block"></i>
+                <h5 class="fw-bold text-dark mb-2">Delete Wastage Scrap Sale?</h5>
+                <div class="badge bg-dark font-monospace fs-6 mb-2" id="delete_stitching_sale_code">-</div>
+                <div class="text-success fw-bold font-monospace fs-5 mb-3" id="delete_stitching_sale_amount">-</div>
+                <p class="text-secondary small mb-0">
+                    Are you sure you want to delete this scrap sale record? The sold scrap quantity will be reversed, and the associated stitching batch will become available again for wastage recording.
+                </p>
+            </div>
+            <div class="modal-footer bg-light py-2.5 px-4 d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary btn-sm px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger btn-sm px-3 fw-semibold">
+                    <i class="bi bi-trash me-1"></i> Confirm Delete Sale
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- DELETE CONFIRMATION FORM FOR BATCH -->
 <form id="formDeleteBatch" action="<?= \App\Core\Controller::url('/production/stitching/delete') ?>" method="POST" style="display:none;">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
     <input type="hidden" name="id" id="deleteBatchId">
@@ -517,6 +767,146 @@ function confirmDeleteBatch(id, batchNo) {
     if (confirm(`Are you sure you want to delete Stitching Batch "${batchNo}"?\nAll associated variant items and finished stock entries will be reversed.`)) {
         document.getElementById('deleteBatchId').value = id;
         document.getElementById('formDeleteBatch').submit();
+    }
+}
+
+function confirmDeleteStitchingScrapSale(id, code, amt) {
+    document.getElementById('delete_stitching_sale_id').value = id;
+    document.getElementById('delete_stitching_sale_code').textContent = code;
+    document.getElementById('delete_stitching_sale_amount').textContent = '₹' + amt;
+    new bootstrap.Modal(document.getElementById('modalDeleteStitchingScrapSale')).show();
+}
+
+function showStitchingScrapSaleDetails(id) {
+    const modalEl = document.getElementById('modalViewStitchingScrapSale');
+    const container = document.getElementById('viewStitchingScrapSaleContent');
+    const recordedByEl = document.getElementById('viewStitchingRecordedBy');
+    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-danger"></div></div>';
+    recordedByEl.textContent = '';
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+
+    fetch('<?= \App\Core\Controller::url('/api/stitching/wastage/details?id=') ?>' + id)
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) {
+                container.innerHTML = `<div class="alert alert-danger">${res.message || 'Error loading details'}</div>`;
+                return;
+            }
+            const s = res.sale;
+            const statusBadge = (s.payment_status === 'paid')
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">PAID</span>'
+                : (s.payment_status === 'partial' ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">PARTIAL</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">PENDING</span>');
+
+            recordedByEl.textContent = s.recorded_by_name ? `Recorded by ${s.recorded_by_name} on ${s.created_at || ''}` : '';
+
+            container.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center pb-3 mb-3 border-bottom">
+                    <div>
+                        <span class="badge bg-dark font-monospace fs-6">${s.sale_no}</span>
+                        <div class="text-muted small mt-1"><i class="bi bi-calendar-event me-1"></i>Date: <strong>${s.sale_date || '-'}</strong></div>
+                    </div>
+                    <div>${statusBadge}</div>
+                </div>
+
+                <div class="row g-3 mb-3 small">
+                    <div class="col-md-6">
+                        <div class="text-muted small">Stitching Batch</div>
+                        <div class="fw-bold font-monospace text-dark fs-6">${s.stitching_batch_no || '-'}</div>
+                        <div class="text-muted">${s.stitching_name || ''}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">Source Cutting & Program</div>
+                        <div class="fw-semibold text-primary font-monospace">${s.cutting_batch_no || 'Direct'}</div>
+                        <div class="text-muted">${s.program_no ? s.program_no + ' (' + (s.program_name || '') + ')' : ''}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">Buyer / Vendor</div>
+                        <div class="fw-semibold text-dark fs-6">${s.buyer_name || '-'}</div>
+                        <div class="text-muted">${s.buyer_phone ? '📞 ' + s.buyer_phone : ''}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">Company / Business</div>
+                        <div class="fw-semibold text-dark">${s.buyer_company || '-'}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="text-muted small">Wastage Category</div>
+                        <span class="badge bg-light text-dark border mt-1">${s.wastage_category || '-'}</span>
+                    </div>
+                </div>
+
+                <div class="card border rounded-3 bg-light p-3 mb-3 small">
+                    <div class="d-flex justify-content-between mb-1.5">
+                        <span class="text-muted">Quantity Sold:</span>
+                        <strong class="text-danger font-monospace fs-6">${parseFloat(s.quantity || 0).toFixed(2)} ${s.unit_type || 'KG'}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1.5">
+                        <span class="text-muted">Selling Rate:</span>
+                        <strong class="font-monospace">₹${parseFloat(s.selling_rate || 0).toFixed(2)} / ${s.unit_type || 'KG'}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1.5 border-top pt-1.5">
+                        <span class="fw-bold text-dark">Total Sale Price:</span>
+                        <strong class="text-dark fs-5 font-monospace">₹${parseFloat(s.total_price || 0).toFixed(2)}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Amount Received:</span>
+                        <strong class="text-success font-monospace">₹${parseFloat(s.amount_received || 0).toFixed(2)}</strong>
+                    </div>
+                </div>
+
+                ${s.notes ? `<div class="small text-muted p-2 bg-light rounded border"><i class="bi bi-card-text me-1"></i><strong>Notes:</strong> ${s.notes}</div>` : ''}
+            `;
+        })
+        .catch(err => {
+            container.innerHTML = `<div class="alert alert-danger">Network error loading details.</div>`;
+        });
+}
+
+function openEditStitchingScrapSaleModal(s) {
+    if (!s) return;
+    document.getElementById('edit_sale_id').value = s.id;
+    document.getElementById('edit_sale_no_badge').textContent = s.sale_no || '-';
+    document.getElementById('edit_sale_batch_no').textContent = s.stitching_batch_no || '-';
+    document.getElementById('edit_sale_stitching_name').textContent = s.stitching_name || 'Stitching Batch';
+    document.getElementById('edit_sale_program_info').textContent = s.program_no ? `Program: ${s.program_no}` : '';
+
+    document.getElementById('edit_buyer_name').value = s.buyer_name || '';
+    document.getElementById('edit_buyer_phone').value = s.buyer_phone || '';
+    document.getElementById('edit_buyer_company').value = s.buyer_company || '';
+    document.getElementById('edit_wastage_category').value = s.wastage_category || 'Thread & Yarn Waste';
+    document.getElementById('edit_unit_type').value = s.unit_type || 'KG';
+    document.getElementById('edit_lbl_unit').textContent = s.unit_type || 'KG';
+
+    document.getElementById('edit_quantity').value = parseFloat(s.quantity || 0).toFixed(2);
+    document.getElementById('edit_selling_rate').value = parseFloat(s.selling_rate || 0).toFixed(2);
+    document.getElementById('edit_total_price').value = parseFloat(s.total_price || 0).toFixed(2);
+    document.getElementById('edit_amount_received').value = parseFloat(s.amount_received || 0).toFixed(2);
+    document.getElementById('edit_sale_date').value = s.sale_date ? s.sale_date.substring(0, 10) : '';
+    document.getElementById('edit_notes').value = s.notes || '';
+
+    updateEditCalculation();
+    new bootstrap.Modal(document.getElementById('modalEditStitchingScrapSale')).show();
+}
+
+function updateEditCalculation() {
+    const editQty = document.getElementById('edit_quantity');
+    const editRate = document.getElementById('edit_selling_rate');
+    const editTotal = document.getElementById('edit_total_price');
+    const editReceived = document.getElementById('edit_amount_received');
+    const editUnit = document.getElementById('edit_unit_type');
+    const editCalcDisplay = document.getElementById('edit_calc_display');
+
+    if (!editQty || !editRate || !editTotal) return;
+
+    const qty = parseFloat(editQty.value) || 0;
+    const rate = parseFloat(editRate.value) || 0;
+    const unit = editUnit ? editUnit.value : 'KG';
+    const tot = (qty * rate).toFixed(2);
+
+    editTotal.value = tot;
+    editReceived.value = tot;
+    if (editCalcDisplay) {
+        editCalcDisplay.textContent = `${qty.toFixed(2)} ${unit} × ₹${rate.toFixed(2)}/${unit} = ₹${tot}`;
     }
 }
 
@@ -560,67 +950,119 @@ document.addEventListener('DOMContentLoaded', function () {
     const inputReceived = document.getElementById('scrapAmountReceived');
     const calcDisplay = document.getElementById('scrapCalcDisplay');
 
-    batchSelect.addEventListener('change', function () {
-        const opt = this.options[this.selectedIndex];
-        if (!opt || !this.value) {
-            chipDiv.style.display = 'none';
-            infoBox.style.display = 'none';
-            return;
-        }
+    if (batchSelect) {
+        batchSelect.addEventListener('change', function () {
+            const opt = this.options[this.selectedIndex];
+            if (!opt || !this.value) {
+                if (chipDiv) chipDiv.style.display = 'none';
+                if (infoBox) infoBox.style.display = 'none';
+                return;
+            }
 
-        const name = opt.dataset.name;
-        const batch = opt.dataset.batch;
-        const cut = opt.dataset.cut;
-        const stitched = opt.dataset.stitched;
-        const weight = parseFloat(opt.dataset.weight || 0).toFixed(2);
-        const sold = parseFloat(opt.dataset.sold || 0).toFixed(2);
+            const name = opt.dataset.name;
+            const batch = opt.dataset.batch;
+            const cut = opt.dataset.cut;
+            const stitched = opt.dataset.stitched;
+            const weight = parseFloat(opt.dataset.weight || 0).toFixed(2);
+            const sold = parseFloat(opt.dataset.sold || 0).toFixed(2);
 
-        chipDiv.style.display = 'inline-flex';
-        chipText.textContent = `${batch} - ${name} (Cut: ${cut} pcs | Stitched: ${stitched} pcs)`;
+            if (chipDiv) {
+                chipDiv.style.display = 'inline-flex';
+                chipText.textContent = `${batch} - ${name} (Cut: ${cut} pcs | Stitched: ${stitched} pcs)`;
+            }
 
-        infoBox.style.display = 'block';
-        infoReceived.textContent = `${cut} pcs`;
-        infoStitched.textContent = `${stitched} pcs`;
-        infoWeight.textContent = `${weight} kg`;
-        infoSold.textContent = `${sold} kg`;
-    });
+            if (infoBox) {
+                infoBox.style.display = 'block';
+                infoReceived.textContent = `${cut} pcs`;
+                infoStitched.textContent = `${stitched} pcs`;
+                infoWeight.textContent = `${weight} kg`;
+                infoSold.textContent = `${sold} kg`;
+            }
+        });
+    }
 
-    unitSelect.addEventListener('change', function () {
-        lblUnit.textContent = this.value;
-        updateCalculation();
-    });
+    if (unitSelect) {
+        unitSelect.addEventListener('change', function () {
+            if (lblUnit) lblUnit.textContent = this.value;
+            updateCalculation();
+        });
+    }
 
     function updateCalculation() {
+        if (!inputQty || !inputRate || !inputTotal) return;
         const qty = parseFloat(inputQty.value) || 0;
         const rate = parseFloat(inputRate.value) || 0;
-        const unit = unitSelect.value;
+        const unit = unitSelect ? unitSelect.value : 'KG';
         const tot = (qty * rate).toFixed(2);
 
         inputTotal.value = tot;
-        inputReceived.value = tot;
-        calcDisplay.textContent = `${qty.toFixed(2)} ${unit} × ₹${rate.toFixed(2)}/${unit} = ₹${tot}`;
+        if (inputReceived) inputReceived.value = tot;
+        if (calcDisplay) calcDisplay.textContent = `${qty.toFixed(2)} ${unit} × ₹${rate.toFixed(2)}/${unit} = ₹${tot}`;
     }
 
-    inputQty.addEventListener('input', updateCalculation);
-    inputRate.addEventListener('input', updateCalculation);
+    if (inputQty) inputQty.addEventListener('input', updateCalculation);
+    if (inputRate) inputRate.addEventListener('input', updateCalculation);
 
-    // If user edits total manually, update calc display and amount received
-    inputTotal.addEventListener('input', function () {
-        const tot = parseFloat(this.value) || 0;
-        inputReceived.value = tot.toFixed(2);
-        calcDisplay.textContent = `Custom Sale Total: ₹${tot.toFixed(2)}`;
-    });
+    if (inputTotal) {
+        inputTotal.addEventListener('input', function () {
+            const tot = parseFloat(this.value) || 0;
+            if (inputReceived) inputReceived.value = tot.toFixed(2);
+            if (calcDisplay) calcDisplay.textContent = `Custom Sale Total: ₹${tot.toFixed(2)}`;
+        });
+    }
 
-    // Form validation for 10-digit phone
+    // Form validation for 10-digit phone on Create
     const formSell = document.getElementById('formSellStitchingWastage');
-    formSell.addEventListener('submit', function (e) {
-        const phone = document.getElementById('buyerPhone').value.trim();
-        const cleanPhone = phone.replace(/[^0-9]/g, '');
-        if (cleanPhone.length !== 10) {
-            e.preventDefault();
-            alert('Buyer Phone number must be exactly 10 numeric digits (e.g. 9876543210).');
-            document.getElementById('buyerPhone').focus();
-        }
-    });
+    if (formSell) {
+        formSell.addEventListener('submit', function (e) {
+            const phone = document.getElementById('buyerPhone').value.trim();
+            const cleanPhone = phone.replace(/[^0-9]/g, '');
+            if (cleanPhone.length !== 10) {
+                e.preventDefault();
+                alert('Buyer Phone number must be exactly 10 numeric digits (e.g. 9876543210).');
+                document.getElementById('buyerPhone').focus();
+            }
+        });
+    }
+
+    // Edit modal listeners
+    const editUnit = document.getElementById('edit_unit_type');
+    const editLblUnit = document.getElementById('edit_lbl_unit');
+    const editQty = document.getElementById('edit_quantity');
+    const editRate = document.getElementById('edit_selling_rate');
+    const editTotal = document.getElementById('edit_total_price');
+    const editReceived = document.getElementById('edit_amount_received');
+
+    if (editUnit) {
+        editUnit.addEventListener('change', function () {
+            if (editLblUnit) editLblUnit.textContent = this.value;
+            updateEditCalculation();
+        });
+    }
+
+    if (editQty) editQty.addEventListener('input', updateEditCalculation);
+    if (editRate) editRate.addEventListener('input', updateEditCalculation);
+
+    if (editTotal) {
+        editTotal.addEventListener('input', function () {
+            const tot = parseFloat(this.value) || 0;
+            if (editReceived) editReceived.value = tot.toFixed(2);
+            const editCalcDisplay = document.getElementById('edit_calc_display');
+            if (editCalcDisplay) editCalcDisplay.textContent = `Custom Sale Total: ₹${tot.toFixed(2)}`;
+        });
+    }
+
+    const formEdit = document.getElementById('formEditStitchingWastage');
+    if (formEdit) {
+        formEdit.addEventListener('submit', function (e) {
+            const phone = document.getElementById('edit_buyer_phone').value.trim();
+            const cleanPhone = phone.replace(/[^0-9]/g, '');
+            if (cleanPhone.length !== 10) {
+                e.preventDefault();
+                alert('Buyer Phone number must be exactly 10 numeric digits (e.g. 9876543210).');
+                document.getElementById('edit_buyer_phone').focus();
+            }
+        });
+    }
 });
 </script>

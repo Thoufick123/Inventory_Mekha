@@ -2421,20 +2421,43 @@ class PurchaseController extends Controller {
                        item_name, item_code, item_type, tag_code, qty, location, reason, notes,
                        damaged_weight, estimated_loss, action_taken, created_at
                 FROM (
-                    SELECT 'legacy' AS history_source, pd.id AS record_id, pd.damage_no, pd.concern_id,
-                           con.name AS concern_name, s.name AS supplier_name, v.name AS item_name,
-                           v.sku_code AS item_code, 'legacy' AS item_type, NULL AS tag_code, pd.qty,
-                           pd.location, pd.reason, NULL AS notes, 0 AS damaged_weight, 0 AS estimated_loss,
-                           pd.action_taken, pd.created_at
+                    SELECT 'legacy' AS history_source, pd.id AS record_id,
+                           pd.damage_no COLLATE utf8mb4_unicode_ci AS damage_no,
+                           pd.concern_id,
+                           con.name COLLATE utf8mb4_unicode_ci AS concern_name,
+                           s.name COLLATE utf8mb4_unicode_ci AS supplier_name,
+                           v.name COLLATE utf8mb4_unicode_ci AS item_name,
+                           v.sku_code COLLATE utf8mb4_unicode_ci AS item_code,
+                           'legacy' COLLATE utf8mb4_unicode_ci AS item_type,
+                           CAST(NULL AS CHAR(50)) COLLATE utf8mb4_unicode_ci AS tag_code,
+                           pd.qty,
+                           pd.location COLLATE utf8mb4_unicode_ci AS location,
+                           pd.reason COLLATE utf8mb4_unicode_ci AS reason,
+                           CAST(NULL AS CHAR(255)) COLLATE utf8mb4_unicode_ci AS notes,
+                           0 AS damaged_weight, 0 AS estimated_loss,
+                           pd.action_taken COLLATE utf8mb4_unicode_ci AS action_taken,
+                           pd.created_at
                     FROM purchase_damages pd
                     JOIN suppliers s ON pd.supplier_id = s.id
                     JOIN variants v ON pd.variant_id = v.id
                     LEFT JOIN concerns con ON con.id = pd.concern_id
                     UNION ALL
-                    SELECT 'quarantine' AS history_source, q.id AS record_id, q.damage_no, q.concern_id,
-                           con.name AS concern_name, q.supplier_name, q.item_name, q.item_code,
-                           q.item_type, q.tag_code, q.qty, q.location, q.reason, q.notes,
-                           q.damaged_weight, q.estimated_loss, q.status AS action_taken, q.created_at
+                    SELECT 'quarantine' AS history_source, q.id AS record_id,
+                           q.damage_no COLLATE utf8mb4_unicode_ci AS damage_no,
+                           q.concern_id,
+                           con.name COLLATE utf8mb4_unicode_ci AS concern_name,
+                           q.supplier_name COLLATE utf8mb4_unicode_ci AS supplier_name,
+                           q.item_name COLLATE utf8mb4_unicode_ci AS item_name,
+                           q.item_code COLLATE utf8mb4_unicode_ci AS item_code,
+                           q.item_type COLLATE utf8mb4_unicode_ci AS item_type,
+                           q.tag_code COLLATE utf8mb4_unicode_ci AS tag_code,
+                           q.qty,
+                           q.location COLLATE utf8mb4_unicode_ci AS location,
+                           q.reason COLLATE utf8mb4_unicode_ci AS reason,
+                           q.notes COLLATE utf8mb4_unicode_ci AS notes,
+                           q.damaged_weight, q.estimated_loss,
+                           q.status COLLATE utf8mb4_unicode_ci AS action_taken,
+                           q.created_at
                     FROM purchase_damage_quarantine q
                     LEFT JOIN concerns con ON con.id = q.concern_id
                 ) damage_history";
@@ -2488,20 +2511,43 @@ class PurchaseController extends Controller {
                        item_name, item_code, item_type, tag_code, qty, location, reason, notes,
                        damaged_weight, estimated_loss, action_taken, created_at
                 FROM (
-                    SELECT 'legacy' AS history_source, pd.id AS record_id, pd.damage_no, pd.concern_id,
-                           con.name AS concern_name, s.name AS supplier_name, v.name AS item_name,
-                           v.sku_code AS item_code, 'legacy' AS item_type, NULL AS tag_code, pd.qty,
-                           pd.location, pd.reason, NULL AS notes, 0 AS damaged_weight, 0 AS estimated_loss,
-                           pd.action_taken, pd.created_at
+                    SELECT 'legacy' AS history_source, pd.id AS record_id,
+                           pd.damage_no COLLATE utf8mb4_unicode_ci AS damage_no,
+                           pd.concern_id,
+                           con.name COLLATE utf8mb4_unicode_ci AS concern_name,
+                           s.name COLLATE utf8mb4_unicode_ci AS supplier_name,
+                           v.name COLLATE utf8mb4_unicode_ci AS item_name,
+                           v.sku_code COLLATE utf8mb4_unicode_ci AS item_code,
+                           'legacy' COLLATE utf8mb4_unicode_ci AS item_type,
+                           CAST(NULL AS CHAR(50)) COLLATE utf8mb4_unicode_ci AS tag_code,
+                           pd.qty,
+                           pd.location COLLATE utf8mb4_unicode_ci AS location,
+                           pd.reason COLLATE utf8mb4_unicode_ci AS reason,
+                           CAST(NULL AS CHAR(255)) COLLATE utf8mb4_unicode_ci AS notes,
+                           0 AS damaged_weight, 0 AS estimated_loss,
+                           pd.action_taken COLLATE utf8mb4_unicode_ci AS action_taken,
+                           pd.created_at
                     FROM purchase_damages pd
                     JOIN suppliers s ON pd.supplier_id = s.id
                     JOIN variants v ON pd.variant_id = v.id
                     LEFT JOIN concerns con ON con.id = pd.concern_id
                     UNION ALL
-                    SELECT 'quarantine' AS history_source, q.id AS record_id, q.damage_no, q.concern_id,
-                           con.name AS concern_name, q.supplier_name, q.item_name, q.item_code,
-                           q.item_type, q.tag_code, q.qty, q.location, q.reason, q.notes,
-                           q.damaged_weight, q.estimated_loss, q.status AS action_taken, q.created_at
+                    SELECT 'quarantine' AS history_source, q.id AS record_id,
+                           q.damage_no COLLATE utf8mb4_unicode_ci AS damage_no,
+                           q.concern_id,
+                           con.name COLLATE utf8mb4_unicode_ci AS concern_name,
+                           q.supplier_name COLLATE utf8mb4_unicode_ci AS supplier_name,
+                           q.item_name COLLATE utf8mb4_unicode_ci AS item_name,
+                           q.item_code COLLATE utf8mb4_unicode_ci AS item_code,
+                           q.item_type COLLATE utf8mb4_unicode_ci AS item_type,
+                           q.tag_code COLLATE utf8mb4_unicode_ci AS tag_code,
+                           q.qty,
+                           q.location COLLATE utf8mb4_unicode_ci AS location,
+                           q.reason COLLATE utf8mb4_unicode_ci AS reason,
+                           q.notes COLLATE utf8mb4_unicode_ci AS notes,
+                           q.damaged_weight, q.estimated_loss,
+                           q.status COLLATE utf8mb4_unicode_ci AS action_taken,
+                           q.created_at
                     FROM purchase_damage_quarantine q
                     LEFT JOIN concerns con ON con.id = q.concern_id
                 ) damage_history";

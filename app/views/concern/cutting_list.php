@@ -301,6 +301,12 @@
                                                class="btn btn-outline-secondary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
+                                            <?php if (\App\Core\Auth::can('cutting_wastage', 'edit')): ?>
+                                            <a href="<?= \App\Core\Controller::url('/production/cutting/edit?id=' . $b['id']) ?>" 
+                                               class="btn btn-outline-primary" title="Edit Cutting Batch">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <?php endif; ?>
                                             <?php if ($availScrap > 0.01 && \App\Core\Auth::can('cutting_wastage', 'add')): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sell-scrap" 
                                                         data-batch-id="<?= $b['id'] ?>"

@@ -985,14 +985,23 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                             <div id="prod_batch_ui" class="d-flex flex-column flex-grow-1">
 
                                 <div class="mb-3">
-                                    <label class="form-label small fw-semibold">Select Stitched Production Batch <span class="text-danger">*</span></label>
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label class="form-label small fw-semibold mb-0">Select Stitched Production Batch <span class="text-danger">*</span></label>
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" id="toggleHideLabeledBatches" checked onchange="toggleLabeledBatchesVisibility()">
+                                            <label class="form-check-label small text-muted" for="toggleHideLabeledBatches" style="font-size:0.75rem;">Hide already generated</label>
+                                        </div>
+                                    </div>
                                     <select id="prod_batch_select" class="form-select" onchange="onBatchSelect()">
                                         <option value="">-- Choose Stitched Production Batch --</option>
                                         <?php foreach ($productionBatches as $batch):
                                             $batchItemsJson = htmlspecialchars(json_encode(array_values($batch['items'])));
                                             $bPendingCount = count(array_filter($batch['items'], function($it){ return empty($it['is_in_stock']); }));
+                                            $isLabeled = !empty($batch['labels_already_generated']);
                                         ?>
                                         <option value="<?= (int)$batch['stitching_id'] ?>"
+                                                class="prod-batch-opt <?= $isLabeled ? 'batch-opt-labeled text-muted' : 'batch-opt-pending' ?>"
+                                                style="<?= $isLabeled ? 'display: none;' : '' ?>"
                                                 data-batch-no="<?= htmlspecialchars($batch['batch_no']) ?>"
                                                 data-log-no="<?= htmlspecialchars($batch['log_no']) ?>"
                                                 data-program="<?= htmlspecialchars($batch['program_no']) ?>"
@@ -1001,12 +1010,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                 data-variant-count="<?= count($batch['items']) ?>"
                                                 data-pending-count="<?= (int)$bPendingCount ?>"
                                                 data-is-all-in-stock="<?= $batch['is_all_in_stock'] ? '1' : '0' ?>"
+                                                data-labels-generated="<?= $isLabeled ? '1' : '0' ?>"
+                                                data-labels-job-id="<?= $isLabeled ? (int)($batch['label_job_info']['latest_job_id'] ?? 0) : '0' ?>"
+                                                data-labels-printed-at="<?= $isLabeled ? htmlspecialchars($batch['label_job_info']['last_printed_at'] ?? '') : '' ?>"
                                                 data-items="<?= $batchItemsJson ?>">
                                             Batch #<?= htmlspecialchars($batch['batch_no']) ?>
                                             &bull; <?= htmlspecialchars($batch['program_no']) ?>
                                             &bull; <?= count($batch['items']) ?> Variants
                                             &bull; <?= (int)$batch['total_pieces'] ?> Total Pcs
-                                            <?= $batch['is_all_in_stock'] ? ' ✓ All In Stock' : '' ?>
+                                            <?= $isLabeled ? ' [✓ Labels Already Generated]' : ($batch['is_all_in_stock'] ? ' ✓ All In Stock' : ' (Pending Labels)') ?>
                                         </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -2000,6 +2012,23 @@ function switchProdMode(mode) {
     }
 }
 
+function toggleLabeledBatchesVisibility() {
+    const isHide = document.getElementById('toggleHideLabeledBatches')?.checked ?? true;
+    const labeledOpts = document.querySelectorAll('.batch-opt-labeled');
+    labeledOpts.forEach(opt => {
+        opt.style.display = isHide ? 'none' : '';
+    });
+    // If the currently selected option was hidden, reset select
+    const sel = document.getElementById('prod_batch_select');
+    if (sel && sel.selectedIndex > 0) {
+        const curOpt = sel.options[sel.selectedIndex];
+        if (isHide && curOpt.classList.contains('batch-opt-labeled')) {
+            sel.value = '';
+            onBatchSelect();
+        }
+    }
+}
+
 // Called when user selects a batch in Way 1 dropdown
 function onBatchSelect() {
     const sel = document.getElementById('prod_batch_select');
@@ -2023,24 +2052,37 @@ function onBatchSelect() {
         if (inStockBtn) inStockBtn.classList.add('d-none');
         if (summary)    summary.classList.add('d-none');
         if (tableWrap)  tableWrap.classList.add('d-none');
+        if (noteEl)     noteEl.textContent = '';
         return;
     }
 
-    const batchId       = opt.value;
-    const totalPcs      = opt.dataset.totalPcs || 0;
-    const variantCount  = opt.dataset.variantCount || 0;
-    const pendingCount  = parseInt(opt.dataset.pendingCount || 0, 10);
-    const isAllInStock  = opt.dataset.isAllInStock === '1';
-    const batchNo       = opt.dataset.batchNo || opt.dataset.logNo || batchId;
-    const program       = opt.dataset.program || '';
-    const catalog       = opt.dataset.catalog || '';
+    const batchId          = opt.value;
+    const totalPcs         = opt.dataset.totalPcs || 0;
+    const variantCount     = opt.dataset.variantCount || 0;
+    const pendingCount     = parseInt(opt.dataset.pendingCount || 0, 10);
+    const isAllInStock     = opt.dataset.isAllInStock === '1';
+    const isLabelsGenerated = opt.dataset.labelsGenerated === '1';
+    const printedAt        = opt.dataset.labelsPrintedAt || '';
+    const batchNo          = opt.dataset.batchNo || opt.dataset.logNo || batchId;
+    const program          = opt.dataset.program || '';
+    const catalog          = opt.dataset.catalog || '';
 
     // Update hidden inputs
     if (hiddenBatch) hiddenBatch.value = batchId;
     if (hiddenStock) hiddenStock.value = 'batch_' + batchId;
 
-    // Enable print always
-    if (printBtn) printBtn.disabled = false;
+    // Check if labels were already generated
+    if (isLabelsGenerated) {
+        if (printBtn) {
+            printBtn.disabled = true;
+            printBtn.title = 'Labels already generated for this batch';
+        }
+    } else {
+        if (printBtn) {
+            printBtn.disabled = false;
+            printBtn.title = 'Generate all variant labels for this batch';
+        }
+    }
 
     // Toggle QC vs In Stock View button
     if (isAllInStock) {
@@ -2055,18 +2097,29 @@ function onBatchSelect() {
         }
         if (inStockBtn) inStockBtn.classList.add('d-none');
     }
+
     if (noteEl) {
-        noteEl.textContent = isAllInStock
-            ? '✓ All variants of this batch are already in stock.'
-            : pendingCount + ' variant(s) pending inward out of ' + variantCount + ' total.';
+        if (isLabelsGenerated) {
+            noteEl.innerHTML = '<span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i> Validation Alert: Labels have already been generated for this batch' + (printedAt ? ' on ' + printedAt : '') + '. Duplicate label generation is restricted. Please proceed to Quality Control (QC).</span>';
+        } else {
+            noteEl.textContent = isAllInStock
+                ? '✓ All variants of this batch are already in stock.'
+                : pendingCount + ' variant(s) pending inward out of ' + variantCount + ' total.';
+        }
     }
 
     // Summary banner
     if (summary && summaryText) {
-        summaryText.textContent =
-            'Batch #' + batchNo + ' • ' + program +
-            ' • Will generate ' + totalPcs + ' labels across ' + variantCount + ' variants' +
-            (catalog ? ' (' + catalog + ')' : '');
+        if (isLabelsGenerated) {
+            summary.className = 'alert alert-info py-2 px-3 mb-3 small d-flex align-items-center gap-2';
+            summaryText.innerHTML = '<i class="bi bi-check-circle-fill text-success fs-5"></i> <div><strong>Validation Notice:</strong> Labels already generated for Batch #' + batchNo + (printedAt ? ' (' + printedAt + ')' : '') + '. Duplicate generation is prevented. Use <strong>Move to Quality Control (QC)</strong> below.</div>';
+        } else {
+            summary.className = 'alert alert-warning py-2 px-3 mb-3 small';
+            summaryText.textContent =
+                'Batch #' + batchNo + ' • ' + program +
+                ' • Will generate ' + totalPcs + ' labels across ' + variantCount + ' variants' +
+                (catalog ? ' (' + catalog + ')' : '');
+        }
         summary.classList.remove('d-none');
     }
 
@@ -2084,7 +2137,9 @@ function onBatchSelect() {
             const pcs     = item.stitched_pieces || item.stitching_qty || 0;
             const statusHtml = inStock
                 ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.68rem;"><i class="bi bi-check-circle-fill"></i> In Stock</span>'
-                : '<span class="badge bg-warning-subtle text-warning border border-warning" style="font-size:0.68rem;"><i class="bi bi-clock-history"></i> Pending</span>';
+                : (isLabelsGenerated 
+                    ? '<span class="badge bg-info-subtle text-info border border-info" style="font-size:0.68rem;"><i class="bi bi-tag-fill"></i> Labeled</span>'
+                    : '<span class="badge bg-warning-subtle text-warning border border-warning" style="font-size:0.68rem;"><i class="bi bi-clock-history"></i> Pending</span>');
             const tr = document.createElement('tr');
             tr.innerHTML =
                 '<td class="text-muted small">' + (idx+1) + '</td>' +
@@ -2103,6 +2158,11 @@ function validateBatchSelect() {
     const sel = document.getElementById('prod_batch_select');
     if (!sel || !sel.value) {
         alert('Please choose a stitched production batch first.');
+        return false;
+    }
+    const opt = sel.options[sel.selectedIndex];
+    if (opt && opt.dataset.labelsGenerated === '1') {
+        alert('Validation Alert: Labels have already been generated for this stitched production batch. Duplicate label generation is restricted. Please proceed to Move to Quality Control (QC).');
         return false;
     }
     return true;

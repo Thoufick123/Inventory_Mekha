@@ -17,10 +17,25 @@
         </ol>
     </nav>
 
-    <div class="mb-3">
-        <p class="text-muted small mb-0">
-            Edit variant-wise quantities, per-piece weights, base & discount prices for Stitching Batch <strong class="text-dark font-monospace"><?= htmlspecialchars($batch['display_batch_no']) ?></strong>.
-        </p>
+    <!-- HEADER & ACTIONS BAR -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+        <div>
+            <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-stack text-primary"></i> Edit Stitching Batch
+                <span class="badge bg-light text-primary font-monospace border fs-6"><?= htmlspecialchars($batch['display_batch_no']) ?></span>
+            </h4>
+            <p class="text-muted small mb-0">
+                Edit variant-wise quantities, per-piece weights, base & discount prices for Stitching Batch <strong class="text-dark font-monospace"><?= htmlspecialchars($batch['display_batch_no']) ?></strong>.
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $batch['id']) ?>" class="btn btn-outline-secondary shadow-sm fw-semibold">
+                <i class="bi bi-eye me-1"></i> View Batch
+            </a>
+            <a href="<?= \App\Core\Controller::url('/production/stitching') ?>" class="btn btn-light border shadow-sm fw-semibold">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
     </div>
 
     <form action="<?= \App\Core\Controller::url('/production/stitching/update') ?>" method="POST" id="formEditStitching" novalidate>
@@ -102,9 +117,15 @@
 
                         <!-- Tailor / Stitching Master -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold text-dark mb-1">
-                                Tailor / Stitching Master <span class="text-danger">*</span>
-                            </label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label fw-semibold text-dark mb-0">
+                                    Tailor / Stitching Master <span class="text-danger">*</span>
+                                </label>
+                                <button type="button" class="btn btn-link btn-sm text-primary p-0 text-decoration-none fw-semibold" 
+                                        data-bs-toggle="modal" data-bs-target="#modalAddTailor">
+                                    <i class="bi bi-plus"></i> Add Tailor
+                                </button>
+                            </div>
                             <select name="tailor_id" id="selectTailor" class="form-select" required>
                                 <option value="">Select Tailor / Stitching Master</option>
                                 <?php foreach ($tailors as $t): ?>
@@ -301,6 +322,44 @@
             </div>
         </div>
     </form>
+</div>
+
+<!-- ============================================================== -->
+<!-- MODAL: QUICK ADD TAILOR / STITCHING MASTER                    -->
+<!-- ============================================================== -->
+<div class="modal fade" id="modalAddTailor" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="bi bi-person-badge text-primary"></i> Add Tailor / Stitching Master
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formQuickAddTailor">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Tailor Name <span class="text-danger">*</span></label>
+                        <input type="text" id="quickTailorName" class="form-control" placeholder="e.g. Master Ramesh, Suresh Tailor" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Phone Number</label>
+                        <input type="tel" id="quickTailorPhone" class="form-control" placeholder="10-digit mobile number" maxlength="10">
+                        <div id="quickTailorPhoneError" class="text-danger small mt-1 d-none" style="font-size: 0.75rem;"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Employee / Master Code</label>
+                        <input type="text" id="quickTailorCode" class="form-control" placeholder="e.g. TL-004">
+                    </div>
+                    <div id="quickTailorError" class="alert alert-danger py-2 small mb-0" style="display:none;"></div>
+                </div>
+                <div class="modal-footer border-top bg-light py-2 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary fw-semibold" id="btnSaveQuickTailor">Save Tailor</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <!-- JAVASCRIPT LOGIC -->
@@ -522,5 +581,102 @@ document.addEventListener('DOMContentLoaded', function () {
             return false;
         }
     });
+
+    // Quick Add Tailor AJAX with Inline Mobile Validation
+    const formQuickAddTailor = document.getElementById('formQuickAddTailor');
+    const quickTailorPhone = document.getElementById('quickTailorPhone');
+    const quickTailorPhoneError = document.getElementById('quickTailorPhoneError');
+
+    function validateTailorPhoneInline() {
+        if (!quickTailorPhone) return true;
+        const val = quickTailorPhone.value.trim();
+        if (!val) {
+            quickTailorPhone.classList.remove('is-invalid', 'is-valid');
+            quickTailorPhoneError.classList.add('d-none');
+            quickTailorPhoneError.textContent = '';
+            return true;
+        }
+        if (!/^[6-9]/.test(val)) {
+            quickTailorPhone.classList.add('is-invalid');
+            quickTailorPhone.classList.remove('is-valid');
+            quickTailorPhoneError.classList.remove('d-none');
+            quickTailorPhoneError.textContent = 'Mobile number must start with 6, 7, 8, or 9.';
+            return false;
+        }
+        if (val.length < 10) {
+            quickTailorPhone.classList.add('is-invalid');
+            quickTailorPhone.classList.remove('is-valid');
+            quickTailorPhoneError.classList.remove('d-none');
+            quickTailorPhoneError.textContent = `Mobile number must be 10 digits (${val.length}/10 entered).`;
+            return false;
+        }
+        quickTailorPhone.classList.remove('is-invalid');
+        quickTailorPhone.classList.add('is-valid');
+        quickTailorPhoneError.classList.add('d-none');
+        quickTailorPhoneError.textContent = '';
+        return true;
+    }
+
+    if (quickTailorPhone) {
+        quickTailorPhone.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 10);
+            validateTailorPhoneInline();
+        });
+        quickTailorPhone.addEventListener('blur', function() {
+            validateTailorPhoneInline();
+        });
+    }
+
+    if (formQuickAddTailor) {
+        formQuickAddTailor.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const name = document.getElementById('quickTailorName').value.trim();
+            const phone = quickTailorPhone ? quickTailorPhone.value.trim() : '';
+            const code = document.getElementById('quickTailorCode').value.trim();
+            const errDiv = document.getElementById('quickTailorError');
+
+            if (!name) return;
+
+            if (phone && !validateTailorPhoneInline()) {
+                quickTailorPhone.focus();
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('phone', phone);
+            formData.append('employee_code', code);
+
+            fetch('<?= \App\Core\Controller::url('/api/stitching/quick-tailor') ?>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const selectTailor = document.getElementById('selectTailor');
+                    const opt = document.createElement('option');
+                    opt.value = data.id;
+                    opt.textContent = `${data.name} ${data.phone ? '(' + data.phone + ')' : ''}`;
+                    opt.selected = true;
+                    selectTailor.appendChild(opt);
+
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('modalAddTailor'));
+                    if (modal) modal.hide();
+                    formQuickAddTailor.reset();
+                    errDiv.style.display = 'none';
+                } else {
+                    errDiv.textContent = data.message || 'Failed to save tailor.';
+                    errDiv.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                errDiv.textContent = 'Network error while saving tailor.';
+                errDiv.style.display = 'block';
+            });
+        });
+    }
 });
 </script>

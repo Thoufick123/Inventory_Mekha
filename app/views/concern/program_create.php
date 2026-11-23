@@ -206,6 +206,7 @@
 const availableRollsData = <?= json_encode($availableRolls, JSON_UNESCAPED_UNICODE) ?>;
 const categoriesData = <?= json_encode($categories, JSON_UNESCAPED_UNICODE) ?>;
 const catalogsData = <?= json_encode($catalogs, JSON_UNESCAPED_UNICODE) ?>;
+const CATALOGS = catalogsData;
 
 let rollCardCounter = 0;
 
@@ -349,7 +350,7 @@ function createRollCardHtml(index, preselectedRollId = null) {
                     </div>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-light text-muted"><i class="bi bi-box-seam"></i></span>
-                        <input type="number" step="0.01" min="0.01" name="rolls[${index}][allocated_qty]" class="form-control input-allocated-qty" placeholder="Select Roll" required>
+                        <input type="number" step="1" min="1" name="rolls[${index}][allocated_qty]" class="form-control input-allocated-qty" placeholder="Select Roll" required>
                         <span class="input-group-text bg-light text-muted roll-unit-text">pcs</span>
                     </div>
                     <small class="text-danger small d-none roll-exceed-msg" style="font-size: 0.70rem;">Exceeds available stock!</small>
@@ -512,11 +513,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 stockBadge.innerHTML = `Stock: <strong class="text-danger">0.00 ${unit} (Fully Allocated)</strong>`;
             }
 
-            // 3. Auto-populate Roll Qty
-            if (!allocatedInput.value || parseFloat(allocatedInput.value) <= 0) {
-                allocatedInput.value = stock > 0 ? stock.toFixed(2) : '0.00';
+            // 3. Auto-populate Roll Qty (Strict Integer only)
+            const intStock = Math.floor(stock);
+            if (!allocatedInput.value || parseInt(allocatedInput.value, 10) <= 0) {
+                allocatedInput.value = intStock > 0 ? intStock : (stock > 0 ? 1 : '0');
             }
-            allocatedInput.max = stock.toFixed(2);
+            allocatedInput.max = intStock > 0 ? intStock : '1';
+            allocatedInput.step = '1';
+            allocatedInput.min = '1';
 
             // 4 & 5. Dynamically calculate Weight & Price based on selected Qty
             calculateCardWeightAndPrice();
@@ -560,7 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const qty = parseFloat(allocatedInput.value) || 0;
+            const qty = parseInt(allocatedInput.value, 10) || 0;
             const unit = (opt.getAttribute('data-unit') || 'kg').toLowerCase();
             const totalQty = parseFloat(opt.getAttribute('data-total') || '0');
             const totalWeight = parseFloat(opt.getAttribute('data-weight') || '0');
@@ -585,8 +589,22 @@ document.addEventListener('DOMContentLoaded', function() {
             priceInput.value = calcPrice.toFixed(2);
         }
 
+        allocatedInput.addEventListener('keydown', function(e) {
+            if (e.key === '.' || e.key === ',' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+                e.preventDefault();
+            }
+        });
+
         // Allocated Qty input change -> dynamic recalculation of weight & price + validation
         allocatedInput.addEventListener('input', function() {
+            let val = this.value;
+            if (val.includes('.') || val.includes(',')) {
+                val = Math.floor(parseFloat(val)) || '';
+                this.value = val;
+            }
+            if (val !== '' && parseInt(val, 10) < 1) {
+                this.value = 1;
+            }
             calculateCardWeightAndPrice();
             const opt = rollSelect.selectedOptions[0];
             const rollId = opt ? opt.value : null;
@@ -669,7 +687,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (input) {
-                input.setAttribute('max', rem.toFixed(2));
+                input.setAttribute('max', Math.floor(rem) > 0 ? Math.floor(rem) : '1');
+                input.setAttribute('step', '1');
+                input.setAttribute('min', '1');
             }
 
             if (skipCard === null || c !== skipCard) {
@@ -801,6 +821,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (!matched && subcatId && catId) {
                 matched = CATALOGS.find(c => String(c.subcategory_id) === String(subcatId) && String(c.category_id) === String(catId));
+            }
+            if (!matched && catId) {
+                matched = CATALOGS.find(c => String(c.category_id) === String(catId) && (!c.subcategory_id || String(c.subcategory_id) === String(subcatId)));
             }
             if (matched) {
                 catalogSelect.value = matched.id;

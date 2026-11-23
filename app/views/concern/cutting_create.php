@@ -184,8 +184,8 @@
                                 <span class="small fw-bold text-danger" id="spanWastageTotalCost">Total Cost: ₹0.00</span>
                             </div>
                             <div class="input-group input-group-lg my-1">
-                                <input type="number" step="0.01" min="0" class="form-control fw-bolder text-danger fs-3 bg-white border-danger" 
-                                       id="inputWastageWeight" name="wastage_qty" value="0.00" placeholder="0.00" required>
+                                <input type="number" step="1" min="0" class="form-control fw-bolder text-danger fs-3 bg-white border-danger" 
+                                       id="inputWastageWeight" name="wastage_qty" value="0" placeholder="0" required>
                                 <span class="input-group-text bg-danger text-white fw-bold fs-5">kg</span>
                             </div>
                             <small class="text-muted" style="font-size: 0.75rem;">Total end cuts, scraps & defective cloth remaining across all selected rolls.</small>
@@ -328,7 +328,8 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold text-dark mb-1">Phone / Mobile</label>
-                    <input type="text" id="newMasterPhone" class="form-control" placeholder="10-digit mobile number">
+                    <input type="tel" id="newMasterPhone" class="form-control" placeholder="10-digit mobile number" maxlength="10">
+                    <div id="newMasterPhoneError" class="text-danger small mt-1 d-none" style="font-size: 0.75rem;"></div>
                 </div>
                 <div class="mb-0">
                     <label class="form-label small fw-semibold text-dark mb-1">Employee / Operator Code</label>
@@ -586,17 +587,30 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Wastage weight listener
-    inputWastageWeight.addEventListener('input', recalcAnalytics);
+    // Wastage weight listener (Strictly Integer)
+    inputWastageWeight.addEventListener('keydown', function(e) {
+        if (e.key === '.' || e.key === ',' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+            e.preventDefault();
+        }
+    });
+
+    inputWastageWeight.addEventListener('input', function() {
+        let val = this.value;
+        if (val.includes('.') || val.includes(',')) {
+            this.value = Math.floor(parseFloat(val)) || 0;
+        }
+        recalcAnalytics();
+    });
 
     function recalcAnalytics() {
         if (!currentProgramData) return;
 
         const totalRollWeight = parseFloat(inputTotalRollWeight.value) || 0;
         const totalRollPrice = parseFloat(inputTotalRollPrice.value) || 0;
-        let wastageWeight = parseFloat(inputWastageWeight.value) || 0;
-
-        if (wastageWeight < 0) wastageWeight = 0;
+        let wastageWeight = parseInt(inputWastageWeight.value, 10);
+        if (isNaN(wastageWeight) || wastageWeight < 0) {
+            wastageWeight = 0;
+        }
 
         if (totalRollWeight > 0 && wastageWeight > totalRollWeight) {
             wastageExceedMsg.classList.remove('d-none');
@@ -634,13 +648,52 @@ document.addEventListener('DOMContentLoaded', function() {
         badgeTotalCutPcs.textContent = `${totalCutPieces} Cut pcs`;
     }
 
-    // Modal: Quick Add Cutting Master via AJAX
+    // Modal: Quick Add Cutting Master via AJAX with Inline Mobile Validation
     const btnSaveCuttingMaster = document.getElementById('btnSaveCuttingMaster');
     const newMasterName = document.getElementById('newMasterName');
     const newMasterPhone = document.getElementById('newMasterPhone');
+    const newMasterPhoneError = document.getElementById('newMasterPhoneError');
     const newMasterCode = document.getElementById('newMasterCode');
     const masterErrorMsg = document.getElementById('masterErrorMsg');
     const cuttingMasterSelect = document.getElementById('cuttingMasterSelect');
+
+    function validateMasterPhoneInline() {
+        const val = newMasterPhone.value.trim();
+        if (!val) {
+            newMasterPhone.classList.remove('is-invalid', 'is-valid');
+            newMasterPhoneError.classList.add('d-none');
+            newMasterPhoneError.textContent = '';
+            return true;
+        }
+        if (!/^[6-9]/.test(val)) {
+            newMasterPhone.classList.add('is-invalid');
+            newMasterPhone.classList.remove('is-valid');
+            newMasterPhoneError.classList.remove('d-none');
+            newMasterPhoneError.textContent = 'Mobile number must start with 6, 7, 8, or 9.';
+            return false;
+        }
+        if (val.length < 10) {
+            newMasterPhone.classList.add('is-invalid');
+            newMasterPhone.classList.remove('is-valid');
+            newMasterPhoneError.classList.remove('d-none');
+            newMasterPhoneError.textContent = `Mobile number must be 10 digits (${val.length}/10 entered).`;
+            return false;
+        }
+        newMasterPhone.classList.remove('is-invalid');
+        newMasterPhone.classList.add('is-valid');
+        newMasterPhoneError.classList.add('d-none');
+        newMasterPhoneError.textContent = '';
+        return true;
+    }
+
+    newMasterPhone.addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '').slice(0, 10);
+        validateMasterPhoneInline();
+    });
+
+    newMasterPhone.addEventListener('blur', function() {
+        validateMasterPhoneInline();
+    });
 
     btnSaveCuttingMaster.addEventListener('click', function() {
         const name = newMasterName.value.trim();
@@ -650,6 +703,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!name) {
             masterErrorMsg.textContent = 'Please enter cutting master name.';
             masterErrorMsg.classList.remove('d-none');
+            return;
+        }
+
+        if (phone && !validateMasterPhoneInline()) {
+            newMasterPhone.focus();
             return;
         }
 

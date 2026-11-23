@@ -578,6 +578,13 @@ if (!in_array('is_complementary', $varCols, true)) {
     echo "  . `is_complementary` already exists\n";
 }
 
+// 22. Standardize collation across purchase damage & supplier tables
+echo "\n22. Aligning table collation for purchase damages and suppliers...\n";
+DB::query("ALTER TABLE `purchase_damages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+DB::query("ALTER TABLE `purchase_damage_quarantine` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+DB::query("ALTER TABLE `suppliers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+echo "  + Collation aligned to utf8mb4_unicode_ci\n";
+
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";
 echo "========================================================\n";
