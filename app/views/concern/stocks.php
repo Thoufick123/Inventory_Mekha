@@ -137,7 +137,14 @@
                                         $color = trim($cm[1]);
                                     }
                                     $hsn = trim((string)($variantAttributes['hsn'] ?? ($s['catalog_hsn'] ?? '')));
-                                    $qrPayload = \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']) ?: $s['sku_code'];
+                                    $fgCode = \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']);
+                                    $qrPayload = !empty($fgCode)
+                                        ? $fgCode
+                                        : (!empty($s['qr_payload'])
+                                            ? (string)$s['qr_payload']
+                                            : (!empty($s['whole_code'])
+                                                ? (string)$s['whole_code']
+                                                : (string)($s['sku_code'] ?? '')));
                                     $subcatDisplay = $s['subcategory_name'] ?? '-';
                                     if (($subcatDisplay === '-' || $subcatDisplay === '') && !empty($s['hierarchy_path'])) {
                                         $hpParts = array_map('trim', explode('>', $s['hierarchy_path']));
@@ -192,13 +199,17 @@
                                                 <span class="badge bg-dark font-monospace"><?= htmlspecialchars($s['sku_code']) ?></span>
                                                 <button type="button"
                                                         class="btn btn-sm btn-light border py-0 px-1 text-primary stock-qr-trigger"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#quickStockQrModal"
                                                         data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-variant-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-category-name="<?= htmlspecialchars((string)($s['category_name'] ?? 'Apparel'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-size="<?= htmlspecialchars((string)($s['size'] ?: 'Free'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-color="<?= htmlspecialchars((string)$color, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-price="<?= number_format((float)$s['price'], 2) ?>"
                                                         data-mrp="<?= number_format((float)$s['mrp'], 2) ?>"
+                                                        data-concern-name="<?= htmlspecialchars((string)($s['concern_name'] ?? 'GRM Inventory'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-print-url="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $s['variant_id']) ?>"
                                                         title="Quick View QR Code">
                                                     <i class="bi bi-qr-code"></i>
@@ -272,13 +283,17 @@
                                                 </button>
                                                 <button type="button"
                                                         class="btn btn-sm btn-outline-dark stock-qr-trigger"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#quickStockQrModal"
                                                         data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-variant-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-category-name="<?= htmlspecialchars((string)($s['category_name'] ?? 'Apparel'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-size="<?= htmlspecialchars((string)($s['size'] ?: 'Free'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-color="<?= htmlspecialchars((string)$color, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-price="<?= number_format((float)$s['price'], 2) ?>"
                                                         data-mrp="<?= number_format((float)$s['mrp'], 2) ?>"
+                                                        data-concern-name="<?= htmlspecialchars((string)($s['concern_name'] ?? 'GRM Inventory'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-print-url="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $s['variant_id']) ?>"
                                                         title="Quick View QR Code">
                                                     <i class="bi bi-qr-code"></i> QR
@@ -867,6 +882,61 @@
     </div>
 </div>
 
+<!-- Modal: Quick Product QR Code Preview & Print -->
+<div class="modal fade" id="quickStockQrModal" tabindex="-1" aria-labelledby="quickStockQrModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+        <div class="modal-content shadow border-0">
+            <div class="modal-header bg-light py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
+                <h6 class="modal-title fw-bold text-dark mb-0 d-flex align-items-center gap-2" id="quickStockQrModalLabel">
+                    <i class="bi bi-qr-code text-primary fs-5"></i> Product QR &amp; Label Preview
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Label Sticker Box matching Finished Goods / Production label (Image 1) -->
+                <div class="border rounded-3 p-3 bg-white shadow-sm mb-3" style="border: 1.5px solid #0f172a !important;">
+                    <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary text-white p-1 rounded" style="font-size:0.75rem;"><i class="bi bi-check-lg"></i></span>
+                            <strong class="text-uppercase small fw-bold text-dark" id="quickQrConcern" style="letter-spacing:0.03em;">GRM Inventory</strong>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="badge bg-warning text-dark font-monospace fw-bold" id="quickQrSizeBadge">FREE</span>
+                            <span class="badge bg-light text-secondary border font-monospace" id="quickQrSkuBadge">SKU</span>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-white p-1 rounded border d-flex align-items-center justify-content-center flex-shrink-0" style="width: 104px; height: 104px;">
+                            <div id="quickQrBox"></div>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden" style="line-height: 1.35; font-size: 0.8rem;">
+                            <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" id="quickQrTitle">Product Name</div>
+                            <div class="text-truncate"><span class="text-muted">Product:</span> <strong class="text-dark" id="quickQrCat">Apparel</strong></div>
+                            <div class="text-truncate"><span class="text-muted">Color:</span> <strong class="text-dark text-uppercase" id="quickQrColor">-</strong></div>
+                            <div class="text-truncate"><span class="text-muted">Size:</span> <strong class="text-dark text-uppercase fw-bold" id="quickQrSize">Free</strong></div>
+                            <div class="text-truncate"><span class="text-muted">Price:</span> <strong class="text-success fw-bold" id="quickQrPrice">₹0.00</strong></div>
+                            <div class="text-truncate"><span class="text-muted">Product Code:</span> <strong class="font-monospace text-primary fw-bold" id="quickQrPayload">-</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons: Copy Code, Download QR, Print Labels -->
+                <div class="d-flex flex-wrap gap-2 justify-content-end">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="quickQrCopyBtn">
+                        <i class="bi bi-clipboard me-1"></i> Copy Code
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="quickQrDownloadBtn">
+                        <i class="bi bi-download me-1"></i> Download QR
+                    </button>
+                    <a href="#" id="quickQrPrintBtn" target="_blank" class="btn btn-sm btn-primary">
+                        <i class="bi bi-printer me-1"></i> Print Labels
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php if ($canEditStock): ?>
 <!-- Modal: Edit All Product & Stock Details -->
 <div class="modal fade" id="stockEditModal" tabindex="-1" aria-labelledby="stockEditModalLabel" aria-hidden="true">
@@ -1077,9 +1147,11 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         document.getElementById('detailTotalStockQty').textContent = (d.quantity || '0') + ' ' + (d.unit || 'pcs');
         document.getElementById('detailCategory').textContent = d.category || '-';
         document.getElementById('detailSubcategory').textContent = d.subcategory || '-';
+        document.getElementById('detailSubSubcategory').textContent = d.subSubcategory || '-';
         document.getElementById('detailSize').textContent = d.size || 'Free';
         document.getElementById('detailColor').textContent = d.color || '-';
         document.getElementById('detailHsn').textContent = d.hsn || '-';
+        document.getElementById('detailSpecStyleCode').textContent = d.styleCode || '-';
         document.getElementById('detailWeight').textContent = d.weight || '-';
         document.getElementById('detailCostPrice').textContent = '₹' + (d.costPrice || '0.00');
         document.getElementById('detailSellingPrice').textContent = '₹' + (d.price || '0.00');
@@ -1087,15 +1159,64 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         const valuation = (parseFloat(d.quantity || 0) * parseFloat(d.costPrice || 0)).toFixed(2);
         document.getElementById('detailValuation').textContent = '₹' + valuation;
 
-        // Reset Purchase Billing Card state
-        const spinner = document.getElementById('invoiceLoadingSpinner');
-        const content = document.getElementById('invoiceDetailsContent');
-        const notice = document.getElementById('invoiceNotApplicableNotice');
-        spinner.classList.remove('d-none');
-        content.classList.add('d-none');
-        notice.classList.add('d-none');
+        // Render QR in modal immediately from dataset
+        const initialQrCode = d.qrPayload || d.wholeCode || d.skuCode || '';
+        document.getElementById('detailQrTagCode').textContent = initialQrCode || '-';
+        document.getElementById('detailQrSkuCode').textContent = d.skuCode || '-';
+        document.getElementById('detailQrStyleCode').textContent = d.styleCode || '-';
+        document.getElementById('detailQrWholeCode').textContent = d.wholeCode || '-';
 
-        // Fetch rich live details from AJAX endpoint
+        const qrContainer = document.getElementById('detailProductQrBox');
+        if (qrContainer) {
+            qrContainer.innerHTML = '';
+            if (typeof QRCode !== 'undefined' && initialQrCode) {
+                new QRCode(qrContainer, {
+                    text: initialQrCode,
+                    width: 90,
+                    height: 90,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            }
+        }
+
+        const printBtn = document.getElementById('detailBtnPrintLabel');
+        if (printBtn) {
+            printBtn.href = '<?= \App\Core\Controller::url('/m/labels/print') ?>?variant_id=' + encodeURIComponent(variantId) + '&qty=1';
+        }
+
+        // Section Cards Display Toggle
+        const prodCard = document.getElementById('productionJourneyCard');
+        const purchCard = document.getElementById('purchaseInvoiceCard');
+        const prodSpinner = document.getElementById('productionLoadingSpinner');
+        const prodContent = document.getElementById('productionDetailsContent');
+        const invSpinner = document.getElementById('invoiceLoadingSpinner');
+        const invContent = document.getElementById('invoiceDetailsContent');
+        const invNotice = document.getElementById('invoiceNotApplicableNotice');
+
+        if (source === 'own') {
+            if (prodCard) prodCard.classList.remove('d-none');
+            if (purchCard) purchCard.classList.add('d-none');
+            document.getElementById('stockDetailsModalLabel').textContent = 'Product & Manufacturing Details';
+            document.getElementById('detailModalSubtitle').textContent = 'Product specification and manufacturing audit trail';
+        } else if (source === 'purchase') {
+            if (prodCard) prodCard.classList.add('d-none');
+            if (purchCard) purchCard.classList.remove('d-none');
+            document.getElementById('stockDetailsModalLabel').textContent = 'Product & Purchase Invoice Details';
+            document.getElementById('detailModalSubtitle').textContent = 'Product specification and purchase billing invoice audit';
+        } else {
+            if (prodCard) prodCard.classList.add('d-none');
+            if (purchCard) purchCard.classList.remove('d-none');
+        }
+
+        if (prodSpinner) prodSpinner.classList.remove('d-none');
+        if (prodContent) prodContent.classList.add('d-none');
+        if (invSpinner) invSpinner.classList.remove('d-none');
+        if (invContent) invContent.classList.add('d-none');
+        if (invNotice) invNotice.classList.add('d-none');
+
+        // Fetch live details from AJAX endpoint
         const url = '<?= \App\Core\Controller::url('/m/stocks/details') ?>?variant_id=' + encodeURIComponent(variantId) + 
                     '&concern_id=' + encodeURIComponent(concernId) + 
                     '&location=' + encodeURIComponent(location);
@@ -1103,33 +1224,63 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         fetch(url)
             .then(res => res.json())
             .then(data => {
-                spinner.classList.add('d-none');
+                if (prodSpinner) prodSpinner.classList.add('d-none');
+                if (invSpinner) invSpinner.classList.add('d-none');
+
                 if (!data || !data.success) {
-                    if (source === 'purchase') {
-                        notice.classList.remove('d-none');
-                        notice.querySelector('h6').textContent = 'Purchase Invoice Details Not Linked';
-                        notice.querySelector('p').textContent = (data && data.message) ? data.message : 'No purchase billing entry was linked to this variant.';
-                    } else {
-                        notice.classList.remove('d-none');
+                    if (source === 'purchase' && invNotice) {
+                        invNotice.classList.remove('d-none');
+                        invNotice.querySelector('h6').textContent = 'Purchase Invoice Details Not Linked';
+                        invNotice.querySelector('p').textContent = (data && data.message) ? data.message : 'No purchase billing entry was linked to this variant.';
                     }
                     return;
                 }
 
-                // Update with full server values
+                // Update variant details
                 if (data.variant) {
                     const v = data.variant;
                     document.getElementById('detailSkuBadge').textContent = v.sku_code || '-';
                     document.getElementById('detailVariantName').textContent = v.name || '-';
                     document.getElementById('detailCategory').textContent = v.category_name || '-';
                     document.getElementById('detailSubcategory').textContent = v.subcategory_name || '-';
+                    document.getElementById('detailSubSubcategory').textContent = v.sub_subcategory_name || '-';
                     document.getElementById('detailSize').textContent = v.size || 'Free';
                     document.getElementById('detailColor').textContent = v.color || '-';
                     document.getElementById('detailHsn').textContent = v.hsn || '-';
+                    if (document.getElementById('detailGstRate')) {
+                        document.getElementById('detailGstRate').textContent = v.gst_rate ? (v.gst_rate + '%') : '-';
+                    }
+                    if (document.getElementById('detailSpecStyleCode')) {
+                        document.getElementById('detailSpecStyleCode').textContent = v.style_code || '-';
+                    }
                     document.getElementById('detailWeight').textContent = v.weight > 0 ? (v.weight + ' ' + v.weight_unit) : '-';
                     document.getElementById('detailCostPrice').textContent = '₹' + Number(v.cost_price).toFixed(2);
                     document.getElementById('detailSellingPrice').textContent = '₹' + Number(v.price).toFixed(2);
                     document.getElementById('detailMrp').textContent = '₹' + Number(v.mrp).toFixed(2);
                 }
+
+                // Update QR details from backend if available
+                if (data.qr) {
+                    const qrVal = data.qr.tag_code || data.qr.whole_code || data.qr.sku_code || '';
+                    document.getElementById('detailQrTagCode').textContent = qrVal || '-';
+                    document.getElementById('detailQrSkuCode').textContent = data.qr.sku_code || '-';
+                    document.getElementById('detailQrStyleCode').textContent = data.qr.style_code || '-';
+                    document.getElementById('detailQrWholeCode').textContent = data.qr.whole_code || '-';
+                    if (qrContainer && qrVal && qrVal !== initialQrCode) {
+                        qrContainer.innerHTML = '';
+                        if (typeof QRCode !== 'undefined') {
+                            new QRCode(qrContainer, {
+                                text: qrVal,
+                                width: 90,
+                                height: 90,
+                                colorDark: "#000000",
+                                colorLight: "#ffffff",
+                                correctLevel: QRCode.CorrectLevel.M
+                            });
+                        }
+                    }
+                }
+
                 if (data.stock) {
                     document.getElementById('detailStockQty').textContent = Number(data.stock.qty) + ' pcs';
                     document.getElementById('detailValuation').textContent = '₹' + Number(data.stock.net_value).toFixed(2);
@@ -1138,11 +1289,58 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                     document.getElementById('detailTotalStockQty').textContent = Number(data.total_stock_qty) + ' pcs';
                 }
 
+                // Production Journey Trail
+                if (data.production_journey) {
+                    const pj = data.production_journey;
+                    if (prodCard) prodCard.classList.remove('d-none');
+                    if (prodContent) prodContent.classList.remove('d-none');
+                    if (purchCard && source === 'own') purchCard.classList.add('d-none');
+
+                    const cat = pj.catalog || {};
+                    const prog = pj.program || {};
+                    const cut = pj.cutting || {};
+                    const st = pj.stitching || {};
+                    const qc = pj.qc || {};
+                    const bat = pj.batch || {};
+
+                    document.getElementById('detailProdStyleCode').textContent = cat.style_code || data.variant?.style_code || '-';
+                    document.getElementById('detailProdStyleName').textContent = cat.style_name || data.variant?.name || '-';
+                    document.getElementById('detailProdHierarchy').textContent = cat.hierarchy_path || data.variant?.hierarchy_path || '-';
+                    document.getElementById('detailProdProgram').textContent = prog.program_no ? (prog.program_no + ' (' + (prog.status || 'Active') + ')') : '-';
+
+                    document.getElementById('detailProdCuttingBatch').textContent = cut.batch_no || '-';
+                    document.getElementById('detailProdCuttingMaster').textContent = cut.master_name || '-';
+                    document.getElementById('detailProdCuttingOutput').textContent = cut.cut_pieces ? (cut.cut_pieces + ' pcs') : '-';
+                    document.getElementById('detailProdCuttingFabric').textContent = cut.fabric_consumed ? (cut.fabric_consumed + ' kg') : '-';
+
+                    document.getElementById('detailProdStitchingBatch').textContent = st.batch_no || '-';
+                    document.getElementById('detailProdTailor').textContent = st.tailor_name || '-';
+                    document.getElementById('detailProdStitchingOutput').textContent = st.stitched_pieces ? (st.stitched_pieces + ' pcs') : '-';
+                    document.getElementById('detailProdStitchingWeight').textContent = st.stitch_weight ? (st.stitch_weight + ' kg') : '-';
+
+                    document.getElementById('detailProdQcNo').textContent = qc.qc_no || '-';
+                    document.getElementById('detailProdQcInspector').textContent = qc.inspector_name || 'QC Inspector';
+                    const qcStat = (qc.status || 'PASSED').toUpperCase();
+                    const qcStatBadge = document.getElementById('detailProdQcStatus');
+                    if (qcStatBadge) {
+                        qcStatBadge.textContent = qcStat;
+                        qcStatBadge.className = 'badge ms-1 ' + (qcStat === 'PASSED' ? 'bg-success' : (qcStat === 'REJECTED' ? 'bg-danger' : 'bg-warning text-dark'));
+                    }
+
+                    document.getElementById('detailProdQcPassed').textContent = qc.passed_qty !== null && qc.passed_qty !== undefined ? qc.passed_qty : '0';
+                    document.getElementById('detailProdQcRework').textContent = qc.rework_qty || '0';
+                    document.getElementById('detailProdQcRejected').textContent = qc.rejected_qty || '0';
+                    document.getElementById('detailProdBatch').textContent = bat.batch_no ? (bat.batch_no + ' (' + (bat.warehouse_name || location) + ')') : (location || '-');
+                } else if (source === 'own') {
+                    if (prodContent) prodContent.classList.remove('d-none');
+                }
+
                 // Render Purchase Bill details if present
                 if (data.purchase_bill) {
                     const pb = data.purchase_bill;
-                    content.classList.remove('d-none');
-                    notice.classList.add('d-none');
+                    if (purchCard) purchCard.classList.remove('d-none');
+                    if (invContent) invContent.classList.remove('d-none');
+                    if (invNotice) invNotice.classList.add('d-none');
 
                     document.getElementById('detailSupplierInvoiceNo').textContent = pb.supplier_invoice_no || '-';
                     document.getElementById('detailBillNo').textContent = pb.bill_no || '-';
@@ -1214,19 +1412,148 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                     } else {
                         attachContainer.innerHTML = '<span class="text-muted small"><i class="bi bi-info-circle me-1"></i> No invoice attachment was uploaded during purchase billing.</span>';
                     }
-                } else {
-                    content.classList.add('d-none');
-                    notice.classList.remove('d-none');
+                } else if (source === 'purchase') {
+                    if (invContent) invContent.classList.add('d-none');
+                    if (invNotice) invNotice.classList.remove('d-none');
                 }
             })
             .catch(err => {
-                spinner.classList.add('d-none');
-                notice.classList.remove('d-none');
-                notice.querySelector('h6').textContent = 'Unable to Load Invoice';
-                notice.querySelector('p').textContent = 'An error occurred while fetching billing details: ' + err.message;
+                if (prodSpinner) prodSpinner.classList.add('d-none');
+                if (invSpinner) invSpinner.classList.add('d-none');
+                if (source === 'purchase' && invNotice) {
+                    invNotice.classList.remove('d-none');
+                    invNotice.querySelector('h6').textContent = 'Unable to Load Invoice';
+                    invNotice.querySelector('p').textContent = 'An error occurred while fetching billing details: ' + err.message;
+                }
             });
     });
 });
+
+// Quick QR Preview Trigger & Population
+function populateQuickQr(d) {
+    if (!d) return;
+    const payload = d.qrPayload || d.skuCode || '';
+    const sku = d.skuCode || '-';
+    const name = d.variantName || 'Product';
+    const cat = d.categoryName || 'Apparel';
+    const color = d.color || '-';
+    const size = d.size || 'Free';
+    const price = d.price ? ('₹' + parseFloat(d.price).toFixed(2)) : '₹0.00';
+    const concern = d.concernName || 'GRM Inventory';
+    const printUrl = d.printUrl || '#';
+
+    if (document.getElementById('quickQrConcern')) document.getElementById('quickQrConcern').textContent = concern;
+    if (document.getElementById('quickQrSizeBadge')) document.getElementById('quickQrSizeBadge').textContent = (size || 'FREE').toUpperCase();
+    if (document.getElementById('quickQrSkuBadge')) document.getElementById('quickQrSkuBadge').textContent = sku;
+    if (document.getElementById('quickQrTitle')) document.getElementById('quickQrTitle').textContent = name;
+    if (document.getElementById('quickQrCat')) document.getElementById('quickQrCat').textContent = cat;
+    if (document.getElementById('quickQrColor')) document.getElementById('quickQrColor').textContent = color.toUpperCase();
+    if (document.getElementById('quickQrSize')) document.getElementById('quickQrSize').textContent = size;
+    if (document.getElementById('quickQrPrice')) document.getElementById('quickQrPrice').textContent = price;
+    if (document.getElementById('quickQrPayload')) document.getElementById('quickQrPayload').textContent = payload || '-';
+
+    const printBtn = document.getElementById('quickQrPrintBtn');
+    if (printBtn) {
+        printBtn.href = printUrl;
+    }
+
+    const box = document.getElementById('quickQrBox');
+    if (box) {
+        box.innerHTML = '';
+        if (typeof QRCode !== 'undefined' && payload) {
+            new QRCode(box, {
+                text: payload,
+                width: 96,
+                height: 96,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: (QRCode.CorrectLevel && QRCode.CorrectLevel.M) ? QRCode.CorrectLevel.M : 0
+            });
+        }
+    }
+}
+
+const quickModalEl = document.getElementById('quickStockQrModal');
+if (quickModalEl) {
+    quickModalEl.addEventListener('show.bs.modal', (e) => {
+        if (e.relatedTarget && e.relatedTarget.dataset) {
+            populateQuickQr(e.relatedTarget.dataset);
+        }
+    });
+}
+
+document.querySelectorAll('.stock-qr-trigger').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        populateQuickQr(btn.dataset);
+        if (quickModalEl && typeof bootstrap !== 'undefined') {
+            const modal = bootstrap.Modal.getInstance(quickModalEl) || new bootstrap.Modal(quickModalEl);
+            modal.show();
+        }
+    });
+});
+
+// Copy / Download handlers for Quick QR Modal
+const quickCopyBtn = document.getElementById('quickQrCopyBtn');
+if (quickCopyBtn) {
+    quickCopyBtn.addEventListener('click', () => {
+        const text = document.getElementById('quickQrPayload').textContent;
+        if (text && text !== '-') {
+            navigator.clipboard.writeText(text).then(() => {
+                const orig = quickCopyBtn.innerHTML;
+                quickCopyBtn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i> Copied!';
+                setTimeout(() => { quickCopyBtn.innerHTML = orig; }, 1800);
+            });
+        }
+    });
+}
+
+const quickDownloadBtn = document.getElementById('quickQrDownloadBtn');
+if (quickDownloadBtn) {
+    quickDownloadBtn.addEventListener('click', () => {
+        const box = document.getElementById('quickQrBox');
+        if (!box) return;
+        const img = box.querySelector('img') || box.querySelector('canvas');
+        if (img) {
+            const sku = document.getElementById('quickQrSkuBadge')?.textContent?.trim() || 'product';
+            const a = document.createElement('a');
+            a.download = (sku.replace(/[^a-zA-Z0-9_-]/g, '_')) + '-qr.png';
+            a.href = img.tagName.toLowerCase() === 'canvas' ? img.toDataURL('image/png') : img.src;
+            a.click();
+        }
+    });
+}
+
+// Copy / Download handlers for Detail Modal QR
+const detailCopyBtn = document.getElementById('detailBtnCopyQr');
+if (detailCopyBtn) {
+    detailCopyBtn.addEventListener('click', () => {
+        const text = document.getElementById('detailQrTagCode').textContent;
+        if (text && text !== '-') {
+            navigator.clipboard.writeText(text).then(() => {
+                const orig = detailCopyBtn.innerHTML;
+                detailCopyBtn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i> Copied!';
+                setTimeout(() => { detailCopyBtn.innerHTML = orig; }, 1800);
+            });
+        }
+    });
+}
+
+const detailDownloadBtn = document.getElementById('detailBtnDownloadQr');
+if (detailDownloadBtn) {
+    detailDownloadBtn.addEventListener('click', () => {
+        const box = document.getElementById('detailProductQrBox');
+        if (!box) return;
+        const img = box.querySelector('img') || box.querySelector('canvas');
+        if (img) {
+            const sku = document.getElementById('detailQrSkuCode').textContent || 'product';
+            const a = document.createElement('a');
+            a.download = (sku.replace(/[^a-zA-Z0-9_-]/g, '_')) + '-qr.png';
+            a.href = img.tagName.toLowerCase() === 'canvas' ? img.toDataURL('image/png') : img.src;
+            a.click();
+        }
+    });
+}
 
 // Edit Details Modal Handler
 const categorySelect = document.getElementById('stockEditCategory');
