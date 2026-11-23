@@ -153,6 +153,31 @@ class StockController extends Controller {
         $stocks = DB::fetchAll($sql, $params);
         $totalUnits = array_sum(array_column($stocks, 'qty'));
         $totalValuation = array_reduce($stocks, fn($sum, $item) => $sum + ($item['qty'] * $item['cost_price']), 0);
+        $stockSourceMetrics = [
+            'own' => ['units' => 0.0, 'valuation' => 0.0, 'variants' => []],
+            'purchase' => ['units' => 0.0, 'valuation' => 0.0, 'variants' => []],
+            'other' => ['units' => 0.0, 'valuation' => 0.0, 'variants' => []],
+        ];
+        $uniqueVariantKeys = [];
+        foreach ($stocks as $stock) {
+            $source = (string)($stock['stock_source'] ?? 'other');
+            if (!isset($stockSourceMetrics[$source])) {
+                $source = 'other';
+            }
+            $variantKey = (int)$stock['concern_id'] . ':' . (int)$stock['variant_id'];
+            $quantity = (float)$stock['qty'];
+            $value = $quantity * (float)$stock['cost_price'];
+            $stockSourceMetrics[$source]['units'] += $quantity;
+            $stockSourceMetrics[$source]['valuation'] += $value;
+            $stockSourceMetrics[$source]['variants'][$variantKey] = true;
+            $uniqueVariantKeys[$variantKey] = true;
+        }
+        foreach ($stockSourceMetrics as &$sourceMetrics) {
+            $sourceMetrics['variant_count'] = count($sourceMetrics['variants']);
+            unset($sourceMetrics['variants']);
+        }
+        unset($sourceMetrics);
+        $uniqueVariantCount = count($uniqueVariantKeys);
 
         $categories = DB::fetchAll(
             "SELECT id, name, concern_id FROM categories WHERE status = 1" . ($cid ? " AND concern_id = ?" : "") . " ORDER BY name ASC",
@@ -169,6 +194,8 @@ class StockController extends Controller {
             'stocks'         => $stocks,
             'totalUnits'     => $totalUnits,
             'totalValuation' => $totalValuation,
+            'stockSourceMetrics' => $stockSourceMetrics,
+            'uniqueVariantCount' => $uniqueVariantCount,
             'selectedCid'    => $cid,
             'canEditStock'   => Auth::isSuperAdmin() || Auth::can('stocks', 'edit'),
             'canDeleteStock' => Auth::isSuperAdmin() || Auth::can('stocks', 'delete'),

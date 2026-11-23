@@ -85,6 +85,12 @@ $stocks = [
 ];
 $totalUnits = 70;
 $totalValuation = 10500;
+$uniqueVariantCount = 1;
+$stockSourceMetrics = [
+    'own' => ['units' => 70, 'valuation' => 10500, 'variant_count' => 1],
+    'purchase' => ['units' => 0, 'valuation' => 0, 'variant_count' => 0],
+    'other' => ['units' => 0, 'valuation' => 0, 'variant_count' => 0],
+];
 $exportTitle = 'Stock Export';
 $exportSubtitle = 'Test';
 $exportUrl = '/m/stocks/export';

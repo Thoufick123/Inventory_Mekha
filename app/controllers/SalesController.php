@@ -234,6 +234,7 @@ class SalesController extends Controller {
 
         $invoices = DB::fetchAll(
             "SELECT si.id, si.invoice_no, si.invoice_date, si.net_amount, si.payment_method, si.payment_status,
+                    si.is_direct_bill,
                     (SELECT COUNT(*) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS items_count,
                     (SELECT COALESCE(SUM(sii.qty), 0) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS pcs_count
              FROM sales_invoices si
@@ -623,12 +624,12 @@ class SalesController extends Controller {
             $scopeParams[] = $cid;
         }
         $summary = DB::fetch(
-            "SELECT COUNT(CASE WHEN is_direct_bill = 0 THEN 1 END) AS invoice_count,
-                    COUNT(DISTINCT CASE WHEN is_direct_bill = 0 THEN customer_id END) AS customer_count,
-                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 THEN net_amount ELSE 0 END), 0) AS total_revenue,
-                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 THEN paid_amount ELSE 0 END), 0) AS paid_revenue,
-                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND payment_status = 'paid' THEN 1 ELSE 0 END), 0) AS paid_count,
-                    COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND payment_status <> 'paid' THEN 1 ELSE 0 END), 0) AS pending_count,
+            "SELECT COUNT(DISTINCT id) AS all_invoice_count,
+                    COUNT(DISTINCT customer_id) AS customer_count,
+                    COALESCE(SUM(net_amount), 0) AS all_revenue,
+                    COALESCE(SUM(paid_amount), 0) AS paid_revenue,
+                    COUNT(DISTINCT CASE WHEN payment_status = 'paid' THEN id END) AS paid_count,
+                    COUNT(DISTINCT CASE WHEN payment_status <> 'paid' THEN id END) AS pending_count,
                     COALESCE(SUM(CASE WHEN is_direct_bill = 0 AND payment_method = 'cash'
                         AND (notes IS NULL OR notes NOT LIKE '%[Online Channel]%')
                         THEN paid_amount ELSE 0 END), 0) AS cash_revenue,
@@ -642,13 +643,13 @@ class SalesController extends Controller {
                         OR notes LIKE '%[Online Channel]%'
                         ) THEN 1 ELSE 0 END), 0) AS online_count,
                     COALESCE(SUM(CASE WHEN is_direct_bill = 1 THEN net_amount ELSE 0 END), 0) AS direct_revenue,
-                    COUNT(CASE WHEN is_direct_bill = 1 THEN 1 END) AS direct_count
+                    COUNT(DISTINCT CASE WHEN is_direct_bill = 1 THEN id END) AS direct_count
              FROM sales_invoices{$scopeSql}",
             $scopeParams
         ) ?: [
-            'invoice_count' => 0,
+            'all_invoice_count' => 0,
             'customer_count' => 0,
-            'total_revenue' => 0,
+            'all_revenue' => 0,
             'paid_revenue' => 0,
             'paid_count' => 0,
             'pending_count' => 0,
@@ -703,7 +704,11 @@ class SalesController extends Controller {
             $where[] = 'si.concern_id = ?';
             $params[] = $cid;
         }
-        $where[] = $channel === 'direct' ? 'si.is_direct_bill = 1' : 'si.is_direct_bill = 0';
+        if ($channel === 'direct') {
+            $where[] = 'si.is_direct_bill = 1';
+        } elseif (in_array($channel, ['cash', 'online'], true)) {
+            $where[] = 'si.is_direct_bill = 0';
+        }
         if ($channel === 'cash') {
             $where[] = "si.payment_method = 'cash'
                         AND (si.notes IS NULL OR si.notes NOT LIKE '%[Online Channel]%')";
@@ -762,7 +767,7 @@ class SalesController extends Controller {
         $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
 
         $totalInvoices = (int)DB::fetchValue(
-            "SELECT COUNT(*)
+            "SELECT COUNT(DISTINCT si.id)
              FROM sales_invoices si
              JOIN customers c ON c.id = si.customer_id{$whereSql}",
             $params
@@ -796,8 +801,8 @@ class SalesController extends Controller {
         $categorySql .= ' ORDER BY cat.name ASC';
         $categories = DB::fetchAll($categorySql, $categoryParams);
 
-        $collectionRate = (float)$summary['total_revenue'] > 0
-            ? ((float)$summary['paid_revenue'] / (float)$summary['total_revenue']) * 100
+        $collectionRate = (float)$summary['all_revenue'] > 0
+            ? ((float)$summary['paid_revenue'] / (float)$summary['all_revenue']) * 100
             : 0;
         $this->render('concern/billing_overview', [
             'pageTitle' => 'POS Billing',

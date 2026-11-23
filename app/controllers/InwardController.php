@@ -230,7 +230,7 @@ class InwardController extends Controller {
                    o.destination_concern_id,
                    coalesce(b.id, pob.batch_id, 0) AS batch_id,
                    coalesce(b.batch_no, concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
-                   coalesce(b.total_boxes, pob.cartons_count, 1) AS total_boxes,
+                   coalesce(pob.cartons_count, b.total_boxes, 1) AS total_boxes,
                    coalesce(pp.program_no, 'PRG-20261113-0001') AS program_no,
                    coalesce(pp.program_name, (SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1), 'Garments') AS program_name,
                    (SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1) AS product_name,
@@ -239,16 +239,26 @@ class InwardController extends Controller {
                    coalesce(dest_con.name, o.warehouse_name, 'Warehouse') AS dest_warehouse_name,
                    coalesce(dest_con.code, 'WH-01') AS dest_warehouse_code,
                    coalesce(NULLIF((SELECT sum(oi.qty) FROM outward_items oi WHERE oi.outward_id = o.id), 0), pob.pieces_count, b.batch_qty, 0) AS total_qty,
-                   coalesce((SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id WHERE inw.outward_id = o.id), 0) AS credited_qty
+                   coalesce((SELECT sum(ii.accepted_qty)
+                             FROM inwards inw
+                             JOIN inward_items ii ON inw.id = ii.inward_id
+                             WHERE inw.outward_id = o.id
+                               AND inw.concern_id = o.destination_concern_id), 0) AS credited_qty
             FROM outwards o
-            LEFT JOIN production_outward_batches pob ON o.id = pob.outward_id
+            LEFT JOIN (
+                SELECT outward_id,
+                       MIN(batch_id) AS batch_id,
+                       SUM(cartons_count) AS cartons_count,
+                       SUM(pieces_count) AS pieces_count
+                FROM production_outward_batches
+                GROUP BY outward_id
+            ) pob ON o.id = pob.outward_id
             LEFT JOIN batches b ON pob.batch_id = b.id
             LEFT JOIN production_programs pp ON b.program_id = pp.id
             LEFT JOIN production_units pu ON o.production_unit_id = pu.id
             LEFT JOIN concerns src_con ON o.concern_id = src_con.id
             LEFT JOIN concerns dest_con ON o.destination_concern_id = dest_con.id
             {$scopeWhere}
-            GROUP BY o.id
             ORDER BY o.id DESC
         ";
         $inwardBatches = DB::fetchAll($batchSql, $batchParams);
@@ -291,7 +301,7 @@ class InwardController extends Controller {
         }
         unset($batch);
 
-        // Traditional inwards (supplier purchase bills, direct inwards) strictly scoped to active concern
+        // Exclude transfer receipts incorrectly assigned to a concern other than the outward destination.
         $sql = "SELECT i.*, s.name AS supplier_name, pb.bill_no, u.name AS user_name,
                        con.name AS concern_name, con.code AS concern_code,
                        fc.name AS from_concern_name, fc.code AS from_concern_code,
@@ -311,8 +321,9 @@ class InwardController extends Controller {
                 LEFT JOIN users u ON i.created_by = u.id";
         
         $params = [];
+        $sql .= " WHERE (i.outward_id IS NULL OR i.concern_id = o.destination_concern_id)";
         if ($activeScopeCid) {
-            $sql .= " WHERE i.concern_id = ?";
+            $sql .= " AND i.concern_id = ?";
             $params[] = $activeScopeCid;
         }
         $sql .= " ORDER BY i.id DESC";
@@ -409,7 +420,13 @@ class InwardController extends Controller {
         $items = DB::fetchAll("
             SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
                    c.name AS category_name,
-                   coalesce((SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id JOIN variants iv ON ii.variant_id = iv.id WHERE inw.outward_id = oi.outward_id AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
+                   coalesce((SELECT sum(ii.accepted_qty)
+                             FROM inwards inw
+                             JOIN inward_items ii ON inw.id = ii.inward_id
+                             JOIN variants iv ON ii.variant_id = iv.id
+                             JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
+                             WHERE inw.outward_id = oi.outward_id
+                               AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
             FROM outward_items oi
             JOIN variants v ON oi.variant_id = v.id
             LEFT JOIN categories c ON v.category_id = c.id
@@ -420,7 +437,14 @@ class InwardController extends Controller {
             // Fallback for single batch
             $batchRow = DB::fetch("SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name FROM batches b JOIN variants v ON b.variant_id = v.id LEFT JOIN categories c ON v.category_id = c.id WHERE b.batch_no = ?", [$outward['batch_no']]);
             if ($batchRow) {
-                $credited = (float)DB::fetchValue("SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id WHERE inw.outward_id = ?", [$outwardId]) ?: 0.0;
+                $credited = (float)DB::fetchValue(
+                    "SELECT sum(ii.accepted_qty)
+                     FROM inwards inw
+                     JOIN inward_items ii ON inw.id = ii.inward_id
+                     JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
+                     WHERE inw.outward_id = ?",
+                    [$outwardId]
+                ) ?: 0.0;
                 $items = [[
                     'variant_id'   => $batchRow['variant_id'],
                     'qty'          => $batchRow['batch_qty'],
@@ -504,7 +528,13 @@ class InwardController extends Controller {
             if ($variantId > 0) {
                 $item = DB::fetch("
                     SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
-                           coalesce((SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id JOIN variants iv ON ii.variant_id = iv.id WHERE inw.outward_id = oi.outward_id AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
+                           coalesce((SELECT sum(ii.accepted_qty)
+                                     FROM inwards inw
+                                     JOIN inward_items ii ON inw.id = ii.inward_id
+                                     JOIN variants iv ON ii.variant_id = iv.id
+                                     JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
+                                     WHERE inw.outward_id = oi.outward_id
+                                       AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
                     FROM outward_items oi
                     JOIN variants v ON oi.variant_id = v.id
                     WHERE oi.outward_id = ? AND oi.variant_id = ? LIMIT 1
@@ -514,7 +544,13 @@ class InwardController extends Controller {
             if (!$item) {
                 $item = DB::fetch("
                     SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
-                           coalesce((SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id JOIN variants iv ON ii.variant_id = iv.id WHERE inw.outward_id = oi.outward_id AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
+                           coalesce((SELECT sum(ii.accepted_qty)
+                                     FROM inwards inw
+                                     JOIN inward_items ii ON inw.id = ii.inward_id
+                                     JOIN variants iv ON ii.variant_id = iv.id
+                                     JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
+                                     WHERE inw.outward_id = oi.outward_id
+                                       AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
                     FROM outward_items oi
                     JOIN variants v ON oi.variant_id = v.id
                     WHERE oi.outward_id = ? LIMIT 1
@@ -533,7 +569,14 @@ class InwardController extends Controller {
                 ", [$outwardId, $outward['gate_pass_no'] ?? '']);
 
                 if ($batchRow) {
-                    $credited = (float)DB::fetchValue("SELECT sum(ii.accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id WHERE inw.outward_id = ?", [$outwardId]) ?: 0.0;
+                    $credited = (float)DB::fetchValue(
+                        "SELECT sum(ii.accepted_qty)
+                         FROM inwards inw
+                         JOIN inward_items ii ON inw.id = ii.inward_id
+                         JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
+                         WHERE inw.outward_id = ?",
+                        [$outwardId]
+                    ) ?: 0.0;
                     $item = [
                         'variant_id'   => $batchRow['variant_id'],
                         'qty'          => $batchRow['batch_qty'],
@@ -767,7 +810,14 @@ class InwardController extends Controller {
             if ($totalDispatched <= 0) {
                 $totalDispatched = (float)DB::fetchValue("SELECT pieces_count FROM production_outward_batches WHERE outward_id = ?", [$outwardId]) ?: 490.0;
             }
-            $totalCredited = (float)DB::fetchValue("SELECT sum(accepted_qty) FROM inwards inw JOIN inward_items ii ON inw.id = ii.inward_id WHERE inw.outward_id = ?", [$outwardId]);
+            $totalCredited = (float)DB::fetchValue(
+                "SELECT sum(ii.accepted_qty)
+                 FROM inwards inw
+                 JOIN inward_items ii ON inw.id = ii.inward_id
+                 JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
+                 WHERE inw.outward_id = ?",
+                [$outwardId]
+            );
 
             if ($totalCredited >= $totalDispatched) {
                 DB::query("UPDATE outwards SET status = 'received', received_at = NOW() WHERE id = ?", [$outwardId]);
@@ -1030,12 +1080,13 @@ class InwardController extends Controller {
                 FROM inwards i
                 LEFT JOIN concerns con ON i.concern_id = con.id
                 LEFT JOIN concerns fc ON i.from_concern_id = fc.id
+                LEFT JOIN outwards o ON i.outward_id = o.id
                 LEFT JOIN suppliers s ON i.supplier_id = s.id
                 LEFT JOIN purchase_bills pb ON i.purchase_bill_id = pb.id
                 LEFT JOIN users u ON i.created_by = u.id";
         
         $params = [];
-        $where = [];
+        $where = ["(i.outward_id IS NULL OR i.concern_id = o.destination_concern_id)"];
         if ($cid) {
             $where[] = "i.concern_id = ?";
             $params[] = $cid;

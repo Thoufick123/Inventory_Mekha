@@ -15,6 +15,16 @@ use Exception;
 class OutwardController extends Controller {
     private static bool $dataEnsured = false;
 
+    private function isOutwardInSourceScope(array $outward): bool {
+        $scopeConcernId = Auth::concernId();
+        if (!$scopeConcernId) {
+            $requestedConcernId = (int)($_GET['concern_id'] ?? $_POST['concern_id'] ?? 0);
+            $scopeConcernId = $requestedConcernId > 0 ? $requestedConcernId : null;
+        }
+
+        return !$scopeConcernId || (int)$outward['concern_id'] === $scopeConcernId;
+    }
+
     public function __construct() {
         parent::__construct();
         $this->ensureOutwardData();
@@ -95,7 +105,7 @@ class OutwardController extends Controller {
      */
     public function index(): void {
         $cid = Auth::concernId();
-        $selectedConcernId = !empty($_GET['concern_id']) ? (int)$_GET['concern_id'] : $cid;
+        $selectedConcernId = $cid ?: (!empty($_GET['concern_id']) ? (int)$_GET['concern_id'] : null);
         $posInvoiceId = max(0, (int)($_GET['pos_invoice_id'] ?? 0));
         $posInvoiceTransfer = null;
         $posInvoiceItems = [];
@@ -161,7 +171,7 @@ class OutwardController extends Controller {
         $offset       = ($page - 1) * $perPage;
 
         // Calculate count of Production Batch Outwards vs Finished Goods Outwards
-        $scopeCon = $selectedConcernId ? " AND (o.concern_id = {$selectedConcernId} OR o.destination_concern_id = {$selectedConcernId})" : "";
+        $scopeCon = $selectedConcernId ? " AND o.concern_id = {$selectedConcernId}" : "";
         $batchCount = (int)DB::fetchValue("
             SELECT COUNT(DISTINCT o.id) 
             FROM outwards o 
@@ -212,10 +222,9 @@ class OutwardController extends Controller {
                 WHERE 1=1";
         $params = [];
 
-        // Scoping by concern if selected or if user belongs to a concern
+        // Outward records belong to the source concern; destinations only receive them in Inward.
         if ($selectedConcernId) {
-            $sql .= " AND (o.concern_id = ? OR o.destination_concern_id = ? OR o.concern_id IS NULL)";
-            $params[] = $selectedConcernId;
+            $sql .= " AND o.concern_id = ?";
             $params[] = $selectedConcernId;
         }
 
@@ -257,10 +266,16 @@ class OutwardController extends Controller {
             ORDER BY b.id DESC
         ");
 
-        // Live variant stocks with quantity per concern
+        // Outward dispatch consumes Main Store stock for the variant's concern.
         $stockVariants = DB::fetchAll("
-            SELECT v.id, v.sku_code, v.name, v.size, v.price, v.mrp,
-                   COALESCE((SELECT SUM(qty) FROM stocks s WHERE s.variant_id = v.id), 0) AS stock_qty
+            SELECT v.id, v.concern_id, v.sku_code, v.name, v.size, v.price, v.mrp,
+                   COALESCE((
+                       SELECT SUM(s.qty)
+                       FROM stocks s
+                       WHERE s.concern_id = v.concern_id
+                         AND s.variant_id = v.id
+                         AND s.location = 'Main Store'
+                   ), 0) AS stock_qty
             FROM variants v
             WHERE v.status = 'active'
             ORDER BY v.name ASC
@@ -269,12 +284,6 @@ class OutwardController extends Controller {
 
         // Customers list
         $customers = DB::fetchAll("SELECT id, name FROM customers WHERE status = 'active' ORDER BY name ASC");
-
-        // Warehouses list
-        $warehouses = [
-            ['id' => 1, 'name' => 'wareouse (WH-01)', 'code' => 'WH-01'],
-            ['id' => 2, 'name' => 'Main Distribution Central', 'code' => 'WH-02'],
-        ];
 
         $currentConcernId = Auth::concernId() ?: ($selectedConcernId ?: 1);
 
@@ -297,7 +306,6 @@ class OutwardController extends Controller {
             'availableBatches'  => $availableBatches,
             'stockVariants'     => $stockVariants,
             'customers'         => $customers,
-            'warehouses'        => $warehouses,
             'posInvoiceTransfer' => $posInvoiceTransfer,
             'posInvoiceItems' => $posInvoiceItems,
         ]);
@@ -310,6 +318,10 @@ class OutwardController extends Controller {
     public function store(): void {
         $this->validateCsrf();
         $cid = (int)($_POST['source_concern_id'] ?? ($_POST['source_concern_id_fg'] ?? (Auth::concernId() ?: 1)));
+        $authConcernId = Auth::concernId();
+        if ($authConcernId && $authConcernId !== $cid) {
+            throw new Exception('You can only create outward dispatches from your assigned source concern.');
+        }
         $posInvoiceId = max(0, (int)($_POST['pos_invoice_id'] ?? 0));
 
         $dispatchMode    = trim($_POST['dispatch_mode'] ?? 'batch'); // batch, finished_goods
@@ -332,12 +344,14 @@ class OutwardController extends Controller {
             }
             $warehouseName = $destCon['name'];
         } else {
-            $warehouseName   = trim($_POST['warehouse_name'] ?? ($_POST['destination_warehouse_fg'] ?? ($_POST['warehouse_name_fg'] ?? 'wareouse (WH-01)')));
+            $warehouseName = $customerId
+                ? (string)(DB::fetchValue("SELECT name FROM customers WHERE id = ?", [$customerId]) ?: '')
+                : '';
         }
-        $vehicleNumber   = trim($_POST['vehicle_number'] ?? 'rtt31232');
-        $driverName      = trim($_POST['driver_name'] ?? 'Vanaja');
-        $driverContact   = trim($_POST['driver_contact'] ?? '9943557998');
-        $transporter     = trim($_POST['transporter_name'] ?? 'Express Logistics');
+        $vehicleNumber   = trim($_POST['vehicle_number'] ?? '');
+        $driverName      = trim($_POST['driver_name'] ?? '');
+        $driverContact   = trim($_POST['driver_contact'] ?? '');
+        $transporter     = trim($_POST['transporter_name'] ?? '');
         $notes           = trim($_POST['notes'] ?? '');
 
         $today = date('Ymd');
@@ -566,6 +580,11 @@ class OutwardController extends Controller {
             $this->redirect('/production/outward');
             return;
         }
+        if (!$this->isOutwardInSourceScope($out)) {
+            $this->flash('error', 'Access denied: this outward belongs to a different source concern.');
+            $this->redirect('/production/outward');
+            return;
+        }
 
         $vehicle       = trim($_POST['vehicle_number'] ?? $out['vehicle_number']);
         $driver        = trim($_POST['driver_name'] ?? $out['driver_name']);
@@ -601,6 +620,11 @@ class OutwardController extends Controller {
         $out = DB::fetch("SELECT * FROM outwards WHERE id = ?", [$id]);
         if (!$out) {
             $this->flash('error', 'Outward record not found.');
+            $this->redirect('/production/outward');
+            return;
+        }
+        if (!$this->isOutwardInSourceScope($out)) {
+            $this->flash('error', 'Access denied: this outward belongs to a different source concern.');
             $this->redirect('/production/outward');
             return;
         }
@@ -642,6 +666,17 @@ class OutwardController extends Controller {
     public function dispatch(): void {
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
+        $out = DB::fetch("SELECT id, concern_id FROM outwards WHERE id = ?", [$id]);
+        if (!$out) {
+            $this->flash('error', 'Outward record not found.');
+            $this->redirect('/production/outward');
+            return;
+        }
+        if (!$this->isOutwardInSourceScope($out)) {
+            $this->flash('error', 'Access denied: this outward belongs to a different source concern.');
+            $this->redirect('/production/outward');
+            return;
+        }
 
         try {
             DB::query("UPDATE outwards SET status = 'DISPATCHED', dispatched_at = NOW() WHERE id = ?", [$id]);
@@ -686,6 +721,11 @@ class OutwardController extends Controller {
 
         if (!$out) {
             echo json_encode(['success' => false, 'error' => 'Outward not found']);
+            return;
+        }
+        if (!$this->isOutwardInSourceScope($out)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Access denied: outward belongs to a different source concern.']);
             return;
         }
 

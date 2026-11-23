@@ -30,6 +30,17 @@ class InwardConcernIsolationTest {
         echo "  TEST: INWARD CONCERN ISOLATION & RESTRICTION TEST    \n";
         echo "======================================================\n\n";
 
+        $inwardControllerSource = file_get_contents(__DIR__ . '/../app/controllers/InwardController.php');
+        $this->assert(
+            strpos($inwardControllerSource, 'i.outward_id IS NULL OR i.concern_id = o.destination_concern_id') !== false,
+            "Outward-linked inward records are listed only under their destination concern"
+        );
+        $this->assert(
+            strpos($inwardControllerSource, 'inw.concern_id = o.destination_concern_id') !== false
+                && strpos($inwardControllerSource, 'inw.concern_id = ow.destination_concern_id') !== false,
+            "Transfer credit totals ignore inward records assigned to the wrong concern"
+        );
+
         // 1. Verify concerns exist for testing
         $concerns = DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY id ASC");
         $this->assert(count($concerns) >= 2, "At least 2 active concerns exist in invento_db (found " . count($concerns) . ")");

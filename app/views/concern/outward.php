@@ -211,7 +211,7 @@
                                 <td class="text-end pe-3">
                                     <div class="d-inline-flex align-items-center gap-1">
                                         <!-- 1. Traceability / View Modal -->
-                                        <button type="button" class="btn btn-sm btn-outline-info p-1 px-2" title="Traceability Details" onclick="openTraceabilityModal('<?= htmlspecialchars($o['outward_no']) ?>', <?= (int)$o['id'] ?>)">
+                                        <button type="button" class="btn btn-sm btn-outline-info p-1 px-2" title="Traceability Details" onclick="openTraceabilityModal('<?= htmlspecialchars($o['outward_no']) ?>', <?= (int)$o['id'] ?>, <?= (int)($selectedConcernId ?? 0) ?>)">
                                             <i class="bi bi-link-45deg fs-6"></i>
                                         </button>
 
@@ -227,6 +227,7 @@
                                         <form action="<?= \App\Core\Controller::url('/m/outward/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete outward dispatch <?= htmlspecialchars($o['outward_no']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                                             <input type="hidden" name="id" value="<?= (int)$o['id'] ?>">
+                                            <input type="hidden" name="concern_id" value="<?= (int)($selectedConcernId ?? 0) ?>">
                                             <button type="submit" class="btn btn-sm btn-outline-danger p-1 px-1.5" title="Delete Outward">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -354,8 +355,8 @@
                         </small>
                     </div>
 
-                    <!-- Row 2: Batch Selection & Warehouse -->
-                    <div class="col-md-7">
+                    <!-- Row 2: Batch Selection -->
+                    <div class="col-12">
                         <label class="form-label small fw-semibold text-secondary">
                             <i class="bi bi-box-seam text-primary me-1"></i> Select Production Batch to Dispatch *
                         </label>
@@ -369,18 +370,6 @@
                         </select>
                     </div>
 
-                    <div class="col-md-5">
-                        <label class="form-label small fw-semibold text-secondary">
-                            <i class="bi bi-archive me-1"></i> Destination Warehouse / Facility *
-                        </label>
-                        <select name="warehouse_name" class="form-select form-select-sm">
-                            <?php foreach ($warehouses as $wh): ?>
-                                <option value="<?= htmlspecialchars($wh['name']) ?>" <?= str_contains($wh['name'], 'wareouse') ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($wh['name']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
                 </div>
 
                 <!-- ========================================================================= -->
@@ -415,8 +404,8 @@
                                     <select id="fgQuickSelect" class="form-select form-select-sm" onchange="quickAddFromSelect(this)">
                                         <option value="">-- Or Quick Select Finishing Good Product --</option>
                                         <?php foreach ($stockVariants as $sv): ?>
-                                            <option value="<?= $sv['id'] ?>" data-sku="<?= htmlspecialchars($sv['sku_code']) ?>" data-name="<?= htmlspecialchars($sv['name']) ?>" data-size="<?= htmlspecialchars($sv['size'] ?? 'Free') ?>" data-stock="<?= (int)$sv['stock_qty'] ?>">
-                                                <?= htmlspecialchars($sv['name']) ?> (<?= htmlspecialchars($sv['sku_code']) ?> - <?= htmlspecialchars($sv['size']) ?>) &mdash; Stock: <?= (int)$sv['stock_qty'] ?> pcs
+                                            <option value="<?= $sv['id'] ?>" data-concern-id="<?= (int)$sv['concern_id'] ?>" data-sku="<?= htmlspecialchars($sv['sku_code']) ?>" data-name="<?= htmlspecialchars($sv['name']) ?>" data-size="<?= htmlspecialchars($sv['size'] ?? 'Free') ?>" data-stock="<?= (int)$sv['stock_qty'] ?>">
+                                                <?= htmlspecialchars($sv['name']) ?> (<?= htmlspecialchars($sv['sku_code']) ?> - <?= htmlspecialchars($sv['size']) ?>) &mdash; Available: <?= (int)$sv['stock_qty'] ?> pcs
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -495,7 +484,7 @@
                         </div>
 
                         <?php if (!empty($posInvoiceTransfer)): ?>
-                            <div class="col-md-6">
+                            <div class="col-12">
                                 <label class="form-label small fw-bold text-dark">Destination Customer</label>
                                 <div class="form-control form-control-sm bg-white">
                                     <?= htmlspecialchars($posInvoiceTransfer['customer_name']) ?>
@@ -503,24 +492,11 @@
                             </div>
                         <?php endif; ?>
 
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">
-                                <i class="bi bi-archive me-1"></i> Destination Warehouse
-                            </label>
-                            <select name="destination_warehouse_fg" id="fgDestWarehouse" class="form-select form-select-sm">
-                                <?php foreach ($warehouses as $wh): ?>
-                                    <option value="<?= htmlspecialchars($wh['name']) ?>" <?= str_contains($wh['name'], 'wareouse') ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($wh['name']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="col-md-6">
+                        <div class="<?= !empty($posInvoiceTransfer) ? 'col-md-6' : 'col-12' ?>">
                             <label class="form-label small fw-semibold text-secondary">
                                 <i class="bi bi-boxes me-1"></i> Total Boxes / Cartons
                             </label>
-                            <input type="number" name="total_boxes" id="fgTotalBoxesInput" class="form-control form-control-sm" value="1" min="1" step="1">
+                            <input type="number" name="total_boxes" id="fgTotalBoxesInput" class="form-control form-control-sm" min="1" step="1">
                         </div>
                     </div>
                 </div>
@@ -531,22 +507,22 @@
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Vehicle Number *</label>
-                        <input type="text" name="vehicle_number" class="form-control form-control-sm font-monospace text-uppercase" placeholder="e.g. rtt31232" value="rtt31232" required>
+                        <input type="text" name="vehicle_number" class="form-control form-control-sm font-monospace text-uppercase" placeholder="e.g. rtt31232" required>
                     </div>
 
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Driver Name</label>
-                        <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="e.g. Vanaja" value="Vanaja">
+                        <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="e.g. Vanaja">
                     </div>
 
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Driver Contact</label>
-                        <input type="text" name="driver_contact" class="form-control form-control-sm" placeholder="e.g. 9943557998" value="9943557998">
+                        <input type="text" name="driver_contact" class="form-control form-control-sm" placeholder="e.g. 9943557998">
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold text-secondary">Transporter / Carrier Name</label>
-                        <input type="text" name="transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics" value="GRM In-house Transport">
+                        <input type="text" name="transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics">
                     </div>
 
                     <div class="col-md-6">
@@ -573,6 +549,7 @@
         <form action="<?= \App\Core\Controller::url('/m/outward/update') ?>" method="POST" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
             <input type="hidden" name="id" id="edit_outward_id">
+            <input type="hidden" name="concern_id" value="<?= (int)($selectedConcernId ?? 0) ?>">
             <div class="modal-header bg-white py-3 border-bottom">
                 <h5 class="modal-title fw-bold text-dark"><i class="bi bi-pencil me-2 text-primary"></i> Edit Outward Dispatch</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -668,7 +645,7 @@ const availableVariants = <?= json_encode($stockVariants) ?>;
 const isPosInvoiceTransfer = <?= !empty($posInvoiceTransfer) ? 'true' : 'false' ?>;
 const initialPosInvoiceItems = <?= json_encode($posInvoiceItems ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
-// Scanned items dictionary: { variant_id: { variant_id, name, sku, size, stock, qty } }
+// Scanned items dictionary: { variant_id: { variant_id, concern_id, name, sku, size, stock, qty } }
 let scannedFgMap = {};
 if (isPosInvoiceTransfer) {
     initialPosInvoiceItems.forEach(function(item) {
@@ -703,6 +680,53 @@ function filterBatchesByConcern(conId) {
     const currentOpt = select.options[select.selectedIndex];
     if (currentOpt && currentOpt.style.display === 'none') {
         select.value = '';
+    }
+}
+
+function getSelectedFgConcernId() {
+    const source = document.getElementById('fgSourceConcernSelect');
+    return source ? parseInt(source.value || '0', 10) : 0;
+}
+
+function refreshFgStockAvailability() {
+    const concernId = getSelectedFgConcernId();
+    const quickSelect = document.getElementById('fgQuickSelect');
+    if (quickSelect) {
+        Array.from(quickSelect.options).forEach((option, index) => {
+            if (index === 0) return;
+            const matchesConcern = parseInt(option.dataset.concernId || '0', 10) === concernId;
+            const hasStock = parseInt(option.dataset.stock || '0', 10) > 0;
+            option.disabled = !matchesConcern || !hasStock;
+            option.hidden = !matchesConcern || !hasStock;
+        });
+        quickSelect.value = '';
+    }
+
+    let removedItems = 0;
+    let adjustedItems = 0;
+    if (!isPosInvoiceTransfer) {
+        Object.keys(scannedFgMap).forEach(id => {
+            const item = scannedFgMap[id];
+            const variant = availableVariants.find(v => parseInt(v.id, 10) === item.variant_id);
+            if (!variant || parseInt(variant.concern_id, 10) !== concernId || parseInt(variant.stock_qty || 0, 10) <= 0) {
+                delete scannedFgMap[id];
+                removedItems++;
+                return;
+            }
+
+            item.stock = parseInt(variant.stock_qty, 10);
+            if (item.qty > item.stock) {
+                item.qty = item.stock;
+                adjustedItems++;
+            }
+        });
+    }
+    renderScannedTable();
+    if (removedItems || adjustedItems) {
+        const changes = [];
+        if (removedItems) changes.push(`${removedItems} unavailable item${removedItems === 1 ? '' : 's'} removed`);
+        if (adjustedItems) changes.push(`${adjustedItems} item ${adjustedItems === 1 ? 'quantity was' : 'quantities were'} reduced to available stock`);
+        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i> ${changes.join('; ')} for the selected concern.</span>`;
     }
 }
 
@@ -788,14 +812,19 @@ function processFgScanInput() {
     }
 
     // Match code against variants: by SKU, ID, or partial name
-    const match = availableVariants.find(v => 
-        (v.sku_code && v.sku_code.toLowerCase() === code.toLowerCase()) ||
-        (v.name && v.name.toLowerCase().includes(code.toLowerCase())) ||
-        (code.toLowerCase().includes(String(v.id)))
+    const selectedConcernId = getSelectedFgConcernId();
+    const match = availableVariants.find(v =>
+        parseInt(v.concern_id, 10) === selectedConcernId &&
+        parseInt(v.stock_qty || 0, 10) > 0 &&
+        (
+            (v.sku_code && v.sku_code.toLowerCase() === code.toLowerCase()) ||
+            (v.name && v.name.toLowerCase().includes(code.toLowerCase())) ||
+            code.toLowerCase().includes(String(v.id))
+        )
     );
 
     if (match) {
-        addScannedVariant(match);
+        if (!addScannedVariant(match)) return;
         feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned: ${match.name} (${match.sku_code})! +1 piece added.</span>`;
         playScannerBeep('success');
         input.value = '';
@@ -813,7 +842,10 @@ function quickAddFromSelect(select) {
     const vId = parseInt(opt.value);
     const match = availableVariants.find(v => parseInt(v.id) === vId);
     if (match) {
-        addScannedVariant(match);
+        if (!addScannedVariant(match)) {
+            select.value = '';
+            return;
+        }
         document.getElementById('fgScanFeedback').innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i> Added: ${match.name} (${match.sku_code}).</span>`;
         playScannerBeep('success');
     }
@@ -822,9 +854,21 @@ function quickAddFromSelect(select) {
 
 function addScannedVariant(v) {
     const id = parseInt(v.id);
+    const stock = parseInt(v.stock_qty || 0, 10);
+    if (parseInt(v.concern_id, 10) !== getSelectedFgConcernId() || stock <= 0) {
+        document.getElementById('fgScanFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i> This item has no available stock in the selected concern Main Store.</span>';
+        playScannerBeep('error');
+        return false;
+    }
+    if (scannedFgMap[id] && scannedFgMap[id].qty >= stock) {
+        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Cannot add more; only ${stock} pcs are available.</span>`;
+        playScannerBeep('error');
+        return false;
+    }
     if (!scannedFgMap[id]) {
         scannedFgMap[id] = {
             variant_id: id,
+            concern_id: parseInt(v.concern_id, 10),
             name: v.name,
             sku: v.sku_code || 'SKU-' + id,
             size: v.size || 'Free',
@@ -835,11 +879,18 @@ function addScannedVariant(v) {
         scannedFgMap[id].qty += 1;
     }
     renderScannedTable();
+    return true;
 }
 
 function updateScannedQty(id, delta) {
     if (!scannedFgMap[id]) return;
-    scannedFgMap[id].qty += delta;
+    const item = scannedFgMap[id];
+    if (delta > 0 && (item.stock <= 0 || item.qty + delta > item.stock)) {
+        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Quantity cannot exceed ${item.stock} available pcs.</span>`;
+        playScannerBeep('error');
+        return;
+    }
+    item.qty += delta;
     if (scannedFgMap[id].qty <= 0) {
         delete scannedFgMap[id];
     }
@@ -850,6 +901,10 @@ function setScannedQtyManual(id, input) {
     const val = parseInt(input.value) || 0;
     if (val <= 0) {
         delete scannedFgMap[id];
+    } else if (val > scannedFgMap[id].stock) {
+        scannedFgMap[id].qty = Math.max(1, scannedFgMap[id].stock);
+        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Quantity was limited to ${scannedFgMap[id].stock} available pcs.</span>`;
+        playScannerBeep('error');
     } else {
         scannedFgMap[id].qty = val;
     }
@@ -896,16 +951,16 @@ function renderScannedTable() {
 
     let html = '';
     items.forEach((it, idx) => {
-        const isOverStock = it.stock > 0 && it.qty > it.stock;
+        const isOverStock = it.stock <= 0 || it.qty > it.stock;
         const stockLabel = isPosInvoiceTransfer
             ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">POS invoice</span>'
-            : `<span class="badge ${isOverStock ? 'bg-danger' : 'bg-success-subtle text-success border border-success-subtle'}">Stock: ${it.stock} pcs</span>`;
+            : `<span class="badge ${isOverStock ? 'bg-danger' : 'bg-success-subtle text-success border border-success-subtle'}">Available: ${it.stock} pcs</span>`;
         const quantityControl = isPosInvoiceTransfer
             ? `<span class="fw-bold font-monospace">${it.qty}</span>`
             : `<div class="input-group input-group-sm" style="width: 120px;">
                     <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, -1)">-</button>
-                    <input type="number" class="form-control text-center px-1 font-monospace fw-bold" value="${it.qty}" min="1" onchange="setScannedQtyManual(${it.variant_id}, this)">
-                    <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, 1)">+</button>
+                    <input type="number" class="form-control text-center px-1 font-monospace fw-bold" value="${it.qty}" min="1" max="${it.stock}" onchange="setScannedQtyManual(${it.variant_id}, this)">
+                    <button class="btn btn-outline-secondary px-2" type="button" onclick="updateScannedQty(${it.variant_id}, 1)" ${it.stock <= 0 || it.qty >= it.stock ? 'disabled' : ''}>+</button>
                 </div>`;
         const removeAction = isPosInvoiceTransfer
             ? '<span class="text-muted">-</span>'
@@ -938,6 +993,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    const fgSourceConcernSelect = document.getElementById('fgSourceConcernSelect');
+    if (fgSourceConcernSelect) {
+        fgSourceConcernSelect.addEventListener('change', refreshFgStockAvailability);
+        refreshFgStockAvailability();
+    }
+
     // Form submit validation for Finishing Good mode
     const form = document.getElementById('formAddOutward');
     if (form) {
@@ -951,6 +1012,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (items.length === 0) {
                     e.preventDefault();
                     alert('Please scan or add at least 1 finishing good product before dispatching!');
+                    return false;
+                }
+                if (!isPosInvoiceTransfer && items.some(item =>
+                    item.concern_id !== getSelectedFgConcernId() ||
+                    item.stock <= 0 ||
+                    item.qty > item.stock
+                )) {
+                    e.preventDefault();
+                    alert('One or more items exceed the available Main Store stock for the selected concern.');
                     return false;
                 }
             }
@@ -978,7 +1048,7 @@ function openEditOutwardModal(o) {
     new bootstrap.Modal(document.getElementById('modalEditOutward')).show();
 }
 
-function openTraceabilityModal(outwardNo, id) {
+function openTraceabilityModal(outwardNo, id, concernId) {
     document.getElementById('traceBody').innerHTML = `
         <div class="text-center py-4">
             <div class="spinner-border text-primary" role="status"></div>
@@ -987,7 +1057,8 @@ function openTraceabilityModal(outwardNo, id) {
     `;
     new bootstrap.Modal(document.getElementById('modalTraceability')).show();
 
-    fetch('<?= \App\Core\Controller::url('/m/outward/traceability/') ?>' + id)
+    const concernScope = concernId ? '?concern_id=' + encodeURIComponent(concernId) : '';
+    fetch('<?= \App\Core\Controller::url('/m/outward/traceability/') ?>' + id + concernScope)
         .then(function(res) { return res.json(); })
         .then(function(data) {
             if (!data.success) {

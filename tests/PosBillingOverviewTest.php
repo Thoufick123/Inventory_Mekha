@@ -2,6 +2,7 @@
 
 $routes = file_get_contents(__DIR__ . '/../app/routes.php');
 $overviewView = file_get_contents(__DIR__ . '/../app/views/concern/billing_overview.php');
+$customerView = file_get_contents(__DIR__ . '/../app/views/concern/customers.php');
 $terminalView = file_get_contents(__DIR__ . '/../app/views/concern/billing.php');
 $salesController = file_get_contents(__DIR__ . '/../app/controllers/SalesController.php');
 $completeSaleStart = strpos($salesController, 'public function completePosSale(): void {');
@@ -31,12 +32,25 @@ $checks = [
         && strpos($salesController, 'category_v.category_id = ?') !== false
         && strpos($salesController, "si.notes LIKE '%[Online Channel]%'") !== false
         && strpos($salesController, 'si.notes LIKE ?') !== false,
-    'Direct bills are separated from standard POS results and totals' =>
+    'All includes every invoice once and direct bills remain separately filterable' =>
         strpos($salesController, "['all', 'cash', 'online', 'direct']") !== false
-        && strpos($salesController, "\$channel === 'direct' ? 'si.is_direct_bill = 1' : 'si.is_direct_bill = 0'") !== false
+        && strpos($salesController, 'COUNT(DISTINCT id) AS all_invoice_count') !== false
+        && strpos($salesController, 'COALESCE(SUM(net_amount), 0) AS all_revenue') !== false
+        && strpos($salesController, "if (\$channel === 'direct')") !== false
+        && strpos($salesController, "elseif (in_array(\$channel, ['cash', 'online'], true))") !== false
+        && strpos($salesController, 'SELECT COUNT(DISTINCT si.id)') !== false
         && strpos($salesController, 'AS direct_revenue') !== false
         && strpos($overviewView, "'direct' => ['Direct Bills'") !== false
-        && strpos($overviewView, 'Direct Bills') !== false,
+        && strpos($overviewView, 'Direct Bills') !== false
+        && strpos($overviewView, 'Unique Bills') !== false
+        && strpos($overviewView, "\$summary['all_invoice_count']") !== false
+        && strpos($overviewView, "\$summary['all_revenue']") !== false,
+    'Customer profile lists POS invoices with direct-bill type and bill preview action' =>
+        strpos($salesController, 'si.is_direct_bill,') !== false
+        && strpos($customerView, 'POS Invoices &amp; Bills') !== false
+        && strpos($customerView, 'POS Bill</th>') !== false
+        && strpos($customerView, 'View POS bill') !== false
+        && strpos($customerView, '/m/billing/create?print_id=') !== false,
     'Cash and non-cash payment methods are classified into the intended channels' =>
         strpos($salesController, "si.payment_method = 'cash'") !== false
         && strpos($salesController, "si.payment_method <> 'cash' OR si.notes LIKE '%[Online Channel]%'") !== false

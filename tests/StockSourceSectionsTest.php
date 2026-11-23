@@ -64,6 +64,12 @@ $stocks = [
 ];
 $totalUnits = 7;
 $totalValuation = 1520;
+$uniqueVariantCount = 3;
+$stockSourceMetrics = [
+    'own' => ['units' => 4, 'valuation' => 1000, 'variant_count' => 1],
+    'purchase' => ['units' => 2, 'valuation' => 520, 'variant_count' => 1],
+    'other' => ['units' => 1, 'valuation' => 0, 'variant_count' => 1],
+];
 $exportTitle = 'Stock Export';
 $exportSubtitle = 'Test';
 $exportUrl = '/m/stocks/export';
@@ -101,6 +107,8 @@ $checks = [
         strpos($html, 'Color: red') !== false && strpos($html, 'Memory: 4GB') !== false,
     'Stock display distinguishes selling rate from label MRP' =>
         strpos($html, '₹350.00') !== false && strpos($html, 'MRP ₹400.00') !== false,
+    'Stock row net value uses selling price multiplied by quantity' =>
+        strpos($html, '₹1,400.00') !== false,
     'Stock display and edit modal separate cost, selling, and MRP values' =>
         strpos($html, 'Cost ₹250.00') !== false
         && strpos($html, 'Selling ₹350.00') !== false
@@ -111,17 +119,29 @@ $checks = [
     'Stock valuation uses cost price' =>
         strpos($html, 'Total Cost Valuation') !== false
         && strpos($html, '₹1,520.00') !== false,
+    'Inventory analysis cards show unique variants and units by stock source' =>
+        strpos($html, 'Unique In-Stock Variants') !== false
+        && strpos($html, 'Own Product Units') !== false
+        && strpos($html, 'Purchase Product Units') !== false
+        && strpos($html, 'Other Source Units') !== false
+        && strpos($html, '₹1,000.00') !== false
+        && strpos($html, '₹520.00') !== false,
+    'SKU column is removed while QR actions remain available' =>
+        strpos($html, '<th>SKU Code</th>') === false
+        && strpos($purchaseRowHtml, 'data-sku-code="BUY-M"') !== false
+        && strpos($purchaseRowHtml, 'stock-qr-trigger') !== false,
     'Stock actions include quantity edit and ledger-preserving removal' =>
         strpos($html, 'data-stock-edit') !== false
         && strpos($html, '/m/stocks/update-details') !== false
         && strpos($html, '/m/stocks/delete-line') !== false
         && strpos($html, 'stock ledger history will be preserved') !== false,
-    'Purchase stock actions open the exact label and provide quantity CRUD' =>
-        strpos($purchaseRowHtml, 'View Label') !== false
-        && strpos($purchaseRowHtml, 'view-label?item_id=31') !== false
-        && strpos($purchaseRowHtml, 'variant_id=12') !== false
+    'Purchase stock actions omit label preview and provide quantity CRUD' =>
+        strpos($purchaseRowHtml, 'View Label') === false
+        && strpos($purchaseRowHtml, 'view-label?item_id=31') === false
+        && strpos($purchaseRowHtml, 'Label Unavailable') === false
         && strpos($purchaseRowHtml, 'Print Labels') === false
         && strpos($purchaseRowHtml, 'View QR') === false
+        && strpos($purchaseRowHtml, 'stock-qr-trigger') !== false
         && strpos($purchaseRowHtml, 'data-stock-edit') !== false
         && strpos($purchaseRowHtml, '/m/stocks/delete-line') !== false
         && strpos($purchaseRowHtml, 'Remove') !== false,
@@ -149,8 +169,8 @@ $readOnlyHtml = ob_get_clean();
 $checks['Quantity CRUD controls are hidden without stock edit permission'] =
     strpos($readOnlyHtml, 'aria-label="Edit details for') === false
     && strpos($readOnlyHtml, 'delete-line') === false;
-$checks['Purchase label preview remains available in read-only mode'] =
-    strpos($readOnlyHtml, 'View Label') !== false;
+$checks['Purchase label preview action is removed in read-only mode'] =
+    strpos($readOnlyHtml, 'View Label') === false;
 
 $pageTitle = 'Finished Goods Label';
 $viewOnly = true;

@@ -416,21 +416,23 @@
                     </div>
                 </div>
 
-                <!-- Invoices / Order History Table -->
-                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-clock-history me-1 text-primary"></i> Purchase History & Invoices</h6>
+                <!-- POS Invoices / Bill History Table -->
+                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-clock-history me-1 text-primary"></i> POS Invoices &amp; Bills</h6>
                 <div class="table-responsive border rounded-3" style="max-height: 220px; overflow-y: auto;">
                     <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.82rem;">
                         <thead class="table-light">
                             <tr>
                                 <th>Invoice #</th>
                                 <th>Date</th>
+                                <th>Bill Type</th>
                                 <th>Items</th>
                                 <th>Payment</th>
                                 <th class="text-end">Amount</th>
+                                <th class="text-end">POS Bill</th>
                             </tr>
                         </thead>
                         <tbody id="view_invoices_body">
-                            <tr><td colspan="5" class="text-center py-3 text-muted">Loading purchase history...</td></tr>
+                            <tr><td colspan="7" class="text-center py-3 text-muted">Loading bill history...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -635,12 +637,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 4. View Customer 360 CRM Modal
     const viewModalEl = document.getElementById('modalViewCustomerProfile');
+    const posBillPreviewUrl = <?= json_encode(
+        \App\Core\Controller::url('/m/billing/create?print_id='),
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    ) ?>;
 
     document.querySelectorAll('.btn-view-profile').forEach(btn => {
         btn.addEventListener('click', function() {
             const custId = this.getAttribute('data-id');
             const invoicesTbody = document.getElementById('view_invoices_body');
-            invoicesTbody.innerHTML = '<tr><td colspan="5" class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading profile...</td></tr>';
+            invoicesTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading profile...</td></tr>';
 
             if (viewModalEl && window.bootstrap) {
                 const viewModal = bootstrap.Modal.getOrCreateInstance(viewModalEl);
@@ -666,7 +672,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         document.getElementById('view_info_location').textContent = (c.address ? c.address + ', ' : '') + (c.city || 'Local');
 
                         if (!data.invoices || data.invoices.length === 0) {
-                            invoicesTbody.innerHTML = '<tr><td colspan="5" class="text-center py-3 text-muted">No sales invoices recorded yet.</td></tr>';
+                            invoicesTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">No POS invoices or bills recorded yet.</td></tr>';
                         } else {
                             invoicesTbody.innerHTML = '';
                             data.invoices.forEach(inv => {
@@ -674,19 +680,21 @@ document.addEventListener('DOMContentLoaded', function() {
                                 tr.innerHTML = `
                                     <td><span class="badge bg-dark font-monospace">${escapeHtml(inv.invoice_no)}</span></td>
                                     <td class="text-muted font-monospace">${escapeHtml(inv.invoice_date)}</td>
+                                    <td><span class="badge ${Number(inv.is_direct_bill) === 1 ? 'bg-info-subtle text-info-emphasis' : 'bg-primary-subtle text-primary'}">${Number(inv.is_direct_bill) === 1 ? 'Direct Bill' : 'POS Bill'}</span></td>
                                     <td><span class="badge bg-light text-dark border">${parseInt(inv.items_count || 0)} items (${parseInt(inv.pcs_count || 0)} pcs)</span></td>
                                     <td><span class="badge bg-primary bg-opacity-10 text-primary text-uppercase">${escapeHtml(inv.payment_method)}</span></td>
                                     <td class="text-end fw-bold font-monospace text-success">₹${parseFloat(inv.net_amount || 0).toFixed(2)}</td>
+                                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="${escapeHtml(posBillPreviewUrl + encodeURIComponent(inv.id))}" target="_blank" rel="noopener noreferrer" title="View POS bill"><i class="bi bi-eye"></i> View</a></td>
                                 `;
                                 invoicesTbody.appendChild(tr);
                             });
                         }
                     } else {
-                        invoicesTbody.innerHTML = '<tr><td colspan="5" class="text-center py-3 text-danger">Failed to load customer profile.</td></tr>';
+                        invoicesTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-danger">Failed to load customer profile.</td></tr>';
                     }
                 })
                 .catch(err => {
-                    invoicesTbody.innerHTML = '<tr><td colspan="5" class="text-center py-3 text-danger">Network error loading profile.</td></tr>';
+                    invoicesTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-danger">Network error loading profile.</td></tr>';
                 });
         });
     });

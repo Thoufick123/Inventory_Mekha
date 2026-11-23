@@ -27,7 +27,7 @@
 
     <!-- Summary Statistics -->
     <div class="row g-3 mb-4">
-        <div class="col-md-6">
+        <div class="col-12 col-sm-6 col-xl-4">
             <div class="card-stat d-flex justify-content-between align-items-center">
                 <div>
                     <span class="text-secondary small fw-semibold text-uppercase">Total Physical Inventory Units</span>
@@ -38,7 +38,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-12 col-sm-6 col-xl-4">
             <div class="card-stat d-flex justify-content-between align-items-center">
                 <div>
                     <span class="text-secondary small fw-semibold text-uppercase">Total Cost Valuation</span>
@@ -49,12 +49,50 @@
                 </div>
             </div>
         </div>
+        <div class="col-12 col-sm-6 col-xl-4">
+            <div class="card-stat d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-secondary small fw-semibold text-uppercase">Unique In-Stock Variants</span>
+                    <h3 class="fw-bold text-primary mt-1 mb-0"><?= number_format((int)$uniqueVariantCount) ?></h3>
+                    <small class="text-muted">Across all stock locations</small>
+                </div>
+                <div class="stat-icon-box bg-primary bg-opacity-10 text-primary">
+                    <i class="bi bi-tags"></i>
+                </div>
+            </div>
+        </div>
+        <?php
+        $sourceCards = [
+            ['own', 'Own Product Units', 'bi-scissors', 'info'],
+            ['purchase', 'Purchase Product Units', 'bi-bag-check', 'warning'],
+            ['other', 'Other Source Units', 'bi-arrow-left-right', 'secondary'],
+        ];
+        foreach ($sourceCards as [$sourceKey, $sourceLabel, $sourceIcon, $sourceColor]):
+            $sourceMetric = $stockSourceMetrics[$sourceKey];
+        ?>
+            <div class="col-12 col-sm-6 col-xl-4">
+                <div class="card-stat d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase"><?= htmlspecialchars($sourceLabel) ?></span>
+                        <h3 class="fw-bold text-dark mt-1 mb-0"><?= number_format((float)$sourceMetric['units'], 0) ?> units</h3>
+                        <small class="text-muted">
+                            <?= number_format((int)$sourceMetric['variant_count']) ?>
+                            <?= (int)$sourceMetric['variant_count'] === 1 ? 'variant' : 'variants' ?>
+                            · Cost ₹<?= number_format((float)$sourceMetric['valuation'], 2) ?>
+                        </small>
+                    </div>
+                    <div class="stat-icon-box bg-<?= htmlspecialchars($sourceColor) ?> bg-opacity-10 text-<?= htmlspecialchars($sourceColor) ?>">
+                        <i class="bi <?= htmlspecialchars($sourceIcon) ?>"></i>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
     </div>
 
     <?php
     $effectiveCanDelete = !empty($canEditStock) && (!isset($canDeleteStock) || !empty($canDeleteStock));
     $showConcernColumn = $isSuperAdmin && empty($selectedCid);
-    $stockColumnCount = $showConcernColumn ? 9 : 8;
+    $stockColumnCount = $showConcernColumn ? 8 : 7;
     $stockGroups = [
         'own' => [
             'title' => 'Own Products',
@@ -111,7 +149,6 @@
                         <th style="width:40px;">
                             <input type="checkbox" class="form-check-input" id="stockSelectAll" title="Select All">
                         </th>
-                        <th>SKU Code</th>
                         <?php if ($showConcernColumn): ?>
                             <th>Concern</th>
                         <?php endif; ?>
@@ -194,28 +231,6 @@
                                                    data-price="<?= number_format((float)$s['price'], 2) ?>"
                                                    data-mrp="<?= number_format((float)$s['mrp'], 2) ?>">
                                         </td>
-                                        <td>
-                                            <div class="d-flex align-items-center gap-1">
-                                                <span class="badge bg-dark font-monospace"><?= htmlspecialchars($s['sku_code']) ?></span>
-                                                <button type="button"
-                                                        class="btn btn-sm btn-light border py-0 px-1 text-primary stock-qr-trigger"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#quickStockQrModal"
-                                                        data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-variant-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-category-name="<?= htmlspecialchars((string)($s['category_name'] ?? 'Apparel'), ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-size="<?= htmlspecialchars((string)($s['size'] ?: 'Free'), ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-color="<?= htmlspecialchars((string)$color, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-price="<?= number_format((float)$s['price'], 2) ?>"
-                                                        data-mrp="<?= number_format((float)$s['mrp'], 2) ?>"
-                                                        data-concern-name="<?= htmlspecialchars((string)($s['concern_name'] ?? 'GRM Inventory'), ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-print-url="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $s['variant_id']) ?>"
-                                                        title="Quick View QR Code">
-                                                    <i class="bi bi-qr-code"></i>
-                                                </button>
-                                            </div>
-                                        </td>
                                         <?php if ($showConcernColumn): ?>
                                             <td>
                                                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
@@ -247,7 +262,7 @@
                                             <span class="d-block text-success">Cost ₹<?= number_format((float)$s['cost_price'], 2) ?></span>
                                             <small class="d-block text-muted">Selling ₹<?= number_format((float)$s['price'], 2) ?> · MRP ₹<?= number_format((float)$s['mrp'], 2) ?></small>
                                         </td>
-                                        <td class="fw-bold text-dark">₹<?= number_format($s['qty'] * $s['cost_price'], 2) ?></td>
+                                        <td class="fw-bold text-dark">₹<?= number_format($s['qty'] * $s['price'], 2) ?></td>
                                         <td class="text-end">
                                             <div class="d-inline-flex flex-wrap justify-content-end gap-1">
                                                 <button type="button"
@@ -298,28 +313,7 @@
                                                         title="Quick View QR Code">
                                                     <i class="bi bi-qr-code"></i> QR
                                                 </button>
-                                                <?php if (($s['stock_source'] ?? '') === 'purchase'): ?>
-                                                    <?php if (!empty($s['purchase_item_id'])): ?>
-                                                        <?php
-                                                        $labelPreviewUrl = '/m/stocks/view-label?' . http_build_query([
-                                                            'item_id' => (int)$s['purchase_item_id'],
-                                                            'variant_id' => (int)$s['variant_id'],
-                                                            'concern_id' => (int)$s['concern_id'],
-                                                        ]);
-                                                        ?>
-                                                        <a href="<?= htmlspecialchars(\App\Core\Controller::url($labelPreviewUrl), ENT_QUOTES, 'UTF-8') ?>"
-                                                           class="btn btn-sm btn-outline-primary"
-                                                           target="_blank"
-                                                           rel="noopener"
-                                                           aria-label="View label for <?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>">
-                                                            <i class="bi bi-tag"></i> View Label
-                                                        </a>
-                                                    <?php else: ?>
-                                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Purchase label details are unavailable">
-                                                            <i class="bi bi-tag-fill"></i> Label Unavailable
-                                                        </button>
-                                                    <?php endif; ?>
-                                                <?php else: ?>
+                                                <?php if (($s['stock_source'] ?? '') !== 'purchase'): ?>
                                                     <a href="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $s['variant_id']) ?>" class="btn btn-sm btn-outline-primary" title="Print QR Stickers">
                                                         <i class="bi bi-qr-code"></i> Print Labels
                                                     </a>

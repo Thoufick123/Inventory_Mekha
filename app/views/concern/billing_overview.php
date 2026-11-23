@@ -20,7 +20,7 @@ foreach ([
 $pageUrl = static function (int $pageNumber) use ($billingUrl, $query): string {
     return $billingUrl . '?' . http_build_query($query + ['page' => $pageNumber]);
 };
-$totalRevenue = (float)($summary['total_revenue'] ?? 0);
+$totalRevenue = (float)($summary['all_revenue'] ?? 0);
 $paidRevenue = (float)($summary['paid_revenue'] ?? 0);
 $paymentMethodLabels = [
     'cash' => 'CASH',
@@ -73,8 +73,8 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
             <div class="card border-0 shadow-sm h-100 pos-overview-stat">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="small fw-bold text-uppercase text-muted">POS Invoices</div>
-                        <div class="fs-4 fw-bold mt-2"><?= number_format((int)$summary['invoice_count']) ?></div>
+                        <div class="small fw-bold text-uppercase text-muted">Unique Bills</div>
+                        <div class="fs-4 fw-bold mt-2"><?= number_format((int)$summary['all_invoice_count']) ?></div>
                         <div class="small mt-1">
                             <span class="text-success"><?= number_format((int)$summary['paid_count']) ?> Paid</span>
                             <span class="text-muted mx-1">·</span>
@@ -91,7 +91,7 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
                     <div>
                         <div class="small fw-bold text-uppercase text-muted">Billed Customers</div>
                         <div class="fs-4 fw-bold mt-2"><?= number_format((int)$summary['customer_count']) ?></div>
-                        <div class="small text-muted mt-1">Unique POS customers</div>
+                        <div class="small text-muted mt-1">Unique customers across all bills</div>
                     </div>
                     <span class="pos-overview-icon text-info bg-info-subtle"><i class="bi bi-people"></i></span>
                 </div>
@@ -114,7 +114,7 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
     <div class="d-flex flex-wrap gap-2 mb-3 pos-billing-channel-tabs">
         <?php
         $tabs = [
-            'all' => ['All', (float)$summary['total_revenue'], (int)$summary['invoice_count'], 'bi-list-ul'],
+            'all' => ['All', (float)$summary['all_revenue'], (int)$summary['all_invoice_count'], 'bi-list-ul'],
             'cash' => ['Cash', (float)$summary['cash_revenue'], (int)$summary['cash_count'], 'bi-cash'],
             'online' => ['Online', (float)$summary['online_revenue'], (int)$summary['online_count'], 'bi-globe'],
             'direct' => ['Direct Bills', (float)$summary['direct_revenue'], (int)$summary['direct_count'], 'bi-building'],

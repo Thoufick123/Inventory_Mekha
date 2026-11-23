@@ -3,6 +3,9 @@
 $billingView = file_get_contents(__DIR__ . '/../app/views/concern/billing.php');
 $outwardView = file_get_contents(__DIR__ . '/../app/views/concern/outward.php');
 $outwardController = file_get_contents(__DIR__ . '/../app/controllers/OutwardController.php');
+$addModalStart = strpos($outwardView, 'id="modalAddOutward"');
+$editModalStart = strpos($outwardView, 'id="modalEditOutward"', $addModalStart);
+$addModalView = substr($outwardView, $addModalStart, $editModalStart - $addModalStart);
 
 $checks = [
     'POS success modal offers A4 and thermal receipt formats' =>
@@ -32,6 +35,38 @@ $checks = [
     'Transferred outward retains its POS invoice reference' =>
         strpos($outwardController, 'si.invoice_no AS sales_invoice_no') !== false
         && strpos($outwardView, '$o[\'sales_invoice_no\']') !== false,
+    'Outward scanner availability matches the concern Main Store stock deducted on dispatch' =>
+        strpos($outwardController, "s.concern_id = v.concern_id") !== false
+        && strpos($outwardController, "s.location = 'Main Store'") !== false
+        && strpos($outwardView, 'refreshFgStockAvailability') !== false
+        && strpos($outwardView, 'scannedFgMap[id].qty >= stock') !== false
+        && strpos($outwardView, 'item.qty = item.stock') !== false
+        && strpos($outwardView, 'max="${it.stock}"') !== false
+        && strpos($outwardView, 'it.qty >= it.stock') !== false
+        && strpos($outwardView, 'item.qty > item.stock') !== false,
+    'New outward form omits destination warehouse and starts logistics fields blank' =>
+        strpos($addModalView, 'Destination Warehouse') === false
+        && strpos($addModalView, 'name="warehouse_name"') === false
+        && strpos($addModalView, 'destination_warehouse_fg') === false
+        && strpos($addModalView, 'name="vehicle_number"') !== false
+        && strpos($addModalView, 'name="driver_name"') !== false
+        && strpos($addModalView, 'name="driver_contact"') !== false
+        && strpos($addModalView, 'name="transporter_name"') !== false
+        && strpos($addModalView, 'name="total_boxes" id="fgTotalBoxesInput" class="form-control form-control-sm" value=') === false
+        && strpos($addModalView, 'value="rtt31232"') === false
+        && strpos($addModalView, 'value="Vanaja"') === false
+        && strpos($addModalView, 'value="9943557998"') === false
+        && strpos($addModalView, 'value="GRM In-house Transport"') === false
+        && strpos($outwardController, "trim(\$_POST['vehicle_number'] ?? '')") !== false
+        && strpos($outwardController, "trim(\$_POST['driver_name'] ?? '')") !== false
+        && strpos($outwardController, "trim(\$_POST['transporter_name'] ?? '')") !== false,
+    'Outward list and detail actions are restricted to the source concern' =>
+        strpos($outwardController, 'AND o.concern_id = ?') !== false
+        && strpos($outwardController, 'OR o.destination_concern_id = ?') === false
+        && strpos($outwardController, 'isOutwardInSourceScope($out)') !== false
+        && strpos($outwardController, 'if ($authConcernId && $authConcernId !== $cid)') !== false
+        && strpos($outwardView, 'concernScope') !== false
+        && strpos($outwardView, 'name="concern_id" value="<?= (int)($selectedConcernId ?? 0) ?>"') !== false,
 ];
 
 $failed = false;
