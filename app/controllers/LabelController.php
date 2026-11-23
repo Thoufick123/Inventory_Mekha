@@ -580,7 +580,7 @@ class LabelController extends Controller {
         $requestedLabelCounts = $_POST['label_counts'] ?? [];
         $rawItemIds = $_POST['item_ids'] ?? [];
         if (!is_array($rawItemIds)) {
-            $rawItemIds = [];
+            $rawItemIds = [$rawItemIds];
         }
         if (isset($_POST['item_id'])) {
             $rawItemIds[] = $_POST['item_id'];
@@ -589,8 +589,22 @@ class LabelController extends Controller {
             array_map('intval', $rawItemIds),
             static fn(int $id): bool => $id > 0
         )));
-        if ($billId <= 0 || !$itemIds || count($itemIds) > 100) {
+        if (!$itemIds && is_array($requestedLabelCounts)) {
+            $itemIds = array_values(array_unique(array_filter(
+                array_map('intval', array_keys($requestedLabelCounts)),
+                static fn(int $id): bool => $id > 0
+            )));
+        }
+        if ($billId <= 0) {
+            $this->failProductAddingLabel($billId, 'The Product Adding bill could not be identified. Refresh the page and try again.');
+            return;
+        }
+        if (!$itemIds) {
             $this->failProductAddingLabel($billId, 'Choose one or more valid Product Adding lines to print labels.');
+            return;
+        }
+        if (count($itemIds) > 100) {
+            $this->failProductAddingLabel($billId, 'Select no more than 100 Product Adding lines for one print.');
             return;
         }
         if (!is_array($requestedLabelCounts)) {
@@ -2184,23 +2198,28 @@ class LabelController extends Controller {
                 $hasRolls = false;
                 $hasOtherItems = false;
                 $hasFinishedGoods = false;
+                $stockQuantities = [];
                 foreach ($selectedItems as $selectedItem) {
-                    $this->assertProductAddingLabelCoverage((int)$selectedItem['id']);
                     if (($selectedItem['inward_status'] ?? 'pending') === 'completed') {
                         throw new Exception("'{$selectedItem['item_name']}' has already been added to stock. Remove it from the selection and try again.");
                     }
                     if ($selectedItem['section_type'] === 'finished_goods' && empty($selectedItem['variant_id'])) {
                         throw new Exception("Finished good '{$selectedItem['item_name']}' must be mapped to a catalog variant before adding it to stock.");
                     }
+                    $stockQuantities[(int)$selectedItem['id']] = $this->getProductAddingLabelCount((int)$selectedItem['id']);
                     $hasRolls = $hasRolls || $selectedItem['section_type'] === 'rolls';
                     $hasOtherItems = $hasOtherItems || $selectedItem['section_type'] === 'garment_other';
                     $hasFinishedGoods = $hasFinishedGoods || $selectedItem['section_type'] === 'finished_goods';
                 }
 
                 foreach ($selectedItems as $selectedItem) {
+                    $itemId = (int)$selectedItem['id'];
+                    $stockQuantity = $stockQuantities[$itemId];
+                    PurchaseStockItemOverrideService::saveInwardQuantity($selectedItem, $stockQuantity, Auth::id());
+                    $selectedItem['qty'] = $stockQuantity;
                     DB::query(
                         "UPDATE purchase_bill_items SET inward_status = 'completed' WHERE id = ? AND purchase_bill_id = ?",
-                        [(int)$selectedItem['id'], $billId]
+                        [$itemId, $billId]
                     );
                     if ($selectedItem['section_type'] === 'rolls') {
                         $hasRolls = true;
@@ -2258,9 +2277,6 @@ class LabelController extends Controller {
                     throw new Exception("Purchase item #{$itemId} not found or access denied.");
                 }
 
-                if (($item['source_module'] ?? '') === 'product_adding') {
-                    $this->assertProductAddingLabelCoverage($itemId);
-                }
                 if (($item['inward_status'] ?? '') === 'completed') {
                     $itemLabel = ($item['section_type'] === 'rolls') ? 'Fabric roll' : 'Purchase item';
                     throw new Exception("{$itemLabel} '{$item['item_name']}' has already been added to stock.");
@@ -2269,9 +2285,17 @@ class LabelController extends Controller {
                     throw new Exception("Finished good '{$item['item_name']}' must be mapped to a catalog variant before adding it to stock.");
                 }
 
+                $productAddingStockQuantity = null;
+                if (($item['source_module'] ?? '') === 'product_adding') {
+                    $productAddingStockQuantity = $this->getProductAddingLabelCount($itemId);
+                }
                 $concernId = (int)$item['concern_id'];
                 $billId = (int)$item['purchase_bill_id'];
                 $billNo = $item['bill_no'];
+                if ($productAddingStockQuantity !== null) {
+                    PurchaseStockItemOverrideService::saveInwardQuantity($item, $productAddingStockQuantity, Auth::id());
+                    $item['qty'] = $productAddingStockQuantity;
+                }
 
                 DB::query("UPDATE purchase_bill_items SET inward_status = 'completed' WHERE id = ?", [$itemId]);
 
@@ -2327,7 +2351,7 @@ class LabelController extends Controller {
                 }
 
                 if (($bill['source_module'] ?? '') === 'product_adding') {
-                    $pendingSql = "SELECT id FROM purchase_bill_items
+                    $pendingSql = "SELECT * FROM purchase_bill_items
                                    WHERE purchase_bill_id = ?
                                      AND COALESCE(inward_status, 'pending') != 'completed'";
                     $pendingParams = [$billId];
@@ -2335,8 +2359,13 @@ class LabelController extends Controller {
                         $pendingSql .= " AND section_type = ?";
                         $pendingParams[] = $preferredTab;
                     }
-                    foreach (DB::fetchAll($pendingSql, $pendingParams) as $pendingItem) {
-                        $this->assertProductAddingLabelCoverage((int)$pendingItem['id']);
+                    $pendingItems = DB::fetchAll($pendingSql, $pendingParams);
+                    if (!$pendingItems) {
+                        throw new Exception('There are no pending Product Adding lines to add to stock.');
+                    }
+                    foreach ($pendingItems as $pendingItem) {
+                        $stockQuantity = $this->getProductAddingLabelCount((int)$pendingItem['id']);
+                        PurchaseStockItemOverrideService::saveInwardQuantity($pendingItem, $stockQuantity, Auth::id());
                     }
                 }
 
@@ -2483,7 +2512,7 @@ class LabelController extends Controller {
         $this->addToStock();
     }
 
-    private function assertProductAddingLabelCoverage(int $itemId): void
+    private function getProductAddingLabelCount(int $itemId): int
     {
         $item = DB::fetch(
             "SELECT pbi.*, COALESCE(pso.label_job_baseline_id, 0) AS label_job_baseline_id
@@ -2497,13 +2526,16 @@ class LabelController extends Controller {
             throw new Exception("Product Adding line #{$itemId} was not found.");
         }
         $item = PurchaseStockItemOverrideService::applyToItems([$item], false)[0];
-        $requiredQty = max(1, (int)ceil((float)$item['qty']));
         $labelType = $item['section_type'] === 'finished_goods' ? 'purchase_fg' : 'purchase_raw';
         $generatedQty = (int)DB::fetchValue(
-            "SELECT COALESCE(SUM(qty), 0)
-             FROM label_jobs
-             WHERE concern_id = ? AND ref_id = ? AND label_type = ?
-               AND source_module = 'product_adding' AND id > ?",
+            "SELECT COALESCE((
+                 SELECT lj.qty
+                 FROM label_jobs lj
+                 WHERE lj.concern_id = ? AND lj.ref_id = ? AND lj.label_type = ?
+                   AND lj.source_module = 'product_adding' AND lj.id > ?
+                 ORDER BY lj.id DESC
+                 LIMIT 1
+             ), 0)",
             [
                 (int)$item['concern_id'],
                 $itemId,
@@ -2511,11 +2543,10 @@ class LabelController extends Controller {
                 (int)($item['label_job_baseline_id'] ?? 0),
             ]
         );
-        if ($generatedQty < $requiredQty) {
-            throw new Exception(
-                "Print at least {$requiredQty} labels for '{$item['item_name']}' before adding it to stock ({$generatedQty} generated)."
-            );
+        if ($generatedQty < 1) {
+            throw new Exception("Print at least one label for '{$item['item_name']}' before adding it to stock.");
         }
+        return $generatedQty;
     }
 
     private function inwardPurchaseFinishedGood(int $concernId, array $item, string $billNo): void

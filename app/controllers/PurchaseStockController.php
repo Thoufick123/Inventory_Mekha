@@ -107,6 +107,7 @@ class PurchaseStockController extends Controller {
              ORDER BY pbi.id DESC",
             $rollsWhere['params']
         );
+        $rolls = PurchaseStockItemOverrideService::applyToItems($rolls);
         foreach ($rolls as &$r) {
             $r['available_qty'] = max(0.0, (float)$r['qty'] - (float)$r['allocated_qty'] - (float)$r['damaged_qty']);
             $r['available_weight'] = max(0.0, (float)($r['net_weight'] ?? 0) - (float)$r['allocated_weight'] - (float)$r['damaged_weight']);
