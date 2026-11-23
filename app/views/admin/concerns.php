@@ -189,8 +189,8 @@
                         <div class="row g-2 mb-3">
                             <div class="col-12">
                                 <label class="form-label small fw-semibold">Phone *</label>
-                                <input type="tel" name="phone" id="newConcernPhone" class="form-control" maxlength="13" pattern="^(\+?91)?[6-9][0-9]{9}$|^[6-9][0-9]{11}$" placeholder="10 or 12 digits (e.g. 9876543210)" oninput="this.value = this.value.replace(/[^0-9+]/g, '').slice(0, 13);" autocomplete="off" title="Phone number must be 10 or 12 digits and start with 6, 7, 8, or 9 (or +91)" required>
-                                <div class="invalid-feedback" id="newConcernPhoneFeedback">Phone must be 10 or 12 digits and start with 6, 7, 8, or 9.</div>
+                                <input type="tel" name="phone" id="newConcernPhone" class="form-control" maxlength="13" pattern="^(\+?91)?[6-9][0-9]{9}$" placeholder="10 digits (e.g. 9876543210 or +91...)" oninput="this.value = this.value.replace(/[^0-9+]/g, '').slice(0, 13);" autocomplete="off" title="Phone number must be 10 digits starting with 6, 7, 8, or 9 (or prefixed with +91/91)" required>
+                                <div class="invalid-feedback" id="newConcernPhoneFeedback">Phone must be 10 digits starting with 6, 7, 8, or 9 (or +91).</div>
                             </div>
                         </div>
 
@@ -307,8 +307,8 @@
                         <div class="row g-2 mb-3">
                             <div class="col-12">
                                 <label class="form-label small fw-semibold">Phone *</label>
-                                <input type="tel" name="phone" id="edit_concern_phone" class="form-control" maxlength="13" pattern="^(\+?91)?[6-9][0-9]{9}$|^[6-9][0-9]{11}$" placeholder="10 or 12 digits (e.g. 9876543210)" oninput="this.value = this.value.replace(/[^0-9+]/g, '').slice(0, 13);" autocomplete="off" title="Phone number must be 10 or 12 digits and start with 6, 7, 8, or 9 (or +91)" required>
-                                <div class="invalid-feedback" id="editConcernPhoneFeedback">Phone must be 10 or 12 digits and start with 6, 7, 8, or 9.</div>
+                                <input type="tel" name="phone" id="edit_concern_phone" class="form-control" maxlength="13" pattern="^(\+?91)?[6-9][0-9]{9}$" placeholder="10 digits (e.g. 9876543210 or +91...)" oninput="this.value = this.value.replace(/[^0-9+]/g, '').slice(0, 13);" autocomplete="off" title="Phone number must be 10 digits starting with 6, 7, 8, or 9 (or prefixed with +91/91)" required>
+                                <div class="invalid-feedback" id="editConcernPhoneFeedback">Phone must be 10 digits starting with 6, 7, 8, or 9 (or +91).</div>
                             </div>
                         </div>
 
@@ -564,7 +564,7 @@ function validateConcernPhone(inputEl, feedbackEl, isFinalCheck = false) {
     const val = inputEl.value.trim();
     if (!val) {
         if (isFinalCheck) {
-            const errorMsg = 'Phone number is required (10 or 12 digits starting with 6, 7, 8, or 9).';
+            const errorMsg = 'Phone number is required (10 digits starting with 6, 7, 8, or 9, or prefixed with +91).';
             inputEl.classList.add('is-invalid');
             inputEl.setCustomValidity(errorMsg);
             if (feedbackEl) feedbackEl.textContent = errorMsg;
@@ -578,12 +578,12 @@ function validateConcernPhone(inputEl, feedbackEl, isFinalCheck = false) {
 
     const clean = val.replace(/^\+/, '');
     let mobileDigits = clean;
-    if (clean.length > 2 && clean.startsWith('91')) {
+    if (clean.length > 10 && clean.startsWith('91')) {
         mobileDigits = clean.substring(2);
     }
     const firstDigit = mobileDigits.charAt(0);
 
-    // Rule 1: Must start with 6, 7, 8, or 9. If starts with 1, 2, 3, 4, 5 etc., throw error.
+    // Rule 1: Mobile part must start with 6, 7, 8, or 9
     if (firstDigit && !['6', '7', '8', '9'].includes(firstDigit)) {
         const errorMsg = 'Phone number must start with 6, 7, 8, or 9. Numbers starting with ' + firstDigit + ' are not allowed.';
         inputEl.classList.add('is-invalid');
@@ -592,10 +592,16 @@ function validateConcernPhone(inputEl, feedbackEl, isFinalCheck = false) {
         return false;
     }
 
-    // Rule 2: Must be exactly 10 or 12 digits
+    // Rule 2: Must be exactly 10 digits (or 12 digits only if prefixed with 91)
     if (isFinalCheck || clean.length >= 10) {
-        if (clean.length !== 10 && clean.length !== 12) {
-            const errorMsg = 'Phone number must be exactly 10 or 12 digits (currently ' + clean.length + ' digits).';
+        const isValid = (clean.length === 10) || (clean.length === 12 && clean.startsWith('91'));
+        if (!isValid) {
+            let errorMsg;
+            if (clean.length === 12 && !clean.startsWith('91')) {
+                errorMsg = '12-digit phone numbers must begin with country code 91 or +91.';
+            } else {
+                errorMsg = 'Phone number must be exactly 10 digits (or prefixed with +91). Currently ' + clean.length + ' digits.';
+            }
             inputEl.classList.add('is-invalid');
             inputEl.setCustomValidity(errorMsg);
             if (feedbackEl) feedbackEl.textContent = errorMsg;
