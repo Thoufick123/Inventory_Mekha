@@ -6960,6 +6960,14 @@ class ProductionController extends Controller {
 
                 $qcItemId = (int)DB::lastInsertId();
 
+                // If variant_id is missing, resolve by catalog and size
+                if (!$variantId && $catalogId && $size) {
+                    $foundVar = DB::fetch("SELECT id FROM variants WHERE catalog_id = ? AND size = ? LIMIT 1", [$catalogId, $size]);
+                    if ($foundVar) {
+                        $variantId = (int)$foundVar['id'];
+                    }
+                }
+
                 // Generate piece records for the QR scanner
                 // Format code matching Finished Goods Product label base (variant-wise)
                 $fgCode = null;
@@ -7076,6 +7084,20 @@ class ProductionController extends Controller {
         // Dynamically heal tag_code so every variant has a single code (matching single production QR label)
         foreach ($pieces as &$p) {
             $vId = (int)($p['variant_id'] ?? 0);
+            if ($vId <= 0 && !empty($p['qc_item_id'])) {
+                $qii = DB::fetch("SELECT variant_id, catalog_id, size FROM qc_inspection_items WHERE id = ?", [$p['qc_item_id']]);
+                if (!empty($qii['variant_id'])) {
+                    $vId = (int)$qii['variant_id'];
+                } elseif (!empty($qii['catalog_id']) && !empty($qii['size'])) {
+                    $found = DB::fetch("SELECT id FROM variants WHERE catalog_id = ? AND size = ? LIMIT 1", [$qii['catalog_id'], $qii['size']]);
+                    if ($found) $vId = (int)$found['id'];
+                }
+                if ($vId > 0) {
+                    DB::query("UPDATE qc_piece_items SET variant_id = ? WHERE id = ?", [$vId, $p['id']]);
+                    $p['variant_id'] = $vId;
+                }
+            }
+
             if ($vId > 0) {
                 $fgCode = \App\Services\QrService::generateFinishedGoodsCode($vId);
                 if ($fgCode && ($p['tag_code'] !== $fgCode || str_contains($p['tag_code'], '-'))) {
