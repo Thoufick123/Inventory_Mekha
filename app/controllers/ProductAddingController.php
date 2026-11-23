@@ -37,9 +37,11 @@ class ProductAddingController extends Controller
         $savedBill = null;
         $savedBillItems = [];
         if ($billId > 0) {
-            $billSql = "SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company
+            $billSql = "SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company,
+                               c.name AS concern_name, c.code AS concern_code
                         FROM purchase_bills pb
                         LEFT JOIN suppliers s ON s.id = pb.supplier_id
+                        LEFT JOIN concerns c ON c.id = pb.concern_id
                         WHERE pb.id = ? AND pb.source_module = 'product_adding'";
             $billParams = [$billId];
             if ($cid) {
@@ -50,9 +52,9 @@ class ProductAddingController extends Controller
             if ($savedBill) {
                 PurchaseStockItemOverrideService::initTable();
                 $savedBillItems = DB::fetchAll(
-                    "SELECT pbi.*,
+                    "SELECT pbi.*, pbi.qty AS purchase_qty_original,
                             COALESCE((
-                                SELECT SUM(lj.qty)
+                                SELECT lj.qty
                                 FROM label_jobs lj
                                 WHERE lj.ref_id = pbi.id
                                   AND lj.concern_id = pbi.concern_id
@@ -62,6 +64,8 @@ class ProductAddingController extends Controller
                                   END
                                   AND lj.source_module = 'product_adding'
                                   AND lj.id > COALESCE(pso.label_job_baseline_id, 0)
+                                ORDER BY lj.id DESC
+                                LIMIT 1
                             ), 0) AS generated_label_qty
                      FROM purchase_bill_items pbi
                      LEFT JOIN purchase_stock_item_overrides pso
@@ -72,9 +76,12 @@ class ProductAddingController extends Controller
                 );
                 $savedBillItems = PurchaseStockItemOverrideService::applyToItems($savedBillItems, false);
                 foreach ($savedBillItems as &$savedItem) {
-                    $savedItem['required_label_qty'] = (int)ceil((float)$savedItem['qty']);
+                    $savedItem['required_label_qty'] = (int)ceil((float)($savedItem['purchase_qty_original'] ?? $savedItem['qty']));
                     $savedItem['generated_label_qty'] = max(0, (int)$savedItem['generated_label_qty']);
-                    $savedItem['labels_complete'] = $savedItem['generated_label_qty'] >= $savedItem['required_label_qty'];
+                    $savedItem['labels_complete'] = $savedItem['generated_label_qty'] > 0;
+                    $savedItem['default_label_qty'] = $savedItem['generated_label_qty'] > 0
+                        ? $savedItem['generated_label_qty']
+                        : $savedItem['required_label_qty'];
                 }
                 unset($savedItem);
             }

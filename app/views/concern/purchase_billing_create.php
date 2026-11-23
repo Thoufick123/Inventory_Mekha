@@ -21,6 +21,18 @@ $paymentMethods = [
     'upi' => 'UPI',
 ];
 $existingAttachments = [];
+$savedBillAttachments = [];
+if (!empty($savedBill)) {
+    $decodedBillAttachments = json_decode((string)($savedBill['attachment_paths'] ?? ''), true);
+    if (is_array($decodedBillAttachments)) {
+        $savedBillAttachments = array_values(array_filter($decodedBillAttachments, static function ($path): bool {
+            return is_string($path) && trim($path) !== '';
+        }));
+    }
+    if (empty($savedBillAttachments) && !empty($savedBill['attachment_path'])) {
+        $savedBillAttachments[] = (string)$savedBill['attachment_path'];
+    }
+}
 if ($isEdit) {
     $decodedAttachments = json_decode((string)($bill['attachment_paths'] ?? ''), true);
     if (is_array($decodedAttachments)) {
@@ -212,12 +224,100 @@ if ($isEdit && !empty($existingItems)) {
     <?php if ($isProductAddingForm && !empty($savedBill)): ?>
         <section class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="fw-bold mb-0"><i class="bi bi-receipt text-primary me-2"></i>Purchase &amp; Supplier Details</h5>
+                <span class="badge text-bg-light border"><?= htmlspecialchars($savedBill['bill_no']) ?></span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Target concern</div>
+                        <div class="fw-semibold"><?= htmlspecialchars($savedBill['concern_name'] ?? '—') ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Supplier</div>
+                        <div class="fw-semibold"><?= htmlspecialchars($savedBill['supplier_name'] ?? '—') ?></div>
+                        <?php if (!empty($savedBill['supplier_company'])): ?>
+                            <div class="small text-muted"><?= htmlspecialchars($savedBill['supplier_company']) ?></div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Supplier invoice</div>
+                        <div class="fw-semibold"><?= htmlspecialchars($savedBill['supplier_invoice_no'] ?? '—') ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Purchase date</div>
+                        <div class="fw-semibold">
+                            <?= !empty($savedBill['bill_date']) ? htmlspecialchars(date('d M Y', strtotime((string)$savedBill['bill_date']))) : '—' ?>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Payment status</div>
+                        <div class="fw-semibold"><?= htmlspecialchars(ucfirst((string)($savedBill['payment_status'] ?? 'unpaid'))) ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Payment method</div>
+                        <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)($savedBill['payment_method'] ?? 'credit')))) ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Payment reference</div>
+                        <div class="fw-semibold"><?= trim((string)($savedBill['payment_reference'] ?? '')) !== '' ? htmlspecialchars((string)$savedBill['payment_reference']) : '—' ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Paid amount</div>
+                        <div class="fw-semibold">₹<?= number_format((float)($savedBill['paid_amount'] ?? 0), 2) ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Stock status</div>
+                        <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)($savedBill['inward_status'] ?? 'pending')))) ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Purchase amount</div>
+                        <div class="fw-semibold">₹<?= number_format((float)($savedBill['total_amount'] ?? 0), 2) ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Tax amount</div>
+                        <div class="fw-semibold">₹<?= number_format((float)($savedBill['tax_amount'] ?? 0), 2) ?></div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="small text-muted">Net amount</div>
+                        <div class="fw-semibold text-primary">₹<?= number_format((float)($savedBill['net_amount'] ?? 0), 2) ?></div>
+                    </div>
+                    <?php if (trim((string)($savedBill['notes'] ?? '')) !== ''): ?>
+                        <div class="col-12">
+                            <div class="small text-muted">Purchase notes</div>
+                            <div><?= nl2br(htmlspecialchars((string)$savedBill['notes'])) ?></div>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (trim((string)($savedBill['fabric_description'] ?? '')) !== ''): ?>
+                        <div class="col-12">
+                            <div class="small text-muted">Purchase description</div>
+                            <div><?= nl2br(htmlspecialchars((string)$savedBill['fabric_description'])) ?></div>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($savedBillAttachments): ?>
+                        <div class="col-12">
+                            <div class="small text-muted">Invoice attachments</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <?php foreach ($savedBillAttachments as $index => $attachmentPath): ?>
+                                    <a href="<?= htmlspecialchars(\App\Services\CloudinaryService::url($attachmentPath)) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-paperclip me-1"></i>Attachment <?= $index + 1 ?>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </section>
+
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
                 <div>
                     <h5 class="fw-bold mb-1">Labels &amp; Stock — <?= htmlspecialchars($savedBill['bill_no']) ?></h5>
                     <div class="small text-muted">
                         <?= htmlspecialchars($savedBill['supplier_name'] ?? 'Supplier') ?>
                         · Supplier invoice <?= htmlspecialchars($savedBill['supplier_invoice_no'] ?? '-') ?>
-                        · Labels must cover each line quantity before stock can be added.
+                        · The most recent label-copy count becomes the stock quantity; each line can be added once.
                     </div>
                 </div>
                 <span class="badge text-bg-primary"><?= count($savedBillItems) ?> bill lines</span>
@@ -249,35 +349,60 @@ if ($isEdit && !empty($existingItems)) {
                                     $isSavedItemInStock = ($savedItem['inward_status'] ?? 'pending') === 'completed';
                                     $requiredLabelQty = (int)$savedItem['required_label_qty'];
                                     $generatedLabelQty = (int)$savedItem['generated_label_qty'];
+                                    $defaultLabelQty = (int)$savedItem['default_label_qty'];
+                                    $purchaseQty = $savedItem['purchase_qty_original'] ?? $savedItem['qty'];
                                     ?>
                                     <tr>
                                         <td class="text-center">
-                                            <input
-                                                class="form-check-input"
-                                                type="checkbox"
-                                                name="item_ids[]"
-                                                value="<?= $savedItemId ?>"
-                                                data-labels-complete="<?= $savedItem['labels_complete'] ? '1' : '0' ?>"
-                                                data-in-stock="<?= $isSavedItemInStock ? '1' : '0' ?>"
-                                                data-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
-                                                data-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?>"
-                                                data-default-label-count="<?= $requiredLabelQty ?>"
-                                                data-generated-label-count="<?= $generatedLabelQty ?>"
-                                                data-required-label-count="<?= $requiredLabelQty ?>"
-                                                <?= $isSavedItemInStock ? '' : 'checked' ?>
-                                                aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk actions">
+                                            <label class="d-inline-flex align-items-center justify-content-center p-2 mb-0" style="cursor: pointer;" title="Click to select or clear this line">
+                                                <input
+                                                    class="form-check-input m-0"
+                                                    style="width: 1.1rem; height: 1.1rem;"
+                                                    type="checkbox"
+                                                    name="item_ids[]"
+                                                    value="<?= $savedItemId ?>"
+                                                    data-labels-complete="<?= $savedItem['labels_complete'] ? '1' : '0' ?>"
+                                                    data-in-stock="<?= $isSavedItemInStock ? '1' : '0' ?>"
+                                                    data-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
+                                                    data-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?>"
+                                                    data-default-label-count="<?= $defaultLabelQty ?>"
+                                                    data-generated-label-count="<?= $generatedLabelQty ?>"
+                                                    data-required-label-count="<?= $requiredLabelQty ?>"
+                                                    data-stock-qty="<?= htmlspecialchars((string)$savedItem['qty']) ?>"
+                                                    <?= $isSavedItemInStock ? '' : 'checked' ?>
+                                                    aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk actions">
+                                            </label>
                                         </td>
                                         <td>
                                             <div class="fw-semibold"><?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?></div>
-                                            <div class="small text-muted"><?= htmlspecialchars($savedItem['item_code'] ?? '') ?></div>
+                                            <div class="small text-muted">
+                                                <?= htmlspecialchars($savedItem['item_code'] ?? '') ?>
+                                                <?php if (!empty($savedItem['hsn_code'])): ?> · HSN <?= htmlspecialchars($savedItem['hsn_code']) ?><?php endif; ?>
+                                            </div>
+                                            <div class="small text-muted">
+                                                Unit ₹<?= number_format((float)($savedItem['unit_price'] ?? 0), 2) ?>
+                                                · Line ₹<?= number_format((float)($savedItem['total_price'] ?? 0), 2) ?>
+                                            </div>
                                         </td>
                                         <td><span class="badge text-bg-light border"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?></span></td>
-                                        <td class="text-end"><?= htmlspecialchars((string)$savedItem['qty']) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></td>
+                                        <td class="text-end">
+                                            <?= htmlspecialchars((string)$purchaseQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?>
+                                            <?php if ($isSavedItemInStock): ?>
+                                                <div class="small text-success">Stocked: <?= htmlspecialchars((string)$savedItem['qty']) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
+                                            <?php elseif ($generatedLabelQty > 0): ?>
+                                                <div class="small text-primary">To stock: <?= $generatedLabelQty ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
+                                            <?php endif; ?>
+                                        </td>
                                         <td class="text-center">
                                             <?php if ($savedItem['labels_complete']): ?>
-                                                <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-success"><?= $generatedLabelQty ?> / <?= $requiredLabelQty ?> labels</span>
+                                                <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-success">
+                                                    <?= $generatedLabelQty ?> labels
+                                                    <?= $isSavedItemInStock
+                                                        ? ' · Stocked ' . htmlspecialchars((string)$savedItem['qty'])
+                                                        : ' · Stock qty ' . $generatedLabelQty ?>
+                                                </span>
                                             <?php else: ?>
-                                                <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-warning"><?= $generatedLabelQty ?> / <?= $requiredLabelQty ?> labels</span>
+                                                <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-warning">No labels printed</span>
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-end text-nowrap">
@@ -288,7 +413,7 @@ if ($isEdit && !empty($existingItems)) {
                                                 data-label-item-id="<?= $savedItemId ?>"
                                                 data-label-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
                                                 data-label-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?>"
-                                                data-default-label-count="<?= $requiredLabelQty ?>">
+                                                data-default-label-count="<?= $defaultLabelQty ?>">
                                                 <i class="bi bi-printer me-1"></i>Print labels
                                             </button>
                                             <?php if ($isSavedItemInStock): ?>
@@ -313,20 +438,16 @@ if ($isEdit && !empty($existingItems)) {
                         </table>
                     </div>
                     <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <span class="small text-muted">Bulk printing and stock inward use the checked lines. Stock inward requires complete label coverage.</span>
+                        <span class="small text-muted">The most recent print count sets each line’s inward quantity. Each line can be added to stock once.</span>
                         <div class="d-flex flex-wrap gap-2">
                             <span id="productAddingBulkLabelFeedback" class="small text-danger align-self-center d-none" role="alert"></span>
                             <button
                                 type="submit"
                                 id="productAddingBulkStockButton"
+                                form="productAddingBulkStockForm"
                                 class="btn btn-success"
-                                formaction="<?= $productAddingStockUrl ?>"
-                                formmethod="POST"
-                                formtarget="_self"
-                                name="product_adding"
-                                value="1"
                                 disabled
-                                title="Select pending lines with complete label coverage">
+                                title="Print at least one label for a pending line first">
                                 <i class="bi bi-box-arrow-in-down me-1"></i>Add selected to stock
                             </button>
                             <button type="button" class="btn btn-primary" id="productAddingBulkLabelButton">
@@ -334,6 +455,11 @@ if ($isEdit && !empty($existingItems)) {
                             </button>
                         </div>
                     </div>
+                </form>
+                <form id="productAddingBulkStockForm" action="<?= $productAddingStockUrl ?>" method="POST" class="d-none">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                    <input type="hidden" name="product_adding" value="1">
                 </form>
                 <?php foreach ($savedBillItems as $savedItem): ?>
                     <?php
@@ -351,7 +477,7 @@ if ($isEdit && !empty($existingItems)) {
                         data-label-item-id="<?= $savedItemId ?>"
                         data-label-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
                         data-label-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)$savedItem['section_type']))) ?>"
-                        data-default-label-count="<?= (int)$savedItem['required_label_qty'] ?>">
+                        data-default-label-count="<?= (int)$savedItem['default_label_qty'] ?>">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                         <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
                         <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
@@ -387,7 +513,7 @@ if ($isEdit && !empty($existingItems)) {
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="small text-muted mb-3">Counts default to each purchase line quantity. Choose 1–500 labels per line (up to 2,000 labels per print).</p>
+                        <p class="small text-muted mb-3">The first count defaults to purchase quantity; later prints default to the latest count. The latest count becomes stock quantity on inward. Choose 1–500 labels per line (up to 2,000 labels per print).</p>
                         <div id="productAddingLabelCountRows"></div>
                         <div id="productAddingLabelCountError" class="small text-danger mt-2" role="alert"></div>
                     </div>
@@ -402,7 +528,7 @@ if ($isEdit && !empty($existingItems)) {
         </div>
     <?php endif; ?>
 
-    <form action="<?= $formAction ?>" method="POST" enctype="multipart/form-data" id="formPurchaseBill" class="needs-validation" novalidate>
+    <form action="<?= $formAction ?>" method="POST" enctype="multipart/form-data" id="formPurchaseBill" class="needs-validation <?= !empty($savedBill) ? 'd-none' : '' ?>" novalidate>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
         <?php if (str_contains($formAction, '/m/product_adding/store')): ?>
             <input type="hidden" name="product_adding_redirect" value="1">
@@ -4488,19 +4614,52 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
     const bulkStockButton = document.getElementById('productAddingBulkStockButton');
-    if (bulkLabelForm && bulkStockButton) {
+    const bulkStockForm = document.getElementById('productAddingBulkStockForm');
+    if (bulkLabelForm && bulkStockButton && bulkStockForm) {
         const updateBulkStockButton = function () {
             const selectedItems = Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]:checked'));
-            const canAddSelected = selectedItems.length > 0 && selectedItems.every(function (input) {
+            const eligibleItems = selectedItems.filter(function (input) {
                 return input.dataset.labelsComplete === '1' && input.dataset.inStock !== '1';
             });
-            bulkStockButton.disabled = !canAddSelected;
-            bulkStockButton.title = canAddSelected
-                ? `Add ${selectedItems.length} selected line(s) to stock`
+            bulkStockButton.disabled = eligibleItems.length === 0;
+            bulkStockButton.title = eligibleItems.length > 0
+                ? `Add ${eligibleItems.length} label-complete selected line(s) to stock`
                 : 'Select pending lines with complete label coverage';
         };
         bulkLabelForm.addEventListener('change', function (event) {
-            if (event.target.matches('input[name="item_ids[]"]')) updateBulkStockButton();
+            if (event.target.matches('input[name="item_ids[]"]')) {
+                updateBulkStockButton();
+                const feedback = document.getElementById('productAddingBulkLabelFeedback');
+                if (feedback) {
+                    feedback.textContent = '';
+                    feedback.classList.add('d-none');
+                }
+            }
+        });
+        bulkStockForm.addEventListener('submit', function (event) {
+            bulkStockForm.querySelectorAll('input[name="item_ids[]"]').forEach(function (input) {
+                input.remove();
+            });
+            const selectedItems = Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]:checked'));
+            const eligibleItems = selectedItems.filter(function (input) {
+                return input.dataset.labelsComplete === '1' && input.dataset.inStock !== '1';
+            });
+            if (eligibleItems.length === 0) {
+                event.preventDefault();
+                const feedback = document.getElementById('productAddingBulkLabelFeedback');
+                if (feedback) {
+                    feedback.textContent = 'Select pending lines with complete label coverage before adding stock.';
+                    feedback.classList.remove('d-none');
+                }
+                return;
+            }
+            eligibleItems.forEach(function (input) {
+                const itemId = document.createElement('input');
+                itemId.type = 'hidden';
+                itemId.name = 'item_ids[]';
+                itemId.value = input.value;
+                bulkStockForm.appendChild(itemId);
+            });
         });
         updateBulkStockButton();
     }
@@ -4782,7 +4941,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <tr>
                                     <td>
                                         <div class="fw-semibold">${escapeHtml(item.name)}</div>
-                                        <div class="small text-muted">${escapeHtml(item.section)} · purchased quantity ${escapeHtml(item.defaultCount)}</div>
+                                        <div class="small text-muted">${escapeHtml(item.section)} · print count / stock quantity ${escapeHtml(item.defaultCount)}</div>
                                     </td>
                                     <td style="width: 120px">
                                         <input type="number" class="form-control form-control-sm text-end"
@@ -4870,7 +5029,17 @@ document.addEventListener('DOMContentLoaded', function () {
             pendingLabelForm.querySelectorAll('[data-generated-label-count]').forEach(function (input) {
                 input.remove();
             });
+            pendingLabelForm.querySelectorAll('[data-generated-label-item-id]').forEach(function (input) {
+                input.remove();
+            });
             inputs.forEach(function (input) {
+                const hiddenItemId = document.createElement('input');
+                hiddenItemId.type = 'hidden';
+                hiddenItemId.name = 'item_ids[]';
+                hiddenItemId.value = input.dataset.labelCountItemId;
+                hiddenItemId.dataset.generatedLabelItemId = '1';
+                pendingLabelForm.appendChild(hiddenItemId);
+
                 const hiddenCount = document.createElement('input');
                 hiddenCount.type = 'hidden';
                 hiddenCount.name = `label_counts[${input.dataset.labelCountItemId}]`;
@@ -4920,39 +5089,40 @@ document.addEventListener('DOMContentLoaded', function () {
                 .find(function (input) { return input.value === itemId; });
             if (!checkbox) return;
 
-            const generatedCount = (Number(checkbox.dataset.generatedLabelCount) || 0)
-                + (Number(event.data.itemCounts[itemId]) || 0);
-            const requiredCount = Number(checkbox.dataset.requiredLabelCount) || 1;
+            const generatedCount = Number(event.data.itemCounts[itemId]) || 0;
             checkbox.dataset.generatedLabelCount = String(generatedCount);
-            checkbox.dataset.labelsComplete = generatedCount >= requiredCount ? '1' : '0';
+            checkbox.dataset.labelsComplete = generatedCount > 0 ? '1' : '0';
 
             const progress = document.getElementById(`productAddingLabelProgress${itemId}`);
             if (progress) {
-                progress.textContent = `${generatedCount} / ${requiredCount} labels`;
-                progress.classList.toggle('text-bg-success', generatedCount >= requiredCount);
-                progress.classList.toggle('text-bg-warning', generatedCount < requiredCount);
+                const stockText = checkbox.dataset.inStock === '1'
+                    ? `Stocked ${checkbox.dataset.stockQty || '—'}`
+                    : `Stock qty ${generatedCount}`;
+                progress.textContent = generatedCount > 0 ? `${generatedCount} labels · ${stockText}` : 'No labels printed';
+                progress.classList.toggle('text-bg-success', generatedCount > 0);
+                progress.classList.toggle('text-bg-warning', generatedCount <= 0);
             }
 
             const stockButton = document.querySelector(`[data-product-adding-stock-button="${itemId}"]`);
-            if (stockButton && checkbox.dataset.inStock !== '1' && generatedCount >= requiredCount && stockButton.disabled) {
+            if (stockButton && checkbox.dataset.inStock !== '1' && generatedCount > 0 && stockButton.disabled) {
                 stockButton.type = 'submit';
                 stockButton.setAttribute('form', stockButton.dataset.stockFormId);
                 stockButton.disabled = false;
                 stockButton.classList.remove('btn-outline-secondary');
                 stockButton.classList.add('btn-success');
-                stockButton.title = 'Add this labeled line to stock';
+                stockButton.title = `Add ${generatedCount} units to stock`;
                 stockButton.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i>Add stock';
             }
         });
 
         if (bulkStockButton) {
             const selectedItems = selectedLineInputs();
-            const canAddSelected = selectedItems.length > 0 && selectedItems.every(function (input) {
+            const eligibleItems = selectedItems.filter(function (input) {
                 return input.dataset.labelsComplete === '1' && input.dataset.inStock !== '1';
             });
-            bulkStockButton.disabled = !canAddSelected;
-            bulkStockButton.title = canAddSelected
-                ? `Add ${selectedItems.length} selected line(s) to stock`
+            bulkStockButton.disabled = eligibleItems.length === 0;
+            bulkStockButton.title = eligibleItems.length > 0
+                ? `Add ${eligibleItems.length} label-complete selected line(s) to stock`
                 : 'Select pending lines with complete label coverage';
         }
     });

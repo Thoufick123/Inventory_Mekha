@@ -63,6 +63,24 @@ class RollRegistryService {
     public static function syncSpecs(?int $concernId = null): void {
         self::initTable();
 
+        $hasStockOverrides = (int)DB::fetchValue(
+            "SELECT COUNT(*) FROM information_schema.tables
+             WHERE table_schema = DATABASE() AND table_name = 'purchase_stock_item_overrides'"
+        ) > 0;
+        $stockQty = $hasStockOverrides ? 'COALESCE(stock_override.qty, pbi.qty)' : 'pbi.qty';
+        $stockUnit = $hasStockOverrides
+            ? "COALESCE(NULLIF(TRIM(stock_override.unit), ''), NULLIF(TRIM(pbi.unit), ''), 'Rolls')"
+            : "COALESCE(NULLIF(TRIM(pbi.unit), ''), 'Rolls')";
+        $stockUnitPrice = $hasStockOverrides
+            ? 'COALESCE(stock_override.unit_price, pbi.unit_price)'
+            : 'pbi.unit_price';
+        $overrideJoin = $hasStockOverrides
+            ? "LEFT JOIN purchase_stock_item_overrides stock_override
+                 ON stock_override.purchase_bill_item_id = pbi.id
+                AND stock_override.concern_id = pbi.concern_id
+                AND stock_override.section_type = 'rolls'"
+            : '';
+
         $whereClause = "";
         $params = [];
         if ($concernId) {
@@ -75,11 +93,11 @@ class RollRegistryService {
         $sql = "SELECT pbi.concern_id,
                        UPPER(TRIM(pbi.color)) AS color,
                        UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) AS design_name,
-                       SUM(GREATEST(0.00, pbi.qty - COALESCE(prog.allocated_qty, 0.00) - COALESCE(dmg.damaged_qty, 0.00))) AS total_qty,
+                       SUM(GREATEST(0.00, {$stockQty} - COALESCE(prog.allocated_qty, 0.00) - COALESCE(dmg.damaged_qty, 0.00))) AS total_qty,
                        SUM(GREATEST(0.00, COALESCE(pbi.net_weight, 0.00) - COALESCE(prog.allocated_weight, 0.00) - COALESCE(dmg.damaged_weight, 0.00))) AS total_weight,
-                       SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(NULLIF(TRIM(pbi.unit), ''), 'Rolls') ORDER BY pbi.id DESC), ',', 1) AS unit,
-                       SUBSTRING_INDEX(GROUP_CONCAT(pbi.unit_price ORDER BY pbi.id DESC), ',', 1) AS last_price,
-                       SUM(GREATEST(0.00, (GREATEST(0.00, pbi.qty - COALESCE(prog.allocated_qty, 0.00) - COALESCE(dmg.damaged_qty, 0.00))) * pbi.unit_price)) AS total_val,
+                       SUBSTRING_INDEX(GROUP_CONCAT({$stockUnit} ORDER BY pbi.id DESC), ',', 1) AS unit,
+                       SUBSTRING_INDEX(GROUP_CONCAT({$stockUnitPrice} ORDER BY pbi.id DESC), ',', 1) AS last_price,
+                       SUM(GREATEST(0.00, (GREATEST(0.00, {$stockQty} - COALESCE(prog.allocated_qty, 0.00) - COALESCE(dmg.damaged_qty, 0.00))) * {$stockUnitPrice})) AS total_val,
                        COUNT(DISTINCT pb.id) AS bills_count,
                        SUBSTRING_INDEX(GROUP_CONCAT(pb.bill_no ORDER BY pb.id DESC), ',', 1) AS last_bill,
                        SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(s.name, '') ORDER BY pb.id DESC), ',', 1) AS last_supplier,
@@ -87,6 +105,7 @@ class RollRegistryService {
                 FROM purchase_bill_items pbi
                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                 LEFT JOIN suppliers s ON pb.supplier_id = s.id
+                {$overrideJoin}
                 LEFT JOIN (
                     SELECT pr.purchase_bill_item_id,
                            SUM(pr.allocated_qty) AS allocated_qty,

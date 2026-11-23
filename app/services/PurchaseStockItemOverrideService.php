@@ -81,6 +81,58 @@ class PurchaseStockItemOverrideService {
         return $items;
     }
 
+    public static function saveInwardQuantity(array $item, int $quantity, ?int $userId): void {
+        $concernId = (int)($item['concern_id'] ?? 0);
+        $itemId = (int)($item['id'] ?? 0);
+        $sectionType = (string)($item['section_type'] ?? '');
+        if ($concernId <= 0 || $itemId <= 0 || $quantity <= 0) {
+            throw new \InvalidArgumentException('A valid purchase line and positive inward quantity are required.');
+        }
+
+        self::initTable();
+        $existing = DB::fetch(
+            "SELECT * FROM purchase_stock_item_overrides
+             WHERE concern_id = ? AND purchase_bill_item_id = ?",
+            [$concernId, $itemId]
+        );
+        if ($existing) {
+            if ($existing['section_type'] !== $sectionType) {
+                throw new \RuntimeException('The stock override section does not match the purchase line.');
+            }
+            $unitPrice = (float)$existing['unit_price'];
+            DB::query(
+                "UPDATE purchase_stock_item_overrides
+                 SET qty = ?, total_value = ?, updated_by = ?
+                 WHERE concern_id = ? AND purchase_bill_item_id = ?",
+                [$quantity, round($quantity * $unitPrice, 2), $userId, $concernId, $itemId]
+            );
+            return;
+        }
+
+        $unitPrice = (float)($item['unit_price'] ?? 0);
+        DB::query(
+            "INSERT INTO purchase_stock_item_overrides
+                (concern_id, purchase_bill_item_id, section_type, item_name, item_code, specification, color, unit,
+                 qty, unit_price, mrp, total_value, label_job_baseline_id, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+            [
+                $concernId,
+                $itemId,
+                $sectionType,
+                (string)($item['item_name'] ?? ''),
+                (string)($item['item_code'] ?? ''),
+                (string)($item['specification'] ?? ''),
+                (string)($item['color'] ?? ''),
+                (string)($item['unit'] ?? ''),
+                $quantity,
+                $unitPrice,
+                (float)($item['mrp'] ?? 0),
+                round($quantity * $unitPrice, 2),
+                $userId,
+            ]
+        );
+    }
+
     public static function saveItemOverride(
         int $concernId,
         int $itemId,
