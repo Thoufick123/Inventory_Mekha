@@ -133,6 +133,23 @@
                                     $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
                                     $displayAttributes = [];
                                     $color = trim((string)($variantAttributes['color'] ?? ''));
+                                    if ($color === '' && preg_match('/\(([^)]+)\)/', (string)$s['variant_name'], $cm)) {
+                                        $color = trim($cm[1]);
+                                    }
+                                    $hsn = trim((string)($variantAttributes['hsn'] ?? ($s['catalog_hsn'] ?? '')));
+                                    $qrPayload = \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']) ?: $s['sku_code'];
+                                    $subcatDisplay = $s['subcategory_name'] ?? '-';
+                                    if (($subcatDisplay === '-' || $subcatDisplay === '') && !empty($s['hierarchy_path'])) {
+                                        $hpParts = array_map('trim', explode('>', $s['hierarchy_path']));
+                                        if (!empty($hpParts[1])) {
+                                            $subcatDisplay = $hpParts[1];
+                                            if (!empty($hpParts[2])) {
+                                                $subcatDisplay .= ' / ' . $hpParts[2];
+                                            }
+                                        }
+                                    } elseif (!empty($s['sub_subcategory_name']) && $s['sub_subcategory_name'] !== '-') {
+                                        $subcatDisplay .= ' / ' . $s['sub_subcategory_name'];
+                                    }
                                     if ($color !== '') {
                                         $displayAttributes[] = 'Color: ' . $color;
                                     }
@@ -170,7 +187,24 @@
                                                    data-price="<?= number_format((float)$s['price'], 2) ?>"
                                                    data-mrp="<?= number_format((float)$s['mrp'], 2) ?>">
                                         </td>
-                                        <td><span class="badge bg-dark font-monospace"><?= htmlspecialchars($s['sku_code']) ?></span></td>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-1">
+                                                <span class="badge bg-dark font-monospace"><?= htmlspecialchars($s['sku_code']) ?></span>
+                                                <button type="button"
+                                                        class="btn btn-sm btn-light border py-0 px-1 text-primary stock-qr-trigger"
+                                                        data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-variant-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-size="<?= htmlspecialchars((string)($s['size'] ?: 'Free'), ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-color="<?= htmlspecialchars((string)$color, ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-price="<?= number_format((float)$s['price'], 2) ?>"
+                                                        data-mrp="<?= number_format((float)$s['mrp'], 2) ?>"
+                                                        data-print-url="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $s['variant_id']) ?>"
+                                                        title="Quick View QR Code">
+                                                    <i class="bi bi-qr-code"></i>
+                                                </button>
+                                            </div>
+                                        </td>
                                         <?php if ($showConcernColumn): ?>
                                             <td>
                                                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
@@ -191,7 +225,7 @@
                                         </td>
                                         <td>
                                             <div class="small fw-semibold"><?= htmlspecialchars($s['category_name'] ?? 'General') ?></div>
-                                            <small class="text-muted"><?= htmlspecialchars($s['subcategory_name'] ?? '-') ?></small>
+                                            <small class="text-muted"><?= htmlspecialchars($subcatDisplay) ?></small>
                                         </td>
                                         <td>
                                             <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6 px-2 py-1">
@@ -215,11 +249,16 @@
                                                         data-location="<?= htmlspecialchars((string)$s['location'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-stock-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-category="<?= htmlspecialchars((string)($s['category_name'] ?? 'General'), ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-subcategory="<?= htmlspecialchars((string)($s['subcategory_name'] ?? '-'), ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-subcategory="<?= htmlspecialchars((string)$subcatDisplay, ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-sub-subcategory="<?= htmlspecialchars((string)($s['sub_subcategory_name'] ?? '-'), ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-style-code="<?= htmlspecialchars((string)($s['style_code'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-whole-code="<?= htmlspecialchars((string)($s['whole_code'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-hierarchy="<?= htmlspecialchars((string)($s['hierarchy_path'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-size="<?= htmlspecialchars((string)($s['size'] ?: 'Free'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-color="<?= htmlspecialchars((string)$color, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-hsn="<?= htmlspecialchars((string)($variantAttributes['hsn'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-hsn="<?= htmlspecialchars((string)$hsn, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-weight="<?= htmlspecialchars((string)((float)$s['weight'] > 0 ? number_format((float)$s['weight'], 3) . ' ' . $s['weight_unit'] : '-'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-quantity="<?= (int)round((float)$s['qty']) ?>"
                                                         data-unit="<?= htmlspecialchars($stockUnit, ENT_QUOTES, 'UTF-8') ?>"
@@ -228,8 +267,21 @@
                                                         data-mrp="<?= number_format((float)$s['mrp'], 2) ?>"
                                                         data-source="<?= htmlspecialchars((string)($s['stock_source'] ?? 'other'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-concern-name="<?= htmlspecialchars((string)($s['concern_name'] ?? 'Concern #' . $s['concern_id']), ENT_QUOTES, 'UTF-8') ?>"
-                                                        title="View Product Specs & Purchase Billing Invoice Details">
+                                                        title="View Product Specs & Manufacturing/Purchase Audit Details">
                                                     <i class="bi bi-eye"></i> View Details
+                                                </button>
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-dark stock-qr-trigger"
+                                                        data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-variant-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-size="<?= htmlspecialchars((string)($s['size'] ?: 'Free'), ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-color="<?= htmlspecialchars((string)$color, ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-price="<?= number_format((float)$s['price'], 2) ?>"
+                                                        data-mrp="<?= number_format((float)$s['mrp'], 2) ?>"
+                                                        data-print-url="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $s['variant_id']) ?>"
+                                                        title="Quick View QR Code">
+                                                    <i class="bi bi-qr-code"></i> QR
                                                 </button>
                                                 <?php if (($s['stock_source'] ?? '') === 'purchase'): ?>
                                                     <?php if (!empty($s['purchase_item_id'])): ?>
@@ -480,6 +532,55 @@
                     </div>
                 </div>
 
+                <!-- Product QR Code Card -->
+                <div class="card border mb-3 shadow-none bg-light bg-opacity-25" id="productQrCard">
+                    <div class="card-header bg-white py-2 fw-semibold text-dark d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-qr-code-scan me-2 text-primary fs-5"></i>
+                            <span class="fw-bold">Product QR Code & Identification</span>
+                        </div>
+                        <span class="badge bg-primary bg-opacity-10 text-primary border" id="detailQrBadge">QR Active</span>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <div class="p-2 bg-white rounded border shadow-sm d-flex align-items-center justify-content-center" style="min-width: 106px; min-height: 106px;">
+                                <div id="detailProductQrBox"></div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="row g-2 small">
+                                    <div class="col-sm-6 col-lg-3">
+                                        <span class="text-muted d-block">QR Tag / Payload:</span>
+                                        <strong id="detailQrTagCode" class="text-primary font-monospace fs-6">-</strong>
+                                    </div>
+                                    <div class="col-sm-6 col-lg-3">
+                                        <span class="text-muted d-block">SKU Code:</span>
+                                        <strong id="detailQrSkuCode" class="text-dark font-monospace">-</strong>
+                                    </div>
+                                    <div class="col-sm-6 col-lg-3">
+                                        <span class="text-muted d-block">Style Code:</span>
+                                        <strong id="detailQrStyleCode" class="text-dark font-monospace">-</strong>
+                                    </div>
+                                    <div class="col-sm-6 col-lg-3">
+                                        <span class="text-muted d-block">Whole Code (Label QR):</span>
+                                        <strong id="detailQrWholeCode" class="text-secondary font-monospace">-</strong>
+                                    </div>
+                                </div>
+                                <div class="mt-2 pt-1 d-flex flex-wrap gap-2">
+                                    <a id="detailBtnPrintLabel" href="#" target="_blank" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-printer me-1"></i> Print Label
+                                    </a>
+                                    <button type="button" id="detailBtnCopyQr" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-clipboard me-1"></i> Copy Code
+                                    </button>
+                                    <button type="button" id="detailBtnDownloadQr" class="btn btn-sm btn-outline-dark">
+                                        <i class="bi bi-download me-1"></i> Download QR
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Product Specifications Card -->
                 <div class="card border mb-3 shadow-none">
                     <div class="card-header bg-white py-2 fw-semibold text-dark d-flex align-items-center">
@@ -496,6 +597,10 @@
                                 <strong id="detailSubcategory" class="text-dark">-</strong>
                             </div>
                             <div class="col-sm-6 col-md-4">
+                                <span class="text-muted d-block">Sub-Subcategory</span>
+                                <strong id="detailSubSubcategory" class="text-dark">-</strong>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">Size</span>
                                 <strong id="detailSize" class="text-dark">-</strong>
                             </div>
@@ -506,6 +611,14 @@
                             <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">HSN Code</span>
                                 <strong id="detailHsn" class="text-dark font-monospace">-</strong>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <span class="text-muted d-block">GST Rate</span>
+                                <strong id="detailGstRate" class="text-dark">-</strong>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <span class="text-muted d-block">Product Style Code</span>
+                                <strong id="detailSpecStyleCode" class="text-dark font-monospace">-</strong>
                             </div>
                             <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">Unit Weight</span>
@@ -526,6 +639,123 @@
                             <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">Stock Valuation at Cost</span>
                                 <strong id="detailValuation" class="text-dark text-primary">-</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Production & Manufacturing Audit Trail Card (for Own Products) -->
+                <div class="card border mb-3 shadow-none d-none" id="productionJourneyCard">
+                    <div class="card-header bg-white py-2 fw-semibold text-dark d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-diagram-3-fill me-2 text-primary"></i>
+                            <span>Production & Manufacturing Audit Trail</span>
+                        </div>
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" id="detailProductionBadge">In-House Manufacturing</span>
+                    </div>
+                    <div class="card-body p-3">
+                        <div id="productionLoadingSpinner" class="text-center py-4 text-muted d-none">
+                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                            Loading manufacturing audit trail...
+                        </div>
+                        <div id="productionDetailsContent">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="p-3 bg-light rounded border h-100">
+                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
+                                            <i class="bi bi-palette me-1 text-primary"></i> 1. Product Style & Hierarchy
+                                        </h6>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Style Code:</span>
+                                            <span class="fw-bold text-dark font-monospace" id="detailProdStyleCode">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Style Name:</span>
+                                            <span class="fw-semibold text-dark" id="detailProdStyleName">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Hierarchy:</span>
+                                            <span class="text-dark" id="detailProdHierarchy">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1">
+                                            <span class="text-muted">Production Program:</span>
+                                            <span class="fw-semibold text-primary" id="detailProdProgram">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 bg-light rounded border h-100">
+                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
+                                            <i class="bi bi-scissors me-1 text-danger"></i> 2. Fabric Cutting Stage
+                                        </h6>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Cutting Batch #:</span>
+                                            <span class="fw-bold text-dark font-monospace" id="detailProdCuttingBatch">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Cutting Master:</span>
+                                            <span class="fw-semibold text-dark" id="detailProdCuttingMaster">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Cut Quantity:</span>
+                                            <span class="fw-bold text-primary" id="detailProdCuttingOutput">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1">
+                                            <span class="text-muted">Fabric Consumed:</span>
+                                            <span class="text-dark" id="detailProdCuttingFabric">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 bg-light rounded border h-100">
+                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
+                                            <i class="bi bi-layers me-1 text-info"></i> 3. Stitching & Tailoring Stage
+                                        </h6>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Stitching Batch #:</span>
+                                            <span class="fw-bold text-dark font-monospace" id="detailProdStitchingBatch">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Assigned Tailor:</span>
+                                            <span class="fw-semibold text-dark" id="detailProdTailor">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Stitched Units:</span>
+                                            <span class="fw-bold text-success" id="detailProdStitchingOutput">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1">
+                                            <span class="text-muted">Garment Weight:</span>
+                                            <span class="text-dark" id="detailProdStitchingWeight">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 bg-light rounded border h-100">
+                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
+                                            <i class="bi bi-shield-check me-1 text-success"></i> 4. Quality Control & Stock Inward
+                                        </h6>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">QC Inspection #:</span>
+                                            <span class="fw-bold text-dark font-monospace" id="detailProdQcNo">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Inspector & Verdict:</span>
+                                            <span><span class="fw-semibold text-dark" id="detailProdQcInspector">-</span> <span class="badge bg-success ms-1" id="detailProdQcStatus">PASSED</span></span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1 border-bottom">
+                                            <span class="text-muted">Passed / Rework / Rejected:</span>
+                                            <span>
+                                                <span class="text-success fw-bold" id="detailProdQcPassed">0</span> passed &bull; 
+                                                <span class="text-warning fw-bold" id="detailProdQcRework">0</span> rework &bull; 
+                                                <span class="text-danger fw-bold" id="detailProdQcRejected">0</span> rejected
+                                            </span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small py-1">
+                                            <span class="text-muted">Inward Batch / Storage:</span>
+                                            <span class="fw-semibold text-dark font-monospace" id="detailProdBatch">-</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

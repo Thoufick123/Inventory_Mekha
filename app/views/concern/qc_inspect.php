@@ -174,10 +174,14 @@
                                         <button type="button" class="btn btn-outline-success fw-semibold px-2.5 py-1" onclick="setPieceVerdict(<?= $p['id'] ?>, 'PASSED')" title="Pass Garment">
                                             <i class="bi bi-check-lg"></i> Pass
                                         </button>
-                                        <button type="button" class="btn btn-outline-danger fw-semibold px-2.5 py-1" onclick="setPieceVerdict(<?= $p['id'] ?>, 'REJECTED')" title="Reject / Damage">
+                                        <button type="button" class="btn btn-outline-danger fw-semibold px-2.5 py-1" 
+                                                onclick="openRejectModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['tag_code'], ENT_QUOTES) ?>', '<?= htmlspecialchars(($p['size'] ?: 'STD') . ' / ' . ($p['color'] ?: 'STD') . ($p['sku_code'] ? ' (' . $p['sku_code'] . ')' : ''), ENT_QUOTES) ?>')" 
+                                                title="Reject / Damage">
                                             <i class="bi bi-x-lg"></i> Reject
                                         </button>
-                                        <button type="button" class="btn btn-outline-warning fw-semibold px-2.5 py-1 text-dark" onclick="setPieceVerdict(<?= $p['id'] ?>, 'REWORK')" title="Send to Rework">
+                                        <button type="button" class="btn btn-outline-warning fw-semibold px-2.5 py-1 text-dark" 
+                                                onclick="openReworkModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['tag_code'], ENT_QUOTES) ?>', '<?= htmlspecialchars(($p['size'] ?: 'STD') . ' / ' . ($p['color'] ?: 'STD') . ($p['sku_code'] ? ' (' . $p['sku_code'] . ')' : ''), ENT_QUOTES) ?>')" 
+                                                title="Send to Rework">
                                             <i class="bi bi-arrow-repeat"></i> Rework
                                         </button>
                                     </div>
@@ -202,6 +206,123 @@
                     <i class="bi bi-box-arrow-in-down me-1"></i> Complete QC &amp; Inward Passed Stock
                 </button>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL: REJECT GARMENT & CAPTURE DEFECT (Screenshot 1)   -->
+<!-- ======================================================== -->
+<div class="modal fade" id="modalRejectGarment" tabindex="-1" aria-labelledby="modalRejectGarmentLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <!-- Modal Header (Red header with Warning icon and title) -->
+            <div class="modal-header py-3 px-4 text-white d-flex align-items-center justify-content-between" style="background-color: #ef4444;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                    <h5 class="modal-title fw-bold fs-6 mb-0" id="modalRejectGarmentLabel">Reject Garment &amp; Capture Defect</h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="rejectPieceId" value="">
+
+                <!-- Garment Tag Code & Size -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark mb-1">Garment Tag Code &amp; Size</label>
+                    <div class="p-2.5 bg-light rounded-3 border d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-dark font-monospace" id="rejectPieceVariantDesc">-</span>
+                        <span class="badge bg-dark font-monospace px-2 py-1 text-white" id="rejectPieceTagCode">-</span>
+                    </div>
+                </div>
+
+                <!-- Defect Classification Reason -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark mb-1">Defect Classification Reason</label>
+                    <select class="form-select" id="rejectReasonSelect" onchange="onRejectReasonChange(this)">
+                        <option value="">-- Choose Reason --</option>
+                        <option value="Fabric Tear / Hole">Fabric Tear / Hole</option>
+                        <option value="Severe Stains / Soil">Severe Stains / Soil</option>
+                        <option value="Color Bleed / Dye Variation">Color Bleed / Dye Variation</option>
+                        <option value="Severe Cutting Mistake / Asymmetry">Severe Cutting Mistake / Asymmetry</option>
+                        <option value="Wrong Measurements Out of Tolerance">Wrong Measurements Out of Tolerance</option>
+                        <option value="Permanent Fabric Damage">Permanent Fabric Damage</option>
+                        <option value="Broken Needle / Needle Holes">Broken Needle / Needle Holes</option>
+                        <option value="Other Irreparable Defect">Other Irreparable Defect</option>
+                    </select>
+                </div>
+
+                <!-- Specific Defect Notes (Optional) -->
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-dark mb-1">Specific Defect Notes (Optional)</label>
+                    <textarea class="form-control" id="rejectDefectNotes" rows="3" placeholder="e.g. Left sleeve seam loose, needs restitching..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 d-flex justify-content-end gap-2 border-top">
+                <button type="button" class="btn btn-outline-secondary px-4 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger px-4 fw-semibold d-flex align-items-center gap-1.5" style="background-color: #ef4444; border-color: #ef4444;" onclick="submitRejectModal()">
+                    <i class="bi bi-x-circle"></i> Record Rejection
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL: SEND GARMENT FOR REWORK / ALTERATION (Screenshot 2) -->
+<!-- ======================================================== -->
+<div class="modal fade" id="modalReworkGarment" tabindex="-1" aria-labelledby="modalReworkGarmentLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <!-- Modal Header (Yellow/Amber header with Repeat/Alteration icon) -->
+            <div class="modal-header py-3 px-4 text-dark d-flex align-items-center justify-content-between" style="background-color: #f59e0b;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-arrow-repeat fs-5 fw-bold"></i>
+                    <h5 class="modal-title fw-bold fs-6 mb-0 text-white" id="modalReworkGarmentLabel">Send Garment for Rework / Alteration</h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="reworkPieceId" value="">
+
+                <!-- Garment Tag Code & Size -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark mb-1">Garment Tag Code &amp; Size</label>
+                    <div class="p-2.5 bg-light rounded-3 border d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-dark font-monospace" id="reworkPieceVariantDesc">-</span>
+                        <span class="badge bg-dark font-monospace px-2 py-1 text-white" id="reworkPieceTagCode">-</span>
+                    </div>
+                </div>
+
+                <!-- Rework / Repair Reason -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark mb-1">Rework / Repair Reason</label>
+                    <select class="form-select" id="reworkReasonSelect" onchange="onReworkReasonChange(this)">
+                        <option value="">-- Choose Reason --</option>
+                        <option value="Loose Stitching / Seam Open">Loose Stitching / Seam Open</option>
+                        <option value="Skipped Stitches">Skipped Stitches</option>
+                        <option value="Button / Zipper Defect (Needs Replacement)">Button / Zipper Defect (Needs Replacement)</option>
+                        <option value="Puckering at Hem / Collar">Puckering at Hem / Collar</option>
+                        <option value="Label Missing or Misaligned">Label Missing or Misaligned</option>
+                        <option value="Minor Stain (Washable / Spot Clean)">Minor Stain (Washable / Spot Clean)</option>
+                        <option value="Loose Thread Trimming Required">Loose Thread Trimming Required</option>
+                        <option value="Pressing / Ironing Wrinkles">Pressing / Ironing Wrinkles</option>
+                        <option value="Other Alteration Required">Other Alteration Required</option>
+                    </select>
+                </div>
+
+                <!-- Specific Repair Instructions (Optional) -->
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-dark mb-1">Specific Repair Instructions (Optional)</label>
+                    <textarea class="form-control" id="reworkRepairNotes" rows="3" placeholder="e.g. Left sleeve seam loose, needs restitching..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 d-flex justify-content-end gap-2 border-top">
+                <button type="button" class="btn btn-outline-secondary px-4 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning px-4 fw-semibold text-white d-flex align-items-center gap-1.5" style="background-color: #f59e0b; border-color: #f59e0b;" onclick="submitReworkModal()">
+                    <i class="bi bi-arrow-repeat"></i> Mark for Rework
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -263,8 +384,8 @@ document.getElementById('inputQrScanner').addEventListener('keydown', function(e
     }
 });
 
-function setPieceVerdict(pieceId, verdict) {
-    const note = document.getElementById('note_' + pieceId)?.value || '';
+function setPieceVerdict(pieceId, verdict, explicitNote = null) {
+    const note = explicitNote !== null ? explicitNote : (document.getElementById('note_' + pieceId)?.value || '');
 
     const formData = new FormData();
     formData.append('csrf_token', '<?= htmlspecialchars($csrfToken) ?>');
@@ -290,6 +411,11 @@ function setPieceVerdict(pieceId, verdict) {
             badge.className = 'badge px-3 py-1.5 font-monospace fw-bold verdict-badge ' +
                 (verdict === 'PASSED' ? 'bg-success' : (verdict === 'REJECTED' ? 'bg-danger' : (verdict === 'REWORK' ? 'bg-warning text-dark' : 'bg-secondary')));
 
+            const noteInput = document.getElementById('note_' + pieceId);
+            if (noteInput && note) {
+                noteInput.value = note;
+            }
+
             if (data.counts) {
                 updateBadgeCounts(data.counts);
             }
@@ -306,6 +432,94 @@ function setPieceVerdict(pieceId, verdict) {
         console.error(err);
         alert('Network or server error updating piece verdict.');
     });
+}
+
+// Modal open and submit functions for Reject
+function openRejectModal(pieceId, tagCode, variantDesc) {
+    document.getElementById('rejectPieceId').value = pieceId;
+    document.getElementById('rejectPieceTagCode').textContent = tagCode;
+    document.getElementById('rejectPieceVariantDesc').textContent = variantDesc;
+    document.getElementById('rejectReasonSelect').value = '';
+    
+    // Pre-fill existing note if available
+    const existingNote = document.getElementById('note_' + pieceId)?.value || '';
+    document.getElementById('rejectDefectNotes').value = existingNote;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalRejectGarment'));
+    modal.show();
+}
+
+function onRejectReasonChange(sel) {
+    const reason = sel.value;
+    const noteArea = document.getElementById('rejectDefectNotes');
+    if (reason && !noteArea.value.trim()) {
+        noteArea.value = reason;
+    }
+}
+
+function submitRejectModal() {
+    const pieceId = document.getElementById('rejectPieceId').value;
+    const reasonSelect = document.getElementById('rejectReasonSelect').value;
+    const notes = document.getElementById('rejectDefectNotes').value.trim();
+
+    let fullReason = reasonSelect;
+    if (notes && notes !== reasonSelect) {
+        fullReason = reasonSelect ? (reasonSelect + ' - ' + notes) : notes;
+    } else if (!fullReason) {
+        fullReason = notes || 'Defect';
+    }
+
+    const modalEl = document.getElementById('modalRejectGarment');
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) {
+        modalInstance.hide();
+    }
+
+    setPieceVerdict(pieceId, 'REJECTED', fullReason);
+}
+
+// Modal open and submit functions for Rework
+function openReworkModal(pieceId, tagCode, variantDesc) {
+    document.getElementById('reworkPieceId').value = pieceId;
+    document.getElementById('reworkPieceTagCode').textContent = tagCode;
+    document.getElementById('reworkPieceVariantDesc').textContent = variantDesc;
+    document.getElementById('reworkReasonSelect').value = '';
+    
+    // Pre-fill existing note if available
+    const existingNote = document.getElementById('note_' + pieceId)?.value || '';
+    document.getElementById('reworkRepairNotes').value = existingNote;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalReworkGarment'));
+    modal.show();
+}
+
+function onReworkReasonChange(sel) {
+    const reason = sel.value;
+    const noteArea = document.getElementById('reworkRepairNotes');
+    if (reason && !noteArea.value.trim()) {
+        noteArea.value = reason;
+    }
+}
+
+function submitReworkModal() {
+    const pieceId = document.getElementById('reworkPieceId').value;
+    const reasonSelect = document.getElementById('reworkReasonSelect').value;
+    const notes = document.getElementById('reworkRepairNotes').value.trim();
+
+    let fullReason = reasonSelect;
+    if (notes && notes !== reasonSelect) {
+        fullReason = reasonSelect ? (reasonSelect + ' - ' + notes) : notes;
+    } else if (!fullReason) {
+        fullReason = notes || 'Alteration Required';
+    }
+
+    const modalEl = document.getElementById('modalReworkGarment');
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) {
+        modalInstance.hide();
+    }
+
+    setPieceVerdict(pieceId, 'REWORK', fullReason);
 }
 
 function passAllPieces() {
