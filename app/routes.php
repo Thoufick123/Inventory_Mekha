@@ -407,11 +407,11 @@ $router->get('/production/qc', [ProductionController::class, 'qc'], 'qc_stocks',
 $router->get('/production/qc/create', [ProductionController::class, 'createQc'], 'qc_stocks', 'add');
 $router->get('/production/qc/view', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/production/qc/details', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
-$router->get('/production/qc/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit');
+$router->get('/production/qc/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit|add');
 $router->get('/production/qc/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'export');
 $router->post('/production/qc/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
 $router->post('/production/qc/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
-$router->post('/production/qc/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit');
+$router->post('/production/qc/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/update-piece', [ProductionController::class, 'updateQcPiece'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/pass-all', [ProductionController::class, 'passAllQcPieces'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/delete', [ProductionController::class, 'deleteQc'], 'qc_stocks', 'delete');
