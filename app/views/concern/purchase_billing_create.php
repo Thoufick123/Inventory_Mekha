@@ -1,5 +1,15 @@
 <?php
 $isEdit = !empty($bill);
+$formAction = $formAction ?? ($isEdit ? \App\Core\Controller::url('/m/purchase_billing/update') : \App\Core\Controller::url('/m/purchase_billing/store'));
+$hsnSaveUrl = $hsnSaveUrl ?? \App\Core\Controller::url('/m/purchase_billing/save_hsn');
+$rollSpecSaveUrl = $rollSpecSaveUrl ?? \App\Core\Controller::url('/m/purchase_billing/save_roll_spec');
+$quickSupplierSaveUrl = $quickSupplierSaveUrl ?? '';
+$isProductAddingForm = ($currentModule ?? '') === 'product_adding';
+$backUrl = $backUrl ?? \App\Core\Controller::url('/m/purchase_billing');
+$backLabel = $backLabel ?? 'Back to Purchases';
+$submitLabel = $submitLabel ?? ($isEdit ? 'Update Purchase Bill' : 'Save Purchase');
+$pageHeading = $pageHeading ?? ($isEdit ? ('Edit Purchase Bill: #' . htmlspecialchars($bill['bill_no'])) : 'Record Production Purchase');
+$pageDescription = $pageDescription ?? ($isEdit ? 'Update fabric rolls, garment supplies/accessories and finished goods for this bill.' : 'Record fabric rolls, garment supplies/accessories and finished goods received from vendors.');
 $currentPaymentMethod = strtolower(str_replace([' ', '-'], '_', trim((string)($bill['payment_method'] ?? 'credit'))));
 $paymentMethods = [
     'credit' => 'Credit',
@@ -42,17 +52,20 @@ if ($isEdit && !empty($existingItems)) {
                 <i class="bi <?= $isEdit ? 'bi-pencil-square' : 'bi-bag-plus' ?> fs-4"></i>
             </div>
             <div>
-                <h4 class="fw-bold mb-0 text-dark"><?= $isEdit ? ('Edit Purchase Bill: #' . htmlspecialchars($bill['bill_no'])) : 'Record Production Purchase' ?></h4>
-                <p class="text-muted small mb-0"><?= $isEdit ? 'Update fabric rolls, garment supplies/accessories and finished goods for this bill.' : 'Record fabric rolls, garment supplies/accessories and finished goods received from vendors.' ?></p>
+                <h4 class="fw-bold mb-0 text-dark"><?= $pageHeading ?></h4>
+                <p class="text-muted small mb-0"><?= $pageDescription ?></p>
             </div>
         </div>
-        <a href="<?= \App\Core\Controller::url('/m/purchase_billing') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm rounded-2">
-            <i class="bi bi-arrow-left me-1"></i> Back to Purchases
+        <a href="<?= $backUrl ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm rounded-2">
+            <i class="bi bi-arrow-left me-1"></i> <?= htmlspecialchars($backLabel) ?>
         </a>
     </div>
 
-    <form action="<?= $isEdit ? \App\Core\Controller::url('/m/purchase_billing/update') : \App\Core\Controller::url('/m/purchase_billing/store') ?>" method="POST" enctype="multipart/form-data" id="formPurchaseBill" class="needs-validation" novalidate>
+    <form action="<?= $formAction ?>" method="POST" enctype="multipart/form-data" id="formPurchaseBill" class="needs-validation" novalidate>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+        <?php if (str_contains($formAction, '/m/product_adding/store')): ?>
+            <input type="hidden" name="product_adding_redirect" value="1">
+        <?php endif; ?>
         <?php if ($isEdit): ?>
             <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
         <?php endif; ?>
@@ -82,14 +95,21 @@ if ($isEdit && !empty($existingItems)) {
 
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold">Supplier <span class="text-danger">*</span></label>
-                        <select name="supplier_id" id="supplierSelect" class="form-select" required>
-                            <option value="">-- Select registered supplier --</option>
-                            <?php foreach ($suppliers as $sup): ?>
-                                <option value="<?= $sup['id'] ?>" data-district="<?= htmlspecialchars($sup['district'] ?? '') ?>" <?= ($isEdit && $bill['supplier_id'] == $sup['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($sup['name']) ?> <?= !empty($sup['company_name']) ? ('(' . htmlspecialchars($sup['company_name']) . ')') : '' ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="input-group">
+                            <select name="supplier_id" id="supplierSelect" class="form-select" required>
+                                <option value="">-- Select registered supplier --</option>
+                                <?php foreach ($suppliers as $sup): ?>
+                                    <option value="<?= (int)$sup['id'] ?>" data-district="<?= htmlspecialchars($sup['district'] ?? '') ?>" <?= ($isEdit && $bill['supplier_id'] == $sup['id']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($sup['name']) ?> <?= !empty($sup['company_name']) ? ('(' . htmlspecialchars($sup['company_name']) . ')') : '' ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php if (!empty($allowQuickSupplier)): ?>
+                                <button type="button" class="btn btn-outline-primary" id="openQuickSupplier" data-bs-toggle="modal" data-bs-target="#modalQuickSupplier">
+                                    <i class="bi bi-plus-lg me-1"></i> Add New
+                                </button>
+                            <?php endif; ?>
+                        </div>
                         <div class="invalid-feedback">Please choose a supplier.</div>
                     </div>
 
@@ -481,11 +501,11 @@ if ($isEdit && !empty($existingItems)) {
                     </div>
 
                     <div class="d-flex justify-content-end gap-2 mt-3">
-                        <a href="<?= \App\Core\Controller::url('/m/purchase_billing') ?>" class="btn btn-light border px-4 py-2 fw-semibold text-secondary">
+                        <a href="<?= $backUrl ?>" class="btn btn-light border px-4 py-2 fw-semibold text-secondary">
                             Cancel
                         </a>
                         <button type="submit" class="btn text-white px-4 py-2 fw-semibold shadow-sm rounded-2 d-flex align-items-center gap-2" style="background: #4f46e5;" id="btnSavePurchase">
-                            <i class="bi bi-check-circle fs-6"></i> <?= $isEdit ? 'Update Purchase Bill' : 'Save Purchase' ?>
+                            <i class="bi bi-check-circle fs-6"></i> <?= htmlspecialchars($submitLabel) ?>
                         </button>
                     </div>
                 </div>
@@ -493,6 +513,141 @@ if ($isEdit && !empty($existingItems)) {
         </div>
     </form>
 </div>
+
+<?php if (!empty($allowQuickSupplier)): ?>
+<div class="modal fade" id="modalQuickSupplier" tabindex="-1" aria-labelledby="modalQuickSupplierLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form id="quickSupplierForm" class="modal-content needs-validation" novalidate>
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+            <?php if (!empty($selectedCid)): ?>
+                <input type="hidden" name="concern_id" value="<?= (int)$selectedCid ?>">
+            <?php else: ?>
+                <div class="modal-header border-bottom-0 pb-0">
+                    <h5 class="modal-title fw-bold" id="modalQuickSupplierLabel">Add Supplier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Target Concern <span class="text-danger">*</span></label>
+                        <select name="concern_id" class="form-select" required>
+                            <option value="">-- Choose Target Concern --</option>
+                            <?php foreach ($allConcerns ?? [] as $con): ?>
+                                <option value="<?= (int)$con['id'] ?>"><?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+            <?php endif; ?>
+            <?php if (!empty($selectedCid)): ?>
+                <div class="modal-header border-bottom-0 pb-0">
+                    <h5 class="modal-title fw-bold" id="modalQuickSupplierLabel">Add Supplier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-3">
+            <?php endif; ?>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Contact Person / Name <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required minlength="2" maxlength="150">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Company / Mill Name <span class="text-danger">*</span></label>
+                            <input type="text" name="company_name" class="form-control" required minlength="2" maxlength="150">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Phone <span class="text-danger">*</span></label>
+                            <input type="tel" name="phone" class="form-control" required pattern="[6-9][0-9]{9}" maxlength="10" inputmode="numeric">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">GSTIN</label>
+                            <input type="text" name="gstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9]{2}[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}[1-9A-Za-z]{1}[Zz][0-9A-Za-z]{1}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Email</label>
+                            <input type="email" name="email" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">District <span class="text-danger">*</span></label>
+                            <input type="text" name="district" class="form-control" required minlength="2">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Address <span class="text-danger">*</span></label>
+                            <textarea name="address" class="form-control" rows="2" required minlength="3"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">State <span class="text-danger">*</span></label>
+                            <select name="state" class="form-select" required>
+                                <option value="Tamil Nadu" selected>Tamil Nadu</option>
+                                <option value="Kerala">Kerala</option>
+                                <option value="Karnataka">Karnataka</option>
+                                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                                <option value="Telangana">Telangana</option>
+                                <option value="Maharashtra">Maharashtra</option>
+                                <option value="Gujarat">Gujarat</option>
+                                <option value="Delhi">Delhi</option>
+                                <option value="Rajasthan">Rajasthan</option>
+                                <option value="West Bengal">West Bengal</option>
+                                <option value="Other">Other State</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="alert alert-danger mt-3 mb-0 d-none" id="quickSupplierError" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveQuickSupplier">
+                        <i class="bi bi-check-circle me-1"></i> Save &amp; Select Supplier
+                    </button>
+                </div>
+        </form>
+    </div>
+</div>
+<script>
+(function () {
+    const form = document.getElementById('quickSupplierForm');
+    const supplierSelect = document.getElementById('supplierSelect');
+    const saveButton = document.getElementById('saveQuickSupplier');
+    const errorBox = document.getElementById('quickSupplierError');
+    if (!form || !supplierSelect || !saveButton || !errorBox) return;
+
+    form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+
+        saveButton.disabled = true;
+        errorBox.classList.add('d-none');
+        try {
+            const response = await fetch(<?= json_encode($quickSupplierSaveUrl) ?>, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: new FormData(form)
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success || !result.supplier) {
+                throw new Error(result.message || 'Unable to save supplier.');
+            }
+
+            const supplier = result.supplier;
+            const option = new Option(
+                supplier.name + (supplier.company_name ? ' (' + supplier.company_name + ')' : ''),
+                supplier.id,
+                true,
+                true
+            );
+            option.dataset.district = supplier.district || '';
+            supplierSelect.add(option);
+            supplierSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modalQuickSupplier')).hide();
+            form.reset();
+        } catch (error) {
+            errorBox.textContent = error.message || 'Unable to save supplier.';
+            errorBox.classList.remove('d-none');
+        } finally {
+            saveButton.disabled = false;
+        }
+    });
+})();
+</script>
+<?php endif; ?>
 
 <!-- ============================================================== -->
 <!-- Add New HSN Code & GST Rate Modal (EXACTLY AS IN IMAGE 1)     -->
@@ -743,6 +898,11 @@ const existingFinished = <?= json_encode($existingFinished) ?>;
 let savedRollSpecsRegistry = <?= json_encode($savedRollSpecs ?? []) ?>;
 const savedColorsRegistry = <?= json_encode($savedColors ?? []) ?>;
 const savedDesignsRegistry = <?= json_encode($savedDesigns ?? []) ?>;
+const isProductAddingForm = <?= $isProductAddingForm ? 'true' : 'false' ?>;
+const productAddingCategories = <?= json_encode($categories ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+const productAddingSubcategories = <?= json_encode($subcategories ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+const productAddingSubSubcategories = <?= json_encode($subSubcategories ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+const productAddingAttributes = <?= json_encode($productAttributes ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
 let rollCounter = 0;
 let otherCounter = 0;
@@ -889,6 +1049,15 @@ function promptAddHsn(targetId, targetType = 'rolls') {
     modal.show();
 }
 
+function promptAddVariantHsn(cardId, rowIndex) {
+    currentHsnTarget = { type: 'variant', id: cardId, rowIndex };
+    document.getElementById('newHsnCode').value = '';
+    document.getElementById('newHsnDesc').value = '';
+    document.getElementById('newHsnGstRate').value = '';
+    document.getElementById('newHsnRateNote').value = '';
+    new bootstrap.Modal(document.getElementById('modalQuickHsn')).show();
+}
+
 function saveAndSelectHsn() {
     const code = document.getElementById('newHsnCode').value.trim().toUpperCase();
     const desc = document.getElementById('newHsnDesc').value.trim();
@@ -918,8 +1087,11 @@ function saveAndSelectHsn() {
     formData.append('category', 'Garment and textile goods');
     formData.append('gst_rate', rate === null ? '' : rate);
     formData.append('rate_note', rateNote);
+    if (isProductAddingForm) {
+        formData.append('concern_id', String(getProductAddingConcernId() || ''));
+    }
 
-    fetch('<?= \App\Core\Controller::url('/m/purchase_billing/save_hsn') ?>', {
+    fetch('<?= $hsnSaveUrl ?>', {
         method: 'POST',
         body: formData
     })
@@ -962,6 +1134,11 @@ function applyCreatedHsn(hsn) {
         if (activeInput) setHsnInputValue(activeInput, selectedHsn);
         onFinishedHsnChange(currentHsnTarget.id);
         syncFinishedTable();
+    } else if (currentHsnTarget.type === 'variant') {
+        const row = document.querySelector(`#finishedCard_${currentHsnTarget.id} #fgVariantRow_${currentHsnTarget.id}_${currentHsnTarget.rowIndex}`);
+        const activeInput = row?.querySelector('.fg-variant-hsn');
+        if (activeInput) setHsnInputValue(activeInput, selectedHsn);
+        onFinishedVariantHsnChange(currentHsnTarget.id, currentHsnTarget.rowIndex);
     }
 
     const modalEl = document.getElementById('modalQuickHsn');
@@ -1373,6 +1550,11 @@ function onFinishedHsnChange(fgId) {
     const hsnInput = card.querySelector('.fg-input-hsn');
     resolveHsnInputMetadata(hsnInput);
     updateHsnRateNote(hsnInput);
+    const catalogGstRate = card.querySelector('.fg-input-catalog-gst-rate');
+    const hsnRate = parseFloat(hsnInput?.dataset.hsnGstRate || '');
+    if (catalogGstRate && Number.isFinite(hsnRate)) {
+        catalogGstRate.value = hsnRate.toFixed(2);
+    }
     applyHsnRateToGstInputs(card, 'fg');
     onFinishedGstTypeChange(fgId);
 }
@@ -1389,6 +1571,414 @@ function onFinishedHsnInput(fgId) {
         applyHsnRateToGstInputs(card, 'fg');
         onFinishedGstTypeChange(fgId);
     }
+}
+
+function getProductAddingConcernId() {
+    const concernSelect = document.getElementById('billConcernId');
+    return parseInt(concernSelect?.value || <?= (int)($selectedCid ?? 0) ?>, 10) || 0;
+}
+
+function getProductAddingScopedRows(rows) {
+    const concernId = getProductAddingConcernId();
+    return (Array.isArray(rows) ? rows : []).filter(row => {
+        const rowConcernId = parseInt(row.concern_id, 10) || 0;
+        return !concernId || !rowConcernId || rowConcernId === 1 || rowConcernId === concernId;
+    });
+}
+
+function getProductAddingAttributeValues(type) {
+    const values = [];
+    getProductAddingScopedRows(productAddingAttributes).forEach(attribute => {
+        if (String(attribute.attribute_type || '').toLowerCase() !== type) return;
+        String(attribute.attribute_value || '').split(/[,;|]+/).forEach(value => {
+            value = value.trim();
+            if (value && !values.includes(value)) values.push(value);
+        });
+    });
+    return values;
+}
+
+function buildProductAddingCategoryOptions() {
+    let html = '<option value="">-- Select category --</option>';
+    getProductAddingScopedRows(productAddingCategories).forEach(category => {
+        html += `<option value="${escapeHtml(category.id)}" data-concern-id="${escapeHtml(category.concern_id || '')}">${escapeHtml(category.name)}</option>`;
+    });
+    return html;
+}
+
+function buildProductAddingAttributeSelect(type, id, label) {
+    const values = getProductAddingAttributeValues(type);
+    if (values.length === 0) {
+        return `<div class="col-md-3">
+            <label class="form-label small fw-semibold">${escapeHtml(label)} <span class="text-danger">*</span></label>
+            <input type="text" name="finished_goods[${id}][${type}]" class="form-control form-control-sm fg-input-product-attribute" data-attribute-type="${escapeHtml(type)}" required>
+        </div>`;
+    }
+    let options = `<option value="">-- Select ${escapeHtml(label.toLowerCase())} --</option>`;
+    values.forEach(value => {
+        options += `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`;
+    });
+    return `<div class="col-md-3">
+        <label class="form-label small fw-semibold">${escapeHtml(label)} <span class="text-danger">*</span></label>
+        <select name="finished_goods[${id}][${type}]" class="form-select form-select-sm fg-input-product-attribute" data-attribute-type="${escapeHtml(type)}" required>${options}</select>
+    </div>`;
+}
+
+function getProductAddingOtherAttributeTypes() {
+    return [...new Set(getProductAddingScopedRows(productAddingAttributes)
+        .map(attribute => String(attribute.attribute_type || '').toLowerCase().trim())
+        .filter(type => type && type !== 'size' && type !== 'color'))];
+}
+
+function buildProductAddingVariantAttributeCell(type, cardId, rowIndex) {
+    const values = getProductAddingAttributeValues(type);
+    const name = `finished_goods[${cardId}][variants][${rowIndex}][${type}]`;
+    const required = type === 'size' || type === 'color';
+    const label = type.charAt(0).toUpperCase() + type.slice(1);
+    if (values.length === 0) {
+        return `<td><input type="text" name="${escapeHtml(name)}" class="form-control form-control-sm fg-variant-attribute" data-attribute-type="${escapeHtml(type)}" aria-label="${escapeHtml(label)}" ${required ? 'required' : ''} oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex})"></td>`;
+    }
+    let options = `<option value="">-- ${escapeHtml(label)} --</option>`;
+    values.forEach(value => {
+        options += `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`;
+    });
+    return `<td><select name="${escapeHtml(name)}" class="form-select form-select-sm fg-variant-attribute" data-attribute-type="${escapeHtml(type)}" aria-label="${escapeHtml(label)}" ${required ? 'required' : ''} onchange="updateProductAddingVariantRow(${cardId}, ${rowIndex})">${options}</select></td>`;
+}
+
+function buildProductAddingVariantRow(cardId, rowIndex) {
+    const customTypes = getProductAddingOtherAttributeTypes();
+    const customCells = customTypes.map(type => buildProductAddingVariantAttributeCell(type, cardId, rowIndex)).join('');
+    const prefix = `finished_goods[${cardId}][variants][${rowIndex}]`;
+    return `
+        <tr id="fgVariantRow_${cardId}_${rowIndex}" class="fg-variant-row">
+            <td><input type="text" name="${prefix}[sku]" class="form-control form-control-sm font-monospace fg-variant-sku" required oninput="this.dataset.userEdited='1'; updateProductAddingVariantRow(${cardId}, ${rowIndex})"></td>
+            <td><input type="text" name="${prefix}[variant_name]" class="form-control form-control-sm fg-variant-name" required oninput="this.dataset.userEdited='1'"></td>
+            <td><select name="${prefix}[category_id]" class="form-select form-select-sm fg-variant-category" required onchange="onFinishedVariantCategoryChange(${cardId}, ${rowIndex})">${buildProductAddingCategoryOptions()}</select></td>
+            <td><select name="${prefix}[subcategory_id]" class="form-select form-select-sm fg-variant-subcategory" onchange="onFinishedVariantSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select></td>
+            <td><select name="${prefix}[sub_sub_category_id]" class="form-select form-select-sm fg-variant-sub-subcategory" onchange="onFinishedVariantSubSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select></td>
+            <td class="text-center"><span class="badge bg-primary-subtle text-primary border font-monospace fg-variant-hierarchy-key">—</span></td>
+            ${buildProductAddingVariantAttributeCell('color', cardId, rowIndex)}
+            ${buildProductAddingVariantAttributeCell('size', cardId, rowIndex)}
+            ${customCells}
+            <td><input type="number" step="1" min="1" name="${prefix}[quantity]" class="form-control form-control-sm text-center fg-variant-qty" required oninput="syncFinishedTable()"></td>
+            <td><input type="number" step="0.001" min="0" name="${prefix}[weight]" class="form-control form-control-sm fg-variant-weight" value="0"></td>
+            <td>
+                <div class="input-group input-group-sm">
+                    <input type="text" name="${prefix}[hsn]" class="form-control font-monospace fg-variant-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} required autocomplete="off" oninput="onFinishedVariantHsnChange(${cardId}, ${rowIndex})" onchange="onFinishedVariantHsnChange(${cardId}, ${rowIndex})">
+                    <button type="button" class="btn btn-outline-primary" title="Add HSN" onclick="promptAddVariantHsn(${cardId}, ${rowIndex})"><i class="bi bi-plus-lg"></i></button>
+                </div>
+                <input type="hidden" name="${prefix}[catalog_gst_rate]" class="fg-variant-gst-rate">
+            </td>
+            <td><input type="number" step="0.01" min="0.01" name="${prefix}[supplier_cost]" class="form-control form-control-sm fg-variant-cost" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex}); syncFinishedTable()"></td>
+            <td><input type="number" step="0.01" min="0.01" name="${prefix}[mrp]" class="form-control form-control-sm fg-variant-mrp" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex})"></td>
+            <td><input type="number" step="0.01" min="0.01" name="${prefix}[selling_price]" class="form-control form-control-sm fg-variant-selling" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex}); syncFinishedTable()"></td>
+            <td class="text-center"><span class="badge bg-light text-dark border fg-variant-profit">₹0.00</span></td>
+            <td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm" aria-label="Remove variant" onclick="removeFinishedVariantRow(${cardId}, ${rowIndex})"><i class="bi bi-trash3"></i></button></td>
+        </tr>`;
+}
+
+function buildProductAddingFields(id) {
+    if (!isProductAddingForm) return '';
+    return `
+        <div class="row g-2 mt-1 mb-3">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold">Style Code <span class="text-danger">*</span></label>
+                <input type="text" name="finished_goods[${id}][style_code]" class="form-control form-control-sm fg-input-style-code text-uppercase" maxlength="50" required oninput="document.querySelectorAll('#finishedCard_${id} .fg-variant-row').forEach(row => updateProductAddingVariantRow(${id}, parseInt(row.dataset.rowIndex, 10)))">
+                <small class="form-text text-muted">Generated as FG-{base-36 timestamp}-{sequence}, e.g. FG-MWSW7X24-1. You can edit it.</small>
+            </div>
+            <div class="col-md-8 d-flex align-items-end">
+                <div class="alert alert-info py-2 px-3 mb-0 small w-100">Create a new catalog style and variant. Select category hierarchy and product attributes in each variant row. Every row will become a purchase line and catalog variant.</div>
+            </div>
+        </div>
+        <div class="card border shadow-none rounded-3">
+            <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <strong class="small text-dark">Finished Goods Variant Matrix</strong>
+                    <div class="small text-muted">Allocate purchased quantities and prices per SKU.</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addFinishedVariantRow(${id})"><i class="bi bi-plus-lg me-1"></i>Add Variant</button>
+            </div>
+            <div class="table-responsive fg-variant-matrix-scroll">
+                <table class="table table-sm table-bordered table-hover align-middle mb-0 text-nowrap fg-variant-matrix">
+                    <thead class="table-light">
+                        <tr>
+                            <th>VARIANT SKU CODE *</th>
+                            <th>PRODUCT VARIANT NAME *</th>
+                            <th>CATEGORY *</th>
+                            <th>SUBCATEGORY</th>
+                            <th>SUB-SUBCATEGORY</th>
+                            <th>HIERARCHY KEY</th>
+                            <th>COLOR *</th>
+                            <th>SIZE *</th>
+                            ${getProductAddingOtherAttributeTypes().map(type => `<th>${escapeHtml(type.toUpperCase())}</th>`).join('')}
+                            <th>QTY *</th>
+                            <th>WEIGHT (KG)</th>
+                            <th>HSN CODE *</th>
+                            <th>COST (₹) *</th>
+                            <th>MRP (₹) *</th>
+                            <th>SELLING PRICE (₹) *</th>
+                            <th>PROFIT</th>
+                            <th>ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fgVariantTableBody_${id}"></tbody>
+                </table>
+            </div>
+            <div class="card-footer bg-light py-2 px-3 d-flex justify-content-between small">
+                <span class="text-muted">Selected category hierarchy is shared by all variants in this style.</span>
+                <strong class="text-primary" id="fgVariantTotals_${id}">0 variants · 0 pcs</strong>
+            </div>
+        </div>`;
+}
+
+function initializeProductAddingFinishedRow(fgId) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    if (!card || !isProductAddingForm) return;
+    const newFields = card.querySelector('.fg-new-catalog-fields');
+    const productInput = card.querySelector('.fg-input-product');
+    if (newFields) {
+        newFields.hidden = false;
+        newFields.querySelectorAll('input, select').forEach(input => { input.disabled = false; });
+    }
+    ['.fg-input-qty', '.fg-input-cost', '.fg-input-mrp', '.fg-input-selling', '.fg-input-hsn'].forEach(selector => {
+        const input = card.querySelector(selector);
+        if (!input) return;
+        input.disabled = true;
+        input.required = false;
+        const fieldContainer = input.closest('.col-md-3, .col-md-4, .col-md-6');
+        if (fieldContainer) fieldContainer.hidden = true;
+    });
+    if (productInput) productInput.readOnly = false;
+    if (newFields && !newFields.querySelector('.fg-variant-row')) {
+        addFinishedVariantRow(fgId);
+    }
+    syncFinishedTable();
+}
+
+function refreshProductAddingConcernOptions() {
+    if (!isProductAddingForm) return;
+    document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(card => {
+        const categorySelects = card.querySelectorAll('.fg-variant-category');
+        if (categorySelects.length) {
+            const rows = [...card.querySelectorAll('.fg-variant-row')];
+            const currentCategory = rows[0]?.querySelector('.fg-variant-category')?.value || '';
+            categorySelects.forEach(select => {
+                select.innerHTML = buildProductAddingCategoryOptions();
+                select.value = currentCategory;
+            });
+            if (rows[0]) {
+                onFinishedVariantCategoryChange(parseInt(card.id.replace('finishedCard_', ''), 10), parseInt(rows[0].dataset.rowIndex, 10));
+            }
+        }
+    });
+}
+
+document.getElementById('billConcernId')?.addEventListener('change', refreshProductAddingConcernOptions);
+
+function addFinishedVariantRow(fgId) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    const tbody = document.getElementById('fgVariantTableBody_' + fgId);
+    if (!card || !tbody) return;
+    const rowIndex = parseInt(card.dataset.nextVariantRow || '0', 10);
+    card.dataset.nextVariantRow = String(rowIndex + 1);
+    tbody.insertAdjacentHTML('beforeend', buildProductAddingVariantRow(fgId, rowIndex));
+    const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
+    const firstExistingRow = [...tbody.querySelectorAll('.fg-variant-row')].find(item => item !== row);
+    row.dataset.rowIndex = String(rowIndex);
+    if (firstExistingRow) {
+        const categoryId = firstExistingRow.querySelector('.fg-variant-category')?.value || '';
+        const subcategoryId = firstExistingRow.querySelector('.fg-variant-subcategory')?.value || '';
+        const subSubcategoryId = firstExistingRow.querySelector('.fg-variant-sub-subcategory')?.value || '';
+        const existingHsn = firstExistingRow.querySelector('.fg-variant-hsn');
+        const newHsn = row.querySelector('.fg-variant-hsn');
+        row.querySelector('.fg-variant-category').value = categoryId;
+        fillFinishedVariantSubcategories(row, categoryId, subcategoryId);
+        fillFinishedVariantSubSubcategories(row, subcategoryId, subSubcategoryId);
+        if (existingHsn?.value && newHsn) {
+            newHsn.value = existingHsn.value;
+            newHsn.dataset.hsnGstRate = existingHsn.dataset.hsnGstRate || '';
+            row.querySelector('.fg-variant-gst-rate').value = newHsn.dataset.hsnGstRate;
+        }
+    }
+    updateProductAddingVariantRow(fgId, rowIndex);
+    syncFinishedTable();
+}
+
+function removeFinishedVariantRow(fgId, rowIndex) {
+    const tbody = document.getElementById('fgVariantTableBody_' + fgId);
+    if (!tbody) return;
+    if (tbody.querySelectorAll('.fg-variant-row').length <= 1) {
+        alert('A new finished-goods style needs at least one variant row.');
+        return;
+    }
+    document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`)?.remove();
+    syncFinishedTable();
+}
+
+function updateProductAddingVariantRow(fgId, rowIndex) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
+    if (!card || !row) return;
+    const styleCode = (card.querySelector('.fg-input-style-code')?.value || '').trim().toUpperCase();
+    const variantName = row.querySelector('.fg-variant-name');
+    const sku = row.querySelector('.fg-variant-sku');
+    const color = row.querySelector('[data-attribute-type="color"]')?.value || '';
+    const size = row.querySelector('[data-attribute-type="size"]')?.value || '';
+    const customValues = [...row.querySelectorAll('.fg-variant-attribute')]
+        .filter(input => !['color', 'size'].includes(input.dataset.attributeType || ''))
+        .map(input => input.value.trim())
+        .filter(Boolean);
+    const variantParts = [card.querySelector('.fg-input-product')?.value.trim(), size, color, ...customValues].filter(Boolean);
+    if (variantName && !variantName.dataset.userEdited) {
+        variantName.value = variantParts.join(' - ').slice(0, 150);
+    }
+    if (sku && !sku.dataset.userEdited) {
+        const skuParts = [styleCode, size, color, ...customValues]
+            .filter(Boolean)
+            .join('-')
+            .toUpperCase()
+            .replace(/[^A-Z0-9-]+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+        const siblingSkus = [...card.querySelectorAll('.fg-variant-sku')]
+            .filter(input => input !== sku)
+            .map(input => input.value.toUpperCase());
+        let candidate = skuParts.slice(0, 45);
+        let suffix = 2;
+        while (candidate && siblingSkus.includes(candidate)) {
+            const ending = `-${suffix++}`;
+            candidate = `${skuParts.slice(0, 45 - ending.length)}${ending}`;
+        }
+        sku.value = candidate;
+    }
+    const skuInputs = [...card.querySelectorAll('.fg-variant-sku')];
+    skuInputs.forEach(input => {
+        const value = input.value.trim().toUpperCase();
+        const isDuplicateSku = value !== '' && skuInputs.some(other => other !== input && other.value.trim().toUpperCase() === value);
+        input.setCustomValidity(isDuplicateSku ? 'Variant SKU must be unique within this style.' : '');
+    });
+    const costInput = row.querySelector('.fg-variant-cost');
+    const sellingInput = row.querySelector('.fg-variant-selling');
+    const mrpInput = row.querySelector('.fg-variant-mrp');
+    const cost = parseFloat(costInput?.value) || 0;
+    const selling = parseFloat(sellingInput?.value) || 0;
+    const mrp = parseFloat(mrpInput?.value) || 0;
+    costInput?.setCustomValidity(selling > 0 && cost >= selling ? 'Supplier cost must be lower than selling price.' : '');
+    sellingInput?.setCustomValidity((cost > 0 && selling <= cost) || (mrp > 0 && selling >= mrp)
+        ? 'Selling price must be greater than supplier cost and lower than MRP.'
+        : '');
+    mrpInput?.setCustomValidity(selling > 0 && mrp <= selling ? 'MRP must be greater than selling price.' : '');
+    const profit = row.querySelector('.fg-variant-profit');
+    if (profit) {
+        const value = selling - cost;
+        profit.textContent = `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        profit.classList.toggle('text-success', value > 0);
+        profit.classList.toggle('text-danger', value < 0);
+    }
+    const hierarchyKey = row.querySelector('.fg-variant-hierarchy-key');
+    if (hierarchyKey) {
+        const category = productAddingCategories.find(item => String(item.id) === row.querySelector('.fg-variant-category')?.value);
+        const subcategory = productAddingSubcategories.find(item => String(item.id) === row.querySelector('.fg-variant-subcategory')?.value);
+        const subSubcategory = productAddingSubSubcategories.find(item => String(item.id) === row.querySelector('.fg-variant-sub-subcategory')?.value);
+        const initials = [category?.name, subcategory?.name, subSubcategory?.name]
+            .filter(Boolean)
+            .map(name => String(name).replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase())
+            .join('-');
+        hierarchyKey.textContent = initials || '—';
+        hierarchyKey.title = [category?.name, subcategory?.name, subSubcategory?.name].filter(Boolean).join(' > ');
+    }
+}
+
+function fillFinishedVariantSubcategories(row, categoryId, selectedSubcategoryId = '') {
+    const subcategory = row.querySelector('.fg-variant-subcategory');
+    const subSubcategory = row.querySelector('.fg-variant-sub-subcategory');
+    if (!subcategory || !subSubcategory) return;
+    subcategory.innerHTML = '<option value="">-- Optional --</option>';
+    getProductAddingScopedRows(productAddingSubcategories)
+        .filter(item => parseInt(item.category_id, 10) === parseInt(categoryId, 10))
+        .forEach(item => subcategory.add(new Option(item.name, item.id)));
+    subcategory.value = selectedSubcategoryId || '';
+    subcategory.disabled = !categoryId;
+    fillFinishedVariantSubSubcategories(row, subcategory.value);
+}
+
+function fillFinishedVariantSubSubcategories(row, subcategoryId, selectedSubSubcategoryId = '') {
+    const subSubcategory = row.querySelector('.fg-variant-sub-subcategory');
+    if (!subSubcategory) return;
+    subSubcategory.innerHTML = '<option value="">-- Optional --</option>';
+    getProductAddingScopedRows(productAddingSubSubcategories)
+        .filter(item => parseInt(item.subcategory_id, 10) === parseInt(subcategoryId, 10))
+        .forEach(item => subSubcategory.add(new Option(item.name, item.id)));
+    subSubcategory.value = selectedSubSubcategoryId || '';
+    subSubcategory.disabled = !subcategoryId;
+}
+
+function onFinishedVariantCategoryChange(fgId, rowIndex) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    const sourceRow = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
+    if (!card || !sourceRow) return;
+    const categoryId = sourceRow.querySelector('.fg-variant-category')?.value || '';
+    const categoryData = getProductAddingScopedRows(productAddingCategories)
+        .find(item => String(item.id) === categoryId);
+    card.querySelectorAll('.fg-variant-row').forEach(row => {
+        const categorySelect = row.querySelector('.fg-variant-category');
+        categorySelect.value = categoryId;
+        fillFinishedVariantSubcategories(row, categoryId);
+        const hsnInput = row.querySelector('.fg-variant-hsn');
+        if (categoryData?.default_hsn && hsnInput && !hsnInput.value) {
+            const matchedHsn = findHsnMasterRow(categoryData.default_hsn);
+            if (matchedHsn) {
+                setHsnInputValue(hsnInput, matchedHsn);
+            } else {
+                hsnInput.value = categoryData.default_hsn;
+                hsnInput.dataset.hsnGstRate = categoryData.default_gst_rate ?? '';
+            }
+            if ((hsnInput.dataset.hsnGstRate === '' || hsnInput.dataset.hsnGstRate === undefined)
+                && categoryData.default_gst_rate !== null && categoryData.default_gst_rate !== '') {
+                hsnInput.dataset.hsnGstRate = categoryData.default_gst_rate;
+            }
+            onFinishedVariantHsnChange(fgId, parseInt(row.dataset.rowIndex, 10));
+        }
+        updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
+    });
+}
+
+function onFinishedVariantSubcategoryChange(fgId, rowIndex) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    const sourceRow = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
+    if (!card || !sourceRow) return;
+    const subcategoryId = sourceRow.querySelector('.fg-variant-subcategory')?.value || '';
+    card.querySelectorAll('.fg-variant-row').forEach(row => {
+        fillFinishedVariantSubcategories(row, row.querySelector('.fg-variant-category')?.value || '');
+        const subcategory = row.querySelector('.fg-variant-subcategory');
+        if ([...subcategory.options].some(option => option.value === subcategoryId)) {
+            subcategory.value = subcategoryId;
+        }
+        fillFinishedVariantSubSubcategories(row, subcategory.value);
+        updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
+    });
+}
+
+function onFinishedVariantSubSubcategoryChange(fgId, rowIndex) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    const sourceRow = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
+    if (!card || !sourceRow) return;
+    const selectedId = sourceRow.querySelector('.fg-variant-sub-subcategory')?.value || '';
+    card.querySelectorAll('.fg-variant-row').forEach(row => {
+        const select = row.querySelector('.fg-variant-sub-subcategory');
+        if ([...select.options].some(option => option.value === selectedId)) select.value = selectedId;
+        updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
+    });
+}
+
+function onFinishedVariantHsnChange(fgId, rowIndex) {
+    const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
+    if (!row) return;
+    const hsnInput = row.querySelector('.fg-variant-hsn');
+    const gstRateInput = row.querySelector('.fg-variant-gst-rate');
+    const rate = hsnInput?.dataset.hsnGstRate;
+    if (gstRateInput) gstRateInput.value = rate !== undefined && rate !== '' ? rate : '';
+    syncFinishedTable();
 }
 
 // ==========================================
@@ -1591,7 +2181,7 @@ function saveAndApplyRollDesign() {
     formData.append('concern_id', '<?= (int)$selectedCid ?>');
     <?php endif; ?>
 
-    fetch('<?= \App\Core\Controller::url('/m/purchase_billing/save_roll_spec') ?>', {
+    fetch('<?= $rollSpecSaveUrl ?>', {
         method: 'POST',
         body: formData
     })
@@ -2010,15 +2600,29 @@ function removeRollRow(id) {
     }
 }
 
-function calculateItemTax(card, prefix, qty, price) {
+function calculateItemTax(card, prefix, qty, price, hsnRateOverride) {
     const taxMode = card.querySelector(`.${prefix}-input-tax-mode`)?.value || 'Exclude GST';
     const gstType = card.querySelector(`.${prefix}-input-gst`)?.value || 'Exempted';
     const taxType = card.querySelector(`.${prefix}-input-tax-type`)?.value || 'Percentage';
     const isPct = (taxType === 'Percentage');
 
-    const sgstVal = parseFloat(card.querySelector(`.${prefix}-input-sgst`)?.value) || 0;
-    const cgstVal = parseFloat(card.querySelector(`.${prefix}-input-cgst`)?.value) || 0;
-    const igstVal = parseFloat(card.querySelector(`.${prefix}-input-igst`)?.value) || 0;
+    let sgstVal = parseFloat(card.querySelector(`.${prefix}-input-sgst`)?.value) || 0;
+    let cgstVal = parseFloat(card.querySelector(`.${prefix}-input-cgst`)?.value) || 0;
+    let igstVal = parseFloat(card.querySelector(`.${prefix}-input-igst`)?.value) || 0;
+    const hsnRateText = hsnRateOverride === undefined ? '' : hsnRateOverride;
+    const hsnRate = hsnRateText !== '' ? parseFloat(hsnRateText) : null;
+    if (prefix === 'fg' && isPct && hsnRate !== null && Number.isFinite(hsnRate)) {
+        if (gstType === 'Both (CGST and SGST)') {
+            sgstVal = hsnRate / 2;
+            cgstVal = hsnRate / 2;
+        } else if (gstType === 'CGST') {
+            cgstVal = hsnRate / 2;
+        } else if (gstType === 'SGST') {
+            sgstVal = hsnRate / 2;
+        } else if (gstType === 'IGST') {
+            igstVal = hsnRate;
+        }
+    }
 
     let base = 0;
     let tax = 0;
@@ -2443,6 +3047,7 @@ function addFinishedRow() {
     const div = document.createElement('div');
     div.className = 'finished-card card border mb-3 shadow-sm rounded-3';
     div.id = 'finishedCard_' + finishedCounter;
+    const catalogFields = buildProductAddingFields(finishedCounter);
     div.innerHTML = `
         <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
@@ -2458,8 +3063,8 @@ function addFinishedRow() {
             <!-- Row 1: Product, Qty, Unit Price of Supplier Cost -->
             <div class="row g-2 mb-3 align-items-end">
                 <div class="col-md-5">
-                    <label class="form-label small fw-semibold mb-1">Product <span class="text-danger">*</span></label>
-                    <input type="text" name="finished_goods[${finishedCounter}][product]" class="form-control form-control-sm text-uppercase fg-input-product" placeholder="e.g. RED SHIRT" value="" required oninput="syncFinishedTable()">
+                    <label class="form-label small fw-semibold mb-1">Product / Style Name <span class="text-danger">*</span></label>
+                    <input type="text" name="finished_goods[${finishedCounter}][product]" class="form-control form-control-sm text-uppercase fg-input-product" placeholder="e.g. RED SHIRT" value="" required oninput="document.querySelectorAll('#finishedCard_${finishedCounter} .fg-variant-row').forEach(row => updateProductAddingVariantRow(${finishedCounter}, parseInt(row.dataset.rowIndex, 10))); syncFinishedTable()">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small fw-semibold mb-1">Qty (Pcs) <span class="text-danger">*</span></label>
@@ -2473,6 +3078,19 @@ function addFinishedRow() {
                     </div>
                 </div>
             </div>
+            ${catalogFields ? `<div class="fg-new-catalog-fields border rounded-3 bg-light p-3 mb-3" hidden>${catalogFields}</div>` : ''}
+            ${isProductAddingForm ? `
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold mb-1">MRP (₹)</label>
+                        <input type="number" step="0.01" min="0.01" name="finished_goods[${finishedCounter}][mrp]" class="form-control form-control-sm fg-input-mrp" placeholder="0.00" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold mb-1">Selling Price (₹)</label>
+                        <input type="number" step="0.01" min="0.01" name="finished_goods[${finishedCounter}][selling_price]" class="form-control form-control-sm fg-input-selling" placeholder="0.00" required>
+                    </div>
+                </div>
+            ` : ''}
 
             <!-- Row 2: HSN, Tax Mode, GST & Dynamic Fields -->
             <div class="row g-2 align-items-end">
@@ -2481,7 +3099,7 @@ function addFinishedRow() {
                         <label class="form-label small fw-semibold mb-0">HSN Code</label>
                         <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddHsn(${finishedCounter}, 'finished')">+ Add HSN</a>
                     </div>
-                    <input type="text" name="finished_goods[${finishedCounter}][hsn]" class="form-control form-control-sm font-monospace fg-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" oninput="onFinishedHsnInput(${finishedCounter})" onchange="onFinishedHsnChange(${finishedCounter})">
+                    <input type="text" name="finished_goods[${finishedCounter}][hsn]" class="form-control form-control-sm font-monospace fg-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} ${isProductAddingForm ? 'required' : ''} autocomplete="off" oninput="onFinishedHsnInput(${finishedCounter})" onchange="onFinishedHsnChange(${finishedCounter})">
                     <small class="hsn-rate-note text-muted d-block mt-1"></small>
                 </div>
                 <div class="col-md-2">
@@ -2528,6 +3146,13 @@ function addFinishedRow() {
         </div>
     `;
     container.appendChild(div);
+    if (isProductAddingForm) {
+        const styleCodeInput = div.querySelector('.fg-input-style-code');
+        if (styleCodeInput) {
+            styleCodeInput.value = `FG-${Date.now().toString(36).toUpperCase()}-${finishedCounter}`;
+        }
+        initializeProductAddingFinishedRow(finishedCounter);
+    }
     syncFinishedTable();
 }
 
@@ -2544,9 +3169,21 @@ function syncFinishedTable() {
     tbody.innerHTML = '';
 
     const cards = document.querySelectorAll('#finishedGoodsContainer .finished-card');
-    document.getElementById('finishedBadgeCount').textContent = cards.length;
-    document.getElementById('finishedItemsCountBadge').textContent = cards.length + ' Items';
-    document.getElementById('overviewFinishedCount').textContent = cards.length;
+    let lineCount = 0;
+    cards.forEach(card => {
+        if (isProductAddingForm) {
+            const rows = [...card.querySelectorAll('.fg-variant-row')];
+            const totalQuantity = rows.reduce((sum, row) => sum + (parseInt(row.querySelector('.fg-variant-qty')?.value, 10) || 0), 0);
+            lineCount += rows.length;
+            const totals = card.querySelector('[id^="fgVariantTotals_"]');
+            if (totals) totals.textContent = `${rows.length} variants · ${totalQuantity} pcs`;
+        } else {
+            lineCount++;
+        }
+    });
+    document.getElementById('finishedBadgeCount').textContent = lineCount;
+    document.getElementById('finishedItemsCountBadge').textContent = lineCount + ' Items';
+    document.getElementById('overviewFinishedCount').textContent = lineCount;
 
     if (cards.length === 0) {
         document.getElementById('noFinishedPlaceholder').classList.remove('d-none');
@@ -2560,28 +3197,47 @@ function syncFinishedTable() {
     let totalFinishedBase = 0;
     let totalFinishedTax = 0;
 
-    cards.forEach(function(card, idx) {
-        const product = card.querySelector('.fg-input-product')?.value || '-';
-        const hsn = card.querySelector('.fg-input-hsn')?.value || '-';
-        const qty = parseInt(card.querySelector('.fg-input-qty')?.value) || 0;
-        const cost = parseFloat(card.querySelector('.fg-input-cost')?.value) || 0;
+    let summaryIndex = 0;
+    cards.forEach(function(card) {
+        const lines = isProductAddingForm
+            ? [...card.querySelectorAll('.fg-variant-row')].map(row => ({
+                product: row.querySelector('.fg-variant-name')?.value || '-',
+                hsn: row.querySelector('.fg-variant-hsn')?.value || '-',
+                qty: parseInt(row.querySelector('.fg-variant-qty')?.value, 10) || 0,
+                cost: parseFloat(row.querySelector('.fg-variant-cost')?.value) || 0,
+                gstRateField: row.querySelector('.fg-variant-gst-rate')
+            }))
+            : [{
+                product: card.querySelector('.fg-input-product')?.value || '-',
+                hsn: card.querySelector('.fg-input-hsn')?.value || '-',
+                qty: parseInt(card.querySelector('.fg-input-qty')?.value, 10) || 0,
+                cost: parseFloat(card.querySelector('.fg-input-cost')?.value) || 0,
+                gstRateField: null
+            }];
 
-        const taxInfo = calculateItemTax(card, 'fg', qty, cost);
-        totalFinishedBase += taxInfo.base;
-        totalFinishedTax += taxInfo.tax;
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${idx + 1}</td>
-            <td class="fw-bold text-dark text-start">${escapeHtml(product)}</td>
-            <td class="font-monospace">${escapeHtml(hsn)}</td>
-            <td class="fw-bold">${qty}</td>
-            <td>₹${cost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-            <td>${taxInfo.badge}</td>
-            <td>${taxInfo.taxHtml}</td>
-            <td class="table-success fw-bold text-success">₹${taxInfo.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        `;
-        tbody.appendChild(tr);
+        lines.forEach(line => {
+            const taxInfo = calculateItemTax(
+                card,
+                'fg',
+                line.qty,
+                line.cost,
+                line.gstRateField ? line.gstRateField.value : undefined
+            );
+            totalFinishedBase += taxInfo.base;
+            totalFinishedTax += taxInfo.tax;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${++summaryIndex}</td>
+                <td class="fw-bold text-dark text-start">${escapeHtml(line.product)}</td>
+                <td class="font-monospace">${escapeHtml(line.hsn)}</td>
+                <td class="fw-bold">${line.qty}</td>
+                <td>₹${line.cost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td>${taxInfo.badge}</td>
+                <td>${taxInfo.taxHtml}</td>
+                <td class="table-success fw-bold text-success">₹${taxInfo.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            `;
+            tbody.appendChild(tr);
+        });
     });
 
     document.getElementById('overviewFinishedVal').textContent = '₹' + (totalFinishedBase + totalFinishedTax).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2617,12 +3273,22 @@ function recalcOverallSummary() {
 
     // Finished Goods
     document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(function(card) {
-        const qty = parseInt(card.querySelector('.fg-input-qty')?.value) || 0;
-        const cost = parseFloat(card.querySelector('.fg-input-cost')?.value) || 0;
-        const taxInfo = calculateItemTax(card, 'fg', qty, cost);
-
-        grandBase += taxInfo.base;
-        grandTax += taxInfo.tax;
+        if (isProductAddingForm) {
+            card.querySelectorAll('.fg-variant-row').forEach(row => {
+                const qty = parseInt(row.querySelector('.fg-variant-qty')?.value, 10) || 0;
+                const cost = parseFloat(row.querySelector('.fg-variant-cost')?.value) || 0;
+                const rate = row.querySelector('.fg-variant-gst-rate')?.value ?? '';
+                const taxInfo = calculateItemTax(card, 'fg', qty, cost, rate);
+                grandBase += taxInfo.base;
+                grandTax += taxInfo.tax;
+            });
+        } else {
+            const qty = parseInt(card.querySelector('.fg-input-qty')?.value) || 0;
+            const cost = parseFloat(card.querySelector('.fg-input-cost')?.value) || 0;
+            const taxInfo = calculateItemTax(card, 'fg', qty, cost);
+            grandBase += taxInfo.base;
+            grandTax += taxInfo.tax;
+        }
     });
 
     const grandTotal = grandBase + grandTax;
@@ -2844,10 +3510,6 @@ function loadInitialData() {
             const card = document.getElementById('finishedCard_' + finishedCounter);
             if (card) {
                 if (card.querySelector('.fg-input-product')) card.querySelector('.fg-input-product').value = f.item_name || '';
-                if (card.querySelector('.fg-input-category')) card.querySelector('.fg-input-category').value = f.category_name || '';
-                if (card.querySelector('.fg-input-type')) card.querySelector('.fg-input-type').value = f.product_type || 'Individual Piece';
-                if (card.querySelector('.fg-input-variant')) card.querySelector('.fg-input-variant').value = f.specification || 'M';
-                if (card.querySelector('.fg-input-sku')) card.querySelector('.fg-input-sku').value = f.item_code || '';
                 const hsnInput = card.querySelector('.fg-input-hsn');
                 if (hsnInput) {
                     hsnInput.value = f.hsn_code || '';
@@ -2949,6 +3611,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     form.addEventListener('submit', function (event) {
         validateAttachments();
+        if (isProductAddingForm) {
+            form.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(function (card) {
+                card.querySelectorAll('.fg-variant-row').forEach(row => {
+                    updateProductAddingVariantRow(parseInt(card.id.replace('finishedCard_', ''), 10), parseInt(row.dataset.rowIndex, 10));
+                });
+            });
+        }
         const invalidFields = Array.from(form.elements).filter(function (control) {
             return control.willValidate && !control.checkValidity();
         });
