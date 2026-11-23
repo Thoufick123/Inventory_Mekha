@@ -6,6 +6,7 @@ use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Services\StockService;
+use App\Services\RollRegistryService;
 use Exception;
 
 class ProductAddingController extends Controller
@@ -14,79 +15,64 @@ class ProductAddingController extends Controller
     {
         $this->ensureSchema();
         $cid = Auth::concernId();
+        if ($cid) {
+            $suppliers = DB::fetchAll("SELECT id, code, name, company_name, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
+            $variants = DB::fetchAll("SELECT id, sku_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
+            $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
+        } else {
+            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
+            $variants = DB::fetchAll("SELECT id, concern_id, sku_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
+            $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
+        }
 
+        $allConcerns = Auth::isSuperAdmin()
+            ? DB::fetchAll("SELECT id, name, code FROM concerns ORDER BY id ASC")
+            : [];
+        $targetCid = $cid ?: 1;
+        $categoryScope = $cid
+            ? " WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'"
+            : " WHERE status = 'active'";
         $categoryParams = $cid ? [$cid] : [];
-        $categorySql = "SELECT * FROM categories WHERE status = 'active'";
-        if ($cid) {
-            $categorySql .= " AND concern_id = ?";
-        }
-        $categorySql .= " ORDER BY name ASC";
-
-        $subcategories = [];
-        $subSubcategories = [];
-        $categories = DB::fetchAll($categorySql, $categoryParams);
-        $hsnCodes = DB::fetchAll(
-            "SELECT hsn_code, description, gst_rate, rate_note
-             FROM hsn_masters
-             WHERE is_active = 1
-               AND (" . ($cid ? "concern_id = ? OR " : "") . "concern_id IS NULL)
-             ORDER BY hsn_code ASC",
+        $categories = DB::fetchAll("SELECT id, concern_id, name, default_hsn, default_gst_rate FROM categories{$categoryScope} ORDER BY name ASC", $categoryParams);
+        $subcategories = DB::fetchAll(
+            "SELECT id, concern_id, category_id, name FROM subcategories{$categoryScope} ORDER BY name ASC",
+            $categoryParams
+        );
+        $subSubcategories = DB::fetchAll(
+            "SELECT id, concern_id, subcategory_id, name FROM sub_subcategories{$categoryScope} ORDER BY name ASC",
+            $categoryParams
+        );
+        $productAttributes = DB::fetchAll(
+            $cid
+                ? "SELECT concern_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order"
+                : "SELECT concern_id, attribute_type, attribute_value FROM product_attributes ORDER BY attribute_type, sort_order",
             $cid ? [$cid] : []
         );
-        $sizes = DB::fetchAll(
-            "SELECT attribute_value
-             FROM product_attributes
-             WHERE attribute_type = 'size'
-               AND " . ($cid ? "(concern_id = ? OR concern_id = 1 OR concern_id IS NULL)" : "concern_id IS NOT NULL") . "
-             GROUP BY attribute_value
-             ORDER BY attribute_value ASC",
-            $cid ? [$cid] : []
-        );
-
-        $variantSql = "SELECT v.*, c.name AS category_name, s.name AS subcategory_name,
-                              COALESCE(st.total_qty, 0) AS total_stock
-                       FROM variants v
-                       LEFT JOIN categories c ON v.category_id = c.id
-                       LEFT JOIN subcategories s ON v.subcategory_id = s.id
-                       LEFT JOIN (
-                           SELECT variant_id, SUM(qty) AS total_qty FROM stocks GROUP BY variant_id
-                       ) st ON st.variant_id = v.id";
-        $variantParams = [];
-        if ($cid) {
-            $variantSql .= " WHERE v.concern_id = ?";
-            $variantParams[] = $cid;
-        }
-        $variantSql .= " ORDER BY v.id DESC LIMIT 100";
-
-        $successVariantIds = array_values(array_filter(array_map(
-            'intval',
-            array_filter(explode(',', (string)($_GET['variant_ids'] ?? '')))
-        )));
-        $successVariants = [];
-        if ($successVariantIds) {
-            $placeholders = implode(',', array_fill(0, count($successVariantIds), '?'));
-            $successSql = "SELECT id, sku_code, name, size, attributes
-                           FROM variants
-                           WHERE id IN ({$placeholders})";
-            $successParams = $successVariantIds;
-            if ($cid) {
-                $successSql .= " AND concern_id = ?";
-                $successParams[] = $cid;
-            }
-            $successSql .= " ORDER BY id ASC";
-            $successVariants = DB::fetchAll($successSql, $successParams);
-        }
-
-        $this->render('concern/product_adding', [
+        $this->render('concern/purchase_billing_create', [
             'pageTitle' => 'Product Adding',
             'currentModule' => 'product_adding',
+            'suppliers' => $suppliers,
+            'variants' => $variants,
+            'selectedCid' => $cid,
+            'allConcerns' => $allConcerns,
             'categories' => $categories,
             'subcategories' => $subcategories,
             'subSubcategories' => $subSubcategories,
-            'hsnCodes' => $hsnCodes,
-            'sizes' => $sizes,
-            'variants' => DB::fetchAll($variantSql, $variantParams),
-            'successVariants' => $successVariants,
+            'productAttributes' => $productAttributes,
+            'hsnList' => $hsnList,
+            'savedRollSpecs' => RollRegistryService::getSavedSpecs($targetCid),
+            'savedColors' => RollRegistryService::getSavedColors($targetCid),
+            'savedDesigns' => RollRegistryService::getSavedDesigns($targetCid),
+            'formAction' => \App\Core\Controller::url('/m/product_adding/store'),
+            'hsnSaveUrl' => \App\Core\Controller::url('/m/product_adding/save_hsn'),
+            'rollSpecSaveUrl' => \App\Core\Controller::url('/m/product_adding/save_roll_spec'),
+            'quickSupplierSaveUrl' => \App\Core\Controller::url('/m/product_adding/suppliers/store'),
+            'allowQuickSupplier' => Auth::isSuperAdmin() || Auth::can('product_adding', 'add'),
+            'backUrl' => \App\Core\Controller::url('/m/stocks'),
+            'backLabel' => 'Back to Stock',
+            'submitLabel' => 'Save Product Purchase',
+            'pageHeading' => 'Product Adding',
+            'pageDescription' => 'Record fabric rolls, garment supplies/accessories and finished goods received from vendors.',
         ]);
     }
 
@@ -273,6 +259,22 @@ class ProductAddingController extends Controller
             }
             if (!in_array('cost_price', $variantColumns, true)) {
                 DB::query("ALTER TABLE variants ADD COLUMN cost_price DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER attributes");
+            }
+
+            $categoryColumns = array_column(DB::fetchAll("DESCRIBE categories"), 'Field');
+            if (!in_array('code', $categoryColumns, true)) {
+                DB::query("ALTER TABLE categories ADD COLUMN code VARCHAR(20) NULL AFTER name");
+            }
+            if (!in_array('default_hsn', $categoryColumns, true)) {
+                DB::query("ALTER TABLE categories ADD COLUMN default_hsn VARCHAR(50) NULL AFTER code");
+            }
+            if (!in_array('default_gst_rate', $categoryColumns, true)) {
+                DB::query("ALTER TABLE categories ADD COLUMN default_gst_rate DECIMAL(5,2) NULL DEFAULT NULL AFTER default_hsn");
+            }
+
+            $purchaseItemColumns = array_column(DB::fetchAll("DESCRIBE purchase_bill_items"), 'Field');
+            if (!in_array('catalog_id', $purchaseItemColumns, true)) {
+                DB::query("ALTER TABLE purchase_bill_items ADD COLUMN catalog_id INT NULL AFTER variant_id");
             }
 
             DB::query("CREATE TABLE IF NOT EXISTS sub_subcategories (

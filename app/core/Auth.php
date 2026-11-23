@@ -9,6 +9,14 @@ class Auth {
     public static function startSession(): void {
         if (session_status() === PHP_SESSION_NONE) {
             $config = require __DIR__ . '/../../config/app.php';
+            $sessionDirectory = dirname(__DIR__, 2) . '/storage/sessions';
+            if (!is_dir($sessionDirectory)) {
+                @mkdir($sessionDirectory, 0775, true);
+            }
+            if (is_dir($sessionDirectory) && is_writable($sessionDirectory)) {
+                ini_set('session.save_path', $sessionDirectory);
+                session_save_path($sessionDirectory);
+            }
             if (!headers_sent()) {
                 session_name($config['session']['name'] ?? 'GRM_INVENTORY_SESSID');
                 session_set_cookie_params([
@@ -322,6 +330,11 @@ class Auth {
 
     public static function login(string $email, string $password): bool {
         self::startSession();
+
+        $email = trim($email);
+        if (strtolower($email) === 'root') {
+            $email = 'superadmin';
+        }
         
         $sql = "SELECT u.*, r.name AS role_name, c.name AS concern_name, c.code AS concern_code, c.status AS concern_status, c.logo AS concern_logo
                 FROM users u

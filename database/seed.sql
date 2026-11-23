@@ -74,6 +74,22 @@ ON DUPLICATE KEY UPDATE
 -- 4. HSN & SAC MASTER REGISTRY
 -- Comprehensive Indian GST Textile, Garment, Fabric, Packaging,
 -- Machinery, Maintenance & Job Work Classifications (95 Feeds)
+CREATE TABLE IF NOT EXISTS `hsn_masters` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `concern_id` INT NULL,
+    `code_type` ENUM('HSN', 'SAC') NOT NULL DEFAULT 'HSN',
+    `hsn_code` VARCHAR(50) NOT NULL,
+    `description` VARCHAR(255) NULL,
+    `category` VARCHAR(100) NULL,
+    `gst_rate` DECIMAL(5,2) NULL DEFAULT NULL,
+    `rate_note` VARCHAR(500) NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_hsn_concern` (`concern_id`),
+    INDEX `idx_hsn_code` (`hsn_code`),
+    INDEX `idx_hsn_active_type` (`is_active`, `code_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 DELETE FROM `hsn_masters` WHERE `concern_id` IS NULL;
 
 INSERT INTO `hsn_masters` (`id`, `concern_id`, `code_type`, `hsn_code`, `description`, `category`, `gst_rate`, `rate_note`, `is_active`) VALUES

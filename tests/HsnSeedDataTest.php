@@ -67,26 +67,24 @@ class HsnSeedDataTest {
         $this->assert(str_contains($byCode['HSN:6109']['rate_note'], 'conditional'), "HSN 6109 has conditional rate note");
         $this->assert((float)$byCode['HSN:8452']['gst_rate'] === 18.00, "HSN 8452 machinery rate is 18%");
 
-        // 3. Verify seed files exist and contain HSN data
-        echo "\n3. Checking database/seed.sql and database/seed_hsn.sql files...\n";
+        // 3. Verify seed.sql exists and contains all HSN data
+        echo "\n3. Checking database/seed.sql file...\n";
         $seedSqlPath = dirname(__DIR__) . '/database/seed.sql';
-        $seedHsnPath = dirname(__DIR__) . '/database/seed_hsn.sql';
 
         $this->assert(file_exists($seedSqlPath), "database/seed.sql exists");
-        $this->assert(file_exists($seedHsnPath), "database/seed_hsn.sql exists");
 
         $seedSql = file_get_contents($seedSqlPath);
-        $seedHsn = file_get_contents($seedHsnPath);
 
         $this->assert(str_contains($seedSql, '-- 4. HSN & SAC MASTER REGISTRY'), "database/seed.sql contains Section 4 HSN & SAC MASTER REGISTRY");
         $this->assert(str_contains($seedSql, "'5201'"), "database/seed.sql contains HSN 5201");
         $this->assert(str_contains($seedSql, "'6109'"), "database/seed.sql contains HSN 6109");
         $this->assert(str_contains($seedSql, "'998821'"), "database/seed.sql contains SAC 998821");
 
-        $this->assert(str_contains($seedHsn, 'CREATE TABLE IF NOT EXISTS `hsn_masters`'), "database/seed_hsn.sql creates hsn_masters table");
-        $this->assert(str_contains($seedHsn, "'5201'"), "database/seed_hsn.sql contains HSN 5201");
-        $this->assert(str_contains($seedHsn, "'6109'"), "database/seed_hsn.sql contains HSN 6109");
-        $this->assert(str_contains($seedHsn, "'998821'"), "database/seed_hsn.sql contains SAC 998821");
+        // 4. Test direct execution of seed.sql against invento_db
+        echo "\n4. Testing execution of database/seed.sql on invento_db...\n";
+        DB::pdo()->exec($seedSql);
+        $countAfterSeed = (int)DB::fetch("SELECT COUNT(*) as cnt FROM hsn_masters WHERE is_active = 1")['cnt'];
+        $this->assert($countAfterSeed === 95, "After running seed.sql, invento_db has exactly 95 active HSN records (found {$countAfterSeed})");
 
         echo "\n======================================================\n";
         echo "  RESULTS: {$this->passed} Passed, {$this->failed} Failed\n";

@@ -336,6 +336,79 @@ class PurchaseController extends Controller {
         $this->redirect('/m/suppliers');
     }
 
+    public function storeSupplierAjax(): void {
+        $this->validateCsrf();
+
+        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $name = trim((string)($_POST['name'] ?? ''));
+        $company = trim((string)($_POST['company_name'] ?? ''));
+        $phone = preg_replace('/\D/', '', trim((string)($_POST['phone'] ?? '')));
+        $email = trim((string)($_POST['email'] ?? ''));
+        $gstin = strtoupper(trim((string)($_POST['gstin'] ?? '')));
+        $address = trim((string)($_POST['address'] ?? ''));
+        $district = trim((string)($_POST['district'] ?? ''));
+        $state = trim((string)($_POST['state'] ?? ''));
+
+        $errors = [];
+        if (!$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ?", [$cid])) {
+            $errors[] = 'Select a valid concern.';
+        }
+        if (mb_strlen($name) < 2 || mb_strlen($name) > 150) {
+            $errors[] = 'Contact person name must be between 2 and 150 characters.';
+        }
+        if (mb_strlen($company) < 2 || mb_strlen($company) > 150) {
+            $errors[] = 'Company or mill name must be between 2 and 150 characters.';
+        }
+        if (!preg_match('/^[6-9]\d{9}$/', $phone)) {
+            $errors[] = 'Enter a valid 10-digit Indian mobile number.';
+        }
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Enter a valid email address.';
+        }
+        if ($gstin !== '' && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/', $gstin)) {
+            $errors[] = 'Enter a valid 15-character GSTIN.';
+        }
+        if (mb_strlen($address) < 3) {
+            $errors[] = 'Address must contain at least 3 characters.';
+        }
+        if (mb_strlen($district) < 2 || mb_strlen($state) < 2) {
+            $errors[] = 'Enter a valid district and state.';
+        }
+        if (!$errors && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND phone = ? LIMIT 1", [$cid, $phone])) {
+            $errors[] = 'A supplier with this phone number is already registered in this concern.';
+        }
+        if (!$errors && $gstin !== '' && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND gstin = ? LIMIT 1", [$cid, $gstin])) {
+            $errors[] = 'A supplier with this GSTIN is already registered in this concern.';
+        }
+        if ($errors) {
+            $this->renderJson(['success' => false, 'message' => implode(' ', $errors)], 422);
+            return;
+        }
+
+        $code = 'SUP-' . str_pad((string)((int)DB::fetchValue("SELECT COUNT(*) FROM suppliers WHERE concern_id = ?", [$cid]) + 1), 3, '0', STR_PAD_LEFT);
+        DB::query(
+            "INSERT INTO suppliers (concern_id, code, name, company_name, phone, email, gstin, address, city, district, state, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+            [$cid, $code, $name, $company, $phone, $email !== '' ? $email : null, $gstin !== '' ? $gstin : null, $address, $district, $district, $state]
+        );
+
+        $this->renderJson([
+            'success' => true,
+            'supplier' => [
+                'id' => (int)DB::lastInsertId(),
+                'code' => $code,
+                'name' => $name,
+                'company_name' => $company,
+                'phone' => $phone,
+                'email' => $email,
+                'gstin' => $gstin,
+                'address' => $address,
+                'district' => $district,
+                'state' => $state,
+            ],
+        ]);
+    }
+
     public function updateSupplier(): void {
         ModuleGuard::enforce('suppliers', 'edit');
         $this->validateCsrf();
@@ -677,7 +750,7 @@ class PurchaseController extends Controller {
     public function saveHsnAjax(): void {
         $this->ensureHsnMasterSchema();
         header('Content-Type: application/json; charset=utf-8');
-        $cid = Auth::concernId();
+        $cid = Auth::concernId() ?: ((int)($_POST['concern_id'] ?? 0) ?: null);
         $code = strtoupper(trim($_POST['hsn_code'] ?? ''));
         $codeType = strtoupper(trim($_POST['code_type'] ?? 'HSN'));
         $desc = trim($_POST['description'] ?? '');
@@ -1044,6 +1117,13 @@ class PurchaseController extends Controller {
 
     public function storeBill(): void {
         $this->validateCsrf();
+        $isProductAddingInvoice = ($_POST['product_adding_redirect'] ?? '') === '1';
+        $successRedirect = $isProductAddingInvoice
+            ? '/m/product_adding'
+            : '/m/purchase_billing';
+        $createRedirect = $isProductAddingInvoice
+            ? '/m/product_adding'
+            : '/m/purchase_billing/create';
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
         $supplierId = (int)($_POST['supplier_id'] ?? 0);
 
@@ -1053,13 +1133,13 @@ class PurchaseController extends Controller {
 
         if (!$cid) {
             $this->flash('error', 'Please choose a target concern or valid supplier.');
-            $this->redirect('/m/purchase_billing/create');
+            $this->redirect($createRedirect);
             return;
         }
 
         if (!$supplierId) {
             $this->flash('error', 'Please select a registered supplier.');
-            $this->redirect('/m/purchase_billing/create');
+            $this->redirect($createRedirect);
             return;
         }
 
@@ -1067,7 +1147,7 @@ class PurchaseController extends Controller {
         $supplierInvoiceNo = trim($_POST['supplier_invoice_no'] ?? '');
         if (empty($supplierInvoiceNo)) {
             $this->flash('error', 'Invoice / Bill Number is required.');
-            $this->redirect('/m/purchase_billing/create');
+            $this->redirect($createRedirect);
             return;
         }
         $fabricDescription = trim($_POST['fabric_description'] ?? '');
@@ -1222,19 +1302,131 @@ class PurchaseController extends Controller {
         }
 
         // 3. Finished Goods (Exact same GST and HSN fields)
+        if ($isProductAddingInvoice && is_array($finishedRaw)) {
+            $expandedFinishedGoods = [];
+            foreach ($finishedRaw as $finishedItem) {
+                $variantRows = $finishedItem['variants'] ?? [];
+                if (!is_array($variantRows) || empty($variantRows)) {
+                    $this->flash('error', 'Add at least one variant row to every finished-goods style.');
+                    $this->redirect($createRedirect);
+                    return;
+                }
+                foreach ($variantRows as $variantRow) {
+                    if (!is_array($variantRow)) {
+                        continue;
+                    }
+                    if ((float)($variantRow['quantity'] ?? 0) <= 0 || (float)($variantRow['supplier_cost'] ?? 0) <= 0) {
+                        $this->flash('error', 'Every new finished-goods variant needs a quantity and supplier cost greater than zero.');
+                        $this->redirect($createRedirect);
+                        return;
+                    }
+                    $expandedItem = array_merge($finishedItem, $variantRow);
+                    $expandedItem['catalog_style_name'] = trim((string)($finishedItem['product'] ?? ''));
+                    $expandedItem['product'] = trim((string)($variantRow['variant_name'] ?? ''));
+                    $expandedItem['variant_name'] = $expandedItem['product'];
+                    $expandedFinishedGoods[] = $expandedItem;
+                }
+            }
+            $finishedRaw = $expandedFinishedGoods;
+        }
+
         if (is_array($finishedRaw)) {
             foreach ($finishedRaw as $idx => $f) {
                 $qty   = (float)($f['quantity'] ?? ($f['qty'] ?? 0));
                 $price = (float)($f['supplier_cost'] ?? ($f['unit_price'] ?? 0));
 
                 if ($qty > 0 && $price > 0) {
+                    $catalogId = null;
+                    $variantId = null;
+                    $catalogDraft = null;
+                    $categoryName = trim($f['category'] ?? 'Apparel Finished Goods');
+                    $productName = trim($f['product'] ?? ($f['item_name'] ?? 'Finished Garment'));
+                    $itemCode = trim($f['sku'] ?? ($f['item_code'] ?? ''));
+                    $hsnCode = trim($f['hsn'] ?? '');
+                    $size = trim($f['size'] ?? ($f['variant'] ?? ''));
+                    $color = '';
+                    $mrp = (float)($f['mrp'] ?? 0);
+                    $sellingPrice = (float)($f['selling_price'] ?? 0);
+                    $catalogGstRate = (float)($f['catalog_gst_rate'] ?? 0);
+
+                    if ($isProductAddingInvoice) {
+                        $styleCode = strtoupper(trim((string)($f['style_code'] ?? '')));
+                        $categoryId = (int)($f['category_id'] ?? 0);
+                        $subcategoryId = (int)($f['subcategory_id'] ?? 0) ?: null;
+                        $subSubcategoryId = (int)($f['sub_sub_category_id'] ?? 0) ?: null;
+                        $size = trim((string)($f['size'] ?? ''));
+                        $color = trim((string)($f['color'] ?? ''));
+                        $hsnCode = strtoupper(trim((string)($f['hsn'] ?? '')));
+                        $catalogGstRate = (float)($f['catalog_gst_rate'] ?? 0);
+                        $styleName = trim((string)($f['catalog_style_name'] ?? $productName));
+                        $variantName = trim((string)($f['variant_name'] ?? $productName));
+                        if ($variantName === '') {
+                            $variantName = trim($styleName . ' - ' . $size . ' - ' . $color);
+                        }
+                        $productName = $variantName;
+                        if ($styleCode === '' || $categoryId <= 0 || $size === '' || $color === '' || $styleName === '') {
+                            $this->flash('error', 'New catalog variants require a style, category, size, and color.');
+                            $this->redirect($createRedirect);
+                            return;
+                        }
+                        $customAttributes = [];
+                        $reservedFields = [
+                            'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
+                            'quantity', 'qty', 'supplier_cost', 'unit_price', 'hsn', 'size', 'variant',
+                            'color', 'style_code', 'category_id', 'subcategory_id', 'sub_sub_category_id',
+                            'catalog_gst_rate', 'tax_mode', 'gst', 'gst_type', 'tax_input_type',
+                            'gst_rate', 'sgst', 'cgst', 'igst', 'mrp', 'selling_price', 'weight',
+                            'catalog_style_name', 'variant_name',
+                        ];
+                        foreach ($f as $key => $value) {
+                            if (in_array((string)$key, $reservedFields, true) || !is_scalar($value)) {
+                                continue;
+                            }
+                            $value = trim((string)$value);
+                            if ($value !== '') {
+                                $customAttributes[(string)$key] = $value;
+                            }
+                        }
+                        $catalogDraft = [
+                            'style_code' => $styleCode,
+                            'style_name' => $styleName,
+                            'variant_name' => $variantName,
+                            'sku_code' => $itemCode,
+                            'weight' => (float)($f['weight'] ?? 0),
+                            'category_id' => $categoryId,
+                            'subcategory_id' => $subcategoryId,
+                            'sub_sub_category_id' => $subSubcategoryId,
+                            'size' => $size,
+                            'color' => $color,
+                            'hsn_code' => $hsnCode,
+                            'gst_rate' => $catalogGstRate,
+                            'mrp' => $mrp,
+                            'selling_price' => $sellingPrice,
+                            'custom_attributes' => $customAttributes,
+                        ];
+                        $categoryName = '';
+                    }
+
                     $taxMode  = trim($f['tax_mode'] ?? 'Exclude GST');
                     $gstType  = trim($f['gst'] ?? ($f['gst_type'] ?? 'Exempted'));
                     $taxType  = trim($f['tax_input_type'] ?? 'Percentage');
                     $sgstVal  = (float)($f['sgst'] ?? 0);
                     $cgstVal  = (float)($f['cgst'] ?? 0);
                     $igstVal  = (float)($f['igst'] ?? 0);
-                    $fallback = (float)($f['gst_rate'] ?? 0);
+                    if ($catalogDraft && !in_array($taxType, ['Amount', 'Amount (₹)'], true)
+                        && $catalogGstRate >= 0 && $catalogGstRate <= 100) {
+                        if ($gstType === 'Both (CGST and SGST)') {
+                            $sgstVal = $catalogGstRate / 2;
+                            $cgstVal = $catalogGstRate / 2;
+                        } elseif ($gstType === 'CGST') {
+                            $cgstVal = $catalogGstRate / 2;
+                        } elseif ($gstType === 'SGST') {
+                            $sgstVal = $catalogGstRate / 2;
+                        } elseif ($gstType === 'IGST') {
+                            $igstVal = $catalogGstRate;
+                        }
+                    }
+                    $fallback = $catalogGstRate > 0 ? $catalogGstRate : (float)($f['gst_rate'] ?? 0);
 
                     $calc = $this->calculateLineTax($qty, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
                     $itemBase = $calc['itemBase'];
@@ -1246,12 +1438,14 @@ class PurchaseController extends Controller {
 
                     $itemsToInsert[] = [
                         'section_type'  => 'finished_goods',
-                        'variant_id'    => !empty($f['variant_id']) ? (int)$f['variant_id'] : null,
-                        'item_name'     => trim($f['product'] ?? ($f['item_name'] ?? 'Finished Garment')),
-                        'item_code'     => trim($f['sku'] ?? ($f['item_code'] ?? '')),
-                        'hsn_code'      => trim($f['hsn'] ?? ''),
-                        'specification' => trim($f['variant'] ?? ($f['size'] ?? '')),
-                        'color'         => null,
+                        'variant_id'    => $variantId,
+                        'catalog_id'    => $catalogId,
+                        'catalog_draft' => $catalogDraft,
+                        'item_name'     => $productName,
+                        'item_code'     => $itemCode,
+                        'hsn_code'      => $hsnCode,
+                        'specification' => $size,
+                        'color'         => $color ?: null,
                         'pattern'       => null,
                         'designs_count' => 1,
                         'rq_qty'        => 1,
@@ -1266,10 +1460,10 @@ class PurchaseController extends Controller {
                         'total_price'   => $itemBase,
                         'tax_amount'    => $itemTax,
                         'photo_path'    => null,
-                        'category_name' => trim($f['category'] ?? 'Apparel Finished Goods'),
+                        'category_name' => $categoryName,
                         'product_type'  => trim($f['product_type'] ?? 'Individual Piece'),
-                        'mrp'           => (float)($f['mrp'] ?? 0),
-                        'selling_price' => (float)($f['selling_price'] ?? 0),
+                        'mrp'           => $mrp,
+                        'selling_price' => $sellingPrice,
                     ];
                 }
             }
@@ -1314,7 +1508,7 @@ class PurchaseController extends Controller {
 
         if (empty($itemsToInsert)) {
             $this->flash('error', 'Please enter at least one item (Roll, Garment Supply, or Finished Good) with quantity and price.');
-            $this->redirect('/m/purchase_billing/create');
+            $this->redirect($createRedirect);
             return;
         }
 
@@ -1322,12 +1516,12 @@ class PurchaseController extends Controller {
             $attachmentPaths = $this->uploadBillAttachments();
         } catch (\RuntimeException $e) {
             $this->flash('error', $e->getMessage());
-            $this->redirect('/m/purchase_billing/create');
+            $this->redirect($createRedirect);
             return;
         }
         if (empty($attachmentPaths)) {
             $this->flash('error', 'Tax Invoice / Bill Attachment is required. Please upload at least one invoice file.');
-            $this->redirect('/m/purchase_billing/create');
+            $this->redirect($createRedirect);
             return;
         }
         $attachmentPath = $attachmentPaths[0] ?? null;
@@ -1343,6 +1537,23 @@ class PurchaseController extends Controller {
         DB::beginTransaction();
         try {
             $billNo = NumberSeries::getNext($cid, 'PO');
+            $catalogCache = [];
+            foreach ($itemsToInsert as &$item) {
+                if (!empty($item['catalog_draft']) && is_array($item['catalog_draft'])) {
+                    $mappedProduct = $this->createProductAddingCatalogVariant(
+                        $cid,
+                        $item['catalog_draft'],
+                        (float)$item['unit_price'],
+                        $catalogCache
+                    );
+                    $item['catalog_id'] = $mappedProduct['catalog_id'];
+                    $item['variant_id'] = $mappedProduct['variant_id'];
+                    $item['item_code'] = $mappedProduct['sku_code'];
+                    $item['category_name'] = $mappedProduct['category_name'];
+                    unset($item['catalog_draft']);
+                }
+            }
+            unset($item);
 
             DB::query(
                 "INSERT INTO purchase_bills (
@@ -1397,6 +1608,13 @@ class PurchaseController extends Controller {
                         $item['selling_price'],
                     ]
                 );
+                $purchaseItemId = (int)DB::lastInsertId();
+                if (!empty($item['catalog_id'])) {
+                    DB::query(
+                        "UPDATE purchase_bill_items SET catalog_id = ? WHERE id = ?",
+                        [(int)$item['catalog_id'], $purchaseItemId]
+                    );
+                }
 
                 // If bill was directly marked completed upon creation, inward finished goods to stock ledger
                 if ($inwardStatus === 'completed' && !empty($item['variant_id']) && $item['section_type'] === 'finished_goods') {
@@ -1463,12 +1681,265 @@ class PurchaseController extends Controller {
             }
 
             $this->flash('success', "Production Purchase '{$billNo}' recorded successfully!");
-            $this->redirect('/m/purchase_billing');
+            $this->redirect($successRedirect);
         } catch (Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Error recording production purchase: ' . $e->getMessage());
-            $this->redirect('/m/purchase_billing/create');
+            $this->redirect($createRedirect);
         }
+    }
+
+    private function createProductAddingCatalogVariant(int $concernId, array $draft, float $supplierCost, array &$catalogCache): array
+    {
+        $styleCode = strtoupper(trim((string)($draft['style_code'] ?? '')));
+        $styleName = trim((string)($draft['style_name'] ?? ''));
+        $variantName = trim((string)($draft['variant_name'] ?? ''));
+        $requestedSku = strtoupper(trim((string)($draft['sku_code'] ?? '')));
+        $categoryId = (int)($draft['category_id'] ?? 0);
+        $subcategoryId = (int)($draft['subcategory_id'] ?? 0) ?: null;
+        $subSubcategoryId = (int)($draft['sub_sub_category_id'] ?? 0) ?: null;
+        $size = trim((string)($draft['size'] ?? ''));
+        $color = trim((string)($draft['color'] ?? ''));
+        $weight = (float)($draft['weight'] ?? 0);
+        $hsnCode = strtoupper(trim((string)($draft['hsn_code'] ?? '')));
+        $sellingPrice = (float)($draft['selling_price'] ?? 0);
+        $mrp = (float)($draft['mrp'] ?? 0);
+
+        if ($styleCode === '' || strlen($styleCode) > 50 || mb_strlen($styleName) < 2 || mb_strlen($styleName) > 150) {
+            throw new Exception('Enter a unique style code and a product name between 2 and 150 characters.');
+        }
+        if ($supplierCost <= 0 || $sellingPrice <= $supplierCost || $mrp <= $sellingPrice) {
+            throw new Exception('New catalog pricing must follow Supplier Cost < Selling Price < MRP.');
+        }
+        if ($size === '' || mb_strlen($size) > 50 || $color === '' || mb_strlen($color) > 100
+            || $weight < 0 || $weight > 999999) {
+            throw new Exception('Choose a valid size and color for the new catalog variant.');
+        }
+        if ($variantName === '') {
+            $variantName = trim($styleName . ' - ' . $size . ' - ' . $color);
+        }
+        if (mb_strlen($variantName) < 2 || mb_strlen($variantName) > 150) {
+            throw new Exception('Variant name must be between 2 and 150 characters.');
+        }
+        if ($requestedSku !== '' && strlen($requestedSku) > 50) {
+            throw new Exception('Variant SKU must be 50 characters or fewer.');
+        }
+        if (!preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsnCode)) {
+            throw new Exception('Select or create a valid 4-, 6-, or 8-digit HSN code.');
+        }
+
+        $category = DB::fetch(
+            "SELECT id, name FROM categories
+             WHERE id = ? AND status = 'active'
+               AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+            [$categoryId, $concernId]
+        );
+        if (!$category) {
+            throw new Exception('The selected main category is not valid for this concern.');
+        }
+        $subcategory = null;
+        if ($subcategoryId) {
+            $subcategory = DB::fetch(
+                "SELECT id, name FROM subcategories
+                 WHERE id = ? AND category_id = ? AND status = 'active'
+                   AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                [$subcategoryId, $categoryId, $concernId]
+            );
+            if (!$subcategory) {
+                throw new Exception('The selected subcategory does not belong to the chosen main category.');
+            }
+        }
+        $subSubcategory = null;
+        if ($subSubcategoryId) {
+            if (!$subcategoryId) {
+                throw new Exception('Choose a subcategory before selecting a sub-subcategory.');
+            }
+            $subSubcategory = DB::fetch(
+                "SELECT id, name FROM sub_subcategories
+                 WHERE id = ? AND subcategory_id = ?
+                   AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                [$subSubcategoryId, $subcategoryId, $concernId]
+            );
+            if (!$subSubcategory) {
+                throw new Exception('The selected sub-subcategory does not belong to the chosen subcategory.');
+            }
+        }
+
+        $hsn = DB::fetch(
+            "SELECT gst_rate FROM hsn_masters
+             WHERE hsn_code = ? AND code_type = 'HSN' AND is_active = 1
+               AND (concern_id = ? OR concern_id IS NULL)
+             ORDER BY concern_id IS NULL ASC LIMIT 1",
+            [$hsnCode, $concernId]
+        );
+        if (!$hsn) {
+            throw new Exception('The selected HSN is not registered. Use Add HSN to create it first.');
+        }
+        $gstRate = $hsn['gst_rate'] !== null && $hsn['gst_rate'] !== ''
+            ? (float)$hsn['gst_rate']
+            : (float)($draft['gst_rate'] ?? -1);
+        if ($gstRate < 0 || $gstRate > 100) {
+            throw new Exception('Enter a valid GST rate for the selected HSN code.');
+        }
+
+        $customAttributes = $draft['custom_attributes'] ?? [];
+        if (!is_array($customAttributes)) {
+            throw new Exception('Submitted product attributes are invalid.');
+        }
+        $allowedAttributeTypes = ['size' => true, 'color' => true];
+        $attributeTypes = DB::fetchAll(
+            'SELECT DISTINCT attribute_type FROM product_attributes
+             WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL',
+            [$concernId]
+        );
+        foreach ($attributeTypes as $attributeType) {
+            $type = strtolower(trim((string)($attributeType['attribute_type'] ?? '')));
+            if ($type !== '') {
+                $allowedAttributeTypes[$type] = true;
+            }
+        }
+        $normalizedAttributes = [];
+        foreach ($customAttributes as $type => $value) {
+            $type = strtolower(trim((string)$type));
+            $value = is_scalar($value) ? trim((string)$value) : '';
+            if ($value === '') {
+                continue;
+            }
+            if ($type === '' || !isset($allowedAttributeTypes[$type]) || strlen($type) > 50 || mb_strlen($value) > 100
+                || in_array($type, ['hsn', 'weight', 'allocated_qty', 'custom_attributes'], true)) {
+                throw new Exception('A submitted product attribute is invalid.');
+            }
+            $normalizedAttributes[$type] = $value;
+        }
+
+        $styleKey = strtolower($styleCode);
+        if (isset($catalogCache[$styleKey])) {
+            $cached = $catalogCache[$styleKey];
+            if (
+                $cached['style_name'] !== $styleName
+                || $cached['category_id'] !== $categoryId
+                || $cached['subcategory_id'] !== $subcategoryId
+                || $cached['sub_sub_category_id'] !== $subSubcategoryId
+            ) {
+                throw new Exception('A style code can only be reused for variants with the same name and category hierarchy.');
+            }
+        } else {
+            if (DB::fetchValue(
+                'SELECT id FROM catalogs WHERE concern_id = ? AND style_code = ? LIMIT 1',
+                [$concernId, $styleCode]
+            )) {
+                throw new Exception('This style code already exists. Enter a unique style code for the new style.');
+            }
+
+            $categoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)$category['name']) ?: 'CAT');
+            $subcategoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)($subcategory['name'] ?? '')) ?: 'SUB');
+            $subSubcategoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)($subSubcategory['name'] ?? '')) ?: 'SS');
+            $shortCode = substr($categoryCode, 0, 2) . substr($subcategoryCode, 0, 2) . substr($subSubcategoryCode, 0, 2);
+            $hierarchyPath = implode(' > ', array_filter([
+                $category['name'] ?? '',
+                $subcategory['name'] ?? '',
+                $subSubcategory['name'] ?? '',
+            ]));
+
+            DB::query(
+                "INSERT INTO catalogs (
+                    concern_id, code, style_code, short_code, category_id, subcategory_id, sub_sub_category_id,
+                    main_category_code, sub_category_code, sub_sub_category_code, hierarchy_path,
+                    hsn_code, gst_rate, sizes, status, name, created_at
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())",
+                [
+                    $concernId, $styleCode, $styleCode, $shortCode, $categoryId, $subcategoryId, $subSubcategoryId,
+                    substr($categoryCode, 0, 10), substr($subcategoryCode, 0, 10), substr($subSubcategoryCode, 0, 10),
+                    $hierarchyPath, $hsnCode, $gstRate, json_encode([$size]), $styleName,
+                ]
+            );
+            $catalogCache[$styleKey] = [
+                'catalog_id' => (int)DB::lastInsertId(),
+                'style_name' => $styleName,
+                'category_id' => $categoryId,
+                'subcategory_id' => $subcategoryId,
+                'sub_sub_category_id' => $subSubcategoryId,
+                'hsn_code' => $hsnCode,
+                'gst_rate' => $gstRate,
+                'category_name' => (string)$category['name'],
+                'sizes' => [$size],
+            ];
+        }
+
+        $catalog = &$catalogCache[$styleKey];
+        if (!in_array($size, $catalog['sizes'], true)) {
+            $catalog['sizes'][] = $size;
+            DB::query('UPDATE catalogs SET sizes = ? WHERE id = ?', [json_encode($catalog['sizes']), $catalog['catalog_id']]);
+        }
+
+        $skuBase = $requestedSku !== ''
+            ? $requestedSku
+            : strtoupper(preg_replace('/[^A-Z0-9]+/i', '-', implode('-', array_merge(
+                [$styleCode, $size, $color],
+                array_values($normalizedAttributes)
+            ))) ?: $styleCode);
+        $skuBase = substr(trim($skuBase, '-'), 0, 45);
+        $sku = $skuBase;
+        $sequence = 2;
+        while (DB::fetchValue('SELECT id FROM variants WHERE concern_id = ? AND sku_code = ? LIMIT 1', [$concernId, $sku])) {
+            $suffix = '-' . $sequence++;
+            $sku = substr($skuBase, 0, 50 - strlen($suffix)) . $suffix;
+        }
+
+        $variantAttributes = array_merge(
+            ['size' => $size, 'color' => $color, 'hsn' => $hsnCode, 'weight' => $weight, 'custom_attributes' => $normalizedAttributes],
+            $normalizedAttributes
+        );
+        DB::query(
+            "INSERT INTO variants (
+                concern_id, catalog_id, sku_code, name, category_id, subcategory_id, size,
+                weight, weight_unit, attributes, cost_price, price, mrp, is_complementary,
+                creation_date, status, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'kg', ?, ?, ?, ?, 0, CURDATE(), 'active', NOW())",
+            [
+                $concernId, $catalog['catalog_id'], $sku, $variantName, $categoryId, $subcategoryId,
+                $size, $weight, json_encode($variantAttributes), $supplierCost, $sellingPrice, $mrp,
+            ]
+        );
+        $variantId = (int)DB::lastInsertId();
+
+        $attributeValues = array_merge(['size' => $size, 'color' => $color], $normalizedAttributes);
+        foreach ($attributeValues as $type => $value) {
+            $knownRows = DB::fetchAll(
+                'SELECT attribute_value FROM product_attributes
+                 WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                   AND LOWER(TRIM(attribute_type)) = LOWER(TRIM(?))',
+                [$concernId, $type]
+            );
+            $exists = false;
+            foreach ($knownRows as $knownRow) {
+                $knownValues = preg_split('/[,;|]+/', (string)($knownRow['attribute_value'] ?? ''));
+                foreach ($knownValues as $knownValue) {
+                    if (strcasecmp(trim($knownValue), $value) === 0) {
+                        $exists = true;
+                        break 2;
+                    }
+                }
+            }
+            if (!$exists) {
+                $sortOrder = (int)DB::fetchValue(
+                    'SELECT COALESCE(MAX(sort_order), 0) + 1 FROM product_attributes WHERE concern_id = ?',
+                    [$concernId]
+                );
+                DB::query(
+                    'INSERT INTO product_attributes (concern_id, attribute_type, attribute_name, attribute_value, sort_order)
+                     VALUES (?, ?, ?, ?, ?)',
+                    [$concernId, $type, ucfirst($type), $value, $sortOrder]
+                );
+            }
+        }
+
+        return [
+            'catalog_id' => (int)$catalog['catalog_id'],
+            'variant_id' => $variantId,
+            'sku_code' => $sku,
+            'category_name' => $catalog['category_name'],
+        ];
     }
 
     public function updateBill(): void {

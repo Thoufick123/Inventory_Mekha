@@ -14,7 +14,7 @@ $checks = [
     'QC completion rejects repeated terminal completion' =>
         str_contains($controllerSource, 'has already been completed. Stock is not credited again'),
     'QC inward uses variant-and-QC idempotency guard' =>
-        str_contains($controllerSource, 'A QC record is allowed to credit each variant exactly once'),
+        str_contains($controllerSource, 'Idempotency: A QC record is allowed to credit each variant exactly once'),
 ];
 
 foreach ($checks as $description => $passed) {
