@@ -9,10 +9,20 @@ $registrySource = file_get_contents(__DIR__ . '/../app/core/ModuleRegistry.php')
 $controllerSource = file_get_contents(__DIR__ . '/../app/controllers/ProductAddingController.php');
 $purchaseControllerSource = file_get_contents(__DIR__ . '/../app/controllers/PurchaseController.php');
 $viewSource = file_get_contents(__DIR__ . '/../app/views/concern/purchase_billing_create.php');
+$listViewSource = file_get_contents(__DIR__ . '/../app/views/concern/product_adding_list.php');
 $liveSql = file_get_contents(__DIR__ . '/../database/live_db_update.sql');
 
 $checks = [
     'Product Adding route is registered' => str_contains($routeSource, "'/m/product_adding'"),
+    'Product Adding opens a bill list with overall purchase metrics' => str_contains($controllerSource, 'private function renderBillList')
+        && str_contains($controllerSource, "WHERE pb.source_module = 'product_adding'")
+        && str_contains($listViewSource, 'Product Purchase Bills')
+        && str_contains($listViewSource, 'Net Purchases')
+        && str_contains($listViewSource, 'Pending Stock Bills')
+        && str_contains($listViewSource, 'Labels &amp; Stock'),
+    'Create Product Purchase opens the existing Product Adding form' => str_contains($routeSource, "'/m/product_adding/create', [ProductAddingController::class, 'create']")
+        && str_contains($listViewSource, 'Create Product Purchase')
+        && str_contains($controllerSource, '$this->renderPurchaseForm();'),
     'Product Adding store route is registered' => str_contains($routeSource, "'/m/product_adding/store'"),
     'Product Adding supports secure quick category hierarchy creation' => str_contains($routeSource, "'/m/product_adding/categories/store'")
         && str_contains($controllerSource, 'function storeHierarchyAjax')
