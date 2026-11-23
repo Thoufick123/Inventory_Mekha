@@ -4,9 +4,11 @@
             <h4 class="fw-bold mb-1 text-dark">Fabric Cutting & Wastage Tracking</h4>
             <p class="text-secondary small mb-0">Record fabric lay cutting, cut piece generation, and scrap / edge wastage. Consumes raw fabric from live stock via <code>StockService::move()</code>.</p>
         </div>
+        <?php if (\App\Core\Auth::can('cutting_wastage', 'add')): ?>
         <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddCutting">
             <i class="bi bi-scissors me-1"></i> Log Cutting Job
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->

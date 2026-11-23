@@ -4,9 +4,11 @@
             <h4 class="fw-bold mb-1 text-dark">Customer Product Requests</h4>
             <p class="text-secondary small mb-0">Track order inquiries, customer sample requests, and advance bookings.</p>
         </div>
+        <?php if (\App\Core\Auth::can('request', 'add')): ?>
         <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddRequest">
             <i class="bi bi-file-earmark-plus me-1"></i> New Product Request
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->
@@ -62,9 +64,12 @@
                                         <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewRequestModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Request Details">
                                             <i class="bi bi-eye"></i>
                                         </button>
+                                        <?php if (\App\Core\Auth::can('request', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditRequestModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Request">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::can('request', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/m/request/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete customer request <?= htmlspecialchars($r['request_no']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="id" value="<?= $r['id'] ?>">
@@ -72,6 +77,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

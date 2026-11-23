@@ -27,13 +27,16 @@
 
         <div class="d-flex align-items-center gap-2">
             <!-- Record Expense Button -->
+            <?php if (\App\Core\Auth::can('expense', 'add')): ?>
             <button class="btn text-white fw-bold shadow-sm d-flex align-items-center gap-2 px-3 py-2" style="background: #4f46e5; border-radius: 8px; font-size: 0.88rem;" data-bs-toggle="modal" data-bs-target="#modalAddExpense">
                 <i class="bi bi-plus-circle"></i> Record Warehouse Expense
             </button>
+            <?php endif; ?>
         </div>
     </div>
 
     <!-- Executive Export Intelligence Toolbar (Excel, PDF, Single Day, Monthly, 3 Months, 6 Months) -->
+    <?php if (\App\Core\Auth::can('expense', 'export')): ?>
     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4" style="border: 1px solid #e2e8f0 !important;">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="d-flex align-items-center gap-3">
@@ -100,6 +103,7 @@
         </div>
     </div>
     </div>
+    <?php endif; ?>
 
     <!-- 4 KPI Stat Cards -->
     <div class="row g-3 mb-4">
@@ -378,9 +382,12 @@
                                         <button type="button" class="btn btn-sm btn-outline-info px-2 py-1" onclick='showVoucherDetails(<?= json_encode($e, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Voucher Details" style="border-radius: 6px;">
                                             <i class="bi bi-eye"></i>
                                         </button>
+                                        <?php if (\App\Core\Auth::can('expense', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary px-2 py-1" onclick='openEditExpenseModal(<?= json_encode($e, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Expense Voucher" style="border-radius: 6px;">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::can('expense', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/m/expense/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete expense voucher #<?= htmlspecialchars($e['expense_no']) ?>? This will reverse any cash register entries.');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="id" value="<?= $e['id'] ?>">
@@ -388,6 +395,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

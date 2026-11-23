@@ -4,6 +4,8 @@
 namespace App\Core;
 
 class Auth {
+    private static bool $permissionsRefreshed = false;
+
     public static function startSession(): void {
         if (session_status() === PHP_SESSION_NONE) {
             $config = require __DIR__ . '/../../config/app.php';
@@ -45,6 +47,17 @@ class Auth {
                     return false;
                 }
             }
+
+            // Real-time permission refresh so permission changes take effect immediately without re-login
+            if (!self::$permissionsRefreshed && !self::isSuperAdmin()) {
+                self::loadPermissions($userId, (int)($_SESSION['user']['role_id'] ?? 0));
+                self::$permissionsRefreshed = true;
+            }
+
+            // Ensure Super Admin has super_admin_concern_id initialized to 0 (ALL CONCERNS) if not set
+            if (self::isSuperAdmin() && !isset($_SESSION['super_admin_concern_id'])) {
+                $_SESSION['super_admin_concern_id'] = 0;
+            }
         } catch (\Throwable $e) {
             // In case of DB disconnection during check, fall back to false
             return false;
@@ -84,11 +97,7 @@ class Auth {
         if (isset($_SESSION['super_admin_concern_id'])) {
             return $_SESSION['super_admin_concern_id'] > 0 ? (int)$_SESSION['super_admin_concern_id'] : null;
         }
-        // Auto-default to the first active concern for Super Admin if not explicitly switched to All Concerns
-        $all = self::allConcerns();
-        if (!empty($all)) {
-            return (int)$all[0]['id'];
-        }
+        // Super Admin default: null (ALL CONCERNS - consolidated view across all concerns)
         return null;
     }
 
@@ -153,7 +162,7 @@ class Auth {
     }
 
     public static function allConcerns(): array {
-        return DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
+        return DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' OR status IS NULL OR status = '' ORDER BY name ASC");
     }
 
     /**
@@ -377,6 +386,7 @@ class Auth {
             $_SESSION['enabled_modules'] = [];
             $_SESSION['role_permissions'] = [];
             $_SESSION['user_permissions'] = [];
+            $_SESSION['super_admin_concern_id'] = 0; // Default to ALL CONCERNS for Super Admin
         }
 
         // Update last login
@@ -424,6 +434,9 @@ class Auth {
         if ($moduleCode === 'cash') {
             $moduleCode = 'cash_flow';
         }
+        if ($moduleCode === 'variants' || $moduleCode === 'stock_ledger') {
+            $moduleCode = 'stocks';
+        }
         if (!self::hasModule($moduleCode)) {
             return false;
         }
@@ -437,6 +450,9 @@ class Auth {
             $actionAlias = in_array($act, ['dispatch', 'receive', 'resolve', 'process']) ? 'edit' : 'add';
         } elseif (in_array($act, ['cancel', 'reverse', 'reject'], true)) {
             $actionAlias = 'delete';
+        } elseif ($act === 'export') {
+            // View-only users cannot export data. Exporting requires create (add) or edit permissions.
+            return self::can($moduleCode, 'add') || self::can($moduleCode, 'edit');
         }
 
         // 1. Check user-specific granular overrides
@@ -444,17 +460,15 @@ class Auth {
         $userPerms = $_SESSION['user_permissions'] ?? [];
         if (isset($userPerms[$moduleCode]) && array_key_exists($act, $userPerms[$moduleCode])) {
             $val = $userPerms[$moduleCode][$act];
-            if ($val === 1) {
-                return true;
-            }
-            if ($val === 0) {
-                return false;
+            if ($val !== null) {
+                return ((int)$val === 1);
             }
         }
         if ($actionAlias && isset($userPerms[$moduleCode]) && array_key_exists($actionAlias, $userPerms[$moduleCode])) {
             $val = $userPerms[$moduleCode][$actionAlias];
-            if ($val === 1) return true;
-            if ($val === 0) return false;
+            if ($val !== null) {
+                return ((int)$val === 1);
+            }
         }
 
         // 2. Check role-level default permissions

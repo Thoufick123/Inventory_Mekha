@@ -1,12 +1,19 @@
+<?php
+$canAdd = \App\Core\Auth::can('suppliers', 'add');
+$canEdit = \App\Core\Auth::can('suppliers', 'edit');
+$canDelete = \App\Core\Auth::can('suppliers', 'delete');
+?>
 <div class="container-fluid px-0">
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h4 class="fw-bold mb-1 text-dark">Supplier Directory</h4>
         </div>
+        <?php if ($canAdd): ?>
         <button class="btn btn-primary shadow-sm rounded-2 d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalAddSupplier">
             <i class="bi bi-plus-circle fs-6"></i> Add Supplier
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->
@@ -128,7 +135,7 @@
                 </thead>
                 <tbody id="supplierTableBody">
                     <?php if (empty($suppliers)): ?>
-                        <tr id="noSuppliersRow"><td colspan="7" class="text-center py-4 text-muted">No suppliers registered. Click "Add Supplier" to register one.</td></tr>
+                        <tr id="noSuppliersRow"><td colspan="7" class="text-center py-4 text-muted">No suppliers registered.<?= $canAdd ? ' Click "Add Supplier" to register one.' : '' ?></td></tr>
                     <?php else: ?>
                         <?php $idx = 1; foreach ($suppliers as $sup): ?>
                             <tr class="supplier-row"
@@ -214,16 +221,20 @@
                                                 onclick="openViewSupplierModal(<?= htmlspecialchars(json_encode($sup)) ?>)">
                                             <i class="bi bi-eye"></i>
                                         </button>
+                                        <?php if ($canEdit): ?>
                                         <button type="button" class="btn btn-outline-primary py-1 px-2"
                                                 title="Edit Supplier"
                                                 onclick="openEditSupplierModal(<?= htmlspecialchars(json_encode($sup)) ?>)">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
+                                        <?php if ($canDelete): ?>
                                         <button type="button" class="btn btn-outline-danger py-1 px-2"
                                                 title="Delete Supplier"
                                                 onclick="openDeleteSupplierModal(<?= (int)$sup['id'] ?>, '<?= htmlspecialchars(addslashes($sup['name'])) ?>', '<?= htmlspecialchars(addslashes($sup['company_name'] ?? '')) ?>')">
                                             <i class="bi bi-trash3"></i>
                                         </button>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -235,6 +246,7 @@
     </div>
 </div>
 
+<?php if ($canAdd): ?>
 <!-- Modal 1: Register New Supplier (Create) -->
 <div class="modal fade" id="modalAddSupplier" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
@@ -335,7 +347,9 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if ($canEdit): ?>
 <!-- Modal 2: Edit Supplier (Update) -->
 <div class="modal fade" id="modalEditSupplier" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
@@ -433,7 +447,9 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if ($canDelete): ?>
 <!-- Modal 3: Delete Supplier Confirmation (Delete) -->
 <div class="modal fade" id="modalDeleteSupplier" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -461,6 +477,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Modal 4: View Supplier Details -->
 <div class="modal fade" id="modalViewSupplier" tabindex="-1">
@@ -559,9 +576,11 @@
             <div class="modal-footer border-top bg-light justify-content-end">
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <?php if ($canEdit): ?>
                     <button type="button" class="btn btn-primary fw-semibold" id="btnEditFromView">
                         <i class="bi bi-pencil me-1"></i> Edit Supplier
                     </button>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -816,27 +835,31 @@ function fallbackCopy(text) {
 
 // Edit Supplier Modal Handler
 function openEditSupplierModal(sup) {
-    document.getElementById('editSupplierId').value = sup.id || '';
-    document.getElementById('editSupplierCodeBadge').textContent = 'Code: ' + (sup.code || 'SUP');
-    document.getElementById('editSupplierName').value = sup.name || '';
-    document.getElementById('editSupplierCompany').value = sup.company_name || '';
-    document.getElementById('editSupplierPhone').value = (sup.phone || '').replace(/\D/g, '');
-    document.getElementById('editSupplierGstin').value = sup.gstin || '';
-    document.getElementById('editSupplierEmail').value = sup.email || '';
-    document.getElementById('editSupplierAddress').value = sup.address || '';
-    document.getElementById('editSupplierDistrict').value = sup.district || sup.city || '';
-    document.getElementById('editSupplierState').value = sup.state || 'Tamil Nadu';
-    document.getElementById('editSupplierStatus').value = sup.status || 'active';
+    const modalEl = document.getElementById('modalEditSupplier');
+    if (!modalEl) return;
+    const elId = document.getElementById('editSupplierId'); if (elId) elId.value = sup.id || '';
+    const elCode = document.getElementById('editSupplierCodeBadge'); if (elCode) elCode.textContent = 'Code: ' + (sup.code || 'SUP');
+    const elName = document.getElementById('editSupplierName'); if (elName) elName.value = sup.name || '';
+    const elCompany = document.getElementById('editSupplierCompany'); if (elCompany) elCompany.value = sup.company_name || '';
+    const elPhone = document.getElementById('editSupplierPhone'); if (elPhone) elPhone.value = (sup.phone || '').replace(/\D/g, '');
+    const elGstin = document.getElementById('editSupplierGstin'); if (elGstin) elGstin.value = sup.gstin || '';
+    const elEmail = document.getElementById('editSupplierEmail'); if (elEmail) elEmail.value = sup.email || '';
+    const elAddr = document.getElementById('editSupplierAddress'); if (elAddr) elAddr.value = sup.address || '';
+    const elDist = document.getElementById('editSupplierDistrict'); if (elDist) elDist.value = sup.district || sup.city || '';
+    const elState = document.getElementById('editSupplierState'); if (elState) elState.value = sup.state || 'Tamil Nadu';
+    const elStat = document.getElementById('editSupplierStatus'); if (elStat) elStat.value = sup.status || 'active';
 
-    const modal = new bootstrap.Modal(document.getElementById('modalEditSupplier'));
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 }
 
 // Delete Supplier Modal Handler
 function openDeleteSupplierModal(id, name, company) {
-    document.getElementById('deleteSupplierId').value = id;
-    document.getElementById('deleteSupplierName').textContent = name + (company ? ' (' + company + ')' : '');
-    const modal = new bootstrap.Modal(document.getElementById('modalDeleteSupplier'));
+    const modalEl = document.getElementById('modalDeleteSupplier');
+    if (!modalEl) return;
+    const elId = document.getElementById('deleteSupplierId'); if (elId) elId.value = id;
+    const elName = document.getElementById('deleteSupplierName'); if (elName) elName.textContent = name + (company ? ' (' + company + ')' : '');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 }
 </script>

@@ -35,7 +35,7 @@
             </a>
             <?php 
                 $availScrap = max(0.00, (float)$batch['wastage_qty'] - (float)$batch['sold_wastage_qty']);
-                if ($availScrap > 0.01): 
+                if ($availScrap > 0.01 && \App\Core\Auth::can('cutting_wastage', 'add')): 
             ?>
                 <a href="<?= \App\Core\Controller::url('/production/cutting?tab=wastage') ?>" class="btn btn-outline-danger shadow-sm fw-semibold">
                     <i class="bi bi-recycle me-1"></i> Sell Scrap (<?= number_format($availScrap, 2) ?> kg avail)

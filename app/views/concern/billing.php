@@ -93,13 +93,13 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         <div style="background: #2563eb; color: #ffffff; width: 48px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0;" id="qr_icon_box" title="Barcode / QR input">
                             <i class="bi bi-qr-code" id="active_input_icon"></i>
                         </div>
-                        <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="Point QR scanner or type SKU / name" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" autofocus>
+                        <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="<?= \App\Core\Auth::can('billing', 'create') ? 'Point QR scanner or type SKU / name' : 'View only access - billing terminal disabled' ?>" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" <?= \App\Core\Auth::can('billing', 'create') ? 'autofocus' : 'disabled' ?>>
                         <datalist id="pos_catalog_list">
                             <?php foreach ($variants as $v): ?>
                                 <option value="<?= htmlspecialchars($v['sku_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format($v['price'], 0) ?>)</option>
                             <?php endforeach; ?>
                         </datalist>
-                        <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;">
+                        <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;" <?= !\App\Core\Auth::can('billing', 'create') ? 'disabled' : '' ?>>
                             <i class="bi bi-arrow-right-circle"></i> Add
                         </button>
                     </div>
@@ -548,6 +548,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                 </div>
 
                 <!-- Complete Sale Action Button & Version (Image 2 Bottom) -->
+                <?php if (\App\Core\Auth::can('billing', 'create')): ?>
                 <button type="submit" id="btn_complete_sale" class="btn btn-secondary w-100 py-3 rounded-4 fw-bold fs-6 shadow-sm d-flex align-items-center justify-content-center gap-2 mb-1" style="border: none; transition: all 0.2s; background: #94a3b8; color: #ffffff;">
                     <i class="bi bi-printer fs-5"></i> Complete Sale & Print Invoice 
                     <span class="badge bg-white bg-opacity-25 px-2 py-1 font-monospace">F2</span>
@@ -555,6 +556,11 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                 <div id="checkout_helper_hint" class="text-center small py-1 mb-2" style="font-size: 0.76rem;">
                     <span class="text-muted"><i class="bi bi-info-circle me-1"></i> Scan or select products above to begin billing.</span>
                 </div>
+                <?php else: ?>
+                <div class="alert alert-warning py-2 px-3 small rounded-3 text-center mb-2">
+                    <i class="bi bi-lock-fill me-1"></i> View Only Access - Billing is disabled for this account.
+                </div>
+                <?php endif; ?>
 
                 <div class="text-end text-muted small" style="font-size: 0.74rem;">
                     v1.0

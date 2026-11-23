@@ -96,9 +96,11 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
             <button type="button" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1" onclick="triggerInvoicePrint()">
                 <i class="bi bi-printer me-1"></i> Print Invoice
             </button>
+            <?php if (\App\Core\Auth::can('purchase_billing', 'export')): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1 text-white" style="background:#10b981; border-color:#10b981;">
                 <i class="bi bi-download me-1"></i> Download Purchase Items
             </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_billing') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Back to Bills
             </a>
@@ -204,9 +206,11 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     <i class="bi bi-layers text-primary fs-5"></i>
                     <h6 class="mb-0 fw-bold text-dark">Fabric Rolls Inventory & Details Table (<?= count($rolls) ?> Rolls)</h6>
                 </div>
+                <?php if (\App\Core\Auth::can('purchase_billing', 'export')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-outline-success btn-sm py-1 px-3 d-flex align-items-center gap-1 shadow-sm">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download Items (CSV)
                 </a>
+                <?php endif; ?>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-bordered align-middle mb-0 text-center small">
@@ -292,9 +296,11 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     <i class="bi bi-box-seam text-success fs-5"></i>
                     <h6 class="mb-0 fw-bold text-dark">Other Garment Supplies Details Table (<?= count($other) ?> Items)</h6>
                 </div>
+                <?php if (\App\Core\Auth::can('purchase_billing', 'export')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-outline-success btn-sm py-1 px-3 d-flex align-items-center gap-1 shadow-sm">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download Items (CSV)
                 </a>
+                <?php endif; ?>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-bordered align-middle mb-0 text-center small">
@@ -364,9 +370,11 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     <i class="bi bi-tag text-purple fs-5" style="color:#8b5cf6;"></i>
                     <h6 class="mb-0 fw-bold text-dark">Finished Goods Inventory & Details Table (<?= count($finished) ?> Styles)</h6>
                 </div>
+                <?php if (\App\Core\Auth::can('purchase_billing', 'export')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-outline-success btn-sm py-1 px-3 d-flex align-items-center gap-1 shadow-sm">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download Items (CSV)
                 </a>
+                <?php endif; ?>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-bordered align-middle mb-0 text-center small">
@@ -438,9 +446,11 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     <button type="button" class="btn btn-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1" onclick="window.print()">
                         <i class="bi bi-printer-fill me-1"></i> Print / Save as PDF
                     </button>
+                    <?php if (\App\Core\Auth::can('purchase_billing', 'export')): ?>
                     <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
                         <i class="bi bi-download me-1"></i> Download CSV
                     </a>
+                    <?php endif; ?>
                 </div>
             </div>
 

@@ -37,9 +37,11 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                 </li>
             </ul>
 
+            <?php if (\App\Core\Auth::can('catalog_program', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/production/catalog/create') ?>" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm rounded-3 py-2 px-3 fw-semibold">
                 <i class="bi bi-plus-circle"></i> Add Product Style
             </a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -134,9 +136,11 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                         <div class="text-muted mb-3"><i class="bi bi-folder-x fs-1 text-secondary opacity-50"></i></div>
                                         <h6 class="fw-bold text-dark">No Product Styles Found</h6>
                                         <p class="text-secondary small mb-3">Get started by creating your first manufactured garment style.</p>
+                                        <?php if (\App\Core\Auth::can('catalog_program', 'add')): ?>
                                         <a href="<?= \App\Core\Controller::url('/production/catalog/create') ?>" class="btn btn-sm btn-primary">
                                             <i class="bi bi-plus-circle me-1"></i> Add Product Style
                                         </a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php else: ?>
@@ -206,12 +210,16 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-3 p-1.5" title="Quick View" onclick="showStyleDetails(<?= $s['id'] ?>)">
                                                     <i class="bi bi-eye"></i>
                                                 </button>
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
                                                 <a href="<?= \App\Core\Controller::url('/production/catalog/edit?id=' . $s['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Style">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
+                                                <?php endif; ?>
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'delete')): ?>
                                                 <button type="button" class="btn btn-sm btn-outline-danger rounded-3 p-1.5" title="Delete Style" onclick="confirmDeleteStyle(<?= $s['id'] ?>, '<?= htmlspecialchars(addslashes($s['name'])) ?>', '<?= htmlspecialchars($s['style_code']) ?>')">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                     </tr>
@@ -250,9 +258,11 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-calendar-range text-primary me-2"></i> Scheduled Production Orders</h6>
+                    <?php if (\App\Core\Auth::can('catalog_program', 'add')): ?>
                     <a href="<?= \App\Core\Controller::url('/production/programs/create') ?>" class="btn btn-sm btn-primary shadow-sm">
                         <i class="bi bi-calendar-plus me-1"></i> New Production Program
                     </a>
+                    <?php endif; ?>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 table-custom">
@@ -311,12 +321,16 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-3 p-1.5" title="Quick View Program" onclick="showProgramDetails(<?= $p['id'] ?>)">
                                                     <i class="bi bi-eye"></i>
                                                 </button>
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
                                                 <a href="<?= \App\Core\Controller::url('/production/programs/edit?id=' . $p['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Program">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
+                                                <?php endif; ?>
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'delete')): ?>
                                                 <button type="button" class="btn btn-sm btn-outline-danger rounded-3 p-1.5" title="Delete Program" onclick="confirmDeleteProgram(<?= $p['id'] ?>, '<?= htmlspecialchars(addslashes($p['program_no'])) ?>', '<?= htmlspecialchars(addslashes($p['program_name'] ?? '')) ?>')">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                     </tr>
@@ -729,9 +743,11 @@ function showProgramDetails(id) {
             `;
 
             actionsContainer.innerHTML = `
+                <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
                 <a href="<?= \App\Core\Controller::url('/production/programs/edit?id=') ?>${p.id}" class="btn btn-primary btn-sm px-3 shadow-sm">
                     <i class="bi bi-pencil me-1"></i> Edit Program
                 </a>
+                <?php endif; ?>
             `;
         })
         .catch(err => {

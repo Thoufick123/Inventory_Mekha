@@ -314,10 +314,12 @@
                 <i class="bi bi-people-fill"></i>
                 <span>All Staff</span>
             </a>
+            <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="nav-link <?= (isset($currentModule) && $currentModule === 'staff' && isset($currentSubModule) && $currentSubModule === 'create') ? 'active' : '' ?>">
                 <i class="bi bi-person-plus-fill"></i>
                 <span>Add New Staff</span>
             </a>
+            <?php endif; ?>
             <?php endif; ?>
             <?php if ($isSuperAdmin): ?>
             <a href="<?= \App\Core\Controller::url('/admin/concerns') ?>" class="nav-link <?= (str_contains($activeRoute, 'admin/concerns') || (isset($currentModule) && $currentModule === 'admin_concerns')) ? 'active' : '' ?>">
@@ -342,9 +344,9 @@
 
                     <!-- CONCERN SWITCHER FOR SUPER ADMIN -->
                     <?php
-                        $displayConcernName = $currentConcern 
-                            ? $currentConcern['name'] 
-                            : (!empty($allConcerns) ? $allConcerns[0]['name'] : 'All Concerns');
+                        $switcherConcerns = \App\Core\Auth::allConcerns();
+                        $isConsolidated = ($currentConcern === null || (isset($_SESSION['super_admin_concern_id']) && (int)$_SESSION['super_admin_concern_id'] === 0));
+                        $displayConcernName = $isConsolidated || empty($currentConcern) ? 'ALL CONCERNS' : $currentConcern['name'];
                     ?>
                     <div class="dropdown">
                         <button class="btn btn-sm btn-primary dropdown-toggle d-flex align-items-center gap-1.5 fw-semibold shadow-sm concern-switcher-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="<?= htmlspecialchars($displayConcernName) ?>">
@@ -352,24 +354,26 @@
                             <span class="text-truncate" style="max-width: 155px;"><?= htmlspecialchars($displayConcernName) ?></span>
                         </button>
                         <ul class="dropdown-menu shadow">
-                            <li class="dropdown-header text-uppercase small fw-bold">Select Active Concern Context</li>
-                            <?php foreach ($allConcerns as $con): 
-                                $isSel = ($currentConcern && $currentConcern['id'] == $con['id']) || (!$currentConcern && !empty($allConcerns) && $allConcerns[0]['id'] == $con['id']);
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isConsolidated ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=0') ?>">
+                                    <span><i class="bi bi-globe me-2 <?= $isConsolidated ? 'text-white' : 'text-primary' ?>"></i> ALL CONCERNS</span>
+                                    <?php if ($isConsolidated): ?><i class="bi bi-check-lg"></i><?php endif; ?>
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li class="dropdown-header text-uppercase small fw-bold" style="font-size: 0.72rem; color: #64748b;">
+                                Concerns (<?= count($switcherConcerns) ?>)
+                            </li>
+                            <?php foreach ($switcherConcerns as $con): 
+                                $isSel = !$isConsolidated && $currentConcern && ((int)$currentConcern['id'] === (int)$con['id']);
                             ?>
                                 <li>
                                     <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isSel ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=' . $con['id']) ?>">
-                                        <span><i class="bi bi-building me-2 text-secondary"></i> <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)</span>
-                                        <?php if ($isSel): ?><i class="bi bi-check-lg"></i><?php endif; ?>
+                                        <span><i class="bi bi-building me-2 <?= $isSel ? 'text-white' : 'text-secondary' ?>"></i> <?= htmlspecialchars($con['name']) ?> <small class="<?= $isSel ? 'text-white-50' : 'text-muted' ?>">(<?= htmlspecialchars($con['code']) ?>)</small></span>
+                                        <?php if ($isSel): ?><i class="bi bi-check-lg ms-2"></i><?php endif; ?>
                                     </a>
                                 </li>
                             <?php endforeach; ?>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center justify-content-between <?= ($currentConcern === null && isset($_SESSION['super_admin_concern_id']) && $_SESSION['super_admin_concern_id'] === 0) ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=0') ?>">
-                                    <span><i class="bi bi-globe me-2 text-primary"></i> All Concerns (Consolidated)</span>
-                                    <?php if ($currentConcern === null && isset($_SESSION['super_admin_concern_id']) && $_SESSION['super_admin_concern_id'] === 0): ?><i class="bi bi-check-lg"></i><?php endif; ?>
-                                </a>
-                            </li>
                         </ul>
                     </div>
                 <?php else: ?>

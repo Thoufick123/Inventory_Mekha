@@ -8,6 +8,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\Auth;
 use App\Core\DB;
+use App\Core\ModuleGuard;
 use App\Services\StockService;
 use App\Services\DocumentNumberService;
 use App\Services\AuditService;
@@ -35,6 +36,7 @@ class ProductionStockRequestController extends Controller {
     }
 
     public function index(): void {
+        ModuleGuard::enforce('request', 'view');
         $cid = Auth::concernId();
         $tab = strtolower(trim($_GET['tab'] ?? 'receive'));
         if (!in_array($tab, ['receive', 'send'], true)) {
@@ -188,6 +190,7 @@ class ProductionStockRequestController extends Controller {
     }
 
     public function create(): void {
+        ModuleGuard::enforce('request', 'add');
         $cid = Auth::concernId();
 
         $variants = DB::fetchAll(
@@ -221,6 +224,7 @@ class ProductionStockRequestController extends Controller {
     }
 
     public function store(): void {
+        ModuleGuard::enforce('request', 'add');
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
         if (!$cid) {
             $firstCon = DB::fetch("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1");

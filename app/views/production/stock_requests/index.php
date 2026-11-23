@@ -17,12 +17,14 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
             </p>
         </div>
         <div class="d-flex gap-2">
+            <?php if (\App\Core\Auth::can('request', 'add')): ?>
             <button type="button" class="btn btn-primary shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#modalIndentStock">
                 <i class="bi bi-send me-1"></i> Indent Stock
             </button>
             <a href="<?= \App\Core\Controller::url('/production/stock-requests/create') ?>" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-sliders me-1"></i> Advanced Form
             </a>
+            <?php endif; ?>
         </div>
     </div>
 

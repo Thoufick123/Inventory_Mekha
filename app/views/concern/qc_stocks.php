@@ -23,9 +23,11 @@
             </h4>
             <p class="text-secondary small mb-0">Multi-checkpoint inspection (stitching, fabric, color, size, trims) & finished goods approval</p>
         </div>
+        <?php if (\App\Core\Auth::can('qc_stocks', 'create')): ?>
         <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>" class="btn btn-primary px-3 py-2 fw-semibold shadow-sm rounded-3" style="background:#4f46e5; border-color:#4f46e5;">
             <i class="bi bi-plus-circle me-1"></i> New QC Batch
         </a>
+        <?php endif; ?>
     </div>
 
     <!-- Filter Card -->
@@ -145,6 +147,7 @@
                                         </a>
 
                                         <!-- 2. Inspect / 2D Scanner icon -->
+                                        <?php if (\App\Core\Auth::can('qc_stocks', 'edit')): ?>
                                         <a href="<?= \App\Core\Controller::url('/production/qc/inspect?id=' . $qc['id']) ?>" class="btn btn-sm btn-outline-primary rounded-2 p-1" style="width: 30px; height: 30px; border-color: #bfdbfe; color: #2563eb; display:inline-flex; align-items:center; justify-content:center;" title="Open 2D QR Piece Scanner">
                                             <i class="bi bi-qr-code-scan"></i>
                                         </a>
@@ -153,8 +156,10 @@
                                         <button type="button" class="btn btn-sm btn-outline-warning rounded-2 p-1" style="width: 30px; height: 30px; border-color: #fed7aa; color: #f97316; display:inline-flex; align-items:center; justify-content:center;" onclick='openReinspectModal(<?= json_encode($qc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Re-inspect / Cycle Rework Garments">
                                             <i class="bi bi-arrow-repeat"></i>
                                         </button>
+                                        <?php endif; ?>
 
                                         <!-- 4. Delete QC record icon (red outline) -->
+                                        <?php if (\App\Core\Auth::can('qc_stocks', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/production/qc/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete QC inspection <?= htmlspecialchars($qc['qc_no']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                                             <input type="hidden" name="id" value="<?= $qc['id'] ?>">
@@ -162,6 +167,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

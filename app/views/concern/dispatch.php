@@ -4,9 +4,11 @@
             <h4 class="fw-bold mb-1 text-dark">Dispatch & Logistics Management</h4>
             <p class="text-secondary small mb-0">Record transport logistics, vehicle registrations, and airway bill / courier tracking numbers.</p>
         </div>
+        <?php if (\App\Core\Auth::can('dispatch', 'add')): ?>
         <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddDispatch">
             <i class="bi bi-send me-1"></i> New Dispatch Log
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->

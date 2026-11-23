@@ -94,9 +94,12 @@
                                             <i class="bi bi-eye"></i>
                                         </button>
                                         <?php if (!$invoiceReturn): ?>
+                                            <?php if (\App\Core\Auth::can('return_exchange', 'edit')): ?>
                                             <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditReturnModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Return">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
+                                            <?php endif; ?>
+                                            <?php if (\App\Core\Auth::can('return_exchange', 'delete')): ?>
                                             <form action="<?= \App\Core\Controller::url('/m/return_exchange/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete return record <?= htmlspecialchars($r['return_no']) ?>? This will reverse stock additions/deductions.');">
                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                                 <input type="hidden" name="id" value="<?= $r['id'] ?>">
@@ -104,6 +107,7 @@
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             </form>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             <span class="badge bg-secondary-subtle text-secondary">Invoice used</span>
                                         <?php endif; ?>

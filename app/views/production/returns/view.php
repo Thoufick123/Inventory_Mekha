@@ -16,7 +16,7 @@
             <a href="<?= \App\Core\Controller::url('/production/returns/print/' . $return['id']) ?>" target="_blank" class="btn btn-outline-primary">
                 <i class="bi bi-printer me-1"></i> Print Voucher
             </a>
-            <?php if ($return['status'] !== 'CANCELLED'): ?>
+            <?php if ($return['status'] !== 'CANCELLED' && \App\Core\Auth::can('return_exchange', 'delete')): ?>
                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalCancelRma">
                     <i class="bi bi-x-circle me-1"></i> Cancel / Reverse RMA
                 </button>

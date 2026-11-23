@@ -226,11 +226,17 @@
                                 <div class="d-flex align-items-center justify-content-end gap-1">
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-info" title="Consignment Log"><i class="bi bi-clock-history"></i></a>
+                                    <?php if (\App\Core\Auth::can('inward', 'edit')): ?>
                                     <button type="button" class="btn btn-sm btn-outline-warning" title="Edit Consignment Notes"><i class="bi bi-pencil-square"></i></button>
+                                    <?php endif; ?>
+                                    <?php if (\App\Core\Auth::can('inward', 'delete')): ?>
                                     <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Consignment"><i class="bi bi-trash"></i></button>
+                                    <?php endif; ?>
+                                    <?php if (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
                                         <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
                                     </a>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
@@ -293,9 +299,11 @@
                     <small class="text-muted font-monospace"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></small>
                     <div class="d-flex align-items-center gap-1">
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
+                        <?php if (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
                             <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
                         </a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

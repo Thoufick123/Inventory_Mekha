@@ -13,14 +13,16 @@
                 <?= $activeConcern ? 'Concern: ' . htmlspecialchars($activeConcern['name']) : 'Choose Concern' ?>
                 <i class="bi bi-chevron-down ms-1 small"></i>
             </button>
-            <?php if ($activeConcern): ?>
-                <a href="<?= \App\Core\Controller::url('/m/staff/create?concern_id=' . $selectedCid) ?>" class="btn btn-primary shadow-sm">
-                    <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
-                </a>
-            <?php else: ?>
-                <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="btn btn-primary shadow-sm">
-                    <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
-                </a>
+            <?php if (\App\Core\Auth::can('staff', 'add')): ?>
+                <?php if ($activeConcern): ?>
+                    <a href="<?= \App\Core\Controller::url('/m/staff/create?concern_id=' . $selectedCid) ?>" class="btn btn-primary shadow-sm">
+                        <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
+                    </a>
+                <?php else: ?>
+                    <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="btn btn-primary shadow-sm">
+                        <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
+                    </a>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
@@ -124,7 +126,7 @@
                             <td colspan="9" class="text-center py-5 text-muted">
                                 <i class="bi bi-people display-6 d-block mb-2 text-secondary opacity-50"></i>
                                 <?= $activeConcern ? 'No staff members recorded for this concern yet.' : 'Please select a concern above to load staff records.' ?>
-                                <?php if ($activeConcern): ?>
+                                <?php if ($activeConcern && \App\Core\Auth::can('staff', 'add')): ?>
                                     <div class="mt-2">
                                         <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddStaff">
                                             <i class="bi bi-person-plus-fill me-1"></i> Add First Staff Member
@@ -174,6 +176,7 @@
                                 </td>
                                 <td class="text-end pe-3">
                                     <div class="d-inline-flex align-items-center gap-1">
+                                        <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                                         <!-- Quick Status Toggle (Activate/Deactivate) -->
                                         <form action="<?= \App\Core\Controller::url('/m/staff/toggle-status') ?>" method="POST" class="d-inline" onsubmit="return confirm('<?= $stf['status'] === 'active' ? 'Deactivate' : 'Activate' ?> staff member <?= htmlspecialchars($stf['name']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -188,17 +191,21 @@
                                                 </button>
                                             <?php endif; ?>
                                         </form>
+                                        <?php endif; ?>
 
                                         <!-- View Profile -->
                                         <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewStaffModal(<?= json_encode($stf, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Staff Profile">
                                             <i class="bi bi-eye"></i>
                                         </button>
 
+                                        <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                                         <!-- Edit Staff -->
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditStaffModal(<?= json_encode($stf, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Staff Details">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
 
+                                        <?php if (\App\Core\Auth::can('staff', 'delete')): ?>
                                         <!-- Delete Staff -->
                                         <form action="<?= \App\Core\Controller::url('/m/staff/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete staff member <?= htmlspecialchars($stf['name']) ?> (<?= htmlspecialchars($stf['staff_code']) ?>)? Note: Deactivation is usually preferred over permanent deletion.');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -207,6 +214,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -409,10 +417,11 @@
 <!-- 3. EDIT STAFF MODAL -->
 <!-- ========================================== -->
 <div class="modal fade" id="modalEditStaff" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
         <form action="<?= \App\Core\Controller::url('/m/staff/update') ?>" method="POST" class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <input type="hidden" name="id" id="edit_staff_id" value="">
+            <input type="hidden" name="has_perms_matrix" value="1">
 
             <div class="modal-header border-bottom px-4 py-3 bg-primary text-white">
                 <div class="d-flex align-items-center gap-2">
@@ -493,6 +502,142 @@
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
+                    </div>
+                </div>
+
+                <!-- 5. MODULE ACCESS & GRANULAR PERMISSIONS MATRIX -->
+                <div class="border-top pt-3 mt-4">
+                    <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                                <i class="bi bi-shield-lock-fill text-primary"></i> Module Access & Granular Permissions
+                            </h6>
+                            <small class="text-secondary">Configure View, Create (Add), Edit, and Delete access for each module.</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                            <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllEditMatrixPerms(true)">
+                                <i class="bi bi-check-all me-1"></i> Full Access
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllEditMatrixReadOnly()">
+                                <i class="bi bi-eye me-1"></i> View Only
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllEditMatrixPerms(false)">
+                                <i class="bi bi-x-square me-1"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Column Quick Toggles -->
+                    <div class="d-flex align-items-center justify-content-between p-2.5 bg-light rounded-3 mb-3 border flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                            <span class="fw-bold text-secondary text-uppercase" style="font-size: 0.71rem;"><i class="bi bi-toggles text-primary me-1"></i>Column:</span>
+                            <button type="button" class="btn btn-sm btn-outline-primary py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setEditColumnMatrixPerm('view', true)">All View</button>
+                            <button type="button" class="btn btn-sm btn-outline-success py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setEditColumnMatrixPerm('add', true)">All Create</button>
+                            <button type="button" class="btn btn-sm btn-outline-warning text-dark py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setEditColumnMatrixPerm('edit', true)">All Edit</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setEditColumnMatrixPerm('delete', true)">All Delete</button>
+                        </div>
+                        <span class="badge bg-white text-secondary border px-2.5 py-1" id="edit_matrix_status_badge" style="font-size: 0.74rem;">
+                            <i class="bi bi-shield-check me-1 text-primary"></i> Module access loaded
+                        </span>
+                    </div>
+
+                    <!-- Permissions Table -->
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-bordered table-sm align-middle mb-0 perm-matrix-table" id="editStaffMatrixTable" style="font-size: 0.82rem;">
+                            <thead class="bg-light text-secondary text-uppercase" style="font-size: 0.72rem;">
+                                <tr>
+                                    <th style="width: 40%; vertical-align: middle;" class="ps-3">
+                                        <span class="fw-bold">Module / Feature</span>
+                                    </th>
+                                    <th style="width: 15%;" class="text-center text-primary bg-primary bg-opacity-10 border-start border-end py-2">
+                                        <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                            <div class="fw-bold">
+                                                <i class="bi bi-eye-fill me-1"></i> View
+                                            </div>
+                                            <input type="checkbox" id="edit_header_check_view" class="form-check-input m-0" style="width: 18px; height: 18px; cursor: pointer;" onchange="toggleEditHeaderColumn('view', this.checked)" title="Select all View">
+                                        </div>
+                                    </th>
+                                    <th style="width: 15%;" class="text-center text-success bg-success bg-opacity-10 border-end py-2">
+                                        <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                            <div class="fw-bold">
+                                                <i class="bi bi-plus-circle-fill me-1"></i> Create (Add)
+                                            </div>
+                                            <input type="checkbox" id="edit_header_check_add" class="form-check-input m-0" style="width: 18px; height: 18px; cursor: pointer;" onchange="toggleEditHeaderColumn('add', this.checked)" title="Select all Create">
+                                        </div>
+                                    </th>
+                                    <th style="width: 15%;" class="text-center text-warning bg-warning bg-opacity-10 text-dark border-end py-2">
+                                        <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                            <div class="fw-bold">
+                                                <i class="bi bi-pencil-fill me-1"></i> Edit
+                                            </div>
+                                            <input type="checkbox" id="edit_header_check_edit" class="form-check-input m-0" style="width: 18px; height: 18px; cursor: pointer;" onchange="toggleEditHeaderColumn('edit', this.checked)" title="Select all Edit">
+                                        </div>
+                                    </th>
+                                    <th style="width: 15%;" class="text-center text-danger bg-danger bg-opacity-10 border-end py-2">
+                                        <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                            <div class="fw-bold">
+                                                <i class="bi bi-trash-fill me-1"></i> Delete
+                                            </div>
+                                            <input type="checkbox" id="edit_header_check_delete" class="form-check-input m-0" style="width: 18px; height: 18px; cursor: pointer;" onchange="toggleEditHeaderColumn('delete', this.checked)" title="Select all Delete">
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($groupedModules) && !empty($groupOrder)): ?>
+                                    <?php foreach ($groupOrder as $grpName): ?>
+                                        <?php if (empty($groupedModules[$grpName])) continue; ?>
+                                        <tr class="table-secondary matrix-group-header" data-group="<?= htmlspecialchars($grpName) ?>">
+                                            <td colspan="5" class="fw-bold text-dark py-1.5 px-3 text-uppercase" style="font-size: 0.74rem; letter-spacing: 0.05em; background: #e2e8f0;">
+                                                <i class="bi bi-folder2-open me-1.5 text-primary"></i> <?= htmlspecialchars($grpName) ?>
+                                            </td>
+                                        </tr>
+                                        <?php foreach ($groupedModules[$grpName] as $m): $mid = (int)$m['id']; ?>
+                                            <tr id="edit_matrix_row_<?= $mid ?>" class="matrix-mod-row" data-mid="<?= $mid ?>">
+                                                <td class="ps-3 py-2">
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <i class="bi <?= htmlspecialchars($m['icon'] ?: 'bi-app') ?> text-primary fs-6"></i>
+                                                        <span class="fw-semibold text-dark" style="font-size: 0.84rem;"><?= htmlspecialchars($m['name']) ?></span>
+                                                    </div>
+                                                </td>
+                                                <!-- View -->
+                                                <td class="text-center perm-matrix-col-view">
+                                                    <div class="d-flex justify-content-center align-items-center m-0">
+                                                        <input class="form-check-input edit-matrix-perm-check edit-matrix-perm-view edit-matrix-row-<?= $mid ?>" 
+                                                               type="checkbox" name="perms[<?= $mid ?>][view]" value="1" id="edit_m_view_<?= $mid ?>"
+                                                               onchange="onEditPermCheckboxChange(<?= $mid ?>, 'view', this.checked)">
+                                                    </div>
+                                                </td>
+                                                <!-- Create -->
+                                                <td class="text-center perm-matrix-col-add">
+                                                    <div class="d-flex justify-content-center align-items-center m-0">
+                                                        <input class="form-check-input edit-matrix-perm-check edit-matrix-perm-add edit-matrix-row-<?= $mid ?>" 
+                                                               type="checkbox" name="perms[<?= $mid ?>][add]" value="1" id="edit_m_add_<?= $mid ?>"
+                                                               onchange="onEditPermCheckboxChange(<?= $mid ?>, 'add', this.checked)">
+                                                    </div>
+                                                </td>
+                                                <!-- Edit -->
+                                                <td class="text-center perm-matrix-col-edit">
+                                                    <div class="d-flex justify-content-center align-items-center m-0">
+                                                        <input class="form-check-input edit-matrix-perm-check edit-matrix-perm-edit edit-matrix-row-<?= $mid ?>" 
+                                                               type="checkbox" name="perms[<?= $mid ?>][edit]" value="1" id="edit_m_edit_<?= $mid ?>"
+                                                               onchange="onEditPermCheckboxChange(<?= $mid ?>, 'edit', this.checked)">
+                                                    </div>
+                                                </td>
+                                                <!-- Delete -->
+                                                <td class="text-center perm-matrix-col-delete">
+                                                    <div class="d-flex justify-content-center align-items-center m-0">
+                                                        <input class="form-check-input edit-matrix-perm-check edit-matrix-perm-delete edit-matrix-row-<?= $mid ?>" 
+                                                               type="checkbox" name="perms[<?= $mid ?>][delete]" value="1" id="edit_m_delete_<?= $mid ?>"
+                                                               onchange="onEditPermCheckboxChange(<?= $mid ?>, 'delete', this.checked)">
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -649,6 +794,80 @@ function openViewStaffModal(stf) {
     }
 }
 
+function onEditPermCheckboxChange(mid, act, checked) {
+    if (checked && (act === 'add' || act === 'edit' || act === 'delete')) {
+        const viewCb = document.getElementById('edit_m_view_' + mid);
+        if (viewCb) viewCb.checked = true;
+    }
+    if (!checked && act === 'view') {
+        const addCb = document.getElementById('edit_m_add_' + mid);
+        const editCb = document.getElementById('edit_m_edit_' + mid);
+        const delCb = document.getElementById('edit_m_delete_' + mid);
+        if (addCb) addCb.checked = false;
+        if (editCb) editCb.checked = false;
+        if (delCb) delCb.checked = false;
+    }
+    updateEditHeaderCheckboxesState();
+}
+
+function toggleEditHeaderColumn(action, checked) {
+    document.querySelectorAll('.edit-matrix-perm-' + action).forEach(cb => {
+        cb.checked = checked;
+        const row = cb.closest('tr');
+        const mid = row ? row.getAttribute('data-mid') : null;
+        if (checked && action !== 'view' && mid) {
+            const vCb = document.getElementById('edit_m_view_' + mid);
+            if (vCb) vCb.checked = true;
+        }
+    });
+    if (!checked && action === 'view') {
+        ['add', 'edit', 'delete'].forEach(act => {
+            document.querySelectorAll('.edit-matrix-perm-' + act).forEach(cb => cb.checked = false);
+            const h = document.getElementById('edit_header_check_' + act);
+            if (h) { h.checked = false; h.indeterminate = false; }
+        });
+    }
+    updateEditHeaderCheckboxesState();
+}
+
+function setEditColumnMatrixPerm(action, checked) {
+    toggleEditHeaderColumn(action, checked);
+}
+
+function setAllEditMatrixPerms(checked) {
+    document.querySelectorAll('.edit-matrix-perm-check').forEach(cb => {
+        cb.checked = checked;
+    });
+    updateEditHeaderCheckboxesState();
+}
+
+function setAllEditMatrixReadOnly() {
+    document.querySelectorAll('.edit-matrix-perm-check').forEach(cb => {
+        cb.checked = cb.classList.contains('edit-matrix-perm-view');
+    });
+    updateEditHeaderCheckboxesState();
+}
+
+function updateEditHeaderCheckboxesState() {
+    const actions = ['view', 'add', 'edit', 'delete'];
+    actions.forEach(act => {
+        const cbs = Array.from(document.querySelectorAll('.edit-matrix-perm-' + act));
+        const headerCb = document.getElementById('edit_header_check_' + act);
+        if (!cbs.length || !headerCb) return;
+        const checkedCount = cbs.filter(c => c.checked).length;
+        if (checkedCount === cbs.length && cbs.length > 0) {
+            headerCb.checked = true;
+            headerCb.indeterminate = false;
+        } else if (checkedCount > 0) {
+            headerCb.checked = false;
+            headerCb.indeterminate = true;
+        } else {
+            headerCb.checked = false;
+            headerCb.indeterminate = false;
+        }
+    });
+}
+
 function openEditStaffModal(stf) {
     if (!stf) return;
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
@@ -664,10 +883,55 @@ function openEditStaffModal(stf) {
     setVal('edit_staff_designation', stf.designation || '');
     setVal('edit_staff_status', stf.status === 'inactive' ? 'inactive' : 'active');
 
+    // Reset matrix table checkboxes
+    document.querySelectorAll('.edit-matrix-perm-check').forEach(cb => cb.checked = false);
+    updateEditHeaderCheckboxesState();
+
+    const statusBadge = document.getElementById('edit_matrix_status_badge');
+    if (statusBadge) {
+        statusBadge.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" style="width: 0.8rem; height: 0.8rem;"></span> Loading permissions...';
+    }
+
     const modalEl = document.getElementById('modalEditStaff');
     if (modalEl) {
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
+    }
+
+    // Asynchronously fetch current permissions for this staff member
+    if (stf.id) {
+        fetch('<?= \App\Core\Controller::url('/api/staff/user-permissions') ?>?staff_id=' + encodeURIComponent(stf.id))
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.success && data.effective) {
+                    Object.keys(data.effective).forEach(mid => {
+                        const eff = data.effective[mid];
+                        const vCb = document.getElementById('edit_m_view_' + mid);
+                        const aCb = document.getElementById('edit_m_add_' + mid);
+                        const eCb = document.getElementById('edit_m_edit_' + mid);
+                        const dCb = document.getElementById('edit_m_delete_' + mid);
+
+                        if (vCb) vCb.checked = !!(eff.view && eff.view.allowed);
+                        if (aCb) aCb.checked = !!(eff.add && eff.add.allowed);
+                        if (eCb) eCb.checked = !!(eff.edit && eff.edit.allowed);
+                        if (dCb) dCb.checked = !!(eff.delete && eff.delete.allowed);
+                    });
+                    updateEditHeaderCheckboxesState();
+                    if (statusBadge) {
+                        statusBadge.innerHTML = '<i class="bi bi-shield-check me-1 text-success"></i> Permissions loaded for ' + (stf.name || 'staff');
+                    }
+                } else {
+                    if (statusBadge) {
+                        statusBadge.innerHTML = '<i class="bi bi-info-circle me-1 text-secondary"></i> Default role permissions active';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load staff permissions:', err);
+                if (statusBadge) {
+                    statusBadge.innerHTML = '<i class="bi bi-exclamation-triangle me-1 text-warning"></i> Error loading permissions';
+                }
+            });
     }
 }
 </script>

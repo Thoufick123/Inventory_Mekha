@@ -27,6 +27,7 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <?php if (\App\Core\Auth::can('stitching_wastage', 'add')): ?>
             <button class="btn btn-outline-danger shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold" 
                     data-bs-toggle="modal" data-bs-target="#modalSellStitchingWastage">
                 <i class="bi bi-recycle"></i> Record Scrap Sale
@@ -35,6 +36,7 @@
                class="btn btn-primary shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold">
                 <i class="bi bi-plus-circle"></i> New Stitching Batch
             </a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -147,7 +149,7 @@
                                     <?php foreach ($batches as $b): ?>
                                         <tr>
                                             <td class="ps-3 py-3 fw-bold font-monospace text-dark">
-                                                <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $b['id']) ?>" class="text-decoration-none text-primary">
+                                                <a href="<?= \App\Core\Controller::url(\App\Core\Auth::can('stitching_wastage', 'edit') ? ('/production/stitching/edit?id=' . $b['id']) : ('/production/stitching/view?id=' . $b['id'])) ?>" class="text-decoration-none text-primary">
                                                     <?= htmlspecialchars($b['display_batch_no']) ?>
                                                 </a>
                                             </td>
@@ -200,15 +202,19 @@
                                             </td>
                                             <td class="text-end pe-3 py-3">
                                                 <div class="btn-group btn-group-sm">
+                                                    <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
                                                     <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $b['id']) ?>" 
                                                        class="btn btn-outline-secondary" title="Edit Batch">
                                                         <i class="bi bi-pencil"></i>
                                                     </a>
+                                                    <?php endif; ?>
+                                                    <?php if (\App\Core\Auth::can('stitching_wastage', 'delete')): ?>
                                                     <button type="button" class="btn btn-outline-danger" 
                                                             title="Delete Batch"
                                                             onclick="confirmDeleteBatch(<?= $b['id'] ?>, '<?= htmlspecialchars($b['display_batch_no']) ?>')">
                                                         <i class="bi bi-trash"></i>
                                                     </button>
+                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                         </tr>
@@ -227,10 +233,12 @@
                             <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
                             <input type="text" id="filterSalesInput" class="form-control border-start-0" placeholder="Search sale #, buyer, phone...">
                         </div>
+                        <?php if (\App\Core\Auth::can('stitching_wastage', 'add')): ?>
                         <button class="btn btn-danger btn-sm shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold" 
                                 data-bs-toggle="modal" data-bs-target="#modalSellStitchingWastage">
                             <i class="bi bi-recycle"></i> Record Scrap Sale
                         </button>
+                        <?php endif; ?>
                     </div>
 
                     <div class="table-responsive">

@@ -188,9 +188,11 @@
                                         <div class="text-muted mb-2"><i class="bi bi-inbox fs-2"></i></div>
                                         <h6 class="fw-semibold text-secondary">No Purchased Finished Goods Found</h6>
                                         <p class="small text-muted mb-3">Record purchases under the "Finished Goods" tab in Purchase Billing, and they will appear here for catalog mapping.</p>
+                                        <?php if (\App\Core\Auth::can('purchase_billing', 'add')): ?>
                                         <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn btn-sm btn-primary">
                                             <i class="bi bi-plus-circle me-1"></i> Record Purchase Bill
                                         </a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php else: ?>
@@ -255,17 +257,23 @@
                                         </td>
                                         <td class="text-center">
                                             <div class="d-inline-flex align-items-center gap-1">
-                                                <?php if (!$it['is_mapped']): ?>
-                                                    <a href="<?= \App\Core\Controller::url('/production/catalog-mapping/map?id=' . $it['id']) ?>" class="btn btn-sm btn-primary rounded-3 px-2 py-1 shadow-xs fw-semibold" title="Map to Catalog Style & 3-Tier Hierarchy">
-                                                        <i class="bi bi-diagram-3 me-1"></i> Map
-                                                    </a>
+                                                <?php if (\App\Core\Auth::can('catalog_mapping', 'add') || \App\Core\Auth::can('catalog_mapping', 'edit')): ?>
+                                                    <?php if (!$it['is_mapped']): ?>
+                                                        <a href="<?= \App\Core\Controller::url('/production/catalog-mapping/map?id=' . $it['id']) ?>" class="btn btn-sm btn-primary rounded-3 px-2 py-1 shadow-xs fw-semibold" title="Map to Catalog Style & 3-Tier Hierarchy">
+                                                            <i class="bi bi-diagram-3 me-1"></i> Map
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <a href="<?= \App\Core\Controller::url('/production/catalog-mapping/map?id=' . $it['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Catalog Mapping">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </a>
+                                                        <?php if (\App\Core\Auth::can('catalog_mapping', 'delete')): ?>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-3 p-1.5" title="Unmap from Catalog" onclick="confirmUnmap(<?= $it['id'] ?>, '<?= htmlspecialchars(addslashes($it['item_name'])) ?>')">
+                                                            <i class="bi bi-link-45deg"></i>
+                                                        </button>
+                                                        <?php endif; ?>
+                                                    <?php endif; ?>
                                                 <?php else: ?>
-                                                    <a href="<?= \App\Core\Controller::url('/production/catalog-mapping/map?id=' . $it['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Catalog Mapping">
-                                                        <i class="bi bi-pencil"></i>
-                                                    </a>
-                                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-3 p-1.5" title="Unmap from Catalog" onclick="confirmUnmap(<?= $it['id'] ?>, '<?= htmlspecialchars(addslashes($it['item_name'])) ?>')">
-                                                        <i class="bi bi-link-45deg"></i>
-                                                    </button>
+                                                    <span class="text-muted small fst-italic">Read-only</span>
                                                 <?php endif; ?>
                                             </div>
                                         </td>
@@ -294,9 +302,11 @@
                                 <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-folder-fill text-primary me-1.5"></i> 1. Main Categories</h6>
                                 <small class="text-muted" style="font-size: 0.75rem;">Tier-1 Department Level</small>
                             </div>
+                            <?php if (\App\Core\Auth::can('catalog_mapping', 'add')): ?>
                             <button type="button" class="btn btn-sm btn-outline-primary rounded-3 fw-semibold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalAddCategory">
                                 <i class="bi bi-plus-circle me-1"></i> Add Tier-1
                             </button>
+                            <?php endif; ?>
                         </div>
                         <div class="card-body p-0">
                             <ul class="list-group list-group-flush small">
@@ -313,9 +323,11 @@
                                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
                                                     <?= $c['default_gst_rate'] === null ? 'Rate not set' : number_format((float)$c['default_gst_rate'], 2) . '% GST' ?>
                                                 </span>
+                                                <?php if (\App\Core\Auth::can('catalog_mapping', 'delete')): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-1.5 border-0 shadow-none" title="Delete Main Category" onclick="confirmDeleteHierarchy('category', <?= $c['id'] ?>, '<?= htmlspecialchars(addslashes($c['name'])) ?>')">
                                                     <i class="bi bi-trash fs-6"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </li>
                                     <?php endforeach; ?>
@@ -333,9 +345,11 @@
                                 <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-diagram-2 text-info me-1.5"></i> 2. Subcategories</h6>
                                 <small class="text-muted" style="font-size: 0.75rem;">Tier-2 Product Group</small>
                             </div>
+                            <?php if (\App\Core\Auth::can('catalog_mapping', 'add')): ?>
                             <button type="button" class="btn btn-sm btn-outline-info rounded-3 fw-semibold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalAddSubcategory">
                                 <i class="bi bi-plus-circle me-1"></i> Add Tier-2
                             </button>
+                            <?php endif; ?>
                         </div>
                         <div class="card-body p-0">
                             <ul class="list-group list-group-flush small">
@@ -352,9 +366,11 @@
                                                 <span class="badge bg-light text-secondary border font-monospace">
                                                     [<?= htmlspecialchars($sc['code'] ?: 'SUB') ?>]
                                                 </span>
+                                                <?php if (\App\Core\Auth::can('catalog_mapping', 'delete')): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-1.5 border-0 shadow-none" title="Delete Subcategory" onclick="confirmDeleteHierarchy('subcategory', <?= $sc['id'] ?>, '<?= htmlspecialchars(addslashes($sc['name'])) ?>')">
                                                     <i class="bi bi-trash fs-6"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </li>
                                     <?php endforeach; ?>
@@ -372,9 +388,11 @@
                                 <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-diagram-3 text-success me-1.5"></i> 3. Sub-Subcategories</h6>
                                 <small class="text-muted" style="font-size: 0.75rem;">Tier-3 Garment Style Specification</small>
                             </div>
+                            <?php if (\App\Core\Auth::can('catalog_mapping', 'add')): ?>
                             <button type="button" class="btn btn-sm btn-outline-success rounded-3 fw-semibold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalAddSubSubcategory">
                                 <i class="bi bi-plus-circle me-1"></i> Add Tier-3
                             </button>
+                            <?php endif; ?>
                         </div>
                         <div class="card-body p-0">
                             <ul class="list-group list-group-flush small">
@@ -391,9 +409,11 @@
                                                 <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace">
                                                     [<?= htmlspecialchars($ssc['code'] ?: 'SS') ?>]
                                                 </span>
+                                                <?php if (\App\Core\Auth::can('catalog_mapping', 'delete')): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-1.5 border-0 shadow-none" title="Delete Tier-3 Sub-Subcategory" onclick="confirmDeleteHierarchy('subsubcategory', <?= $ssc['id'] ?>, '<?= htmlspecialchars(addslashes($ssc['name'])) ?>')">
                                                     <i class="bi bi-trash fs-6"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </li>
                                     <?php endforeach; ?>
@@ -411,9 +431,11 @@
                                 <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-tags-fill text-warning-emphasis me-1.5"></i> Product Attributes Master (Sizes, Colors, Fits)</h6>
                                 <small class="text-muted" style="font-size: 0.75rem;">Reusable variant attributes automatically suggested during finished goods catalog mapping</small>
                             </div>
+                            <?php if (\App\Core\Auth::can('catalog_mapping', 'add')): ?>
                             <button type="button" class="btn btn-sm btn-outline-warning text-dark rounded-3 fw-semibold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalAddAttribute">
                                 <i class="bi bi-plus-circle me-1"></i> Add Attribute
                             </button>
+                            <?php endif; ?>
                         </div>
                         <div class="card-body p-4">
                             <?php 

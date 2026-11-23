@@ -20,21 +20,21 @@
             <?php endif; ?>
 
             <!-- Action: Dispatch stock -->
-            <?php if (in_array($request['status'], ['PENDING', 'APPROVED'], true)): ?>
+            <?php if ((\App\Core\Auth::can('request', 'edit') || \App\Core\Auth::can('request', 'add')) && in_array($request['status'], ['PENDING', 'APPROVED'], true)): ?>
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalDispatchStock">
                     <i class="bi bi-truck me-1"></i> Dispatch Stock (Move to In-Transit)
                 </button>
             <?php endif; ?>
 
             <!-- Action: Confirm Receipt -->
-            <?php if (in_array($request['status'], ['DISPATCHED', 'IN_TRANSIT'], true)): ?>
+            <?php if ((\App\Core\Auth::can('request', 'edit') || \App\Core\Auth::can('request', 'add')) && in_array($request['status'], ['DISPATCHED', 'IN_TRANSIT'], true)): ?>
                 <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalConfirmReceipt">
                     <i class="bi bi-box-seam me-1"></i> Confirm Receipt at Destination
                 </button>
             <?php endif; ?>
 
             <!-- Action: Cancel / Reject -->
-            <?php if (!in_array($request['status'], ['RECEIVED', 'SHORTAGE', 'CANCELLED', 'REJECTED'], true)): ?>
+            <?php if ((\App\Core\Auth::can('request', 'delete') || \App\Core\Auth::can('request', 'edit')) && !in_array($request['status'], ['RECEIVED', 'SHORTAGE', 'CANCELLED', 'REJECTED'], true)): ?>
                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalCancelRequest">
                     <i class="bi bi-x-circle me-1"></i> Cancel
                 </button>

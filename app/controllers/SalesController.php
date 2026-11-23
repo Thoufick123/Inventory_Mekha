@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
+use App\Core\ModuleGuard;
 use App\Services\StockService;
 use App\Services\NumberSeries;
 use App\Services\AuditLog;
@@ -17,6 +18,7 @@ use Exception;
 class SalesController extends Controller {
     // 1. CUSTOMERS & CRM DIRECTORY
     public function customers(): void {
+        ModuleGuard::enforce('customers', 'view');
         $cid = Auth::concernId();
         if (!$cid && Auth::isSuperAdmin()) {
             $cid = Auth::superAdminSelectedConcernId();
@@ -104,6 +106,7 @@ class SalesController extends Controller {
     }
 
     public function storeCustomer(): void {
+        ModuleGuard::enforce('customers', 'add');
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
         if (!$cid && Auth::isSuperAdmin()) {
@@ -142,6 +145,7 @@ class SalesController extends Controller {
     }
 
     public function updateCustomer(): void {
+        ModuleGuard::enforce('customers', 'edit');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
@@ -179,6 +183,7 @@ class SalesController extends Controller {
     }
 
     public function deleteCustomer(): void {
+        ModuleGuard::enforce('customers', 'delete');
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $cid = Auth::concernId();
@@ -605,6 +610,7 @@ class SalesController extends Controller {
     }
 
     public function billingOverview(): void {
+        ModuleGuard::enforce('billing', 'view');
         $cid = Auth::concernId();
         if (!$cid && Auth::isSuperAdmin()) {
             $cid = Auth::superAdminSelectedConcernId();
@@ -817,6 +823,7 @@ class SalesController extends Controller {
 
     // POS billing terminal (Shop module).
     public function billing(): void {
+        ModuleGuard::enforce('billing', 'view');
         $cid = Auth::concernId();
         if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
             $cid = null;
@@ -1111,6 +1118,7 @@ class SalesController extends Controller {
     }
 
     public function completePosSale(): void {
+        ModuleGuard::enforce('billing', 'add');
         $this->validateCsrf();
         $cid = Auth::concernId();
         if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {

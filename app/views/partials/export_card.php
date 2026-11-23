@@ -13,6 +13,24 @@
 
 $prefix = $prefix ?? ('exp_' . substr(md5($exportUrl ?? 'def'), 0, 8));
 $defaultPeriod = $defaultPeriod ?? 'all';
+
+// Determine the target module for export authorization
+$targetExportModule = $currentModule ?? null;
+if (!$targetExportModule && !empty($exportUrl)) {
+    if (preg_match('#/(?:m/)?([a-z0-9_]+)/export#i', $exportUrl, $matches)) {
+        $targetExportModule = $matches[1];
+        if ($targetExportModule === 'stock_ledger') $targetExportModule = 'stocks';
+        if ($targetExportModule === 'cash') $targetExportModule = 'cash_flow';
+    }
+}
+
+// Restrict Export toolbar: View-only users cannot export data. Super admins and users with add/edit can export.
+if (!\App\Core\Auth::isSuperAdmin()) {
+    $canExport = $targetExportModule ? \App\Core\Auth::can($targetExportModule, 'export') : false;
+    if (!$canExport) {
+        return; // Suppress export card entirely for view-only users
+    }
+}
 ?>
 
 <div class="card border-0 shadow-sm rounded-4 <?= !empty($exportTitle) ? 'p-3' : 'p-2' ?> bg-white mb-4" style="border: 1px solid #e2e8f0 !important;">

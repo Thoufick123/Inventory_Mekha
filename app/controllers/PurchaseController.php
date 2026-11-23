@@ -133,6 +133,7 @@ class PurchaseController extends Controller {
 
     // 1. SUPPLIERS
     public function suppliers(): void {
+        ModuleGuard::enforce('suppliers', 'view');
         $cid = Auth::concernId();
 
         $sql = "SELECT s.*, con.name AS concern_name, con.code AS concern_code
@@ -254,6 +255,7 @@ class PurchaseController extends Controller {
     }
 
     public function storeSupplier(): void {
+        ModuleGuard::enforce('suppliers', 'create');
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
 
@@ -335,6 +337,7 @@ class PurchaseController extends Controller {
     }
 
     public function updateSupplier(): void {
+        ModuleGuard::enforce('suppliers', 'edit');
         $this->validateCsrf();
         $id = (int)($_POST['supplier_id'] ?? 0);
         $cid = Auth::concernId();
@@ -418,6 +421,7 @@ class PurchaseController extends Controller {
     }
 
     public function deleteSupplier(): void {
+        ModuleGuard::enforce('suppliers', 'delete');
         $this->validateCsrf();
         $id = (int)($_POST['supplier_id'] ?? 0);
         $cid = Auth::concernId();
