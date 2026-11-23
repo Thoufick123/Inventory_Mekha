@@ -40,7 +40,7 @@ class PurchaseDamageService {
             INDEX `idx_pdq_purchase_item` (`purchase_bill_item_id`),
             INDEX `idx_pdq_variant` (`variant_id`),
             CONSTRAINT `fk_pdq_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
         $columns = DB::fetchAll("SHOW COLUMNS FROM purchase_damage_quarantine");
         $existingColumns = array_column($columns, 'Field');
@@ -59,7 +59,7 @@ class PurchaseDamageService {
             `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY `uq_pdr_concern_reason` (`concern_id`, `reason`),
             CONSTRAINT `fk_pdr_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     }
 
     public static function getDamageReasons(int $concernId): array {

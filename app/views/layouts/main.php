@@ -92,8 +92,9 @@
             padding: 0 1.25rem;
             position: sticky;
             top: 0;
-            z-index: 999;
+            z-index: 1030;
             gap: 1rem;
+            overflow: visible !important;
         }
         .navbar-left {
             display: flex;
@@ -101,7 +102,7 @@
             gap: 0.75rem;
             min-width: 0;
             flex: 0 1 auto;
-            overflow: hidden;
+            overflow: visible !important;
         }
         .navbar-page-title {
             font-size: 1.12rem;
@@ -353,7 +354,7 @@
                             <i class="bi bi-building"></i>
                             <span class="text-truncate" style="max-width: 155px;"><?= htmlspecialchars($displayConcernName) ?></span>
                         </button>
-                        <ul class="dropdown-menu shadow">
+                        <ul class="dropdown-menu shadow" style="max-height: 420px; overflow-y: auto;">
                             <li>
                                 <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isConsolidated ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=0') ?>">
                                     <span><i class="bi bi-globe me-2 <?= $isConsolidated ? 'text-white' : 'text-primary' ?>"></i> ALL CONCERNS</span>
@@ -361,15 +362,20 @@
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider my-1"></li>
-                            <li class="dropdown-header text-uppercase small fw-bold" style="font-size: 0.72rem; color: #64748b;">
-                                Concerns (<?= count($switcherConcerns) ?>)
+                            <li class="dropdown-header text-uppercase small fw-bold d-flex justify-content-between align-items-center" style="font-size: 0.72rem; color: #64748b;">
+                                <span>Concerns</span>
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary"><?= count($switcherConcerns) ?></span>
                             </li>
                             <?php foreach ($switcherConcerns as $con): 
                                 $isSel = !$isConsolidated && $currentConcern && ((int)$currentConcern['id'] === (int)$con['id']);
                             ?>
                                 <li>
                                     <a class="dropdown-item d-flex align-items-center justify-content-between <?= $isSel ? 'active fw-bold' : '' ?>" href="<?= \App\Core\Controller::url('/admin/switch-concern?id=' . $con['id']) ?>">
-                                        <span><i class="bi bi-building me-2 <?= $isSel ? 'text-white' : 'text-secondary' ?>"></i> <?= htmlspecialchars($con['name']) ?> <small class="<?= $isSel ? 'text-white-50' : 'text-muted' ?>">(<?= htmlspecialchars($con['code']) ?>)</small></span>
+                                        <span class="d-flex align-items-center gap-2">
+                                            <i class="bi bi-building <?= $isSel ? 'text-white' : 'text-secondary' ?>"></i>
+                                            <span class="fw-semibold"><?= htmlspecialchars($con['name']) ?></span>
+                                            <small class="<?= $isSel ? 'text-white-50' : 'text-muted' ?> font-monospace">(<?= htmlspecialchars($con['code']) ?>)</small>
+                                        </span>
                                         <?php if ($isSel): ?><i class="bi bi-check-lg ms-2"></i><?php endif; ?>
                                     </a>
                                 </li>
