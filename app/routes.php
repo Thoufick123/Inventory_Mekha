@@ -319,10 +319,13 @@ $router->get('/api/catalog-mapping/item-details', [CatalogMappingController::cla
 $router->get('/api/categories/subcategories', [ProductionController::class, 'getSubcategoriesAjax'], 'catalog_program', 'view');
 $router->get('/api/categories/subsubcategories', [ProductionController::class, 'getSubSubcategoriesAjax'], 'catalog_program', 'view');
 $router->post('/api/categories/quick-add', [ProductionController::class, 'quickAddCategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/categories/update', [ProductionController::class, 'updateCategoryAjax'], 'catalog_program', 'edit');
 $router->post('/api/categories/delete', [ProductionController::class, 'deleteCategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/subcategories/quick-add', [ProductionController::class, 'quickAddSubcategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/subcategories/update', [ProductionController::class, 'updateSubcategoryAjax'], 'catalog_program', 'edit');
 $router->post('/api/subcategories/delete', [ProductionController::class, 'deleteSubcategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/subsubcategories/quick-add', [ProductionController::class, 'quickAddSubSubcategoryAjax'], 'catalog_program', 'add');
+$router->post('/api/subsubcategories/update', [ProductionController::class, 'updateSubSubcategoryAjax'], 'catalog_program', 'edit');
 $router->post('/api/subsubcategories/delete', [ProductionController::class, 'deleteSubSubcategoryAjax'], 'catalog_program', 'view');
 $router->post('/api/attributes/quick-add', [ProductionController::class, 'quickAddAttributeAjax'], 'catalog_program', 'add');
 $router->post('/api/attributes/delete', [ProductionController::class, 'deleteAttributeAjax'], 'catalog_program', 'delete');

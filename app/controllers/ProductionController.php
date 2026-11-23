@@ -1171,211 +1171,6 @@ class ProductionController extends Controller {
         exit;
     }
 
-    public function updateCategoryAjax(): void {
-        header('Content-Type: application/json');
-        if (!Auth::check()) {
-            echo json_encode(['success' => false, 'message' => 'Please sign in to update categories.']);
-            exit;
-        }
-
-        $cid = Auth::concernId() ?: 1;
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $code = strtoupper(trim($_POST['code'] ?? ''));
-        $hsn  = trim($_POST['default_hsn'] ?? '');
-        $gstInput = trim((string)($_POST['default_gst_rate'] ?? ''));
-        $gst = $gstInput === '' ? null : (is_numeric($gstInput) ? (float)$gstInput : -1.0);
-
-        if (!$id || empty($name)) {
-            echo json_encode(['success' => false, 'message' => 'Category ID and Category name are required.']);
-            exit;
-        }
-
-        if (($hsn !== '' && !preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsn)) || ($gst !== null && ($gst < 0 || $gst > 100))) {
-            echo json_encode(['success' => false, 'message' => 'Enter a valid HSN code and GST rate, or leave these optional defaults blank.']);
-            exit;
-        }
-
-        if (empty($code)) {
-            $code = strtoupper(substr($name, 0, 2));
-        }
-
-        // Check if category exists
-        $category = DB::fetch("SELECT * FROM categories WHERE id = ?", [$id]);
-        if (!$category) {
-            echo json_encode(['success' => false, 'message' => 'Category not found.']);
-            exit;
-        }
-
-        // Check duplicate name excluding self
-        $dupName = DB::fetch(
-            "SELECT id FROM categories 
-             WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
-               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
-            [$id, $cid, $name]
-        );
-        if ($dupName) {
-            echo json_encode(['success' => false, 'message' => "Duplicate Error: Category '{$name}' already exists. Duplicates are not allowed."]);
-            exit;
-        }
-
-        // Check duplicate code excluding self
-        if (!empty($code)) {
-            $dupCode = DB::fetch(
-                "SELECT id FROM categories 
-                 WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
-                   AND code = ? AND status != 'deleted'",
-                [$id, $cid, $code]
-            );
-            if ($dupCode) {
-                echo json_encode(['success' => false, 'message' => "Duplicate Error: Category code '{$code}' already exists. Duplicates are not allowed."]);
-                exit;
-            }
-        }
-
-        try {
-            DB::query(
-                "UPDATE categories SET name = ?, code = ?, default_hsn = ?, default_gst_rate = ? WHERE id = ?",
-                [$name, $code, $hsn, $gst, $id]
-            );
-
-            echo json_encode([
-                'success' => true,
-                'id' => $id,
-                'name' => $name,
-                'code' => $code,
-                'default_hsn' => $hsn,
-                'default_gst_rate' => $gst,
-                'message' => "Category '{$name}' updated successfully."
-            ]);
-        } catch (\Throwable $e) {
-            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-        }
-        exit;
-    }
-
-    public function updateSubcategoryAjax(): void {
-        header('Content-Type: application/json');
-        if (!Auth::check()) {
-            echo json_encode(['success' => false, 'message' => 'Please sign in to update subcategories.']);
-            exit;
-        }
-
-        $cid = Auth::concernId() ?: 1;
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $code = strtoupper(trim($_POST['code'] ?? ''));
-
-        if (!$id || empty($name)) {
-            echo json_encode(['success' => false, 'message' => 'Subcategory ID and name are required.']);
-            exit;
-        }
-
-        if (empty($code)) {
-            $code = strtoupper(substr($name, 0, 2));
-        }
-
-        $sub = DB::fetch("SELECT * FROM subcategories WHERE id = ?", [$id]);
-        if (!$sub) {
-            echo json_encode(['success' => false, 'message' => 'Subcategory not found.']);
-            exit;
-        }
-
-        $catId = (int)$sub['category_id'];
-
-        // Check duplicate name under parent category excluding self
-        $dupSub = DB::fetch(
-            "SELECT id FROM subcategories 
-             WHERE id != ? AND category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
-               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
-            [$id, $catId, $cid, $name]
-        );
-        if ($dupSub) {
-            echo json_encode(['success' => false, 'message' => "Duplicate Error: Subcategory '{$name}' already exists under this category."]);
-            exit;
-        }
-
-        try {
-            DB::query(
-                "UPDATE subcategories SET name = ?, code = ? WHERE id = ?",
-                [$name, $code, $id]
-            );
-
-            echo json_encode([
-                'success' => true,
-                'id' => $id,
-                'category_id' => $catId,
-                'name' => $name,
-                'code' => $code,
-                'message' => "Subcategory '{$name}' updated successfully."
-            ]);
-        } catch (\Throwable $e) {
-            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-        }
-        exit;
-    }
-
-    public function updateSubSubcategoryAjax(): void {
-        header('Content-Type: application/json');
-        if (!Auth::check()) {
-            echo json_encode(['success' => false, 'message' => 'Please sign in to update sub-subcategories.']);
-            exit;
-        }
-
-        $cid = Auth::concernId() ?: 1;
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $code = strtoupper(trim($_POST['code'] ?? ''));
-
-        if (!$id || empty($name)) {
-            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory ID and name are required.']);
-            exit;
-        }
-
-        if (empty($code)) {
-            $code = strtoupper(substr($name, 0, 2));
-        }
-
-        $subsub = DB::fetch("SELECT * FROM sub_subcategories WHERE id = ?", [$id]);
-        if (!$subsub) {
-            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory not found.']);
-            exit;
-        }
-
-        $subcatId = (int)$subsub['subcategory_id'];
-
-        // Check duplicate name under parent subcategory excluding self
-        $dupSubSub = DB::fetch(
-            "SELECT id FROM sub_subcategories 
-             WHERE id != ? AND subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
-               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
-            [$id, $subcatId, $cid, $name]
-        );
-        if ($dupSubSub) {
-            echo json_encode(['success' => false, 'message' => "Duplicate Error: Sub-Subcategory '{$name}' already exists under this subcategory."]);
-            exit;
-        }
-
-        try {
-            DB::query(
-                "UPDATE sub_subcategories SET name = ?, code = ? WHERE id = ?",
-                [$name, $code, $id]
-            );
-
-            echo json_encode([
-                'success' => true,
-                'id' => $id,
-                'subcategory_id' => $subcatId,
-                'name' => $name,
-                'code' => $code,
-                'message' => "Sub-Subcategory '{$name}' updated successfully."
-            ]);
-        } catch (\Throwable $e) {
-            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-        }
-        exit;
-    }
-
     public function deleteSubcategoryAjax(): void {
         header('Content-Type: application/json');
         if (!Auth::check()) {
@@ -1447,211 +1242,6 @@ class ProductionController extends Controller {
             'deleted_ids' => $deletedIds,
             'skipped' => $skipped
         ]);
-        exit;
-    }
-
-    public function updateCategoryAjax(): void {
-        header('Content-Type: application/json');
-        if (!Auth::check()) {
-            echo json_encode(['success' => false, 'message' => 'Please sign in to update categories.']);
-            exit;
-        }
-
-        $cid = Auth::concernId() ?: 1;
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $code = strtoupper(trim($_POST['code'] ?? ''));
-        $hsn  = trim($_POST['default_hsn'] ?? '');
-        $gstInput = trim((string)($_POST['default_gst_rate'] ?? ''));
-        $gst = $gstInput === '' ? null : (is_numeric($gstInput) ? (float)$gstInput : -1.0);
-
-        if (!$id || empty($name)) {
-            echo json_encode(['success' => false, 'message' => 'Category ID and Category name are required.']);
-            exit;
-        }
-
-        if (($hsn !== '' && !preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsn)) || ($gst !== null && ($gst < 0 || $gst > 100))) {
-            echo json_encode(['success' => false, 'message' => 'Enter a valid HSN code and GST rate, or leave these optional defaults blank.']);
-            exit;
-        }
-
-        if (empty($code)) {
-            $code = strtoupper(substr($name, 0, 2));
-        }
-
-        // Check if category exists
-        $category = DB::fetch("SELECT * FROM categories WHERE id = ?", [$id]);
-        if (!$category) {
-            echo json_encode(['success' => false, 'message' => 'Category not found.']);
-            exit;
-        }
-
-        // Check duplicate name excluding self
-        $dupName = DB::fetch(
-            "SELECT id FROM categories 
-             WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
-               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
-            [$id, $cid, $name]
-        );
-        if ($dupName) {
-            echo json_encode(['success' => false, 'message' => "Duplicate Error: Category '{$name}' already exists. Duplicates are not allowed."]);
-            exit;
-        }
-
-        // Check duplicate code excluding self
-        if (!empty($code)) {
-            $dupCode = DB::fetch(
-                "SELECT id FROM categories 
-                 WHERE id != ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
-                   AND code = ? AND status != 'deleted'",
-                [$id, $cid, $code]
-            );
-            if ($dupCode) {
-                echo json_encode(['success' => false, 'message' => "Duplicate Error: Category code '{$code}' already exists. Duplicates are not allowed."]);
-                exit;
-            }
-        }
-
-        try {
-            DB::query(
-                "UPDATE categories SET name = ?, code = ?, default_hsn = ?, default_gst_rate = ? WHERE id = ?",
-                [$name, $code, $hsn, $gst, $id]
-            );
-
-            echo json_encode([
-                'success' => true,
-                'id' => $id,
-                'name' => $name,
-                'code' => $code,
-                'default_hsn' => $hsn,
-                'default_gst_rate' => $gst,
-                'message' => "Category '{$name}' updated successfully."
-            ]);
-        } catch (\Throwable $e) {
-            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-        }
-        exit;
-    }
-
-    public function updateSubcategoryAjax(): void {
-        header('Content-Type: application/json');
-        if (!Auth::check()) {
-            echo json_encode(['success' => false, 'message' => 'Please sign in to update subcategories.']);
-            exit;
-        }
-
-        $cid = Auth::concernId() ?: 1;
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $code = strtoupper(trim($_POST['code'] ?? ''));
-
-        if (!$id || empty($name)) {
-            echo json_encode(['success' => false, 'message' => 'Subcategory ID and name are required.']);
-            exit;
-        }
-
-        if (empty($code)) {
-            $code = strtoupper(substr($name, 0, 2));
-        }
-
-        $sub = DB::fetch("SELECT * FROM subcategories WHERE id = ?", [$id]);
-        if (!$sub) {
-            echo json_encode(['success' => false, 'message' => 'Subcategory not found.']);
-            exit;
-        }
-
-        $catId = (int)$sub['category_id'];
-
-        // Check duplicate name under parent category excluding self
-        $dupSub = DB::fetch(
-            "SELECT id FROM subcategories 
-             WHERE id != ? AND category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
-               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
-            [$id, $catId, $cid, $name]
-        );
-        if ($dupSub) {
-            echo json_encode(['success' => false, 'message' => "Duplicate Error: Subcategory '{$name}' already exists under this category."]);
-            exit;
-        }
-
-        try {
-            DB::query(
-                "UPDATE subcategories SET name = ?, code = ? WHERE id = ?",
-                [$name, $code, $id]
-            );
-
-            echo json_encode([
-                'success' => true,
-                'id' => $id,
-                'category_id' => $catId,
-                'name' => $name,
-                'code' => $code,
-                'message' => "Subcategory '{$name}' updated successfully."
-            ]);
-        } catch (\Throwable $e) {
-            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-        }
-        exit;
-    }
-
-    public function updateSubSubcategoryAjax(): void {
-        header('Content-Type: application/json');
-        if (!Auth::check()) {
-            echo json_encode(['success' => false, 'message' => 'Please sign in to update sub-subcategories.']);
-            exit;
-        }
-
-        $cid = Auth::concernId() ?: 1;
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $code = strtoupper(trim($_POST['code'] ?? ''));
-
-        if (!$id || empty($name)) {
-            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory ID and name are required.']);
-            exit;
-        }
-
-        if (empty($code)) {
-            $code = strtoupper(substr($name, 0, 2));
-        }
-
-        $subsub = DB::fetch("SELECT * FROM sub_subcategories WHERE id = ?", [$id]);
-        if (!$subsub) {
-            echo json_encode(['success' => false, 'message' => 'Sub-Subcategory not found.']);
-            exit;
-        }
-
-        $subcatId = (int)$subsub['subcategory_id'];
-
-        // Check duplicate name under parent subcategory excluding self
-        $dupSubSub = DB::fetch(
-            "SELECT id FROM sub_subcategories 
-             WHERE id != ? AND subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) 
-               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
-            [$id, $subcatId, $cid, $name]
-        );
-        if ($dupSubSub) {
-            echo json_encode(['success' => false, 'message' => "Duplicate Error: Sub-Subcategory '{$name}' already exists under this subcategory."]);
-            exit;
-        }
-
-        try {
-            DB::query(
-                "UPDATE sub_subcategories SET name = ?, code = ? WHERE id = ?",
-                [$name, $code, $id]
-            );
-
-            echo json_encode([
-                'success' => true,
-                'id' => $id,
-                'subcategory_id' => $subcatId,
-                'name' => $name,
-                'code' => $code,
-                'message' => "Sub-Subcategory '{$name}' updated successfully."
-            ]);
-        } catch (\Throwable $e) {
-            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-        }
         exit;
     }
 
@@ -2195,6 +1785,9 @@ class ProductionController extends Controller {
         $this->ensureCatalogSchema();
         $cid = Auth::concernId();
 
+        \App\Services\PurchaseDamageService::initTable();
+        \App\Services\PurchaseDamageService::backfillRollDamageItemIds($cid);
+
         // Auto-generate program code: # PRG-YYYYMMDD-XXXX
         $datePrefix = date('Ymd');
         $progCount = (int)DB::fetchValue("SELECT COUNT(*) FROM production_programs" . ($cid ? " WHERE concern_id = ?" : ""), $cid ? [$cid] : []) + 1;
@@ -2215,9 +1808,27 @@ class ProductionController extends Controller {
                                   AND pp.status != 'cancelled'
                             ), 0.00) AS allocated_qty,
                             COALESCE((
-                                SELECT SUM(qty)
-                                FROM purchase_damage_quarantine
-                                WHERE item_type = 'rolls' AND purchase_bill_item_id = pbi.id
+                                SELECT SUM(pdq.qty)
+                                FROM purchase_damage_quarantine pdq
+                                WHERE pdq.item_type = 'rolls'
+                                  AND (
+                                      pdq.purchase_bill_item_id = pbi.id
+                                      OR (
+                                          (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
+                                          AND pdq.concern_id = pbi.concern_id
+                                          AND (
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                              OR (
+                                                  pdq.roll_source_color IS NOT NULL 
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                  AND (
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                  )
+                                              )
+                                          )
+                                      )
+                                  )
                             ), 0.00) AS damaged_qty
                      FROM purchase_bill_items pbi
                      JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
@@ -2236,7 +1847,8 @@ class ProductionController extends Controller {
             $r['remaining_qty'] = $remaining;
             $unit = $r['unit'] ?: 'kg';
             $r['unit_price'] = (float)($r['unit_price'] ?? 0.00);
-            $r['weight'] = (float)($r['net_weight'] ?: ($r['gross_weight'] ?: ($unit === 'kg' ? $remaining : 0.00)));
+            $origWeight = (float)($r['net_weight'] ?: ($r['gross_weight'] ?: 0.00));
+            $r['weight'] = ($total > 0 && $origWeight > 0) ? round(($remaining / $total) * $origWeight, 2) : ($unit === 'kg' ? $remaining : 0.00);
             $r['supplier_display'] = $r['supplier_name'] ?: ($r['supplier_company'] ?: 'Direct');
             $r['out_of_label'] = sprintf("%.2f %s out of %.2f %s", $remaining, $unit, $total, $unit);
             $r['tag_code'] = QrService::generateTagCode($r['item_name'], $r['color'], $r['pattern'] ?: ($r['specification'] ?? ''), (string)$r['id']);
@@ -2322,7 +1934,30 @@ class ProductionController extends Controller {
                                 JOIN production_programs pp ON pr.program_id = pp.id 
                                 WHERE pr.purchase_bill_item_id = pbi.id 
                                   AND pp.status != 'cancelled'
-                            ), 0.00) AS allocated_qty
+                            ), 0.00) AS allocated_qty,
+                            COALESCE((
+                                SELECT SUM(pdq.qty)
+                                FROM purchase_damage_quarantine pdq
+                                WHERE pdq.item_type = 'rolls'
+                                  AND (
+                                      pdq.purchase_bill_item_id = pbi.id
+                                      OR (
+                                          (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
+                                          AND pdq.concern_id = pbi.concern_id
+                                          AND (
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                              OR (
+                                                  pdq.roll_source_color IS NOT NULL 
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                  AND (
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                  )
+                                              )
+                                          )
+                                      )
+                                  )
+                            ), 0.00) AS damaged_qty
                      FROM purchase_bill_items pbi
                      JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                      LEFT JOIN suppliers s ON pb.supplier_id = s.id
@@ -2335,11 +1970,13 @@ class ProductionController extends Controller {
         foreach ($rawRolls as $r) {
             $total = (float)$r['total_qty'];
             $allocated = (float)$r['allocated_qty'];
-            $remaining = max(0.00, $total - $allocated);
+            $damaged = (float)$r['damaged_qty'];
+            $remaining = max(0.00, $total - $allocated - $damaged);
             $r['remaining_qty'] = $remaining;
             $unit = $r['unit'] ?: 'kg';
             $r['unit_price'] = (float)($r['unit_price'] ?? 0.00);
-            $r['weight'] = (float)($r['net_weight'] ?: ($r['gross_weight'] ?: ($unit === 'kg' ? $remaining : 0.00)));
+            $origWeight = (float)($r['net_weight'] ?: ($r['gross_weight'] ?: 0.00));
+            $r['weight'] = ($total > 0 && $origWeight > 0) ? round(($remaining / $total) * $origWeight, 2) : ($unit === 'kg' ? $remaining : 0.00);
             $r['supplier_display'] = $r['supplier_name'] ?: ($r['supplier_company'] ?: 'Direct Purchase');
             $r['out_of_label'] = sprintf("%.2f %s out of %.2f %s", $remaining, $unit, $total, $unit);
             $r['tag_code'] = QrService::generateTagCode($r['item_name'], $r['color'], $r['pattern'] ?: ($r['specification'] ?? ''), (string)$r['id']);
@@ -2403,7 +2040,30 @@ class ProductionController extends Controller {
                            JOIN production_programs pp ON pr.program_id = pp.id 
                            WHERE pr.purchase_bill_item_id = pbi.id 
                              AND pp.status != 'cancelled'
-                       ), 0.00) AS allocated_qty
+                       ), 0.00) AS allocated_qty,
+                       COALESCE((
+                           SELECT SUM(pdq.qty)
+                           FROM purchase_damage_quarantine pdq
+                           WHERE pdq.item_type = 'rolls'
+                             AND (
+                                 pdq.purchase_bill_item_id = pbi.id
+                                 OR (
+                                     (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
+                                     AND pdq.concern_id = pbi.concern_id
+                                     AND (
+                                         (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                         OR (
+                                             pdq.roll_source_color IS NOT NULL 
+                                             AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                             AND (
+                                                 (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
+                                                 OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                             )
+                                         )
+                                     )
+                                 )
+                             )
+                       ), 0.00) AS damaged_qty
                 FROM purchase_bill_items pbi
                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                 LEFT JOIN suppliers s ON pb.supplier_id = s.id
@@ -2425,7 +2085,30 @@ class ProductionController extends Controller {
                                        JOIN production_programs pp ON pr.program_id = pp.id 
                                        WHERE pr.purchase_bill_item_id = pbi.id 
                                          AND pp.status != 'cancelled'
-                                   ), 0.00) AS allocated_qty
+                                   ), 0.00) AS allocated_qty,
+                                   COALESCE((
+                                       SELECT SUM(pdq.qty)
+                                       FROM purchase_damage_quarantine pdq
+                                       WHERE pdq.item_type = 'rolls'
+                                         AND (
+                                             pdq.purchase_bill_item_id = pbi.id
+                                             OR (
+                                                 (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
+                                                 AND pdq.concern_id = pbi.concern_id
+                                                 AND (
+                                                     (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                                     OR (
+                                                         pdq.roll_source_color IS NOT NULL 
+                                                         AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                         AND (
+                                                             (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
+                                                             OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                         )
+                                                     )
+                                                 )
+                                             )
+                                         )
+                                   ), 0.00) AS damaged_qty
                             FROM purchase_bill_items pbi
                             JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                             LEFT JOIN suppliers s ON pb.supplier_id = s.id
@@ -2448,11 +2131,13 @@ class ProductionController extends Controller {
 
         $total = (float)$row['total_qty'];
         $allocated = (float)$row['allocated_qty'];
-        $remaining = max(0.00, $total - $allocated);
+        $damaged = (float)$row['damaged_qty'];
+        $remaining = max(0.00, $total - $allocated - $damaged);
         $row['remaining_qty'] = $remaining;
         $unit = $row['unit'] ?: 'kg';
         $row['unit_price'] = (float)($row['unit_price'] ?? 0.00);
-        $row['weight'] = (float)($row['net_weight'] ?: ($row['gross_weight'] ?: ($unit === 'kg' ? $remaining : 0.00)));
+        $origWeight = (float)($row['net_weight'] ?: ($row['gross_weight'] ?: 0.00));
+        $row['weight'] = ($total > 0 && $origWeight > 0) ? round(($remaining / $total) * $origWeight, 2) : ($unit === 'kg' ? $remaining : 0.00);
         $row['supplier_display'] = $row['supplier_name'] ?: ($row['supplier_company'] ?: 'Direct Purchase');
         $row['out_of_label'] = sprintf("%.2f %s out of %.2f %s", $remaining, $unit, $total, $unit);
         $row['tag_code'] = QrService::generateTagCode($row['item_name'], $row['color'], $row['pattern'] ?: ($row['specification'] ?? ''), (string)$row['id']);
@@ -2542,7 +2227,30 @@ class ProductionController extends Controller {
                                    JOIN production_programs pp ON pr.program_id = pp.id 
                                    WHERE pr.purchase_bill_item_id = pbi.id 
                                      AND pp.status != 'cancelled'
-                               ), 0.00) AS used_qty
+                               ), 0.00) AS used_qty,
+                               COALESCE((
+                                   SELECT SUM(pdq.qty)
+                                   FROM purchase_damage_quarantine pdq
+                                   WHERE pdq.item_type = 'rolls'
+                                     AND (
+                                         pdq.purchase_bill_item_id = pbi.id
+                                         OR (
+                                             (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
+                                             AND pdq.concern_id = pbi.concern_id
+                                             AND (
+                                                 (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                                 OR (
+                                                     pdq.roll_source_color IS NOT NULL 
+                                                     AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                     AND (
+                                                         (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
+                                                         OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                     )
+                                                 )
+                                             )
+                                         )
+                                     )
+                               ), 0.00) AS damaged_qty
                         FROM purchase_bill_items pbi 
                         JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                         WHERE pbi.id = ?
@@ -2556,7 +2264,8 @@ class ProductionController extends Controller {
 
             $totalRollQty = (float)$rollItem['qty'];
             $usedQty = (float)$rollItem['used_qty'];
-            $availableQty = max(0.00, $totalRollQty - $usedQty);
+            $damagedQty = (float)$rollItem['damaged_qty'];
+            $availableQty = max(0.00, $totalRollQty - $usedQty - $damagedQty);
 
             if ($allocData['total_requested'] > ($availableQty + 0.001)) {
                 $tag = $rollItem['item_code'] ?: ('Item #' . $rollItem['id']);
@@ -2959,7 +2668,7 @@ class ProductionController extends Controller {
         }
         unset($er);
 
-        // Load Available Fabric Rolls for this concern, discounting allocations in OTHER programs
+        // Load Available Fabric Rolls for this concern, discounting allocations in OTHER programs and damaged rolls
         $rollsSql = "SELECT pbi.id, pbi.concern_id, pbi.item_code, pbi.item_name, pbi.pattern, pbi.color, pbi.unit,
                             pbi.net_weight, pbi.gross_weight, pbi.unit_price, pbi.qty AS total_qty,
                             pbi.catalog_id, pb.bill_no, pb.bill_date, s.name AS supplier_name, s.company_name AS supplier_company,
@@ -2970,7 +2679,30 @@ class ProductionController extends Controller {
                                 WHERE pr.purchase_bill_item_id = pbi.id 
                                   AND pp.status != 'cancelled'
                                   AND pp.id != ?
-                            ), 0.00) AS allocated_in_other_programs
+                            ), 0.00) AS allocated_in_other_programs,
+                            COALESCE((
+                                SELECT SUM(pdq.qty)
+                                FROM purchase_damage_quarantine pdq
+                                WHERE pdq.item_type = 'rolls'
+                                  AND (
+                                      pdq.purchase_bill_item_id = pbi.id
+                                      OR (
+                                          (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
+                                          AND pdq.concern_id = pbi.concern_id
+                                          AND (
+                                              (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                              OR (
+                                                  pdq.roll_source_color IS NOT NULL 
+                                                  AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                                  AND (
+                                                      (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
+                                                      OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                                  )
+                                              )
+                                          )
+                                      )
+                                  )
+                            ), 0.00) AS damaged_qty
                      FROM purchase_bill_items pbi
                      JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                      LEFT JOIN suppliers s ON pb.supplier_id = s.id
@@ -2983,11 +2715,13 @@ class ProductionController extends Controller {
         foreach ($rawRolls as $r) {
             $total = (float)$r['total_qty'];
             $allocatedOther = (float)$r['allocated_in_other_programs'];
-            $remaining = max(0.00, $total - $allocatedOther);
+            $damaged = (float)$r['damaged_qty'];
+            $remaining = max(0.00, $total - $allocatedOther - $damaged);
             $r['remaining_qty'] = $remaining;
             $unit = $r['unit'] ?: 'kg';
             $r['unit_price'] = (float)($r['unit_price'] ?? 0.00);
-            $r['weight'] = (float)($r['net_weight'] ?: ($r['gross_weight'] ?: ($unit === 'kg' ? $remaining : 0.00)));
+            $origWeight = (float)($r['net_weight'] ?: ($r['gross_weight'] ?: 0.00));
+            $r['weight'] = ($total > 0 && $origWeight > 0) ? round(($remaining / $total) * $origWeight, 2) : ($unit === 'kg' ? $remaining : 0.00);
             $r['supplier_display'] = $r['supplier_name'] ?: ($r['supplier_company'] ?: 'Direct Purchase');
             $r['out_of_label'] = sprintf("%.2f %s out of %.2f %s", $remaining, $unit, $total, $unit);
             $r['tag_code'] = QrService::generateTagCode($r['item_name'], $r['color'], $r['pattern'] ?: ($r['specification'] ?? ''), (string)$r['id']);
@@ -3223,7 +2957,7 @@ class ProductionController extends Controller {
                 $this->redirect('/production/programs/edit?id=' . $id);
             }
 
-            // Fetch roll and verify balance (excluding this program's current allocation)
+            // Fetch roll and verify balance (excluding this program's current allocation and damaged rolls)
             $rollItem = DB::fetch(
                 "SELECT pbi.*, 
                         COALESCE((
@@ -3233,7 +2967,30 @@ class ProductionController extends Controller {
                             WHERE pr.purchase_bill_item_id = pbi.id 
                               AND pp.status != 'cancelled'
                               AND pp.id != ?
-                        ), 0.00) AS used_qty_other
+                        ), 0.00) AS used_qty_other,
+                        COALESCE((
+                            SELECT SUM(pdq.qty)
+                            FROM purchase_damage_quarantine pdq
+                            WHERE pdq.item_type = 'rolls'
+                              AND (
+                                  pdq.purchase_bill_item_id = pbi.id
+                                  OR (
+                                      (pdq.purchase_bill_item_id IS NULL OR pdq.purchase_bill_item_id = 0)
+                                      AND pdq.concern_id = pbi.concern_id
+                                      AND (
+                                          (pdq.tag_code IS NOT NULL AND pdq.tag_code != '' AND pdq.tag_code = pbi.item_code)
+                                          OR (
+                                              pdq.roll_source_color IS NOT NULL 
+                                              AND UPPER(TRIM(pdq.roll_source_color)) = UPPER(TRIM(pbi.color))
+                                              AND (
+                                                  (pdq.roll_source_design_name IS NOT NULL AND UPPER(TRIM(pdq.roll_source_design_name)) = UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))))
+                                                  OR (pdq.item_name IS NOT NULL AND UPPER(TRIM(pdq.item_name)) = UPPER(TRIM(pbi.item_name)))
+                                              )
+                                          )
+                                      )
+                                  )
+                              )
+                        ), 0.00) AS damaged_qty
                  FROM purchase_bill_items pbi 
                  JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                  WHERE pbi.id = ?
@@ -3248,7 +3005,8 @@ class ProductionController extends Controller {
 
             $totalRollQty = (float)$rollItem['qty'];
             $usedQtyOther = (float)$rollItem['used_qty_other'];
-            $availableQty = max(0.00, $totalRollQty - $usedQtyOther);
+            $damagedQty = (float)$rollItem['damaged_qty'];
+            $availableQty = max(0.00, $totalRollQty - $usedQtyOther - $damagedQty);
 
             if ($allocatedQty > ($availableQty + 0.001)) {
                 $tag = $rollItem['item_code'] ?: ('Item #' . $rollItem['id']);

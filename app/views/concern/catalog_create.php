@@ -397,6 +397,109 @@ if (!$isEdit) {
     </div>
 </div>
 
+<!-- ======================================================== -->
+<!-- MODALS FOR EDIT (CATEGORY, SUBCAT, SUBSUBCAT)           -->
+<!-- ======================================================== -->
+
+<!-- MODAL: EDIT CATEGORY -->
+<div class="modal fade" id="modalEditCategory" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content border-0 shadow" id="formQuickEditCategory">
+            <div class="modal-header bg-primary text-white">
+                <h6 class="modal-title fw-bold"><i class="bi bi-pencil-square me-1.5"></i> Edit Main Category</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <input type="hidden" name="id" id="editCategoryId" value="">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Category Name *</label>
+                    <input type="text" name="name" id="editCategoryName" class="form-control" placeholder="e.g. MEN, WOMEN, KIDS" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Short Code (1-5 chars) *</label>
+                    <input type="text" name="code" id="editCategoryCode" class="form-control text-uppercase font-monospace" placeholder="e.g. K, M, W" maxlength="5" required>
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Default HSN</label>
+                        <input type="text" name="default_hsn" id="editCategoryDefaultHsn" class="form-control font-monospace" placeholder="Search HSN" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#editCategoryDefaultGstRate" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Default GST (%)</label>
+                        <input type="number" step="0.01" min="0" max="100" name="default_gst_rate" id="editCategoryDefaultGstRate" class="form-control" placeholder="Optional">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm px-3">Update Category</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: EDIT SUBCATEGORY -->
+<div class="modal fade" id="modalEditSubcategory" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content border-0 shadow" id="formQuickEditSubcategory">
+            <div class="modal-header bg-primary text-white">
+                <h6 class="modal-title fw-bold"><i class="bi bi-pencil-square me-1.5"></i> Edit Sub Category</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <input type="hidden" name="id" id="editSubcategoryId" value="">
+                <div class="mb-2">
+                    <span class="small text-muted">Parent Category:</span>
+                    <strong class="text-dark d-block" id="editSubcatParentName">-</strong>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Sub Category Name *</label>
+                    <input type="text" name="name" id="editSubcategoryName" class="form-control" placeholder="e.g. BABY, TEEN, ADULT" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Short Code (1-5 chars)</label>
+                    <input type="text" name="code" id="editSubcategoryCode" class="form-control text-uppercase font-monospace" placeholder="e.g. B, T, A" maxlength="5">
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm px-3">Update Subcategory</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: EDIT SUB-SUB-CATEGORY -->
+<div class="modal fade" id="modalEditSubSubcategory" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content border-0 shadow" id="formQuickEditSubSubcategory">
+            <div class="modal-header bg-primary text-white">
+                <h6 class="modal-title fw-bold"><i class="bi bi-pencil-square me-1.5"></i> Edit Sub-Sub Category</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <input type="hidden" name="id" id="editSubSubcategoryId" value="">
+                <div class="mb-2">
+                    <span class="small text-muted">Parent Subcategory:</span>
+                    <strong class="text-dark d-block" id="editSubSubcatParentName">-</strong>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Sub-Sub Category Name *</label>
+                    <input type="text" name="name" id="editSubSubcategoryName" class="form-control" placeholder="e.g. DRESS, SHIRT, FROCK" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Short Code (1-5 chars)</label>
+                    <input type="text" name="code" id="editSubSubcategoryCode" class="form-control text-uppercase font-monospace" placeholder="e.g. D, S, F" maxlength="5">
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm px-3">Update Sub-Subcategory</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- MODAL 4: ADD HSN MASTER -->
 <div class="modal fade" id="modalAddHsn" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -561,12 +664,14 @@ if (!$isEdit) {
 .cat-option-item.selected {
     background-color: #eff6ff;
 }
-.cat-btn-delete-single {
+.cat-btn-delete-single,
+.cat-btn-edit-single {
     opacity: 0.75;
     transition: opacity 0.15s, transform 0.15s;
     line-height: 1;
 }
-.cat-btn-delete-single:hover {
+.cat-btn-delete-single:hover,
+.cat-btn-edit-single:hover {
     opacity: 1;
     transform: scale(1.15);
 }
@@ -824,9 +929,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="cat-item-name text-truncate text-dark fw-semibold" style="font-size: 0.82rem;">${opt.text}</span>
                     ${optCode ? `<span class="badge bg-light text-muted border text-uppercase font-monospace" style="font-size: 0.65rem;">${optCode}</span>` : ''}
                 </div>
-                <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2 cat-btn-delete-single" title="Delete this ${tierLabel}">
-                    <i class="bi bi-x-circle text-danger fs-6"></i>
-                </button>
+                <div class="d-flex align-items-center gap-1 ms-2">
+                    <button type="button" class="btn btn-sm btn-link text-primary p-0 cat-btn-edit-single" title="Edit this ${tierLabel}">
+                        <i class="bi bi-pencil-square text-primary fs-6"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-link text-danger p-0 cat-btn-delete-single" title="Delete this ${tierLabel}">
+                        <i class="bi bi-x-circle text-danger fs-6"></i>
+                    </button>
+                </div>
             `;
 
             const cb = row.querySelector('.cat-option-cb');
@@ -839,6 +949,35 @@ document.addEventListener('DOMContentLoaded', function() {
                     bulkDeleteBtn.classList.remove('d-none');
                 } else {
                     bulkDeleteBtn.classList.add('d-none');
+                }
+            });
+
+            const editBtn = row.querySelector('.cat-btn-edit-single');
+            editBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (type === 'category') {
+                    document.getElementById('editCategoryId').value = opt.value;
+                    document.getElementById('editCategoryName').value = optName;
+                    document.getElementById('editCategoryCode').value = optCode;
+                    document.getElementById('editCategoryDefaultHsn').value = opt.getAttribute('data-hsn') || '';
+                    document.getElementById('editCategoryDefaultGstRate').value = opt.getAttribute('data-gst') || '';
+                    new bootstrap.Modal(document.getElementById('modalEditCategory')).show();
+                } else if (type === 'subcategory') {
+                    document.getElementById('editSubcategoryId').value = opt.value;
+                    document.getElementById('editSubcategoryName').value = optName;
+                    document.getElementById('editSubcategoryCode').value = optCode;
+                    const pOpt = mainCatSelect.selectedOptions[0];
+                    document.getElementById('editSubcatParentName').textContent = pOpt && pOpt.value ? pOpt.text : 'Main Category';
+                    new bootstrap.Modal(document.getElementById('modalEditSubcategory')).show();
+                } else if (type === 'subsubcategory') {
+                    document.getElementById('editSubSubcategoryId').value = opt.value;
+                    document.getElementById('editSubSubcategoryName').value = optName;
+                    document.getElementById('editSubSubcategoryCode').value = optCode;
+                    const pOpt = subCatSelect.selectedOptions[0];
+                    document.getElementById('editSubSubcatParentName').textContent = pOpt && pOpt.value ? pOpt.text : 'Sub Category';
+                    new bootstrap.Modal(document.getElementById('modalEditSubSubcategory')).show();
                 }
             });
 
@@ -1324,6 +1463,112 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     alert(res.message || 'Failed to add sub-subcategory');
                 }
+            });
+    });
+
+    // Submit Quick Edit Category
+    document.getElementById('formQuickEditCategory').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        const editId = document.getElementById('editCategoryId').value;
+
+        fetch('<?= \App\Core\Controller::url('/api/categories/update') ?>', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    const opt = mainCatSelect.querySelector(`option[value="${editId}"]`);
+                    if (opt) {
+                        opt.text = res.name;
+                        opt.setAttribute('data-name', res.name);
+                        opt.setAttribute('data-code', res.code);
+                        opt.setAttribute('data-hsn', res.default_hsn || '');
+                        opt.setAttribute('data-gst', res.default_gst_rate !== null ? res.default_gst_rate : '');
+
+                        if (mainCatSelect.value == editId) {
+                            mainCodeInput.value = (res.code || '').toUpperCase();
+                            currentCatDefaultHsn = res.default_hsn || '';
+                            currentCatDefaultGst = res.default_gst_rate !== null ? res.default_gst_rate : '';
+                            catHsnDisplay.textContent = currentCatDefaultHsn
+                                ? `${currentCatDefaultHsn} (${currentCatDefaultGst ? `${parseFloat(currentCatDefaultGst).toFixed(2)}% GST` : 'verify GST rate'})`
+                                : 'No default HSN/SAC';
+                            updateHierarchyAndCodes();
+                        }
+                    }
+                    refreshCustomDropdown('selectMainCategory');
+                    bootstrap.Modal.getInstance(document.getElementById('modalEditCategory')).hide();
+                } else {
+                    alert(res.message || 'Failed to update category');
+                }
+            })
+            .catch(err => {
+                alert('Network error while updating category');
+                console.error(err);
+            });
+    });
+
+    // Submit Quick Edit Subcategory
+    document.getElementById('formQuickEditSubcategory').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        const editId = document.getElementById('editSubcategoryId').value;
+
+        fetch('<?= \App\Core\Controller::url('/api/subcategories/update') ?>', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    const opt = subCatSelect.querySelector(`option[value="${editId}"]`);
+                    if (opt) {
+                        opt.text = res.name;
+                        opt.setAttribute('data-name', res.name);
+                        opt.setAttribute('data-code', res.code);
+
+                        if (subCatSelect.value == editId) {
+                            subCodeInput.value = (res.code || '').toUpperCase();
+                            updateHierarchyAndCodes();
+                        }
+                    }
+                    refreshCustomDropdown('selectSubCategory');
+                    bootstrap.Modal.getInstance(document.getElementById('modalEditSubcategory')).hide();
+                } else {
+                    alert(res.message || 'Failed to update subcategory');
+                }
+            })
+            .catch(err => {
+                alert('Network error while updating subcategory');
+                console.error(err);
+            });
+    });
+
+    // Submit Quick Edit Sub-Subcategory
+    document.getElementById('formQuickEditSubSubcategory').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        const editId = document.getElementById('editSubSubcategoryId').value;
+
+        fetch('<?= \App\Core\Controller::url('/api/subsubcategories/update') ?>', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    const opt = subSubCatSelect.querySelector(`option[value="${editId}"]`);
+                    if (opt) {
+                        opt.text = res.name;
+                        opt.setAttribute('data-name', res.name);
+                        opt.setAttribute('data-code', res.code);
+
+                        if (subSubCatSelect.value == editId) {
+                            subSubCodeInput.value = (res.code || '').toUpperCase();
+                            updateHierarchyAndCodes();
+                        }
+                    }
+                    refreshCustomDropdown('selectSubSubCategory');
+                    bootstrap.Modal.getInstance(document.getElementById('modalEditSubSubcategory')).hide();
+                } else {
+                    alert(res.message || 'Failed to update sub-subcategory');
+                }
+            })
+            .catch(err => {
+                alert('Network error while updating sub-subcategory');
+                console.error(err);
             });
     });
 
