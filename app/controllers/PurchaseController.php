@@ -13,6 +13,7 @@ use App\Services\NumberSeries;
 use App\Services\CloudinaryService;
 use App\Services\RollRegistryService;
 use App\Services\PurchaseDamageService;
+use App\Services\PurchaseBillSourceService;
 use App\Services\ExportService;
 use Exception;
 
@@ -1115,8 +1116,22 @@ class PurchaseController extends Controller {
         ];
     }
 
+    private function supplierInvoiceNumberExists(int $concernId, int $supplierId, string $invoiceNo, ?int $excludeBillId = null): bool
+    {
+        $sql = "SELECT id FROM purchase_bills
+                WHERE concern_id = ? AND supplier_id = ?
+                  AND LOWER(TRIM(supplier_invoice_no)) = LOWER(TRIM(?))";
+        $params = [$concernId, $supplierId, $invoiceNo];
+        if ($excludeBillId !== null) {
+            $sql .= " AND id != ?";
+            $params[] = $excludeBillId;
+        }
+        return (bool)DB::fetchValue($sql . " LIMIT 1", $params);
+    }
+
     public function storeBill(): void {
         $this->validateCsrf();
+        PurchaseBillSourceService::ensureSchema();
         $isProductAddingInvoice = ($_POST['product_adding_redirect'] ?? '') === '1';
         $successRedirect = $isProductAddingInvoice
             ? '/m/product_adding'
@@ -1147,6 +1162,11 @@ class PurchaseController extends Controller {
         $supplierInvoiceNo = trim($_POST['supplier_invoice_no'] ?? '');
         if (empty($supplierInvoiceNo)) {
             $this->flash('error', 'Invoice / Bill Number is required.');
+            $this->redirect($createRedirect);
+            return;
+        }
+        if ($this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo)) {
+            $this->flash('error', 'This supplier invoice number has already been recorded for the selected supplier.');
             $this->redirect($createRedirect);
             return;
         }
@@ -1311,6 +1331,10 @@ class PurchaseController extends Controller {
                     $this->redirect($createRedirect);
                     return;
                 }
+                $finishedItem['style_code'] = 'FG-'
+                    . strtoupper(base_convert((string)(int)(microtime(true) * 1000), 10, 36))
+                    . '-'
+                    . strtoupper(bin2hex(random_bytes(4)));
                 foreach ($variantRows as $variantRow) {
                     if (!is_array($variantRow)) {
                         continue;
@@ -1557,12 +1581,12 @@ class PurchaseController extends Controller {
 
             DB::query(
                 "INSERT INTO purchase_bills (
-                    concern_id, bill_no, supplier_invoice_no, supplier_id, bill_date,
+                    concern_id, bill_no, supplier_invoice_no, source_module, supplier_id, bill_date,
                     total_amount, tax_amount, net_amount, payment_status, payment_method, payment_reference, paid_amount,
                     inward_status, notes, attachment_path, attachment_paths, fabric_description, created_by, created_at
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
                 [
-                    $cid, $billNo, $supplierInvoiceNo, $supplierId, $billDate,
+                    $cid, $billNo, $supplierInvoiceNo, $isProductAddingInvoice ? 'product_adding' : 'purchase_billing', $supplierId, $billDate,
                     $totalAmount, $totalTax, $netAmount, $paymentStatus, $paymentMethod, $paymentReference, $paidAmount,
                     $inwardStatus, $notes, $attachmentPath, $attachmentPathsJson, $fabricDescription, Auth::id()
                 ]
@@ -1681,7 +1705,7 @@ class PurchaseController extends Controller {
             }
 
             $this->flash('success', "Production Purchase '{$billNo}' recorded successfully!");
-            $this->redirect($successRedirect);
+            $this->redirect($isProductAddingInvoice ? $successRedirect . '?bill_id=' . $billId : $successRedirect);
         } catch (Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Error recording production purchase: ' . $e->getMessage());
@@ -1990,6 +2014,11 @@ class PurchaseController extends Controller {
         $supplierInvoiceNo = trim($_POST['supplier_invoice_no'] ?? '');
         if (empty($supplierInvoiceNo)) {
             $this->flash('error', 'Invoice / Bill Number is required.');
+            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            return;
+        }
+        if ($this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo, $billId)) {
+            $this->flash('error', 'This supplier invoice number has already been recorded for the selected supplier.');
             $this->redirect('/m/purchase_billing/edit?id=' . $billId);
             return;
         }

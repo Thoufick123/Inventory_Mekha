@@ -4,6 +4,8 @@ $formAction = $formAction ?? ($isEdit ? \App\Core\Controller::url('/m/purchase_b
 $hsnSaveUrl = $hsnSaveUrl ?? \App\Core\Controller::url('/m/purchase_billing/save_hsn');
 $rollSpecSaveUrl = $rollSpecSaveUrl ?? \App\Core\Controller::url('/m/purchase_billing/save_roll_spec');
 $quickSupplierSaveUrl = $quickSupplierSaveUrl ?? '';
+$quickCategorySaveUrl = $quickCategorySaveUrl ?? '';
+$quickAttributeSaveUrl = $quickAttributeSaveUrl ?? '';
 $isProductAddingForm = ($currentModule ?? '') === 'product_adding';
 $backUrl = $backUrl ?? \App\Core\Controller::url('/m/purchase_billing');
 $backLabel = $backLabel ?? 'Back to Purchases';
@@ -44,6 +46,99 @@ if ($isEdit && !empty($existingItems)) {
     }
 }
 ?>
+<?php if ($isProductAddingForm): ?>
+<style>
+.fg-variant-matrix-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-gutter: stable;
+}
+.fg-variant-matrix {
+    min-width: 1750px;
+    table-layout: auto;
+    border-color: #cbd5e1;
+}
+.fg-variant-matrix thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    min-width: 105px;
+    padding: .65rem .55rem;
+    background: #eaf0f8;
+    color: #334155;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .035em;
+    line-height: 1.25;
+    white-space: normal;
+    vertical-align: middle;
+}
+.fg-variant-matrix tbody td {
+    min-width: 105px;
+    padding: .55rem;
+    background: #fff;
+    vertical-align: middle;
+}
+.fg-variant-matrix tbody tr:hover td {
+    background: #f8fbff;
+}
+.fg-variant-matrix .fg-variant-name {
+    min-width: 165px;
+}
+.fg-variant-matrix .fg-variant-category,
+.fg-variant-matrix .fg-variant-subcategory,
+.fg-variant-matrix .fg-variant-sub-subcategory {
+    min-width: 125px;
+}
+.fg-variant-hierarchy-control {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    min-width: 160px;
+}
+.fg-variant-hierarchy-control select {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.fg-variant-hierarchy-control .btn {
+    flex: 0 0 30px;
+    width: 30px;
+    padding: .2rem;
+}
+.fg-variant-attribute-control {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    min-width: 130px;
+}
+.fg-variant-attribute-control input,
+.fg-variant-attribute-control select {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.fg-variant-attribute-control .btn {
+    flex: 0 0 30px;
+    width: 30px;
+    padding: .2rem;
+}
+.fg-variant-matrix .fg-variant-hsn {
+    min-width: 105px;
+}
+.fg-variant-matrix .fg-variant-gst-rate {
+    min-width: 80px;
+    background: #f1f5f9;
+    font-weight: 700;
+    text-align: right;
+}
+@media (max-width: 767.98px) {
+    .fg-variant-matrix-scroll {
+        max-height: 70vh;
+        overflow: auto;
+    }
+}
+</style>
+<?php endif; ?>
 <div class="container-fluid px-0">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -60,6 +155,113 @@ if ($isEdit && !empty($existingItems)) {
             <i class="bi bi-arrow-left me-1"></i> <?= htmlspecialchars($backLabel) ?>
         </a>
     </div>
+
+    <?php if ($isProductAddingForm && !empty($savedBill)): ?>
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <div>
+                    <h5 class="fw-bold mb-1">Labels &amp; Stock — <?= htmlspecialchars($savedBill['bill_no']) ?></h5>
+                    <div class="small text-muted">
+                        <?= htmlspecialchars($savedBill['supplier_name'] ?? 'Supplier') ?>
+                        · Supplier invoice <?= htmlspecialchars($savedBill['supplier_invoice_no'] ?? '-') ?>
+                        · Labels must cover each line quantity before stock can be added.
+                    </div>
+                </div>
+                <span class="badge text-bg-primary"><?= count($savedBillItems) ?> bill lines</span>
+            </div>
+            <?php if (empty($savedBillItems)): ?>
+                <div class="card-body text-muted">This saved bill has no printable lines.</div>
+            <?php else: ?>
+                <form action="<?= $productAddingLabelUrl ?>" method="POST" target="_blank" id="productAddingBulkLabelForm">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center">Bulk</th>
+                                    <th>Item</th>
+                                    <th>Type</th>
+                                    <th class="text-end">Qty</th>
+                                    <th class="text-center">Label progress</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($savedBillItems as $savedItem): ?>
+                                    <?php
+                                    $savedItemId = (int)$savedItem['id'];
+                                    $itemSection = (string)$savedItem['section_type'];
+                                    $isSavedItemInStock = ($savedItem['inward_status'] ?? 'pending') === 'completed';
+                                    $requiredLabelQty = (int)$savedItem['required_label_qty'];
+                                    $generatedLabelQty = (int)$savedItem['generated_label_qty'];
+                                    ?>
+                                    <tr>
+                                        <td class="text-center">
+                                            <input class="form-check-input" type="checkbox" name="item_ids[]" value="<?= $savedItemId ?>" checked aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk printing">
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold"><?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?></div>
+                                            <div class="small text-muted"><?= htmlspecialchars($savedItem['item_code'] ?? '') ?></div>
+                                        </td>
+                                        <td><span class="badge text-bg-light border"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?></span></td>
+                                        <td class="text-end"><?= htmlspecialchars((string)$savedItem['qty']) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></td>
+                                        <td class="text-center">
+                                            <?php if ($savedItem['labels_complete']): ?>
+                                                <span class="badge text-bg-success"><?= $generatedLabelQty ?> / <?= $requiredLabelQty ?> labels</span>
+                                            <?php else: ?>
+                                                <span class="badge text-bg-warning"><?= $generatedLabelQty ?> / <?= $requiredLabelQty ?> labels</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <button type="submit" form="productAddingLabelForm<?= $savedItemId ?>" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-printer me-1"></i>Print labels
+                                            </button>
+                                            <?php if ($isSavedItemInStock): ?>
+                                                <span class="badge text-bg-success ms-1">In stock</span>
+                                            <?php elseif ($savedItem['labels_complete']): ?>
+                                                <button type="submit" form="productAddingStockForm<?= $savedItemId ?>" class="btn btn-sm btn-success ms-1">
+                                                    <i class="bi bi-box-arrow-in-down me-1"></i>Add stock
+                                                </button>
+                                            <?php else: ?>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ms-1" disabled title="Generate enough labels first">Add stock</button>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <span class="small text-muted">Bulk printing uses the checked lines and generates labels for their full quantities.</span>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-printer-fill me-1"></i>Print selected lines
+                        </button>
+                    </div>
+                </form>
+                <?php foreach ($savedBillItems as $savedItem): ?>
+                    <?php
+                    $savedItemId = (int)$savedItem['id'];
+                    $itemTab = $savedItem['section_type'] === 'finished_goods'
+                        ? 'finished_goods'
+                        : ($savedItem['section_type'] === 'rolls' ? 'rolls' : 'garment_other');
+                    ?>
+                    <form id="productAddingLabelForm<?= $savedItemId ?>" action="<?= $productAddingLabelUrl ?>" method="POST" target="_blank" class="d-none">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                        <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                        <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
+                    </form>
+                    <form id="productAddingStockForm<?= $savedItemId ?>" action="<?= $productAddingStockUrl ?>" method="POST" class="d-none">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                        <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                        <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
+                        <input type="hidden" name="tab" value="<?= $itemTab ?>">
+                        <input type="hidden" name="product_adding" value="1">
+                    </form>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
 
     <form action="<?= $formAction ?>" method="POST" enctype="multipart/form-data" id="formPurchaseBill" class="needs-validation" novalidate>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -645,6 +847,7 @@ if ($isEdit && !empty($existingItems)) {
             saveButton.disabled = false;
         }
     });
+    refreshProductAddingAttributeSelectors();
 })();
 </script>
 <?php endif; ?>
@@ -903,6 +1106,8 @@ const productAddingCategories = <?= json_encode($categories ?? [], JSON_HEX_TAG 
 const productAddingSubcategories = <?= json_encode($subcategories ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 const productAddingSubSubcategories = <?= json_encode($subSubcategories ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 const productAddingAttributes = <?= json_encode($productAttributes ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+const quickCategorySaveUrl = <?= json_encode($quickCategorySaveUrl) ?>;
+const quickAttributeSaveUrl = <?= json_encode($quickAttributeSaveUrl) ?>;
 
 let rollCounter = 0;
 let otherCounter = 0;
@@ -1625,9 +1830,16 @@ function buildProductAddingAttributeSelect(type, id, label) {
 }
 
 function getProductAddingOtherAttributeTypes() {
+    const reservedTypes = [
+        'size', 'color', 'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
+        'quantity', 'qty', 'supplier_cost', 'unit_price', 'hsn', 'hsn_code', 'variant', 'style_code',
+        'category_id', 'subcategory_id', 'sub_sub_category_id', 'catalog_gst_rate', 'tax_mode', 'gst',
+        'gst_type', 'tax_input_type', 'gst_rate', 'sgst', 'cgst', 'igst', 'mrp', 'selling_price',
+        'weight', 'allocated_qty', 'custom_attributes', 'catalog_style_name', 'variant_name'
+    ];
     return [...new Set(getProductAddingScopedRows(productAddingAttributes)
         .map(attribute => String(attribute.attribute_type || '').toLowerCase().trim())
-        .filter(type => type && type !== 'size' && type !== 'color'))];
+        .filter(type => type && !reservedTypes.includes(type)))];
 }
 
 function buildProductAddingVariantAttributeCell(type, cardId, rowIndex) {
@@ -1636,13 +1848,187 @@ function buildProductAddingVariantAttributeCell(type, cardId, rowIndex) {
     const required = type === 'size' || type === 'color';
     const label = type.charAt(0).toUpperCase() + type.slice(1);
     if (values.length === 0) {
-        return `<td><input type="text" name="${escapeHtml(name)}" class="form-control form-control-sm fg-variant-attribute" data-attribute-type="${escapeHtml(type)}" aria-label="${escapeHtml(label)}" ${required ? 'required' : ''} oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex})"></td>`;
+        return `<td><div class="fg-variant-attribute-control">
+            <input type="text" name="${escapeHtml(name)}" class="form-control form-control-sm fg-variant-attribute" data-attribute-type="${escapeHtml(type)}" aria-label="${escapeHtml(label)}" ${required ? 'required' : ''} oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex})">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-attribute-type="${escapeHtml(type)}" title="Save this ${escapeHtml(label.toLowerCase())} as an option" aria-label="Save ${escapeHtml(label.toLowerCase())} as an option" onclick="saveProductAddingAttributeValue(this.dataset.attributeType, this.parentElement.querySelector('[data-attribute-type]')?.value, ${cardId}, ${rowIndex})"><i class="bi bi-plus-lg"></i></button>
+        </div></td>`;
     }
     let options = `<option value="">-- ${escapeHtml(label)} --</option>`;
     values.forEach(value => {
         options += `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`;
     });
-    return `<td><select name="${escapeHtml(name)}" class="form-select form-select-sm fg-variant-attribute" data-attribute-type="${escapeHtml(type)}" aria-label="${escapeHtml(label)}" ${required ? 'required' : ''} onchange="updateProductAddingVariantRow(${cardId}, ${rowIndex})">${options}</select></td>`;
+    options += '<option value="__add_new_attribute_value__">+ Add New Value...</option>';
+    return `<td><select name="${escapeHtml(name)}" class="form-select form-select-sm fg-variant-attribute" data-attribute-type="${escapeHtml(type)}" aria-label="${escapeHtml(label)}" ${required ? 'required' : ''} onchange="handleProductAddingAttributeChange(this, ${cardId}, ${rowIndex})">${options}</select></td>`;
+}
+
+function promptAddProductAddingAttribute(fgId) {
+    const label = window.prompt('New attribute name (for example: Fabric Type):');
+    if (label === null) return;
+    const trimmedLabel = label.trim();
+    if (!trimmedLabel) {
+        alert('Enter an attribute name.');
+        return;
+    }
+
+    let type = trimmedLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    if (/^[0-9]/.test(type)) type = `attribute_${type}`;
+    if (!type || type.length > 50) {
+        alert('Use an attribute name that is at most 50 characters.');
+        return;
+    }
+    const reservedTypes = [
+        'size', 'color', 'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
+        'quantity', 'qty', 'supplier_cost', 'unit_price', 'hsn', 'hsn_code', 'variant', 'style_code',
+        'category_id', 'subcategory_id', 'sub_sub_category_id', 'catalog_gst_rate', 'tax_mode', 'gst',
+        'gst_type', 'tax_input_type', 'gst_rate', 'sgst', 'cgst', 'igst', 'mrp', 'selling_price',
+        'weight', 'allocated_qty', 'custom_attributes', 'catalog_style_name', 'variant_name'
+    ];
+    if (reservedTypes.includes(type)) {
+        alert('That name is reserved for a built-in product field. Use the existing field instead.');
+        return;
+    }
+    if (getProductAddingOtherAttributeTypes().includes(type)) {
+        alert('That attribute already exists. Use its Add New Value option.');
+        return;
+    }
+
+    const value = window.prompt(`Initial value for ${trimmedLabel}:`);
+    if (value === null) return;
+    const firstRow = document.querySelector(`#finishedCard_${fgId} .fg-variant-row`);
+    const firstRowIndex = firstRow ? parseInt(firstRow.dataset.rowIndex, 10) : null;
+    saveProductAddingAttributeValue(type, value, fgId, firstRowIndex, trimmedLabel);
+}
+
+function handleProductAddingAttributeChange(select, fgId, rowIndex) {
+    if (select.value === '__add_new_attribute_value__') {
+        const previousValue = select.dataset.previousValue || '';
+        select.value = previousValue;
+        const value = window.prompt(`New ${select.dataset.attributeType.replace(/_/g, ' ')} value:`);
+        if (value === null) return;
+        saveProductAddingAttributeValue(select.dataset.attributeType, value, fgId, rowIndex);
+        return;
+    }
+    select.dataset.previousValue = select.value;
+    updateProductAddingVariantRow(fgId, rowIndex);
+}
+
+function ensureProductAddingAttributeColumn(type, preferredCardId, preferredRowIndex, preferredValue) {
+    const hasBuiltInColumn = type === 'size' || type === 'color';
+    document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(card => {
+        const header = card.querySelector('.fg-variant-matrix thead tr');
+        if (!header) return;
+        const hasHeader = [...header.querySelectorAll('th[data-attribute-type]')]
+            .some(cell => cell.dataset.attributeType === type);
+        if (!hasHeader && !hasBuiltInColumn) {
+            const th = document.createElement('th');
+            th.dataset.attributeType = type;
+            th.textContent = type.replace(/_/g, ' ').toUpperCase();
+            const quantityHeader = [...header.children].find(cell => cell.textContent.trim().startsWith('QTY'));
+            if (quantityHeader) header.insertBefore(th, quantityHeader);
+        }
+
+        card.querySelectorAll('.fg-variant-row').forEach(row => {
+            const rowTypeControl = [...row.querySelectorAll('.fg-variant-attribute')]
+                .find(control => control.dataset.attributeType === type);
+            if (rowTypeControl || hasBuiltInColumn) return;
+            const rowIndex = parseInt(row.dataset.rowIndex, 10);
+            const cellTemplate = document.createElement('template');
+            cellTemplate.innerHTML = buildProductAddingVariantAttributeCell(type, parseInt(card.id.replace('finishedCard_', ''), 10), rowIndex).trim();
+            const quantityCell = row.querySelector('.fg-variant-qty')?.closest('td');
+            if (quantityCell && cellTemplate.content.firstElementChild) {
+                row.insertBefore(cellTemplate.content.firstElementChild, quantityCell);
+            }
+        });
+    });
+
+    const targetRow = document.getElementById(`fgVariantRow_${preferredCardId}_${preferredRowIndex}`);
+    const targetControl = targetRow && [...targetRow.querySelectorAll('.fg-variant-attribute')]
+        .find(control => control.dataset.attributeType === type);
+    if (targetControl && preferredValue) {
+        targetControl.value = preferredValue;
+        if (targetControl.tagName === 'SELECT') targetControl.dataset.previousValue = preferredValue;
+    }
+}
+
+async function saveProductAddingAttributeValue(type, rawValue, fgId, rowIndex, attributeName = '') {
+    const value = String(rawValue || '').trim();
+    if (!value) {
+        alert('Enter an attribute value before saving.');
+        return;
+    }
+    if (value.length > 100) {
+        alert('Attribute values must be 100 characters or fewer.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('csrf_token', document.querySelector('#formPurchaseBill input[name="csrf_token"]')?.value || '');
+    formData.append('concern_id', String(getProductAddingConcernId()));
+    formData.append('attribute_type', type);
+    formData.append('attribute_name', attributeName || type.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase()));
+    formData.append('attribute_value', value);
+
+    try {
+        const response = await fetch(quickAttributeSaveUrl, {
+            method: 'POST',
+            body: formData,
+            headers: { Accept: 'application/json' }
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.attribute_value) {
+            throw new Error(result.message || 'Unable to save this attribute value.');
+        }
+
+        if (!productAddingAttributes.some(attribute =>
+            String(attribute.attribute_type || '').toLowerCase() === type &&
+            String(attribute.attribute_value || '').trim().toLowerCase() === String(result.attribute_value).trim().toLowerCase() &&
+            (parseInt(attribute.concern_id, 10) || 0) === (parseInt(result.concern_id, 10) || 0)
+        )) {
+            productAddingAttributes.push({
+                concern_id: result.concern_id,
+                attribute_type: result.attribute_type,
+                attribute_name: result.attribute_name,
+                attribute_value: result.attribute_value
+            });
+        }
+
+        refreshProductAddingAttributeSelectors();
+        ensureProductAddingAttributeColumn(type, fgId, rowIndex, result.attribute_value);
+        document.querySelectorAll('#finishedGoodsContainer .fg-variant-row').forEach(row => {
+            const rowCardId = parseInt(row.closest('.finished-card')?.id.replace('finishedCard_', ''), 10);
+            const rowIndexValue = parseInt(row.dataset.rowIndex, 10);
+            const control = [...row.querySelectorAll('.fg-variant-attribute')]
+                .find(input => input.dataset.attributeType === type);
+            if (!control) return;
+            const oldValue = control.value;
+            if (control.tagName === 'INPUT') {
+                const cellTemplate = document.createElement('template');
+                cellTemplate.innerHTML = buildProductAddingVariantAttributeCell(type, rowCardId, rowIndexValue).trim();
+                const replacement = cellTemplate.content.firstElementChild;
+                const newControl = replacement?.querySelector('.fg-variant-attribute');
+                if (!replacement || !newControl) return;
+                if (oldValue && ![...newControl.options].some(option => option.value === oldValue)) return;
+                newControl.value = rowCardId === parseInt(fgId, 10) && rowIndexValue === parseInt(rowIndex, 10)
+                    ? result.attribute_value
+                    : oldValue;
+                if (newControl.tagName === 'SELECT') newControl.dataset.previousValue = newControl.value;
+                control.closest('td').replaceWith(replacement);
+            } else {
+                if (![...control.options].some(option => option.value === result.attribute_value)) {
+                    const addNewOption = [...control.options].find(option => option.value === '__add_new_attribute_value__');
+                    control.add(new Option(result.attribute_value, result.attribute_value), addNewOption ? addNewOption.index : undefined);
+                }
+                if (rowCardId === parseInt(fgId, 10) && rowIndexValue === parseInt(rowIndex, 10)) {
+                    control.value = result.attribute_value;
+                }
+                control.dataset.previousValue = control.value;
+            }
+            updateProductAddingVariantRow(rowCardId, rowIndexValue);
+        });
+        syncFinishedTable();
+    } catch (error) {
+        alert(error.message || 'Unable to save this attribute value.');
+    }
 }
 
 function buildProductAddingVariantRow(cardId, rowIndex) {
@@ -1651,11 +2037,19 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
     const prefix = `finished_goods[${cardId}][variants][${rowIndex}]`;
     return `
         <tr id="fgVariantRow_${cardId}_${rowIndex}" class="fg-variant-row">
-            <td><input type="text" name="${prefix}[sku]" class="form-control form-control-sm font-monospace fg-variant-sku" required oninput="this.dataset.userEdited='1'; updateProductAddingVariantRow(${cardId}, ${rowIndex})"></td>
             <td><input type="text" name="${prefix}[variant_name]" class="form-control form-control-sm fg-variant-name" required oninput="this.dataset.userEdited='1'"></td>
-            <td><select name="${prefix}[category_id]" class="form-select form-select-sm fg-variant-category" required onchange="onFinishedVariantCategoryChange(${cardId}, ${rowIndex})">${buildProductAddingCategoryOptions()}</select></td>
-            <td><select name="${prefix}[subcategory_id]" class="form-select form-select-sm fg-variant-subcategory" onchange="onFinishedVariantSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select></td>
-            <td><select name="${prefix}[sub_sub_category_id]" class="form-select form-select-sm fg-variant-sub-subcategory" onchange="onFinishedVariantSubSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select></td>
+            <td><div class="fg-variant-hierarchy-control">
+                <select name="${prefix}[category_id]" class="form-select form-select-sm fg-variant-category" required onchange="onFinishedVariantCategoryChange(${cardId}, ${rowIndex})">${buildProductAddingCategoryOptions()}</select>
+                <button type="button" class="btn btn-outline-primary btn-sm" title="Add category" aria-label="Add category" onclick="quickAddFinishedHierarchy('category', ${cardId}, ${rowIndex})"><i class="bi bi-plus-lg"></i></button>
+            </div></td>
+            <td><div class="fg-variant-hierarchy-control">
+                <select name="${prefix}[subcategory_id]" class="form-select form-select-sm fg-variant-subcategory" onchange="onFinishedVariantSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select>
+                <button type="button" class="btn btn-outline-primary btn-sm fg-add-subcategory" title="Add subcategory" aria-label="Add subcategory" onclick="quickAddFinishedHierarchy('subcategory', ${cardId}, ${rowIndex})" disabled><i class="bi bi-plus-lg"></i></button>
+            </div></td>
+            <td><div class="fg-variant-hierarchy-control">
+                <select name="${prefix}[sub_sub_category_id]" class="form-select form-select-sm fg-variant-sub-subcategory" onchange="onFinishedVariantSubSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select>
+                <button type="button" class="btn btn-outline-primary btn-sm fg-add-sub-subcategory" title="Add sub-subcategory" aria-label="Add sub-subcategory" onclick="quickAddFinishedHierarchy('subsubcategory', ${cardId}, ${rowIndex})" disabled><i class="bi bi-plus-lg"></i></button>
+            </div></td>
             <td class="text-center"><span class="badge bg-primary-subtle text-primary border font-monospace fg-variant-hierarchy-key">—</span></td>
             ${buildProductAddingVariantAttributeCell('color', cardId, rowIndex)}
             ${buildProductAddingVariantAttributeCell('size', cardId, rowIndex)}
@@ -1667,8 +2061,11 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
                     <input type="text" name="${prefix}[hsn]" class="form-control font-monospace fg-variant-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} required autocomplete="off" oninput="onFinishedVariantHsnChange(${cardId}, ${rowIndex})" onchange="onFinishedVariantHsnChange(${cardId}, ${rowIndex})">
                     <button type="button" class="btn btn-outline-primary" title="Add HSN" onclick="promptAddVariantHsn(${cardId}, ${rowIndex})"><i class="bi bi-plus-lg"></i></button>
                 </div>
-                <input type="hidden" name="${prefix}[catalog_gst_rate]" class="fg-variant-gst-rate">
             </td>
+            <td><div class="input-group input-group-sm">
+                <input type="number" step="0.01" min="0" max="100" name="${prefix}[catalog_gst_rate]" class="form-control fg-variant-gst-rate" value="" placeholder="—" readonly aria-label="GST rate from HSN code">
+                <span class="input-group-text">%</span>
+            </div></td>
             <td><input type="number" step="0.01" min="0.01" name="${prefix}[supplier_cost]" class="form-control form-control-sm fg-variant-cost" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex}); syncFinishedTable()"></td>
             <td><input type="number" step="0.01" min="0.01" name="${prefix}[mrp]" class="form-control form-control-sm fg-variant-mrp" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex})"></td>
             <td><input type="number" step="0.01" min="0.01" name="${prefix}[selling_price]" class="form-control form-control-sm fg-variant-selling" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex}); syncFinishedTable()"></td>
@@ -1677,32 +2074,89 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
         </tr>`;
 }
 
+function buildProductAddingAttributeSelectionControls(cardId) {
+    const types = ['color', 'size', ...getProductAddingOtherAttributeTypes()];
+    return `<div class="row g-2 align-items-end mb-3" id="fgVariantAttributeSelections_${cardId}">
+        ${types.map(type => {
+            const values = getProductAddingAttributeValues(type);
+            const label = type.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
+            if (!values.length) {
+                return `<div class="col-md-3">
+                    <label class="form-label small fw-semibold">${escapeHtml(label)} values</label>
+                    <input type="text" class="form-control form-control-sm" data-variant-attribute-selector="${escapeHtml(type)}" placeholder="Comma-separated values">
+                </div>`;
+            }
+            return `<div class="col-md-3">
+                <label class="form-label small fw-semibold">${escapeHtml(label)} values</label>
+                <select class="form-select form-select-sm" multiple size="3" data-variant-attribute-selector="${escapeHtml(type)}" aria-label="Select multiple ${escapeHtml(label.toLowerCase())} values">
+                    ${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}
+                </select>
+                <div class="form-text">Use Ctrl or Command to select multiple values.</div>
+            </div>`;
+        }).join('')}
+        <div class="col-md-auto d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-primary" onclick="generateProductAddingVariantRows(${cardId})">
+                <i class="bi bi-grid me-1"></i>Generate combinations
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="quickFillProductAddingVariants(${cardId})" title="Copy category, HSN, quantity, weight and pricing from the first row">
+                <i class="bi bi-lightning-charge me-1"></i>Quick fill
+            </button>
+        </div>
+    </div>`;
+}
+
+function refreshProductAddingAttributeSelectors() {
+    document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(card => {
+        const container = card.querySelector('[id^="fgVariantAttributeSelections_"]');
+        if (!container) return;
+        const selectedValues = new Map();
+        container.querySelectorAll('[data-variant-attribute-selector]').forEach(control => {
+            const type = control.dataset.variantAttributeSelector;
+            const values = control.tagName === 'SELECT'
+                ? [...control.selectedOptions].map(option => option.value)
+                : control.value.split(/[,;|]+/).map(value => value.trim()).filter(Boolean);
+            selectedValues.set(type, values);
+        });
+        const replacementTemplate = document.createElement('template');
+        replacementTemplate.innerHTML = buildProductAddingAttributeSelectionControls(
+            parseInt(card.id.replace('finishedCard_', ''), 10)
+        ).trim();
+        const replacement = replacementTemplate.content.firstElementChild;
+        if (!replacement) return;
+        container.replaceWith(replacement);
+        replacement.querySelectorAll('[data-variant-attribute-selector]').forEach(control => {
+            const values = selectedValues.get(control.dataset.variantAttributeSelector) || [];
+            if (control.tagName === 'SELECT') {
+                [...control.options].forEach(option => { option.selected = values.includes(option.value); });
+            } else {
+                control.value = values.join(', ');
+            }
+        });
+    });
+}
+
 function buildProductAddingFields(id) {
     if (!isProductAddingForm) return '';
     return `
-        <div class="row g-2 mt-1 mb-3">
-            <div class="col-md-4">
-                <label class="form-label small fw-semibold">Style Code <span class="text-danger">*</span></label>
-                <input type="text" name="finished_goods[${id}][style_code]" class="form-control form-control-sm fg-input-style-code text-uppercase" maxlength="50" required oninput="document.querySelectorAll('#finishedCard_${id} .fg-variant-row').forEach(row => updateProductAddingVariantRow(${id}, parseInt(row.dataset.rowIndex, 10)))">
-                <small class="form-text text-muted">Generated as FG-{base-36 timestamp}-{sequence}, e.g. FG-MWSW7X24-1. You can edit it.</small>
-            </div>
-            <div class="col-md-8 d-flex align-items-end">
-                <div class="alert alert-info py-2 px-3 mb-0 small w-100">Create a new catalog style and variant. Select category hierarchy and product attributes in each variant row. Every row will become a purchase line and catalog variant.</div>
-            </div>
-        </div>
+        <div class="alert alert-info py-2 px-3 mb-3 small">Style code is generated automatically. Choose multiple attribute values above the table to create variant combinations. Every row becomes a purchase line and catalog variant.</div>
         <div class="card border shadow-none rounded-3">
             <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
                 <div>
                     <strong class="small text-dark">Finished Goods Variant Matrix</strong>
-                    <div class="small text-muted">Allocate purchased quantities and prices per SKU.</div>
+                    <div class="small text-muted">Allocate purchased quantities and prices per variant.</div>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addFinishedVariantRow(${id})"><i class="bi bi-plus-lg me-1"></i>Add Variant</button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="promptAddProductAddingAttribute(${id})"><i class="bi bi-plus-lg me-1"></i>Add Attribute</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addFinishedVariantRow(${id})"><i class="bi bi-plus-lg me-1"></i>Add Variant</button>
+                </div>
+            </div>
+            <div class="card-body pb-2">
+                ${buildProductAddingAttributeSelectionControls(id)}
             </div>
             <div class="table-responsive fg-variant-matrix-scroll">
                 <table class="table table-sm table-bordered table-hover align-middle mb-0 text-nowrap fg-variant-matrix">
                     <thead class="table-light">
                         <tr>
-                            <th>VARIANT SKU CODE *</th>
                             <th>PRODUCT VARIANT NAME *</th>
                             <th>CATEGORY *</th>
                             <th>SUBCATEGORY</th>
@@ -1710,10 +2164,11 @@ function buildProductAddingFields(id) {
                             <th>HIERARCHY KEY</th>
                             <th>COLOR *</th>
                             <th>SIZE *</th>
-                            ${getProductAddingOtherAttributeTypes().map(type => `<th>${escapeHtml(type.toUpperCase())}</th>`).join('')}
+                            ${getProductAddingOtherAttributeTypes().map(type => `<th data-attribute-type="${escapeHtml(type)}">${escapeHtml(type.toUpperCase())}</th>`).join('')}
                             <th>QTY *</th>
                             <th>WEIGHT (KG)</th>
                             <th>HSN CODE *</th>
+                            <th>GST %</th>
                             <th>COST (₹) *</th>
                             <th>MRP (₹) *</th>
                             <th>SELLING PRICE (₹) *</th>
@@ -1775,7 +2230,7 @@ function refreshProductAddingConcernOptions() {
 
 document.getElementById('billConcernId')?.addEventListener('change', refreshProductAddingConcernOptions);
 
-function addFinishedVariantRow(fgId) {
+function addFinishedVariantRow(fgId, presetAttributes = {}) {
     const card = document.getElementById('finishedCard_' + fgId);
     const tbody = document.getElementById('fgVariantTableBody_' + fgId);
     if (!card || !tbody) return;
@@ -1800,7 +2255,120 @@ function addFinishedVariantRow(fgId) {
             row.querySelector('.fg-variant-gst-rate').value = newHsn.dataset.hsnGstRate;
         }
     }
+    Object.entries(presetAttributes).forEach(([type, value]) => {
+        const control = [...row.querySelectorAll('.fg-variant-attribute')]
+            .find(input => input.dataset.attributeType === type);
+        if (control) {
+            control.value = value;
+            if (control.tagName === 'SELECT') control.dataset.previousValue = value;
+        }
+    });
     updateProductAddingVariantRow(fgId, rowIndex);
+    syncFinishedTable();
+    return rowIndex;
+}
+
+function generateProductAddingVariantRows(fgId) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    const selectorContainer = document.getElementById(`fgVariantAttributeSelections_${fgId}`);
+    const tbody = document.getElementById('fgVariantTableBody_' + fgId);
+    if (!card || !selectorContainer || !tbody) return;
+
+    const dimensions = [...selectorContainer.querySelectorAll('[data-variant-attribute-selector]')]
+        .map(control => {
+            const type = control.dataset.variantAttributeSelector;
+            const values = control.tagName === 'SELECT'
+                ? [...control.selectedOptions].map(option => option.value.trim()).filter(Boolean)
+                : control.value.split(/[,;|]+/).map(value => value.trim()).filter(Boolean);
+            return { type, values: [...new Set(values)] };
+        })
+        .filter(dimension => dimension.values.length);
+    const colorSelected = dimensions.some(dimension => dimension.type === 'color');
+    const sizeSelected = dimensions.some(dimension => dimension.type === 'size');
+    if (!colorSelected || !sizeSelected) {
+        alert('Select at least one Color and one Size value to generate variants.');
+        return;
+    }
+
+    let combinations = [{}];
+    for (const dimension of dimensions) {
+        if (combinations.length * dimension.values.length > 100) {
+            alert('This selection creates more than 100 variants. Reduce the selected values and try again.');
+            return;
+        }
+        combinations = combinations.flatMap(combination =>
+            dimension.values.map(value => ({ ...combination, [dimension.type]: value }))
+        );
+    }
+    const rows = [...tbody.querySelectorAll('.fg-variant-row')];
+    const starterRow = rows.length === 1
+        && !rows[0].querySelector('.fg-variant-name')?.value
+        && !rows[0].querySelector('.fg-variant-category')?.value
+        && !rows[0].querySelector('.fg-variant-qty')?.value
+        && !rows[0].querySelector('.fg-variant-cost')?.value;
+    const activeRows = rows.filter(row => !(starterRow && row === rows[0]));
+    const rowCombinationKey = row => JSON.stringify(dimensions.map(dimension => [
+        dimension.type,
+        [...row.querySelectorAll('.fg-variant-attribute')]
+            .find(control => control.dataset.attributeType === dimension.type)?.value || ''
+    ]));
+    const existingCombinations = new Set(activeRows.map(rowCombinationKey));
+    combinations = combinations.filter(combination => {
+        const key = JSON.stringify(dimensions.map(dimension => [dimension.type, combination[dimension.type] || '']));
+        if (existingCombinations.has(key)) return false;
+        existingCombinations.add(key);
+        return true;
+    });
+    if (!combinations.length) {
+        alert('All selected attribute combinations already exist in the table.');
+        return;
+    }
+    if (activeRows.length + combinations.length > 100) {
+        alert('A style can contain up to 100 variant rows.');
+        return;
+    }
+
+    if (starterRow) rows[0].remove();
+    combinations.forEach(attributes => addFinishedVariantRow(fgId, attributes));
+}
+
+function quickFillProductAddingVariants(fgId) {
+    const tbody = document.getElementById('fgVariantTableBody_' + fgId);
+    const rows = [...(tbody?.querySelectorAll('.fg-variant-row') || [])];
+    if (rows.length < 2) {
+        alert('Add or generate at least two variants before using Quick fill.');
+        return;
+    }
+    const sourceRow = rows[0];
+    const commonFields = [
+        '.fg-variant-qty',
+        '.fg-variant-weight',
+        '.fg-variant-hsn',
+        '.fg-variant-gst-rate',
+        '.fg-variant-cost',
+        '.fg-variant-mrp',
+        '.fg-variant-selling'
+    ];
+    const categoryId = sourceRow.querySelector('.fg-variant-category')?.value || '';
+    const subcategoryId = sourceRow.querySelector('.fg-variant-subcategory')?.value || '';
+    const subSubcategoryId = sourceRow.querySelector('.fg-variant-sub-subcategory')?.value || '';
+
+    rows.slice(1).forEach(row => {
+        row.querySelector('.fg-variant-category').value = categoryId;
+        fillFinishedVariantSubcategories(row, categoryId, subcategoryId);
+        fillFinishedVariantSubSubcategories(row, subcategoryId, subSubcategoryId);
+        commonFields.forEach(selector => {
+            const source = sourceRow.querySelector(selector);
+            const target = row.querySelector(selector);
+            if (!source || !target) return;
+            target.value = source.value;
+            if (selector === '.fg-variant-hsn') {
+                target.dataset.hsnGstRate = source.dataset.hsnGstRate || '';
+                target.dataset.hsnRateNote = source.dataset.hsnRateNote || '';
+            }
+        });
+        updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
+    });
     syncFinishedTable();
 }
 
@@ -1819,9 +2387,7 @@ function updateProductAddingVariantRow(fgId, rowIndex) {
     const card = document.getElementById('finishedCard_' + fgId);
     const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
     if (!card || !row) return;
-    const styleCode = (card.querySelector('.fg-input-style-code')?.value || '').trim().toUpperCase();
     const variantName = row.querySelector('.fg-variant-name');
-    const sku = row.querySelector('.fg-variant-sku');
     const color = row.querySelector('[data-attribute-type="color"]')?.value || '';
     const size = row.querySelector('[data-attribute-type="size"]')?.value || '';
     const customValues = [...row.querySelectorAll('.fg-variant-attribute')]
@@ -1832,31 +2398,6 @@ function updateProductAddingVariantRow(fgId, rowIndex) {
     if (variantName && !variantName.dataset.userEdited) {
         variantName.value = variantParts.join(' - ').slice(0, 150);
     }
-    if (sku && !sku.dataset.userEdited) {
-        const skuParts = [styleCode, size, color, ...customValues]
-            .filter(Boolean)
-            .join('-')
-            .toUpperCase()
-            .replace(/[^A-Z0-9-]+/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '');
-        const siblingSkus = [...card.querySelectorAll('.fg-variant-sku')]
-            .filter(input => input !== sku)
-            .map(input => input.value.toUpperCase());
-        let candidate = skuParts.slice(0, 45);
-        let suffix = 2;
-        while (candidate && siblingSkus.includes(candidate)) {
-            const ending = `-${suffix++}`;
-            candidate = `${skuParts.slice(0, 45 - ending.length)}${ending}`;
-        }
-        sku.value = candidate;
-    }
-    const skuInputs = [...card.querySelectorAll('.fg-variant-sku')];
-    skuInputs.forEach(input => {
-        const value = input.value.trim().toUpperCase();
-        const isDuplicateSku = value !== '' && skuInputs.some(other => other !== input && other.value.trim().toUpperCase() === value);
-        input.setCustomValidity(isDuplicateSku ? 'Variant SKU must be unique within this style.' : '');
-    });
     const costInput = row.querySelector('.fg-variant-cost');
     const sellingInput = row.querySelector('.fg-variant-selling');
     const mrpInput = row.querySelector('.fg-variant-mrp');
@@ -1899,6 +2440,8 @@ function fillFinishedVariantSubcategories(row, categoryId, selectedSubcategoryId
         .forEach(item => subcategory.add(new Option(item.name, item.id)));
     subcategory.value = selectedSubcategoryId || '';
     subcategory.disabled = !categoryId;
+    const addSubcategoryButton = row.querySelector('.fg-add-subcategory');
+    if (addSubcategoryButton) addSubcategoryButton.disabled = !categoryId;
     fillFinishedVariantSubSubcategories(row, subcategory.value);
 }
 
@@ -1911,6 +2454,8 @@ function fillFinishedVariantSubSubcategories(row, subcategoryId, selectedSubSubc
         .forEach(item => subSubcategory.add(new Option(item.name, item.id)));
     subSubcategory.value = selectedSubSubcategoryId || '';
     subSubcategory.disabled = !subcategoryId;
+    const addSubSubcategoryButton = row.querySelector('.fg-add-sub-subcategory');
+    if (addSubSubcategoryButton) addSubSubcategoryButton.disabled = !subcategoryId;
 }
 
 function onFinishedVariantCategoryChange(fgId, rowIndex) {
@@ -1969,6 +2514,93 @@ function onFinishedVariantSubSubcategoryChange(fgId, rowIndex) {
         if ([...select.options].some(option => option.value === selectedId)) select.value = selectedId;
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
+}
+
+async function quickAddFinishedHierarchy(tier, fgId, rowIndex) {
+    const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
+    if (!row) return;
+    const categoryId = row.querySelector('.fg-variant-category')?.value || '';
+    const subcategoryId = row.querySelector('.fg-variant-subcategory')?.value || '';
+    if (tier !== 'category' && !categoryId) {
+        alert('Select a category first.');
+        return;
+    }
+    if (tier === 'subsubcategory' && !subcategoryId) {
+        alert('Select a subcategory first.');
+        return;
+    }
+
+    const labels = {
+        category: 'category',
+        subcategory: 'subcategory',
+        subsubcategory: 'sub-subcategory'
+    };
+    const name = window.prompt(`New ${labels[tier]} name:`);
+    if (name === null) return;
+    if (!name.trim()) {
+        alert('Enter a name before adding this category.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('csrf_token', document.querySelector('#formPurchaseBill input[name="csrf_token"]')?.value || '');
+    formData.append('concern_id', String(getProductAddingConcernId()));
+    formData.append('tier', tier);
+    formData.append('name', name.trim());
+    if (categoryId) formData.append('category_id', categoryId);
+    if (subcategoryId) formData.append('subcategory_id', subcategoryId);
+
+    try {
+        const response = await fetch(quickCategorySaveUrl, {
+            method: 'POST',
+            body: formData,
+            headers: { Accept: 'application/json' }
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `Unable to add ${labels[tier]}.`);
+        }
+
+        const card = document.getElementById('finishedCard_' + fgId);
+        const rows = [...(card?.querySelectorAll('.fg-variant-row') || [])];
+        if (tier === 'category') {
+            productAddingCategories.push({
+                id: result.id,
+                concern_id: result.concern_id,
+                name: result.name
+            });
+            rows.forEach(variantRow => {
+                const select = variantRow.querySelector('.fg-variant-category');
+                select.innerHTML = buildProductAddingCategoryOptions();
+                select.value = String(result.id);
+            });
+            onFinishedVariantCategoryChange(fgId, rowIndex);
+        } else if (tier === 'subcategory') {
+            productAddingSubcategories.push({
+                id: result.id,
+                concern_id: result.concern_id,
+                category_id: result.category_id,
+                name: result.name
+            });
+            rows.forEach(variantRow => {
+                fillFinishedVariantSubcategories(variantRow, categoryId, String(result.id));
+            });
+            onFinishedVariantSubcategoryChange(fgId, rowIndex);
+        } else {
+            productAddingSubSubcategories.push({
+                id: result.id,
+                concern_id: result.concern_id,
+                subcategory_id: result.parent_id,
+                name: result.name
+            });
+            rows.forEach(variantRow => {
+                fillFinishedVariantSubSubcategories(variantRow, subcategoryId, String(result.id));
+            });
+            onFinishedVariantSubSubcategoryChange(fgId, rowIndex);
+        }
+    } catch (error) {
+        alert(error.message || `Unable to add ${labels[tier]}.`);
+    }
 }
 
 function onFinishedVariantHsnChange(fgId, rowIndex) {
@@ -3147,10 +3779,6 @@ function addFinishedRow() {
     `;
     container.appendChild(div);
     if (isProductAddingForm) {
-        const styleCodeInput = div.querySelector('.fg-input-style-code');
-        if (styleCodeInput) {
-            styleCodeInput.value = `FG-${Date.now().toString(36).toUpperCase()}-${finishedCounter}`;
-        }
         initializeProductAddingFinishedRow(finishedCounter);
     }
     syncFinishedTable();

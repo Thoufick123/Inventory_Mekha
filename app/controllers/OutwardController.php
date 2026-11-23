@@ -317,10 +317,22 @@ class OutwardController extends Controller {
             ? (int)$_POST['destination_concern_id'] 
             : (!empty($_POST['destination_concern_id_fg']) ? (int)$_POST['destination_concern_id_fg'] : null);
         $customerId      = !empty($_POST['customer_id']) ? (int)$_POST['customer_id'] : null;
-        $warehouseName   = trim($_POST['warehouse_name'] ?? ($_POST['destination_warehouse_fg'] ?? ($_POST['warehouse_name_fg'] ?? 'wareouse (WH-01)')));
-        if (empty($warehouseName) && $destConcernId) {
-            $cName = DB::fetchValue("SELECT name FROM concerns WHERE id = ?", [$destConcernId]);
-            if ($cName) $warehouseName = $cName;
+
+        // STRICT CONCERN SELECTION: If dispatching to a concern, destination concern is mandatory
+        if ($dispatchMode === 'batch' || ($posInvoiceId === 0 && empty($customerId))) {
+            if (!$destConcernId) {
+                throw new Exception('Please select a valid Destination Concern for this outward dispatch.');
+            }
+        }
+
+        if ($destConcernId) {
+            $destCon = DB::fetch("SELECT id, name FROM concerns WHERE id = ? AND status = 'active'", [$destConcernId]);
+            if (!$destCon) {
+                throw new Exception("Selected destination concern #{$destConcernId} does not exist or is inactive.");
+            }
+            $warehouseName = $destCon['name'];
+        } else {
+            $warehouseName   = trim($_POST['warehouse_name'] ?? ($_POST['destination_warehouse_fg'] ?? ($_POST['warehouse_name_fg'] ?? 'wareouse (WH-01)')));
         }
         $vehicleNumber   = trim($_POST['vehicle_number'] ?? 'rtt31232');
         $driverName      = trim($_POST['driver_name'] ?? 'Vanaja');
@@ -367,7 +379,7 @@ class OutwardController extends Controller {
                     )
                 ", [
                     $cid, $puId, $outwardNo, $gatePassNo,
-                    $destConcernId ?: 1, $warehouseName, $boxes,
+                    $destConcernId, $warehouseName, $boxes,
                     $vehicleNumber, $driverName, $driverContact, $transporter, $notes
                 ]);
 

@@ -221,6 +221,7 @@ CREATE TABLE IF NOT EXISTS `label_jobs` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `concern_id` INT NOT NULL,
     `label_type` VARCHAR(50) NOT NULL DEFAULT 'production', -- 'purchase_raw', 'purchase_fg', 'production', 'return'
+    `source_module` VARCHAR(50) NOT NULL DEFAULT 'label_generation',
     `ref_id` INT NULL,
     `variant_id` INT NULL,
     `item_title` VARCHAR(255) NULL,
@@ -318,6 +319,7 @@ CREATE TABLE IF NOT EXISTS `purchase_bills` (
     `concern_id` INT NOT NULL,
     `bill_no` VARCHAR(50) NOT NULL,
     `supplier_invoice_no` VARCHAR(100) NULL,
+    `source_module` VARCHAR(50) NOT NULL DEFAULT 'purchase_billing',
     `supplier_id` INT NOT NULL,
     `bill_date` DATE NOT NULL,
     `total_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,

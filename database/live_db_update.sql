@@ -489,10 +489,14 @@ ALTER TABLE `hsn_masters`
     MODIFY COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1;
 
 -- Align `purchase_bills` table
+CALL AddColSafe('purchase_bills', 'source_module', "VARCHAR(50) NOT NULL DEFAULT 'purchase_billing' AFTER `supplier_invoice_no`");
 CALL AddColSafe('purchase_bills', 'inward_status', "ENUM('pending', 'completed') NOT NULL DEFAULT 'pending'");
 CALL AddColSafe('purchase_bills', 'inward_at', 'DATETIME NULL');
 CALL AddColSafe('purchase_bills', 'attachment_paths', 'JSON NULL');
 CALL AddColSafe('purchase_bills', 'fabric_description', 'VARCHAR(255) NULL');
+
+-- Track Product Adding label jobs separately from Label Generation jobs.
+CALL AddColSafe('label_jobs', 'source_module', "VARCHAR(50) NOT NULL DEFAULT 'label_generation' AFTER `label_type`");
 
 -- Align `purchase_bill_items` table
 CALL AddColSafe('purchase_bill_items', 'inward_status', "ENUM('pending', 'completed') NOT NULL DEFAULT 'pending'");

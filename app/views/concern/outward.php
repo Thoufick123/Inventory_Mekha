@@ -481,7 +481,7 @@
                             <label class="form-label small fw-bold text-dark">
                                 <i class="bi bi-truck text-primary me-1"></i> Destination Concern (Outward To Concern) *
                             </label>
-                            <select name="destination_concern_id_fg" id="fgDestConcernSelect" class="form-select form-select-sm fw-semibold border-primary">
+                            <select name="destination_concern_id_fg" id="fgDestConcernSelect" class="form-select form-select-sm fw-semibold border-primary" <?= empty($posInvoiceTransfer) ? 'required' : '' ?>>
                                 <option value="">-- Select Outward Destination Concern --</option>
                                 <?php foreach ($allConcerns as $con): ?>
                                     <option value="<?= $con['id'] ?>">

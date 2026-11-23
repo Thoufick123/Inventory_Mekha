@@ -14,6 +14,20 @@ $liveSql = file_get_contents(__DIR__ . '/../database/live_db_update.sql');
 $checks = [
     'Product Adding route is registered' => str_contains($routeSource, "'/m/product_adding'"),
     'Product Adding store route is registered' => str_contains($routeSource, "'/m/product_adding/store'"),
+    'Product Adding supports secure quick category hierarchy creation' => str_contains($routeSource, "'/m/product_adding/categories/store'")
+        && str_contains($controllerSource, 'function storeHierarchyAjax')
+        && str_contains($controllerSource, '$this->validateCsrf()')
+        && str_contains($viewSource, 'quickAddFinishedHierarchy'),
+    'Product Adding supports secure quick attribute creation and values' => str_contains($routeSource, "'/m/product_adding/attributes/store'")
+        && str_contains($controllerSource, 'function storeAttributeAjax')
+        && str_contains($controllerSource, 'INSERT INTO product_attributes')
+        && str_contains($controllerSource, '$this->validateCsrf()')
+        && str_contains($controllerSource, 'reservedTypes')
+        && str_contains($viewSource, 'quickAttributeSaveUrl')
+        && str_contains($viewSource, 'promptAddProductAddingAttribute')
+        && str_contains($viewSource, 'handleProductAddingAttributeChange')
+        && str_contains($viewSource, 'saveProductAddingAttributeValue')
+        && str_contains($viewSource, '+ Add New Value...'),
     'Product Adding has a scoped quick-supplier save route' => str_contains($routeSource, "'/m/product_adding/suppliers/store'")
         && str_contains($routeSource, 'storeSupplierAjax'),
     'Product Adding invoices use the Purchase Billing persistence path' => str_contains($routeSource, "'/m/product_adding/store', [PurchaseController::class, 'storeBill']")
@@ -36,11 +50,21 @@ $checks = [
         && str_contains($viewSource, 'fg-variant-category')
         && str_contains($viewSource, 'fg-variant-subcategory')
         && str_contains($viewSource, 'fg-variant-sub-subcategory')
+        && str_contains($viewSource, 'fg-variant-gst-rate')
+        && str_contains($viewSource, 'readonly aria-label="GST rate from HSN code"')
+        && !str_contains($viewSource, 'VARIANT SKU CODE')
+        && str_contains($viewSource, 'fg-variant-matrix-scroll')
         && str_contains($viewSource, 'finished_goods[${cardId}][variants][${rowIndex}]')
         && str_contains($viewSource, 'fg-variant-gst-rate')
         && str_contains($viewSource, 'fg-input-selling'),
+    'Product Adding enforces supplier cost below selling price below MRP' => str_contains($viewSource, 'Supplier cost must be lower than selling price.')
+        && str_contains($viewSource, 'MRP must be greater than selling price.')
+        && str_contains($purchaseControllerSource, 'if ($supplierCost <= 0 || $sellingPrice <= $supplierCost || $mrp <= $sellingPrice)')
+        && str_contains($purchaseControllerSource, 'Supplier Cost < Selling Price < MRP.'),
     'Product Adding always creates new styles without existing-catalog actions' => str_contains($viewSource, 'initializeProductAddingFinishedRow')
-        && str_contains($viewSource, 'FG-{base-36 timestamp}-{sequence}')
+        && str_contains($viewSource, 'Style code is generated automatically.')
+        && !str_contains($viewSource, 'finished_goods[${id}][style_code]')
+        && str_contains($purchaseControllerSource, "random_bytes(4)")
         && !str_contains($viewSource, 'Catalog action')
         && !str_contains($viewSource, 'Existing Catalog Variant')
         && !str_contains($controllerSource, '$catalogVariants = DB::fetchAll'),

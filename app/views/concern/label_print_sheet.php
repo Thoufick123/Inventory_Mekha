@@ -254,6 +254,7 @@ if ($isFinishedGoods && !empty($labelData['variant_id'])) {
 $isProduction = ($labelType === 'production') 
     || (($labelData['section_title'] ?? '') === 'PRODUCTION FINISHED GARMENT')
     || (($labelData['stock_tab'] ?? '') === 'production');
+$multiLabelUnit = ($labelType ?? '') === 'product_adding' ? 'bill lines' : 'variants';
 
 // Precalculate variant summary for batch mode
 $variantSummary = [];
@@ -306,7 +307,7 @@ if (!empty($multiLabels)) {
                     <?= $viewOnly ? 'Viewing' : 'Printing' ?>
                     <strong><?= (int)$qty ?> <?= $viewOnly ? 'label' : 'labels' ?></strong>
                     <?php if (!$viewOnly || ($variantCount ?? count($multiLabels)) !== 1): ?>
-                        across <strong><?= (int)($variantCount ?? count($multiLabels)) ?> variants</strong>
+                        across <strong><?= (int)($variantCount ?? count($multiLabels)) ?> <?= htmlspecialchars($multiLabelUnit) ?></strong>
                     <?php endif; ?>
                     <?php if (($labelType ?? '') === 'production'): ?>
                         for Batch <strong>#<?= htmlspecialchars($batchNo ?? 'BATCH') ?></strong>
@@ -319,7 +320,7 @@ if (!empty($multiLabels)) {
                 <span><?= $viewOnly ? 'Viewing' : 'Printing' ?> <strong><?= (int)$qty ?> <?= $viewOnly ? 'label' : 'copies' ?></strong> of <strong><?= htmlspecialchars(!empty($headerTitle) ? $headerTitle : $label1Val) ?></strong> (<?= htmlspecialchars($tagCode) ?>) &bull; Concern: <strong><?= htmlspecialchars($concernName) ?></strong></span>
             <?php endif; ?>
         </div>
-        <?php if (!empty($multiLabels) && !empty($variantSummary)): ?>
+        <?php if (!empty($multiLabels) && !empty($variantSummary) && ($labelType ?? '') !== 'product_adding'): ?>
             <div class="d-flex align-items-center gap-1 flex-wrap">
                 <span class="text-secondary small fw-semibold me-1">Variants:</span>
                 <?php foreach ($variantSummary as $sz => $info): ?>
@@ -335,6 +336,7 @@ if (!empty($multiLabels)) {
 <div class="label-grid" id="labelGrid">
     <?php if (!empty($multiLabels)): ?>
         <?php foreach ($multiLabels as $lbl): 
+            $isLabelFinishedGoods = ($lbl['stock_tab'] ?? '') === 'finished_goods';
             $cName     = $lbl['concern_name'] ?? $concernName;
             $rNo       = $lbl['ref_no'] ?? 'REF-001';
             $hTitle    = $lbl['header_title'] ?? ($lbl['item_title'] ?? '');
@@ -346,10 +348,10 @@ if (!empty($multiLabels)) {
             $lblVariantAttributes = $lbl['variant_attributes'] ?? [];
             $lblVariantAttributes = is_array($lblVariantAttributes) ? $lblVariantAttributes : [];
             $pVal      = (float)($lbl['price'] ?? ($lbl['price_mrp'] ?? 0));
-            $tCode     = $isFinishedGoods && !empty($lbl['variant_id'])
+            $tCode     = $isLabelFinishedGoods && !empty($lbl['variant_id'])
                 ? $finishedGoodsCode($lbl)
                 : ($lbl['tag_code'] ?? ($lbl['item_code'] ?? 'SKU'));
-            $iQr       = $isFinishedGoods && !empty($lbl['variant_id'])
+            $iQr       = $isLabelFinishedGoods && !empty($lbl['variant_id'])
                 ? $tCode
                 : ($lbl['qr_payload'] ?? $tCode);
             $vSize     = !empty($lbl['variant_size']) ? $lbl['variant_size'] : preg_replace('/^SIZE:\s*/i', '', $dVal);
@@ -388,7 +390,7 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($pVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label"><?= $isFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
+                                <span class="detail-label"><?= $isLabelFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tCode) ?></span>
                             </div>
                         <?php else: ?>
@@ -417,7 +419,7 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($pVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label"><?= $isFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
+                                <span class="detail-label"><?= $isLabelFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tCode) ?></span>
                             </div>
                         <?php endif; ?>
@@ -529,6 +531,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+    <?php if (($labelType ?? '') === 'product_adding'): ?>
+    if (window.opener && !window.opener.closed) {
+        window.opener.location.reload();
+    }
+    <?php endif; ?>
 });
 
 function setLayout(mode) {

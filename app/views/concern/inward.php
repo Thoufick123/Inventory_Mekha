@@ -14,6 +14,19 @@
             </nav>
             <h4 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
                 <i class="bi bi-box-arrow-in-down text-primary"></i> Production Inward
+                <?php if (!empty($currentConcern)): ?>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6 fw-semibold ms-2">
+                        <i class="bi bi-building me-1"></i> <?= htmlspecialchars($currentConcern['name']) ?> (<?= htmlspecialchars($currentConcern['code']) ?>)
+                    </span>
+                <?php elseif (!empty($selectedCid)): ?>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6 fw-semibold ms-2">
+                        <i class="bi bi-building me-1"></i> Concern #<?= (int)$selectedCid ?>
+                    </span>
+                <?php else: ?>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 fs-6 fw-semibold ms-2">
+                        <i class="bi bi-globe me-1"></i> Consolidated (All Concerns)
+                    </span>
+                <?php endif; ?>
             </h4>
         </div>
         <div class="d-flex gap-2">
@@ -113,7 +126,7 @@
             <div class="col-12 col-md-3">
                 <label class="form-label small text-muted mb-1 fw-semibold">Destination Warehouse</label>
                 <select class="form-select form-select-sm" id="filterWarehouse" onchange="filterBatches()">
-                    <option value="">wareouse (WH-01)</option>
+                    <option value="">All Destination Facilities</option>
                     <?php foreach ($allConcerns as $c): ?>
                         <option value="<?= htmlspecialchars($c['name']) ?>"><?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code']) ?>)</option>
                     <?php endforeach; ?>
@@ -161,7 +174,8 @@
                         <tr>
                             <td colspan="7" class="text-center py-5 text-muted">
                                 <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-                                No incoming production dispatches found. Use <strong>Receive Inward Consignment</strong> to record manual stock arrivals.
+                                <div class="fw-bold fs-6 text-dark mb-1">No Incoming Outward Dispatches For This Concern</div>
+                                <div class="small">Only outward consignments specifically dispatched to this destination concern appear here. Use <strong>Receive Inward Consignment</strong> below to record direct vendor receipts.</div>
                             </td>
                         </tr>
                     <?php else: ?>
@@ -249,6 +263,15 @@
 
     <!-- 5. VIEW B: Batch Cards View (Tablet / Mobile friendly) -->
     <div class="row g-3 d-none mb-4" id="viewCardsContainer">
+        <?php if (empty($inwardBatches)): ?>
+            <div class="col-12">
+                <div class="card border-0 shadow-sm rounded-3 p-5 text-center text-muted bg-white">
+                    <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                    <div class="fw-bold fs-6 text-dark mb-1">No Incoming Outward Dispatches For This Concern</div>
+                    <div class="small">Only outward consignments specifically dispatched to this destination concern appear here.</div>
+                </div>
+            </div>
+        <?php else: ?>
         <?php foreach ($inwardBatches as $ib): 
             $scanQty = $ib['short_qty'] > 0 ? (int)$ib['short_qty'] : (int)$ib['total_qty'];
             $scanUrl = \App\Core\Controller::url('/m/inward/scan/' . $ib['outward_id']);
@@ -309,6 +332,7 @@
             </div>
         </div>
         <?php endforeach; ?>
+        <?php endif; ?>
     </div>
 
     <!-- 6. Traditional Inwards Consignments Section (Purchase Bills, Direct Vendor Inwards) -->

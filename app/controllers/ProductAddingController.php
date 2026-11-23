@@ -7,6 +7,8 @@ use App\Core\Controller;
 use App\Core\DB;
 use App\Services\StockService;
 use App\Services\RollRegistryService;
+use App\Services\PurchaseBillSourceService;
+use App\Services\PurchaseStockItemOverrideService;
 use Exception;
 
 class ProductAddingController extends Controller
@@ -14,7 +16,54 @@ class ProductAddingController extends Controller
     public function index(): void
     {
         $this->ensureSchema();
+        PurchaseBillSourceService::ensureSchema();
         $cid = Auth::concernId();
+        $savedBill = null;
+        $savedBillItems = [];
+        $billId = (int)($_GET['bill_id'] ?? 0);
+        if ($billId > 0) {
+            $billSql = "SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company
+                        FROM purchase_bills pb
+                        LEFT JOIN suppliers s ON s.id = pb.supplier_id
+                        WHERE pb.id = ? AND pb.source_module = 'product_adding'";
+            $billParams = [$billId];
+            if ($cid) {
+                $billSql .= " AND pb.concern_id = ?";
+                $billParams[] = $cid;
+            }
+            $savedBill = DB::fetch($billSql, $billParams);
+            if ($savedBill) {
+                PurchaseStockItemOverrideService::initTable();
+                $savedBillItems = DB::fetchAll(
+                    "SELECT pbi.*,
+                            COALESCE((
+                                SELECT SUM(lj.qty)
+                                FROM label_jobs lj
+                                WHERE lj.ref_id = pbi.id
+                                  AND lj.concern_id = pbi.concern_id
+                                  AND lj.label_type = CASE
+                                      WHEN pbi.section_type = 'finished_goods' THEN 'purchase_fg'
+                                      ELSE 'purchase_raw'
+                                  END
+                                  AND lj.source_module = 'product_adding'
+                                  AND lj.id > COALESCE(pso.label_job_baseline_id, 0)
+                            ), 0) AS generated_label_qty
+                     FROM purchase_bill_items pbi
+                     LEFT JOIN purchase_stock_item_overrides pso
+                       ON pso.purchase_bill_item_id = pbi.id AND pso.concern_id = pbi.concern_id
+                     WHERE pbi.purchase_bill_id = ?
+                     ORDER BY pbi.id ASC",
+                    [$billId]
+                );
+                $savedBillItems = PurchaseStockItemOverrideService::applyToItems($savedBillItems, false);
+                foreach ($savedBillItems as &$savedItem) {
+                    $savedItem['required_label_qty'] = (int)ceil((float)$savedItem['qty']);
+                    $savedItem['generated_label_qty'] = max(0, (int)$savedItem['generated_label_qty']);
+                    $savedItem['labels_complete'] = $savedItem['generated_label_qty'] >= $savedItem['required_label_qty'];
+                }
+                unset($savedItem);
+            }
+        }
         if ($cid) {
             $suppliers = DB::fetchAll("SELECT id, code, name, company_name, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $variants = DB::fetchAll("SELECT id, sku_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
@@ -67,12 +116,18 @@ class ProductAddingController extends Controller
             'hsnSaveUrl' => \App\Core\Controller::url('/m/product_adding/save_hsn'),
             'rollSpecSaveUrl' => \App\Core\Controller::url('/m/product_adding/save_roll_spec'),
             'quickSupplierSaveUrl' => \App\Core\Controller::url('/m/product_adding/suppliers/store'),
+            'quickCategorySaveUrl' => \App\Core\Controller::url('/m/product_adding/categories/store'),
+            'quickAttributeSaveUrl' => \App\Core\Controller::url('/m/product_adding/attributes/store'),
             'allowQuickSupplier' => Auth::isSuperAdmin() || Auth::can('product_adding', 'add'),
             'backUrl' => \App\Core\Controller::url('/m/stocks'),
             'backLabel' => 'Back to Stock',
             'submitLabel' => 'Save Product Purchase',
             'pageHeading' => 'Product Adding',
             'pageDescription' => 'Record fabric rolls, garment supplies/accessories and finished goods received from vendors.',
+            'savedBill' => $savedBill,
+            'savedBillItems' => $savedBillItems,
+            'productAddingLabelUrl' => \App\Core\Controller::url('/m/product_adding/generate_labels'),
+            'productAddingStockUrl' => \App\Core\Controller::url('/m/product_adding/add_to_stock'),
         ]);
     }
 
@@ -102,6 +157,230 @@ class ProductAddingController extends Controller
         }
         $sql .= " ORDER BY name ASC";
         $this->renderJson(['success' => true, 'items' => DB::fetchAll($sql, $params)]);
+    }
+
+    public function storeHierarchyAjax(): void
+    {
+        $this->validateCsrf();
+        header('Content-Type: application/json');
+
+        $userConcernId = Auth::concernId();
+        $requestedConcernId = (int)($_POST['concern_id'] ?? 0);
+        $concernId = Auth::isSuperAdmin()
+            ? ($requestedConcernId ?: (int)($userConcernId ?? 0))
+            : (int)($userConcernId ?? 0);
+        $tier = trim((string)($_POST['tier'] ?? ''));
+        $name = trim((string)($_POST['name'] ?? ''));
+        $code = strtoupper(trim((string)($_POST['code'] ?? '')));
+
+        $respond = static function (bool $success, array $data = [], int $status = 200): void {
+            http_response_code($status);
+            echo json_encode(array_merge(['success' => $success], $data));
+            exit;
+        };
+
+        if ($concernId <= 0 || (!Auth::isSuperAdmin() && $requestedConcernId && $requestedConcernId !== $concernId)) {
+            $respond(false, ['message' => 'Choose a valid concern before adding a category.'], 422);
+        }
+        if (!DB::fetchValue('SELECT id FROM concerns WHERE id = ?', [$concernId])) {
+            $respond(false, ['message' => 'The selected concern does not exist.'], 422);
+        }
+        if (!in_array($tier, ['category', 'subcategory', 'subsubcategory'], true)) {
+            $respond(false, ['message' => 'Choose a valid category level.'], 422);
+        }
+        if ($name === '' || mb_strlen($name) > 100) {
+            $respond(false, ['message' => 'Enter a category name of 1 to 100 characters.'], 422);
+        }
+        if ($code === '') {
+            $code = strtoupper(substr(preg_replace('/[^A-Z0-9]/i', '', $name) ?: 'NEW', 0, 10));
+        }
+
+        try {
+            if ($tier === 'category') {
+                $duplicate = DB::fetch(
+                    "SELECT id, name FROM categories
+                     WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                       AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'
+                     LIMIT 1",
+                    [$concernId, $name]
+                );
+                if ($duplicate) {
+                    $respond(false, ['message' => 'That category already exists.', 'existing_id' => (int)$duplicate['id']], 409);
+                }
+
+                DB::query(
+                    "INSERT INTO categories (concern_id, name, code, default_hsn, default_gst_rate, status, created_at)
+                     VALUES (?, ?, ?, NULL, NULL, 'active', NOW())",
+                    [$concernId, $name, $code]
+                );
+                $parentId = null;
+                $id = (int)DB::lastInsertId();
+                $categoryId = $id;
+            } elseif ($tier === 'subcategory') {
+                $parentId = (int)($_POST['category_id'] ?? 0);
+                $parent = DB::fetch(
+                    "SELECT id FROM categories
+                     WHERE id = ? AND status = 'active'
+                       AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                    [$parentId, $concernId]
+                );
+                if (!$parent) {
+                    $respond(false, ['message' => 'Select a valid parent category first.'], 422);
+                }
+                $duplicate = DB::fetch(
+                    "SELECT id FROM subcategories
+                     WHERE category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                       AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'
+                     LIMIT 1",
+                    [$parentId, $concernId, $name]
+                );
+                if ($duplicate) {
+                    $respond(false, ['message' => 'That subcategory already exists under the selected category.', 'existing_id' => (int)$duplicate['id']], 409);
+                }
+
+                DB::query(
+                    "INSERT INTO subcategories (concern_id, category_id, name, code, status, created_at)
+                     VALUES (?, ?, ?, ?, 'active', NOW())",
+                    [$concernId, $parentId, $name, $code]
+                );
+                $categoryId = $parentId;
+                $id = (int)DB::lastInsertId();
+            } else {
+                $parentId = (int)($_POST['subcategory_id'] ?? 0);
+                $categoryId = (int)($_POST['category_id'] ?? 0);
+                $parent = DB::fetch(
+                    "SELECT id FROM subcategories
+                     WHERE id = ? AND category_id = ? AND status = 'active'
+                       AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                    [$parentId, $categoryId, $concernId]
+                );
+                if (!$parent) {
+                    $respond(false, ['message' => 'Select a valid parent subcategory first.'], 422);
+                }
+                $duplicate = DB::fetch(
+                    "SELECT id FROM sub_subcategories
+                     WHERE subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                       AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'
+                     LIMIT 1",
+                    [$parentId, $concernId, $name]
+                );
+                if ($duplicate) {
+                    $respond(false, ['message' => 'That sub-subcategory already exists under the selected subcategory.', 'existing_id' => (int)$duplicate['id']], 409);
+                }
+
+                DB::query(
+                    "INSERT INTO sub_subcategories (concern_id, subcategory_id, name, code, status, created_at)
+                     VALUES (?, ?, ?, ?, 'active', NOW())",
+                    [$concernId, $parentId, $name, $code]
+                );
+                $categoryId = (int)($_POST['category_id'] ?? 0);
+                $id = (int)DB::lastInsertId();
+            }
+
+            $respond(true, [
+                'id' => $id,
+                'name' => $name,
+                'code' => $code,
+                'tier' => $tier,
+                'concern_id' => $concernId,
+                'parent_id' => $parentId,
+                'category_id' => $tier === 'category' ? $id : ($categoryId ?? $parentId),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('Product Adding hierarchy quick-add failed: ' . $e->getMessage());
+            $respond(false, ['message' => 'Unable to save this category. Please try again.'], 500);
+        }
+    }
+
+    public function storeAttributeAjax(): void
+    {
+        $this->validateCsrf();
+        header('Content-Type: application/json');
+
+        $userConcernId = Auth::concernId();
+        $requestedConcernId = (int)($_POST['concern_id'] ?? 0);
+        $concernId = Auth::isSuperAdmin()
+            ? ($requestedConcernId ?: (int)($userConcernId ?? 0))
+            : (int)($userConcernId ?? 0);
+        $type = strtolower(trim((string)($_POST['attribute_type'] ?? '')));
+        $attributeName = trim((string)($_POST['attribute_name'] ?? ''));
+        $value = trim((string)($_POST['attribute_value'] ?? ''));
+
+        $respond = static function (bool $success, array $data = [], int $status = 200): void {
+            http_response_code($status);
+            echo json_encode(array_merge(['success' => $success], $data));
+            exit;
+        };
+
+        if ($concernId <= 0 || (!Auth::isSuperAdmin() && $requestedConcernId && $requestedConcernId !== $concernId)) {
+            $respond(false, ['message' => 'Choose a valid concern before saving an attribute.'], 422);
+        }
+        if (!DB::fetchValue('SELECT id FROM concerns WHERE id = ?', [$concernId])) {
+            $respond(false, ['message' => 'The selected concern does not exist.'], 422);
+        }
+        if (!preg_match('/^[a-z][a-z0-9_]{0,49}$/', $type)) {
+            $respond(false, ['message' => 'Attribute names must start with a letter and contain only letters, numbers, or underscores.'], 422);
+        }
+        $reservedTypes = [
+            'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
+            'quantity', 'qty', 'supplier_cost', 'unit_price', 'hsn', 'hsn_code', 'variant',
+            'style_code', 'category_id', 'subcategory_id', 'sub_sub_category_id',
+            'catalog_gst_rate', 'tax_mode', 'gst', 'gst_type', 'tax_input_type',
+            'gst_rate', 'sgst', 'cgst', 'igst', 'mrp', 'selling_price', 'weight',
+            'allocated_qty', 'custom_attributes', 'catalog_style_name', 'variant_name',
+        ];
+        if (in_array($type, $reservedTypes, true)) {
+            $respond(false, ['message' => 'That attribute name is reserved for a built-in product field.'], 422);
+        }
+        if ($attributeName === '') {
+            $attributeName = ucwords(str_replace('_', ' ', $type));
+        }
+        if (mb_strlen($attributeName) > 100 || $value === '' || mb_strlen($value) > 100) {
+            $respond(false, ['message' => 'Enter an attribute label and value of at most 100 characters.'], 422);
+        }
+
+        try {
+            $existing = DB::fetch(
+                "SELECT id, attribute_name, attribute_value FROM product_attributes
+                 WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                   AND LOWER(TRIM(attribute_type)) = LOWER(TRIM(?))
+                   AND LOWER(TRIM(attribute_value)) = LOWER(TRIM(?))
+                 LIMIT 1",
+                [$concernId, $type, $value]
+            );
+            if ($existing) {
+                $respond(true, [
+                    'id' => (int)$existing['id'],
+                    'concern_id' => $concernId,
+                    'attribute_type' => $type,
+                    'attribute_name' => (string)$existing['attribute_name'],
+                    'attribute_value' => (string)$existing['attribute_value'],
+                    'existing' => true,
+                ]);
+            }
+
+            $sortOrder = (int)DB::fetchValue(
+                'SELECT COALESCE(MAX(sort_order), 0) + 1 FROM product_attributes
+                 WHERE concern_id = ? AND LOWER(TRIM(attribute_type)) = LOWER(TRIM(?))',
+                [$concernId, $type]
+            );
+            DB::query(
+                'INSERT INTO product_attributes (concern_id, attribute_type, attribute_name, attribute_value, sort_order)
+                 VALUES (?, ?, ?, ?, ?)',
+                [$concernId, $type, $attributeName, $value, $sortOrder]
+            );
+            $respond(true, [
+                'id' => (int)DB::lastInsertId(),
+                'concern_id' => $concernId,
+                'attribute_type' => $type,
+                'attribute_name' => $attributeName,
+                'attribute_value' => $value,
+                'existing' => false,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('Product Adding attribute quick-add failed: ' . $e->getMessage());
+            $respond(false, ['message' => 'Unable to save this attribute. Please try again.'], 500);
+        }
     }
 
     public function store(): void
