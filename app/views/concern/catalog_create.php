@@ -7,8 +7,8 @@ if ($isEdit && !empty($style['sizes'])) {
     $selectedSizes = is_array($decoded) ? $decoded : explode(',', $style['sizes']);
 }
 if (!$isEdit) {
-    // Default initial selections (e.g. XXL or S, M, L)
-    $selectedSizes = ['S', 'M', 'L', 'XS', 'XL', 'XXL'];
+    // Unclicked / unselected by default on create as requested
+    $selectedSizes = [];
 }
 ?>
 <div class="container-fluid px-0">

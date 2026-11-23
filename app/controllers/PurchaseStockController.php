@@ -76,16 +76,43 @@ class PurchaseStockController extends Controller {
         $rollsWhere = $buildWhere('rolls');
         $rolls = DB::fetchAll(
             "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.inward_status, pb.payment_status,
+                    COALESCE(prog.allocated_qty, 0) AS allocated_qty,
+                    COALESCE(prog.allocated_weight, 0) AS allocated_weight,
+                    COALESCE(damage.damaged_qty, 0) AS damaged_qty,
+                    COALESCE(damage.damaged_weight, 0) AS damaged_weight,
                     s.name AS supplier_name, s.company_name AS supplier_company,
                     c.name AS concern_name, c.code AS concern_code
              FROM purchase_bill_items pbi
              JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
              LEFT JOIN suppliers s ON pb.supplier_id = s.id
              LEFT JOIN concerns c ON pbi.concern_id = c.id
+             LEFT JOIN (
+                 SELECT pr.purchase_bill_item_id,
+                        SUM(pr.allocated_qty) AS allocated_qty,
+                        SUM(pr.roll_weight) AS allocated_weight
+                 FROM program_rolls pr
+                 JOIN production_programs pp ON pr.program_id = pp.id
+                 WHERE pp.status != 'cancelled' AND pr.purchase_bill_item_id IS NOT NULL
+                 GROUP BY pr.purchase_bill_item_id
+             ) prog ON prog.purchase_bill_item_id = pbi.id
+             LEFT JOIN (
+                 SELECT purchase_bill_item_id,
+                        SUM(qty) AS damaged_qty,
+                        SUM(damaged_weight) AS damaged_weight
+                 FROM purchase_damage_quarantine
+                 WHERE item_type = 'rolls' AND purchase_bill_item_id IS NOT NULL
+                 GROUP BY purchase_bill_item_id
+             ) damage ON damage.purchase_bill_item_id = pbi.id
              WHERE {$rollsWhere['sql']}
              ORDER BY pbi.id DESC",
             $rollsWhere['params']
         );
+        foreach ($rolls as &$r) {
+            $r['available_qty'] = max(0.0, (float)$r['qty'] - (float)$r['allocated_qty'] - (float)$r['damaged_qty']);
+            $r['available_weight'] = max(0.0, (float)($r['net_weight'] ?? 0) - (float)$r['allocated_weight'] - (float)$r['damaged_weight']);
+            $r['available_value'] = max(0.0, (float)$r['available_qty'] * (float)($r['unit_price'] ?? 0));
+        }
+        unset($r);
 
         // Fetch Consolidated Color & Design Roll Stock Registry (Removes duplicate register entries & adds counts)
         RollRegistryService::syncSpecs($selectedCid);
@@ -238,14 +265,22 @@ class PurchaseStockController extends Controller {
         ];
 
         $consolidatedRollMetrics = RollRegistryService::getConsolidatedStock($selectedCid);
+        $metrics['rolls_qty']    = 0.0;
+        $metrics['rolls_weight'] = 0.0;
+        $metrics['rolls_value']  = 0.0;
+        $metrics['rolls_count']  = 0;
+        foreach ($consolidatedRollMetrics as $crm) {
+            $metrics['rolls_qty']    += (float)$crm['qty'];
+            $metrics['rolls_weight'] += (float)$crm['net_weight'];
+            $metrics['rolls_value']  += (float)$crm['total_value'];
+            if ((float)$crm['qty'] > 0) {
+                $metrics['rolls_count']++;
+            }
+        }
+
         foreach ($allMetrics as $m) {
             $t = $m['section_type'];
-            if ($t === 'rolls') {
-                $metrics['rolls_qty']    = (float)$m['total_qty'];
-                $metrics['rolls_weight'] = (float)$m['total_weight'];
-                $metrics['rolls_value']  = (float)$m['total_val'];
-                $metrics['rolls_count']  = (int)$m['item_count'];
-            } elseif ($t === 'garment_other') {
+            if ($t === 'garment_other') {
                 $metrics['other_qty']   = (float)$m['total_qty'];
                 $metrics['other_value'] = (float)$m['total_val'];
                 $metrics['other_count'] = (int)$m['item_count'];
@@ -255,7 +290,6 @@ class PurchaseStockController extends Controller {
                 $metrics['finished_mrp_val'] = (float)$m['total_mrp_val'];
                 $metrics['finished_count']   = (int)$m['item_count'];
             }
-            $metrics['grand_value'] += (float)$m['total_val'];
         }
         $damageMetrics = DB::fetchAll(
             "SELECT item_type, SUM(qty) AS damaged_qty, SUM(estimated_loss) AS estimated_loss
@@ -270,13 +304,12 @@ class PurchaseStockController extends Controller {
             if ($damageMetric['item_type'] === 'garment_other') {
                 $metrics['other_qty'] = max(0.0, $metrics['other_qty'] - $damagedQty);
                 $metrics['other_value'] = max(0.0, $metrics['other_value'] - $estimatedLoss);
-                $metrics['grand_value'] -= $estimatedLoss;
             } elseif ($damageMetric['item_type'] === 'finished_goods') {
                 $metrics['finished_qty'] = max(0.0, $metrics['finished_qty'] - $damagedQty);
                 $metrics['finished_value'] = max(0.0, $metrics['finished_value'] - $estimatedLoss);
-                $metrics['grand_value'] -= $estimatedLoss;
             }
         }
+        $metrics['grand_value'] = $metrics['rolls_value'] + $metrics['other_value'] + $metrics['finished_value'];
         $damagedFinishedMrp = (float)DB::fetchValue(
             "SELECT COALESCE(SUM(q.qty * COALESCE(v.mrp, 0)), 0)
              FROM purchase_damage_quarantine q
@@ -582,25 +615,33 @@ class PurchaseStockController extends Controller {
 
         $items = DB::fetchAll(
             "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.inward_status,
+                    COALESCE(prog.allocated_qty, 0) AS prog_allocated_qty,
                     s.name AS supplier_name, s.company_name AS supplier_company,
                     c.name AS concern_name, c.code AS concern_code,
                     COALESCE(damage.damaged_qty, 0) AS damaged_qty,
-                    GREATEST(0, pbi.qty - COALESCE(damage.damaged_qty, 0)) AS available_qty,
+                    GREATEST(0, pbi.qty - COALESCE(prog.allocated_qty, 0) - COALESCE(damage.damaged_qty, 0)) AS available_qty,
                     GREATEST(0, pbi.total_price - COALESCE(damage.estimated_loss, 0)) AS available_value
              FROM purchase_bill_items pbi
              JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
              LEFT JOIN suppliers s ON pb.supplier_id = s.id
              LEFT JOIN concerns c ON pbi.concern_id = c.id
              LEFT JOIN (
+                 SELECT pr.purchase_bill_item_id, SUM(pr.allocated_qty) AS allocated_qty
+                 FROM program_rolls pr
+                 JOIN production_programs pp ON pr.program_id = pp.id
+                 WHERE pp.status != 'cancelled' AND pr.purchase_bill_item_id IS NOT NULL
+                 GROUP BY pr.purchase_bill_item_id
+             ) prog ON prog.purchase_bill_item_id = pbi.id
+             LEFT JOIN (
                  SELECT purchase_bill_item_id, SUM(qty) AS damaged_qty,
                         SUM(estimated_loss) AS estimated_loss
                  FROM purchase_damage_quarantine
-                 WHERE item_type = 'garment_other'
+                 WHERE item_type = ?
                  GROUP BY purchase_bill_item_id
              ) damage ON damage.purchase_bill_item_id = pbi.id
              WHERE " . implode(' AND ', $where) . "
              ORDER BY pbi.id DESC",
-            $params
+            array_merge([$tab], $params)
         );
 
         $filename = "purchase_stocks_{$tab}_" . date('Ymd_His') . ".csv";

@@ -297,7 +297,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold text-dark">Phone Number</label>
-                        <input type="text" id="quickTailorPhone" class="form-control" placeholder="e.g. 9876543210">
+                        <input type="tel" id="quickTailorPhone" class="form-control" placeholder="10-digit mobile number" maxlength="10">
+                        <div id="quickTailorPhoneError" class="text-danger small mt-1 d-none" style="font-size: 0.75rem;"></div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold text-dark">Employee / Master Code</label>
@@ -620,16 +621,64 @@ document.addEventListener('DOMContentLoaded', function () {
         return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // Quick Add Tailor AJAX
+    // Quick Add Tailor AJAX with Inline Mobile Validation
     const formQuickAddTailor = document.getElementById('formQuickAddTailor');
+    const quickTailorPhone = document.getElementById('quickTailorPhone');
+    const quickTailorPhoneError = document.getElementById('quickTailorPhoneError');
+
+    function validateTailorPhoneInline() {
+        if (!quickTailorPhone) return true;
+        const val = quickTailorPhone.value.trim();
+        if (!val) {
+            quickTailorPhone.classList.remove('is-invalid', 'is-valid');
+            quickTailorPhoneError.classList.add('d-none');
+            quickTailorPhoneError.textContent = '';
+            return true;
+        }
+        if (!/^[6-9]/.test(val)) {
+            quickTailorPhone.classList.add('is-invalid');
+            quickTailorPhone.classList.remove('is-valid');
+            quickTailorPhoneError.classList.remove('d-none');
+            quickTailorPhoneError.textContent = 'Mobile number must start with 6, 7, 8, or 9.';
+            return false;
+        }
+        if (val.length < 10) {
+            quickTailorPhone.classList.add('is-invalid');
+            quickTailorPhone.classList.remove('is-valid');
+            quickTailorPhoneError.classList.remove('d-none');
+            quickTailorPhoneError.textContent = `Mobile number must be 10 digits (${val.length}/10 entered).`;
+            return false;
+        }
+        quickTailorPhone.classList.remove('is-invalid');
+        quickTailorPhone.classList.add('is-valid');
+        quickTailorPhoneError.classList.add('d-none');
+        quickTailorPhoneError.textContent = '';
+        return true;
+    }
+
+    if (quickTailorPhone) {
+        quickTailorPhone.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 10);
+            validateTailorPhoneInline();
+        });
+        quickTailorPhone.addEventListener('blur', function() {
+            validateTailorPhoneInline();
+        });
+    }
+
     formQuickAddTailor.addEventListener('submit', function (e) {
         e.preventDefault();
         const name = document.getElementById('quickTailorName').value.trim();
-        const phone = document.getElementById('quickTailorPhone').value.trim();
+        const phone = quickTailorPhone ? quickTailorPhone.value.trim() : '';
         const code = document.getElementById('quickTailorCode').value.trim();
         const errDiv = document.getElementById('quickTailorError');
 
         if (!name) return;
+
+        if (phone && !validateTailorPhoneInline()) {
+            quickTailorPhone.focus();
+            return;
+        }
 
         const formData = new FormData();
         formData.append('name', name);

@@ -253,7 +253,7 @@ function getEffectiveRollStock(rollItemId, currentCardIndex = null) {
 function createRollCardHtml(index, rollData = null) {
     const cardId = `rollCard_${index}`;
     const selectedRollId = rollData ? rollData.purchase_bill_item_id : '';
-    const allocatedQtyVal = rollData ? parseFloat(rollData.allocated_qty) : '';
+    const allocatedQtyVal = rollData && rollData.allocated_qty !== undefined && rollData.allocated_qty !== '' ? Math.floor(parseFloat(rollData.allocated_qty)) : '';
     const rollWeightVal = rollData && rollData.roll_weight ? parseFloat(rollData.roll_weight) : '0.00';
     const rollPriceVal = rollData && rollData.roll_price ? parseFloat(rollData.roll_price) : '0.00';
     const targetPiecesVal = rollData ? parseInt(rollData.target_pieces) : 0;
@@ -382,7 +382,7 @@ function createRollCardHtml(index, rollData = null) {
                 </div>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light text-muted"><i class="bi bi-box-seam"></i></span>
-                    <input type="number" step="0.01" min="0.01" name="rolls[${index}][allocated_qty]" id="allocatedQty_${index}" class="form-control input-allocated-qty" value="${allocatedQtyVal}" placeholder="Select Roll" oninput="handleRollAllocatedQtyInput(${index})" required>
+                    <input type="number" step="1" min="1" name="rolls[${index}][allocated_qty]" id="allocatedQty_${index}" class="form-control input-allocated-qty" value="${allocatedQtyVal}" placeholder="Select Roll" oninput="handleRollAllocatedQtyInput(${index})" onkeydown="handleRollAllocatedQtyKeydown(event, ${index})" required>
                     <span class="input-group-text bg-light text-muted roll-unit-text" id="unitText_${index}">${selectedRollObject ? selectedRollObject.unit : 'pcs'}</span>
                 </div>
                 <div class="text-danger small mt-0.5 d-none qty-error-feedback" id="qtyError_${index}" style="font-size: 0.70rem;"></div>
@@ -504,7 +504,7 @@ function calculateEditCardWeightAndPrice(index) {
         return;
     }
 
-    const qty = parseFloat(input ? input.value : 0) || 0;
+    const qty = parseInt(input ? input.value : 0, 10) || 0;
     const unit = (selectedOption.dataset.unit || 'kg').toLowerCase();
     const totalQty = parseFloat(selectedOption.dataset.total || 0);
     const totalWeight = parseFloat(selectedOption.dataset.weight || 0);
@@ -609,12 +609,15 @@ function handleRollSelectionChange(index) {
         }
     }
 
-    // 2. Set Allocated Qty to available balance if empty, or cap to max
+    // 2. Set Allocated Qty to available balance if empty, or cap to max (Strict Integer only)
     if (input) {
-        if (!input.value || parseFloat(input.value) <= 0) {
-            input.value = effectiveStock > 0 ? effectiveStock.toFixed(2) : '0.00';
+        const intEffectiveStock = Math.floor(effectiveStock);
+        if (!input.value || parseInt(input.value, 10) <= 0) {
+            input.value = intEffectiveStock > 0 ? intEffectiveStock : (effectiveStock > 0 ? 1 : '0');
         }
-        input.setAttribute('max', effectiveStock.toFixed(2));
+        input.setAttribute('max', intEffectiveStock > 0 ? intEffectiveStock : '1');
+        input.setAttribute('step', '1');
+        input.setAttribute('min', '1');
     }
 
     calculateEditCardWeightAndPrice(index);
@@ -652,7 +655,24 @@ function handleRollSelectionChange(index) {
     recalcSummary();
 }
 
+function handleRollAllocatedQtyKeydown(event, index) {
+    if (event.key === '.' || event.key === ',' || event.key === 'e' || event.key === 'E' || event.key === '+' || event.key === '-') {
+        event.preventDefault();
+    }
+}
+
 function handleRollAllocatedQtyInput(index) {
+    const input = document.getElementById(`allocatedQty_${index}`);
+    if (input) {
+        let val = input.value;
+        if (val.includes('.') || val.includes(',')) {
+            val = Math.floor(parseFloat(val)) || '';
+            input.value = val;
+        }
+        if (val !== '' && parseInt(val, 10) < 1) {
+            input.value = 1;
+        }
+    }
     calculateEditCardWeightAndPrice(index);
     validateRollAllocatedQty(index);
     updateAllRollCardsStock(index);
@@ -727,7 +747,9 @@ function updateAllRollCardsStock(skipIndex = null) {
         }
 
         if (input) {
-            input.setAttribute('max', rem.toFixed(2));
+            input.setAttribute('max', Math.floor(rem) > 0 ? Math.floor(rem) : '1');
+            input.setAttribute('step', '1');
+            input.setAttribute('min', '1');
         }
 
         if (skipIndex === null || String(idx) !== String(skipIndex)) {

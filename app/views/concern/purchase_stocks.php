@@ -568,6 +568,10 @@
                                     $isInStock = ($r['inward_status'] ?? '') === 'completed';
                                     $wt = (float)($r['net_weight'] ?? 0);
                                     $qty = (float)($r['qty'] ?? 1);
+                                    $availQty = isset($r['available_qty']) ? (float)$r['available_qty'] : $qty;
+                                    $availWt = isset($r['available_weight']) ? (float)$r['available_weight'] : $wt;
+                                    $allocQty = (float)($r['allocated_qty'] ?? 0);
+                                    $dmgQty = (float)($r['damaged_qty'] ?? 0);
                                     $uPrice = (float)($r['unit_price'] ?? 0);
                                     $tot = (float)($r['total_price'] ?? 0);
 
@@ -612,13 +616,28 @@
                                             <?= $wt > 0 ? number_format($wt, 2) . ' kg' : '-' ?>
                                         </td>
                                         <td class="fw-bold text-dark">
-                                            <?= (float)$qty ?> <span class="fw-normal text-muted" style="font-size: 0.72rem;"><?= htmlspecialchars($r['unit'] ?: 'Rolls') ?></span>
+                                            <?= (float)$availQty ?> <span class="fw-normal text-muted" style="font-size: 0.72rem;"><?= htmlspecialchars($r['unit'] ?: 'Rolls') ?></span>
+                                            <?php if ($allocQty > 0 || $dmgQty > 0): ?>
+                                                <div class="text-muted fw-normal" style="font-size: 0.68rem;">(Inward: <?= (float)$qty ?>)</div>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <?php if ($isInStock): ?>
-                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                                    <i class="bi bi-check-circle me-1"></i><?= (float)$qty ?> <?= htmlspecialchars($r['unit'] ?: 'Rolls') ?> (<?= number_format($wt, 2) ?> kg)
-                                                </span>
+                                                <?php if ($availQty <= 0): ?>
+                                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                                                        <i class="bi bi-x-circle me-1"></i>0 Rolls (Utilized)
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                                        <i class="bi bi-check-circle me-1"></i><?= (float)$availQty ?> <?= htmlspecialchars($r['unit'] ?: 'Rolls') ?> (<?= number_format($availWt, 2) ?> kg)
+                                                    </span>
+                                                <?php endif; ?>
+                                                <?php if ($allocQty > 0): ?>
+                                                    <div class="text-primary small" style="font-size: 0.68rem;"><i class="bi bi-arrow-right-short"></i><?= (float)$allocQty ?> in program</div>
+                                                <?php endif; ?>
+                                                <?php if ($dmgQty > 0): ?>
+                                                    <div class="text-danger small" style="font-size: 0.68rem;"><i class="bi bi-exclamation-triangle me-1"></i><?= (float)$dmgQty ?> damaged</div>
+                                                <?php endif; ?>
                                             <?php else: ?>
                                                 <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
                                                     <i class="bi bi-hourglass-split me-1"></i><?= (float)$qty ?> In Transit
