@@ -465,6 +465,32 @@ class Auth {
             return false;
         }
 
+        // concern_dashboard is a base shell/dashboard module for every tenant concern.
+        // It should inherit the user's operational level: if user can add/edit anywhere or has general access, allow view/export.
+        if ($moduleCode === 'concern_dashboard') {
+            if ($act === 'view') {
+                return true;
+            }
+            if ($act === 'export' || $act === 'add' || $act === 'edit') {
+                // If user has create/edit access in any operational business module, allow exporting the operations dashboard
+                $userPerms = $_SESSION['user_permissions'] ?? [];
+                foreach ($userPerms as $mCode => $p) {
+                    if ($mCode === 'concern_dashboard') continue;
+                    if (!empty($p['add']) || !empty($p['edit'])) {
+                        return true;
+                    }
+                }
+                $rolePerms = $_SESSION['role_permissions'] ?? [];
+                foreach ($rolePerms as $mCode => $p) {
+                    if ($mCode === 'concern_dashboard') continue;
+                    if (!empty($p['add']) || !empty($p['edit'])) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
         // Action normalization: support 'view', 'add'/'create', 'edit', 'delete', plus operational actions
         $act = strtolower($action);
         $actionAlias = null;

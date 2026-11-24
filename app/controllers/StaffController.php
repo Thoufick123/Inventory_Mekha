@@ -1386,9 +1386,11 @@ class StaffController extends Controller {
         $allMods = DB::fetchAll("SELECT id, code FROM modules WHERE is_super_admin_only = 0");
         $cashModId = null;
         $cashFlowModId = null;
+        $dashModId = null;
         foreach ($allMods as $m) {
             if ($m['code'] === 'cash') $cashModId = (int)$m['id'];
             if ($m['code'] === 'cash_flow') $cashFlowModId = (int)$m['id'];
+            if ($m['code'] === 'concern_dashboard') $dashModId = (int)$m['id'];
         }
 
         // Clean existing permissions for this user to avoid stale permissions
@@ -1417,11 +1419,28 @@ class StaffController extends Controller {
                 $enabledMids = array_map('intval', array_column($allMods, 'id'));
             }
 
+            // Compute whether user has any operational add/edit access
+            $hasAnyAdd = false;
+            $hasAnyEdit = false;
             foreach ($enabledMids as $mid) {
-                $v = !empty($concernPerms[$mid]['view']) ? 1 : 0;
-                $a = !empty($concernPerms[$mid]['add']) ? 1 : 0;
-                $e = !empty($concernPerms[$mid]['edit']) ? 1 : 0;
-                $d = !empty($concernPerms[$mid]['delete']) ? 1 : 0;
+                if ($dashModId && $mid === $dashModId) continue;
+                if (!empty($concernPerms[$mid]['add'])) $hasAnyAdd = true;
+                if (!empty($concernPerms[$mid]['edit'])) $hasAnyEdit = true;
+            }
+
+            foreach ($enabledMids as $mid) {
+                // If this is the concern_dashboard base module, dynamically align its add/edit with operational permissions
+                if ($dashModId && $mid === $dashModId) {
+                    $v = 1;
+                    $a = $hasAnyAdd ? 1 : 0;
+                    $e = $hasAnyEdit ? 1 : 0;
+                    $d = 0;
+                } else {
+                    $v = !empty($concernPerms[$mid]['view']) ? 1 : 0;
+                    $a = !empty($concernPerms[$mid]['add']) ? 1 : 0;
+                    $e = !empty($concernPerms[$mid]['edit']) ? 1 : 0;
+                    $d = !empty($concernPerms[$mid]['delete']) ? 1 : 0;
+                }
                 $stmtUp->execute([$userId, $authCid, $mid, $v, $a, $e, $d]);
             }
         }
