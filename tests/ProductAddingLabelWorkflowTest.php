@@ -148,6 +148,11 @@ $checks = [
         && str_contains($controllerSource, '$this->inwardProductAddingFinishedGood($concernId, $selectedItem, $billNo)')
         && str_contains($controllerSource, 'RollRegistryService::syncSpecs($concernId)')
         && str_contains($controllerSource, "section_type'] === 'garment_other'"),
+    'Bulk checkboxes remain visible after printing and Select all includes pending lines' =>
+        str_contains($formSource, 'product-adding-bulk-checkbox')
+        && str_contains($formSource, 'id="productAddingSelectAllLines"')
+        && str_contains($formSource, 'if (input.dataset.inStock !== \'1\')')
+        && str_contains($formSource, 'input.checked = true;'),
 ];
 
 $failed = false;

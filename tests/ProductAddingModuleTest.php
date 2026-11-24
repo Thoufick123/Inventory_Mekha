@@ -7,6 +7,7 @@ $failed = false;
 $routeSource = file_get_contents(__DIR__ . '/../app/routes.php');
 $registrySource = file_get_contents(__DIR__ . '/../app/core/ModuleRegistry.php');
 $controllerSource = file_get_contents(__DIR__ . '/../app/controllers/ProductAddingController.php');
+$labelControllerSource = file_get_contents(__DIR__ . '/../app/controllers/LabelController.php');
 $purchaseControllerSource = file_get_contents(__DIR__ . '/../app/controllers/PurchaseController.php');
 $viewSource = file_get_contents(__DIR__ . '/../app/views/concern/purchase_billing_create.php');
 $listViewSource = file_get_contents(__DIR__ . '/../app/views/concern/product_adding_list.php');
@@ -15,11 +16,27 @@ $liveSql = file_get_contents(__DIR__ . '/../database/live_db_update.sql');
 $checks = [
     'Product Adding route is registered' => str_contains($routeSource, "'/m/product_adding'"),
     'Product Adding opens a bill list with overall purchase metrics' => str_contains($controllerSource, 'private function renderBillList')
-        && str_contains($controllerSource, "WHERE pb.source_module = 'product_adding'")
+        && str_contains($controllerSource, "pb.source_module = 'product_adding'")
         && str_contains($listViewSource, 'Product Purchase Bills')
         && str_contains($listViewSource, 'Net Purchases')
         && str_contains($listViewSource, 'Pending Stock Bills')
         && str_contains($listViewSource, 'Labels &amp; Stock'),
+    'Unstocked Purchase Billing invoices are available from Product Adding' =>
+        str_contains($controllerSource, "pb.source_module = 'purchase_billing'")
+        && str_contains($controllerSource, 'COALESCE(item_stats.stocked_count, 0) = 0')
+        && str_contains($routeSource, '/m/product_adding/add_purchase_bill_to_stock')
+        && str_contains($listViewSource, 'Add Invoice to Stock'),
+    'Duplicate unstocked invoices can be loaded and edited in place' =>
+        str_contains($routeSource, '/m/product_adding/edit_purchase_bill')
+        && str_contains($routeSource, '/m/product_adding/update_purchase_bill')
+        && str_contains($purchaseControllerSource, 'existing_invoice_edit_url')
+        && str_contains($purchaseControllerSource, 'editBillFromProductAdding')
+        && str_contains($viewSource, 'Load existing invoice to edit')
+        && str_contains($viewSource, 'str_contains($formAction, \'/m/product_adding/store\') || !empty($productAddingEdit)'),
+    'Purchase Billing invoices cannot be inwarded twice' =>
+        str_contains($labelControllerSource, 'assertPurchaseBillingBillIsUnstocked')
+        && str_contains($labelControllerSource, 'FOR UPDATE')
+        && str_contains($labelControllerSource, 'duplicate invoice processing is blocked'),
     'Create Product Purchase opens the existing Product Adding form' => str_contains($routeSource, "'/m/product_adding/create', [ProductAddingController::class, 'create']")
         && str_contains($listViewSource, 'Create Product Purchase')
         && str_contains($controllerSource, '$this->renderPurchaseForm();'),

@@ -132,70 +132,8 @@ class InwardController extends Controller {
         }
     }
 
-    protected function ensureSampleOutwardBatch(): void {
-        try {
-            $outwardCount = (int)DB::fetchValue("SELECT COUNT(*) FROM outwards");
-            if ($outwardCount === 0) {
-                // Determine active concern
-                $targetCid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 1;
-
-                // Ensure a production unit exists
-                $puId = (int)DB::fetchValue("SELECT id FROM production_units LIMIT 1");
-                if (!$puId) {
-                    DB::query("INSERT INTO production_units (concern_id, code, name, location, manager_name, capacity_per_day, is_active) VALUES (?, 'PU-01', 'Kadampadi', 'Kadampadi', 'Vanaja (9943557998)', 500, 1)", [$targetCid]);
-                    $puId = (int)DB::lastInsertId();
-                } else {
-                    DB::query("UPDATE production_units SET name = 'Kadampadi', code = 'PU-01', manager_name = 'Vanaja (9943557998)' WHERE id = ?", [$puId]);
-                }
-
-                // Ensure KIDS - BABY - DRESS variant exists
-                $varId = (int)DB::fetchValue("SELECT id FROM variants WHERE name LIKE '%KIDS - BABY - DRESS%' OR sku_code = 'GRM-STY-0001-XL' LIMIT 1");
-                if (!$varId) {
-                    $catId = (int)DB::fetchValue("SELECT id FROM categories LIMIT 1") ?: null;
-                    DB::query("INSERT INTO variants (concern_id, sku_code, name, category_id, size, weight, weight_unit, price, mrp, status) VALUES (?, 'GRM-STY-0001-XL', 'KIDS - BABY - DRESS', ?, 'XL', 0.5, 'pcs', 700.00, 1000.00, 'active')", [$targetCid, $catId]);
-                    $varId = (int)DB::lastInsertId();
-                }
-
-                // Ensure production_programs exists
-                $progId = (int)DB::fetchValue("SELECT id FROM production_programs WHERE program_no = 'PRG-20261113-0001' LIMIT 1");
-                if (!$progId) {
-                    DB::query("INSERT INTO production_programs (concern_id, program_no, program_name, target_variant_id, planned_qty, status) VALUES (?, 'PRG-20261113-0001', 'KIDS - BABY - DRESS', ?, 490, 'completed')", [$targetCid, $varId]);
-                    $progId = (int)DB::lastInsertId();
-                }
-
-                // Ensure batch exists
-                $batchId = (int)DB::fetchValue("SELECT id FROM batches WHERE batch_no = 'BAT-20261113-0001' LIMIT 1");
-                if (!$batchId) {
-                    DB::query("INSERT INTO batches (concern_id, production_unit_id, batch_no, variant_id, program_id, batch_qty, total_boxes, status) VALUES (?, ?, 'BAT-20261113-0001', ?, ?, 490, 1, 'DISPATCHED')", [$targetCid, $puId, $varId, $progId]);
-                    $batchId = (int)DB::lastInsertId();
-                }
-
-                // Create sample outward dispatch strictly destined for targetCid
-                DB::query("INSERT INTO outwards (concern_id, production_unit_id, outward_no, gate_pass_no, destination_concern_id, transfer_type, outward_date, vehicle_number, driver_name, driver_contact, status, created_at) VALUES (?, ?, 'OUT-20261113-0001', 'OUT-20261113-0001', ?, 'concern', '2026-11-13', 'rtt31232', 'Vanaja', '9943557998', 'partial', '2026-11-13 13:06:00')", [$targetCid, $puId, $targetCid]);
-                $outwardId = (int)DB::lastInsertId();
-
-                // Create outward item
-                DB::query("INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (?, ?, ?, 490)", [$targetCid, $outwardId, $varId]);
-
-                // Create consolidation link
-                DB::query("INSERT INTO production_outward_batches (concern_id, outward_id, batch_id, cartons_count, pieces_count) VALUES (?, ?, ?, 1, 490)", [$targetCid, $outwardId, $batchId]);
-
-                // Record initial partial inward (3 pcs credited) matching Image 1 & 2!
-                $inwId = (int)DB::fetchValue("SELECT id FROM inwards WHERE outward_id = ? LIMIT 1", [$outwardId]);
-                if (!$inwId) {
-                    DB::query("INSERT INTO inwards (concern_id, outward_id, inward_no, grn_number, production_unit_id, from_concern_id, inward_date, vehicle_number, location, status) VALUES (?, ?, 'INW-20261113-0001', 'GRN-20261113-0001', ?, ?, '2026-11-13', 'rtt31232', 'Main Store', 'PARTIAL')", [$targetCid, $outwardId, $puId, $targetCid]);
-                    $inwId = (int)DB::lastInsertId();
-                    DB::query("INSERT INTO inward_items (concern_id, inward_id, variant_id, qty, accepted_qty, rejected_qty) VALUES (?, ?, ?, 3, 3, 0)", [$targetCid, $inwId, $varId]);
-                }
-            }
-        } catch (\Throwable $e) {
-            // Ignore if schema not ready
-        }
-    }
-
     public function index(): void {
         $this->ensureSchema();
-        $this->ensureSampleOutwardBatch();
         $cid = Auth::concernId();
         $selectedCid = !empty($_GET['concern_id']) ? (int)$_GET['concern_id'] : $cid;
         $activeScopeCid = $cid ?: $selectedCid;
@@ -372,7 +310,6 @@ class InwardController extends Controller {
 
     public function scanView(string|int $id): void {
         $this->ensureSchema();
-        $this->ensureSampleOutwardBatch();
         $cid = Auth::concernId();
         $outwardId = (int)$id;
 

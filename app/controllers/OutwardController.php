@@ -13,7 +13,7 @@ use App\Services\StockService;
 use Exception;
 
 class OutwardController extends Controller {
-    private static bool $dataEnsured = false;
+    private static bool $schemaEnsured = false;
 
     private function isOutwardInSourceScope(array $outward): bool {
         $scopeConcernId = Auth::concernId();
@@ -27,14 +27,14 @@ class OutwardController extends Controller {
 
     public function __construct() {
         parent::__construct();
-        $this->ensureOutwardData();
+        $this->ensureOutwardSchema();
     }
 
     /**
-     * Self-heal schema and ensure sample dispatch matching reference image
+     * Self-heal the outward schema.
      */
-    protected function ensureOutwardData(): void {
-        if (self::$dataEnsured) {
+    protected function ensureOutwardSchema(): void {
+        if (self::$schemaEnsured) {
             return;
         }
 
@@ -48,55 +48,9 @@ class OutwardController extends Controller {
             if (!in_array('total_boxes', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `total_boxes` INT DEFAULT 1 AFTER `warehouse_name`");
             if (!in_array('notes', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `notes` TEXT NULL AFTER `total_boxes`");
 
-            // Ensure baseline outward record OUT-20261113-0001 matching image
-            $out = DB::fetch("SELECT id FROM outwards WHERE outward_no = 'OUT-20261113-0001' LIMIT 1");
-            $b1Id = (int)DB::fetchValue("SELECT id FROM batches WHERE batch_no = 'BAT-20261113-0001' LIMIT 1");
-            $varId = (int)DB::fetchValue("SELECT id FROM variants WHERE name LIKE '%KIDS - BABY - DRESS%' LIMIT 1") ?: 27;
-
-            if (!$out) {
-                DB::query("
-                    INSERT INTO outwards (
-                        concern_id, production_unit_id, outward_no, gate_pass_no, destination_concern_id,
-                        outward_date, location, warehouse_name, total_boxes, vehicle_number, driver_name, driver_contact,
-                        dispatched_by_name, status, dispatched_at, created_at
-                    ) VALUES (
-                        1, 1, 'OUT-20261113-0001', 'OUT-20261113-0001', 1,
-                        '2026-11-13', 'Main Store', 'wareouse (WH-01)', 1, 'rtt31232', 'Vanaja', '9943557998',
-                        'System Administrator', 'DISPATCHED', '2026-11-13 13:06:00', '2026-11-13 13:06:00'
-                    )
-                ");
-                $outId = (int)DB::lastInsertId();
-
-                if ($b1Id) {
-                    DB::query("INSERT INTO production_outward_batches (concern_id, outward_id, batch_id, cartons_count, pieces_count) VALUES (1, ?, ?, 1, 490)", [$outId, $b1Id]);
-                }
-                DB::query("INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (1, ?, ?, 490)", [$outId, $varId]);
-            } else {
-                DB::query("
-                    UPDATE outwards SET 
-                        vehicle_number = 'rtt31232',
-                        driver_name = 'Vanaja',
-                        driver_contact = '9943557998',
-                        dispatched_by_name = 'System Administrator',
-                        warehouse_name = 'wareouse (WH-01)',
-                        total_boxes = COALESCE(total_boxes, 1),
-                        status = 'DISPATCHED',
-                        created_at = '2026-11-13 13:06:00',
-                        dispatched_at = '2026-11-13 13:06:00'
-                    WHERE id = ?
-                ", [$out['id']]);
-
-                if ($b1Id) {
-                    $linkExists = DB::fetchValue("SELECT id FROM production_outward_batches WHERE outward_id = ? AND batch_id = ?", [$out['id'], $b1Id]);
-                    if (!$linkExists) {
-                        DB::query("INSERT INTO production_outward_batches (concern_id, outward_id, batch_id, cartons_count, pieces_count) VALUES (1, ?, ?, 1, 490)", [$out['id'], $b1Id]);
-                    }
-                }
-            }
-
-            self::$dataEnsured = true;
+            self::$schemaEnsured = true;
         } catch (\Throwable $e) {
-            error_log("OutwardController ensureOutwardData: " . $e->getMessage());
+            error_log("OutwardController ensureOutwardSchema: " . $e->getMessage());
         }
     }
 

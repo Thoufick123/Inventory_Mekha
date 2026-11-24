@@ -2114,6 +2114,7 @@ class LabelController extends Controller {
         PurchaseStockItemOverrideService::initTable();
 
         $isProductAddingRequest = ($_POST['product_adding'] ?? '') === '1';
+        $isPurchaseBillingRequest = ($_POST['purchase_billing_request'] ?? '') === '1';
         $cid = Auth::concernId();
         $billId = (int)($_POST['bill_id'] ?? ($_GET['bill_id'] ?? 0));
         $rawItemId = $_POST['item_id'] ?? ($_GET['item_id'] ?? 0);
@@ -2129,6 +2130,11 @@ class LabelController extends Controller {
             $preferredTab = 'production';
         } else {
             $itemId = (int)$rawItemId;
+        }
+        if ($isPurchaseBillingRequest && ($billId <= 0 || $itemId > 0)) {
+            $this->flash('error', 'Select a Purchase Billing invoice to add all of its lines to stock together.');
+            $this->redirect('/m/product_adding');
+            return;
         }
         $rawSelectedItemIds = $_POST['item_ids'] ?? [];
         $selectedItemIds = $isProductAddingRequest && is_array($rawSelectedItemIds)
@@ -2277,6 +2283,17 @@ class LabelController extends Controller {
                     throw new Exception("Purchase item #{$itemId} not found or access denied.");
                 }
 
+                if (($item['source_module'] ?? '') === 'purchase_billing') {
+                    DB::fetch(
+                        "SELECT id FROM purchase_bills WHERE id = ? FOR UPDATE",
+                        [(int)$item['purchase_bill_id']]
+                    );
+                    $this->assertPurchaseBillingBillIsUnstocked(
+                        (int)$item['purchase_bill_id'],
+                        (string)$item['bill_no']
+                    );
+                }
+
                 if (($item['inward_status'] ?? '') === 'completed') {
                     $itemLabel = ($item['section_type'] === 'rolls') ? 'Fabric roll' : 'Purchase item';
                     throw new Exception("{$itemLabel} '{$item['item_name']}' has already been added to stock.");
@@ -2345,9 +2362,28 @@ class LabelController extends Controller {
                     $billSql .= " AND concern_id = ?";
                     $billParams[] = $cid;
                 }
+                $billSql .= " FOR UPDATE";
                 $bill = DB::fetch($billSql, $billParams);
                 if (!$bill) {
                     throw new Exception("Purchase bill #{$billId} not found or access denied.");
+                }
+
+                if ($isPurchaseBillingRequest && ($bill['source_module'] ?? '') !== 'purchase_billing') {
+                    throw new Exception('Only Purchase Billing invoices can be added from this Product Adding action.');
+                }
+                if (($bill['source_module'] ?? '') === 'purchase_billing') {
+                    $this->assertPurchaseBillingBillIsUnstocked($billId, (string)$bill['bill_no']);
+                    if ($isPurchaseBillingRequest) {
+                        $unmappedCount = (int)DB::fetchValue(
+                            "SELECT COUNT(*) FROM purchase_bill_items
+                             WHERE purchase_bill_id = ? AND section_type = 'finished_goods'
+                               AND (variant_id IS NULL OR variant_id = 0)",
+                            [$billId]
+                        );
+                        if ($unmappedCount > 0) {
+                            throw new Exception('Map all finished goods in this invoice to catalog variants before adding it to stock.');
+                        }
+                    }
                 }
 
                 if (($bill['source_module'] ?? '') === 'product_adding') {
@@ -2417,20 +2453,34 @@ class LabelController extends Controller {
                 }
 
                 $hasRolls = false;
+                $hasOtherItems = false;
+                $hasFinishedGoods = false;
                 foreach ($affectedItems as $it) {
                     if ($it['section_type'] === 'rolls') {
                         $hasRolls = true;
+                    } elseif ($it['section_type'] === 'garment_other') {
+                        $hasOtherItems = true;
                     } elseif ($it['section_type'] === 'finished_goods' && !empty($it['variant_id'])) {
+                        $hasFinishedGoods = true;
                         if (($bill['source_module'] ?? '') === 'product_adding') {
                             $this->inwardProductAddingFinishedGood($concernId, $it, $billNo);
                         } else {
                             $this->inwardPurchaseFinishedGood($concernId, $it, $billNo);
                         }
+                    } elseif ($it['section_type'] === 'finished_goods') {
+                        $hasFinishedGoods = true;
                     }
                 }
 
                 if ($hasRolls) {
                     RollRegistryService::syncSpecs($concernId);
+                }
+                if ($sectionFilter === null) {
+                    if ($hasFinishedGoods && !$hasRolls && !$hasOtherItems) {
+                        $targetTab = 'finished_goods';
+                    } elseif ($hasOtherItems && !$hasRolls) {
+                        $targetTab = 'garment_other';
+                    }
                 }
 
                 // Check remaining pending items across all sections in the bill
@@ -2466,8 +2516,16 @@ class LabelController extends Controller {
             $this->flash('error', 'Error adding item to stock: ' . $e->getMessage());
             $this->redirect($isProductAddingRequest
                 ? '/m/product_adding?bill_id=' . $billId
-                : '/m/label_generation' . ($billId ? "?bill_id={$billId}" : ''));
+                : ($isPurchaseBillingRequest
+                    ? '/m/product_adding'
+                    : '/m/label_generation' . ($billId ? "?bill_id={$billId}" : '')));
         }
+    }
+
+    public function addPurchaseBillingToStock(): void
+    {
+        $_POST['purchase_billing_request'] = '1';
+        $this->addToStock();
     }
 
     public function addProductAddingToStock(): void
@@ -2510,6 +2568,29 @@ class LabelController extends Controller {
         }
         $_POST['product_adding'] = '1';
         $this->addToStock();
+    }
+
+    private function assertPurchaseBillingBillIsUnstocked(int $billId, string $billNo): void
+    {
+        $itemCount = (int)DB::fetchValue(
+            "SELECT COUNT(*)
+             FROM purchase_bill_items pbi
+             JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+             WHERE pbi.purchase_bill_id = ?
+               AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
+            [$billId]
+        );
+        if ($itemCount > 0) {
+            throw new Exception("Purchase Bill '{$billNo}' already has stock-inwarded items; duplicate invoice processing is blocked.");
+        }
+
+        $lineCount = (int)DB::fetchValue(
+            "SELECT COUNT(*) FROM purchase_bill_items WHERE purchase_bill_id = ?",
+            [$billId]
+        );
+        if ($lineCount === 0) {
+            throw new Exception("Purchase Bill '{$billNo}' has no items to add to stock.");
+        }
     }
 
     private function getProductAddingLabelCount(int $itemId): int

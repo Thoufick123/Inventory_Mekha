@@ -67,10 +67,13 @@ $router->get('/admin/reports/export', [AdminController::class, 'exportReports'],
 // Catalog-only product creation
 $router->get('/m/product_adding', [ProductAddingController::class, 'index'], 'product_adding', 'view');
 $router->get('/m/product_adding/create', [ProductAddingController::class, 'create'], 'product_adding', 'add');
+$router->get('/m/product_adding/edit_purchase_bill', [PurchaseController::class, 'editBillFromProductAdding'], 'product_adding', 'edit');
 $router->post('/m/product_adding/store', [PurchaseController::class, 'storeBill'], 'product_adding', 'add');
+$router->post('/m/product_adding/update_purchase_bill', [PurchaseController::class, 'updateBill'], 'product_adding', 'edit');
 $router->post('/m/product_adding/check_invoice', [PurchaseController::class, 'checkSupplierInvoiceNumberAjax'], 'product_adding', 'view');
 $router->post('/m/product_adding/generate_labels', [LabelController::class, 'generateProductAddingLabels'], 'product_adding', 'add');
 $router->post('/m/product_adding/add_to_stock', [LabelController::class, 'addProductAddingToStock'], 'product_adding', 'add');
+$router->post('/m/product_adding/add_purchase_bill_to_stock', [LabelController::class, 'addPurchaseBillingToStock'], 'product_adding', 'add');
 $router->post('/m/product_adding/save_hsn', [PurchaseController::class, 'saveHsnAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/save_roll_spec', [PurchaseController::class, 'saveRollSpecAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/suppliers/store', [PurchaseController::class, 'storeSupplierAjax'], 'product_adding', 'add');

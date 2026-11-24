@@ -61,6 +61,19 @@ if ($isEdit && !empty($existingItems)) {
 ?>
 <?php if ($isProductAddingForm): ?>
 <style>
+.product-adding-bulk-checkbox {
+    -webkit-appearance: checkbox !important;
+    appearance: auto !important;
+    display: inline-block !important;
+    position: static !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    width: 1.15rem !important;
+    height: 1.15rem !important;
+    margin: 0 !important;
+    accent-color: #0d6efd;
+}
 .fg-variant-matrix-scroll {
     max-width: 100%;
     overflow-x: auto;
@@ -333,7 +346,14 @@ if ($isEdit && !empty($existingItems)) {
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="text-center">Bulk</th>
+                                    <th class="text-center">
+                                        <div class="d-flex flex-column align-items-center gap-1">
+                                            <span>Bulk</span>
+                                            <button type="button" class="btn btn-sm btn-outline-primary px-2 py-1" id="productAddingSelectAllLines">
+                                                Select all
+                                            </button>
+                                        </div>
+                                    </th>
                                     <th>Item</th>
                                     <th>Type</th>
                                     <th class="text-end">Qty</th>
@@ -356,7 +376,7 @@ if ($isEdit && !empty($existingItems)) {
                                         <td class="text-center">
                                             <label class="d-inline-flex align-items-center justify-content-center p-2 mb-0" style="cursor: pointer;" title="Click to select or clear this line">
                                                 <input
-                                                    class="form-check-input m-0"
+                                                    class="form-check-input m-0 product-adding-bulk-checkbox"
                                                     style="width: 1.1rem; height: 1.1rem;"
                                                     type="checkbox"
                                                     name="item_ids[]"
@@ -530,7 +550,7 @@ if ($isEdit && !empty($existingItems)) {
 
     <form action="<?= $formAction ?>" method="POST" enctype="multipart/form-data" id="formPurchaseBill" class="needs-validation <?= !empty($savedBill) ? 'd-none' : '' ?>" novalidate>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-        <?php if (str_contains($formAction, '/m/product_adding/store')): ?>
+        <?php if (str_contains($formAction, '/m/product_adding/store') || !empty($productAddingEdit)): ?>
             <input type="hidden" name="product_adding_redirect" value="1">
         <?php endif; ?>
         <?php if ($isEdit): ?>
@@ -4615,6 +4635,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
     const bulkStockButton = document.getElementById('productAddingBulkStockButton');
     const bulkStockForm = document.getElementById('productAddingBulkStockForm');
+    const selectAllLinesButton = document.getElementById('productAddingSelectAllLines');
     if (bulkLabelForm && bulkStockButton && bulkStockForm) {
         const updateBulkStockButton = function () {
             const selectedItems = Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]:checked'));
@@ -4626,6 +4647,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 ? `Add ${eligibleItems.length} label-complete selected line(s) to stock`
                 : 'Select pending lines with complete label coverage';
         };
+        if (selectAllLinesButton) {
+            selectAllLinesButton.addEventListener('click', function () {
+                bulkLabelForm.querySelectorAll('input[name="item_ids[]"]').forEach(function (input) {
+                    if (input.dataset.inStock !== '1') {
+                        input.checked = true;
+                    }
+                });
+                updateBulkStockButton();
+                const feedback = document.getElementById('productAddingBulkLabelFeedback');
+                if (feedback) {
+                    feedback.textContent = '';
+                    feedback.classList.add('d-none');
+                }
+            });
+        }
         bulkLabelForm.addEventListener('change', function (event) {
             if (event.target.matches('input[name="item_ids[]"]')) {
                 updateBulkStockButton();
@@ -4746,6 +4782,7 @@ document.addEventListener('DOMContentLoaded', function() {
         requestData.append('supplier_invoice_no', invoiceNo);
         requestData.append('bill_id', form.querySelector('input[name="bill_id"]')?.value || '');
         requestData.append('concern_id', form.querySelector('[name="concern_id"]')?.value || '');
+        requestData.append('product_adding_redirect', form.querySelector('[name="product_adding_redirect"]')?.value || '');
 
         try {
             const response = await fetch(invoiceCheckUrl, {
@@ -4762,7 +4799,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 const message = result.message || 'This supplier invoice number has already been recorded for the selected supplier.';
                 invoiceInput.setCustomValidity(message);
                 showFieldError(invoiceInput);
-                if (invoiceStatus) invoiceStatus.textContent = '';
+                if (invoiceStatus) {
+                    invoiceStatus.textContent = '';
+                    invoiceStatus.className = 'form-text small text-danger';
+                    if (result.existing_invoice_edit_url) {
+                        invoiceStatus.appendChild(document.createTextNode('An unstocked Purchase Billing invoice exists. '));
+                        const editLink = document.createElement('a');
+                        editLink.href = result.existing_invoice_edit_url;
+                        editLink.className = 'btn btn-sm btn-outline-primary ms-1';
+                        editLink.textContent = 'Load existing invoice to edit';
+                        invoiceStatus.appendChild(editLink);
+                    }
+                }
                 return true;
             }
 

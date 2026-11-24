@@ -2,7 +2,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h4 class="fw-bold mb-1 text-dark">Product Adding</h4>
-            <p class="text-secondary small mb-0">Review product purchase bills, totals, payment status, and stock progress.</p>
+            <p class="text-secondary small mb-0">Review Product Adding bills and Purchase Billing invoices that are ready for stock inward.</p>
         </div>
         <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
             <a href="<?= $createUrl ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background:#4f46e5;">
@@ -16,7 +16,7 @@
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="small text-muted fw-semibold text-uppercase">Product Bills</div>
+                        <div class="small text-muted fw-semibold text-uppercase">Purchase Bills</div>
                         <div class="fs-4 fw-bold text-dark"><?= number_format((int)($summary['total_bills'] ?? 0)) ?></div>
                     </div>
                     <span class="rounded-circle p-3 bg-primary-subtle text-primary"><i class="bi bi-receipt"></i></span>
@@ -73,10 +73,10 @@
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-journal-text text-primary fs-5"></i>
-                <h6 class="mb-0 fw-bold">Product Purchase Bills</h6>
+                <h6 class="mb-0 fw-bold">Product Purchase Bills &amp; Eligible Purchase Billing Invoices</h6>
                 <span class="badge bg-light text-dark border"><?= count($bills) ?> bills</span>
             </div>
-            <span class="small text-muted">Open a bill to print labels and add selected lines to stock.</span>
+            <span class="small text-muted">Invoices already partially or fully stocked are excluded from this list.</span>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -101,7 +101,7 @@
                     <?php if (empty($bills)): ?>
                         <tr>
                             <td colspan="<?= empty($selectedCid) ? '13' : '12' ?>" class="text-center py-5">
-                                <div class="text-muted mb-3">No Product Adding bills yet.</div>
+                                <div class="text-muted mb-3">No eligible purchase invoices found.</div>
                                 <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
                                     <a href="<?= $createUrl ?>" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Create the first purchase</a>
                                 <?php endif; ?>
@@ -114,7 +114,12 @@
                             $inwardStatus = strtolower((string)($bill['inward_status'] ?? 'pending'));
                             ?>
                             <tr>
-                                <td><span class="badge bg-dark font-monospace"><?= htmlspecialchars($bill['bill_no']) ?></span></td>
+                                <td>
+                                    <span class="badge bg-dark font-monospace"><?= htmlspecialchars($bill['bill_no']) ?></span>
+                                    <?php if (($bill['source_module'] ?? '') === 'purchase_billing'): ?>
+                                        <span class="badge bg-info-subtle text-info border mt-1">Purchase Billing</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td><span class="font-monospace"><?= htmlspecialchars($bill['supplier_invoice_no'] ?: '-') ?></span></td>
                                 <td>
                                     <div class="fw-semibold"><?= htmlspecialchars($bill['supplier_name'] ?? 'Supplier') ?></div>
@@ -144,9 +149,26 @@
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end">
-                                    <a href="<?= \App\Core\Controller::url('/m/product_adding?bill_id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap">
-                                        <i class="bi bi-eye me-1"></i>Labels &amp; Stock
-                                    </a>
+                                    <?php if (($bill['source_module'] ?? '') === 'purchase_billing'): ?>
+                                        <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'edit')): ?>
+                                            <a href="<?= \App\Core\Controller::url('/m/product_adding/edit_purchase_bill?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap">
+                                                <i class="bi bi-pencil-square me-1"></i>Edit Invoice
+                                            </a>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
+                                            <form action="<?= \App\Core\Controller::url('/m/product_adding/add_purchase_bill_to_stock') ?>" method="POST" class="d-inline">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                                <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">
+                                                    <i class="bi bi-box-arrow-in-down me-1"></i>Add Invoice to Stock
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <a href="<?= \App\Core\Controller::url('/m/product_adding?bill_id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap">
+                                            <i class="bi bi-eye me-1"></i>Labels &amp; Stock
+                                        </a>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

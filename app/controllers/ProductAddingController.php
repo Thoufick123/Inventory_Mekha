@@ -159,22 +159,34 @@ class ProductAddingController extends Controller
         PurchaseBillSourceService::ensureSchema();
         $cid = Auth::concernId();
 
+        $itemStatsSql = "SELECT pbi.purchase_bill_id,
+                                COUNT(*) AS item_count,
+                                COALESCE(SUM(pbi.qty), 0) AS total_qty,
+                                SUM(CASE
+                                    WHEN COALESCE(NULLIF(pbi.inward_status, ''), status_bill.inward_status, 'pending') = 'completed'
+                                    THEN 1 ELSE 0
+                                END) AS stocked_count
+                         FROM purchase_bill_items pbi
+                         JOIN purchase_bills status_bill ON status_bill.id = pbi.purchase_bill_id
+                         GROUP BY pbi.purchase_bill_id";
+        $eligibleBillsSql = "(
+                                pb.source_module = 'product_adding'
+                                OR (
+                                    pb.source_module = 'purchase_billing'
+                                    AND COALESCE(item_stats.item_count, 0) > 0
+                                    AND COALESCE(item_stats.stocked_count, 0) = 0
+                                )
+                             )";
+
         $summarySql = "SELECT COUNT(*) AS total_bills,
                               COALESCE(SUM(pb.net_amount), 0) AS total_net,
                               COALESCE(SUM(pb.tax_amount), 0) AS total_tax,
                               COALESCE(SUM(CASE WHEN COALESCE(pb.inward_status, 'pending') != 'completed' THEN 1 ELSE 0 END), 0) AS pending_bills,
-                              (SELECT COUNT(*)
-                               FROM purchase_bill_items pbi
-                               JOIN purchase_bills item_pb ON item_pb.id = pbi.purchase_bill_id
-                               WHERE item_pb.source_module = 'product_adding'";
-        $summaryParams = [];
-        if ($cid) {
-            $summarySql .= ' AND item_pb.concern_id = ?';
-            $summaryParams[] = $cid;
-        }
-        $summarySql .= ") AS total_items
+                              COALESCE(SUM(item_stats.item_count), 0) AS total_items
                         FROM purchase_bills pb
-                        WHERE pb.source_module = 'product_adding'";
+                        LEFT JOIN ({$itemStatsSql}) item_stats ON item_stats.purchase_bill_id = pb.id
+                        WHERE {$eligibleBillsSql}";
+        $summaryParams = [];
         if ($cid) {
             $summarySql .= ' AND pb.concern_id = ?';
             $summaryParams[] = $cid;
@@ -185,21 +197,15 @@ class ProductAddingController extends Controller
                            pb.total_amount, pb.tax_amount, pb.net_amount, pb.payment_status, pb.inward_status,
                            s.name AS supplier_name, s.company_name AS supplier_company,
                            c.name AS concern_name,
+                           pb.source_module,
                            COALESCE(item_stats.item_count, 0) AS item_count,
                            COALESCE(item_stats.total_qty, 0) AS total_qty,
                            COALESCE(item_stats.stocked_count, 0) AS stocked_count
                     FROM purchase_bills pb
                     LEFT JOIN suppliers s ON s.id = pb.supplier_id
                     LEFT JOIN concerns c ON c.id = pb.concern_id
-                    LEFT JOIN (
-                        SELECT purchase_bill_id,
-                               COUNT(*) AS item_count,
-                               COALESCE(SUM(qty), 0) AS total_qty,
-                               SUM(CASE WHEN COALESCE(NULLIF(inward_status, ''), 'pending') = 'completed' THEN 1 ELSE 0 END) AS stocked_count
-                        FROM purchase_bill_items
-                        GROUP BY purchase_bill_id
-                    ) item_stats ON item_stats.purchase_bill_id = pb.id
-                    WHERE pb.source_module = 'product_adding'";
+                    LEFT JOIN ({$itemStatsSql}) item_stats ON item_stats.purchase_bill_id = pb.id
+                    WHERE {$eligibleBillsSql}";
         $billParams = [];
         if ($cid) {
             $billSql .= ' AND pb.concern_id = ?';

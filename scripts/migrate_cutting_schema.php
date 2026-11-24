@@ -39,6 +39,7 @@ $colsToAdd = [
     'used_weight' => "DECIMAL(12,2) DEFAULT 0.00 AFTER wastage_percent",
     'fabric_cost_per_piece' => "DECIMAL(12,2) DEFAULT 0.00 AFTER used_weight",
     'sold_wastage_qty' => "DECIMAL(12,2) DEFAULT 0.00 AFTER wastage_unit",
+    'updated_at' => "TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
 ];
 
 foreach ($colsToAdd as $col => $def) {

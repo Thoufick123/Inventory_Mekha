@@ -689,8 +689,17 @@ class PurchaseController extends Controller {
         ]);
     }
 
+    public function editBillFromProductAdding(): void {
+        $_GET['product_adding_edit'] = '1';
+        $this->editBill();
+    }
+
     public function editBill(): void {
         $this->ensureHsnMasterSchema();
+        $isProductAddingEdit = ($_GET['product_adding_edit'] ?? '') === '1';
+        if ($isProductAddingEdit) {
+            PurchaseBillSourceService::ensureSchema();
+        }
         $cid = Auth::concernId();
         $id = (int)($_GET['id'] ?? 0);
 
@@ -705,10 +714,26 @@ class PurchaseController extends Controller {
         }
 
         $bill = DB::fetch($sql, $params);
-        if (!$bill) {
+        if (!$bill || ($isProductAddingEdit && ($bill['source_module'] ?? '') !== 'purchase_billing')) {
             $this->flash('error', 'Purchase Bill not found or access denied.');
-            $this->redirect('/m/purchase_billing');
+            $this->redirect($isProductAddingEdit ? '/m/product_adding' : '/m/purchase_billing');
             return;
+        }
+
+        if ($isProductAddingEdit) {
+            $stockedCount = (int)DB::fetchValue(
+                "SELECT COUNT(*)
+                 FROM purchase_bill_items pbi
+                 JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+                 WHERE pbi.purchase_bill_id = ?
+                   AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
+                [$id]
+            );
+            if (($bill['inward_status'] ?? 'pending') === 'completed' || $stockedCount > 0) {
+                $this->flash('error', 'This invoice has already had stock added and can no longer be edited.');
+                $this->redirect('/m/product_adding');
+                return;
+            }
         }
 
         $items = DB::fetchAll("SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC", [$id]);
@@ -734,7 +759,11 @@ class PurchaseController extends Controller {
         $savedDesigns   = RollRegistryService::getSavedDesigns($targetCid);
 
         $this->render('concern/purchase_billing_create', [
-            'pageTitle'      => 'Edit Purchase Bill: #' . $bill['bill_no'],
+            'pageTitle'      => ($isProductAddingEdit ? 'Edit Existing Purchase Invoice: #' : 'Edit Purchase Bill: #') . $bill['bill_no'],
+            'pageHeading'    => ($isProductAddingEdit ? 'Edit Existing Purchase Invoice: #' : 'Edit Purchase Bill: #') . $bill['bill_no'],
+            'pageDescription' => $isProductAddingEdit
+                ? 'Review and update the existing Purchase Billing invoice before adding it to stock.'
+                : 'Update fabric rolls, garment supplies/accessories and finished goods for this bill.',
             'currentModule'  => 'purchase_billing',
             'suppliers'      => $suppliers,
             'variants'       => $variants,
@@ -746,7 +775,12 @@ class PurchaseController extends Controller {
             'savedRollSpecs' => $savedRollSpecs,
             'savedColors'    => $savedColors,
             'savedDesigns'   => $savedDesigns,
-            'invoiceCheckUrl' => \App\Core\Controller::url('/m/purchase_billing/check_invoice'),
+            'formAction'     => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/update_purchase_bill' : '/m/purchase_billing/update'),
+            'backUrl'        => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding' : '/m/purchase_billing'),
+            'backLabel'      => $isProductAddingEdit ? 'Back to Product Adding' : 'Back to Purchases',
+            'submitLabel'    => $isProductAddingEdit ? 'Update Existing Invoice' : 'Update Purchase Bill',
+            'productAddingEdit' => $isProductAddingEdit,
+            'invoiceCheckUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/check_invoice' : '/m/purchase_billing/check_invoice'),
         ]);
     }
 
@@ -1134,6 +1168,7 @@ class PurchaseController extends Controller {
     public function checkSupplierInvoiceNumberAjax(): void
     {
         $this->validateCsrf();
+        PurchaseBillSourceService::ensureSchema();
 
         $supplierId = (int)($_POST['supplier_id'] ?? 0);
         $invoiceNo = trim((string)($_POST['supplier_invoice_no'] ?? ''));
@@ -1151,19 +1186,47 @@ class PurchaseController extends Controller {
         }
 
         $billId = (int)($_POST['bill_id'] ?? 0);
-        $duplicate = $this->supplierInvoiceNumberExists(
-            $concernId,
-            $supplierId,
-            $invoiceNo,
-            $billId > 0 ? $billId : null
-        );
-        $this->renderJson([
+        $existingSql = "SELECT pb.id, pb.source_module, pb.inward_status,
+                               COUNT(pbi.id) AS item_count,
+                               COALESCE(SUM(CASE
+                                   WHEN COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'
+                                   THEN 1 ELSE 0
+                               END), 0) AS stocked_count
+                        FROM purchase_bills pb
+                        LEFT JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
+                        WHERE pb.concern_id = ? AND pb.supplier_id = ?
+                          AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))";
+        $existingParams = [$concernId, $supplierId, $invoiceNo];
+        if ($billId > 0) {
+            $existingSql .= ' AND pb.id != ?';
+            $existingParams[] = $billId;
+        }
+        $existingSql .= ' GROUP BY pb.id ORDER BY pb.id DESC LIMIT 1';
+        $existingBill = DB::fetch($existingSql, $existingParams);
+        $duplicate = !empty($existingBill);
+        $response = [
             'success' => true,
             'duplicate' => $duplicate,
             'message' => $duplicate
                 ? 'This supplier invoice number has already been recorded for the selected supplier.'
                 : '',
-        ]);
+        ];
+        $isProductAddingRequest = ($_POST['product_adding_redirect'] ?? '') === '1';
+        $canEditProductAddingInvoice = Auth::isSuperAdmin() || Auth::can('product_adding', 'edit');
+        if (
+            $duplicate &&
+            $isProductAddingRequest &&
+            $canEditProductAddingInvoice &&
+            ($existingBill['source_module'] ?? '') === 'purchase_billing' &&
+            (int)($existingBill['item_count'] ?? 0) > 0 &&
+            (int)($existingBill['stocked_count'] ?? 0) === 0 &&
+            ($existingBill['inward_status'] ?? 'pending') !== 'completed'
+        ) {
+            $response['existing_invoice_edit_url'] = \App\Core\Controller::url(
+                '/m/product_adding/edit_purchase_bill?id=' . (int)$existingBill['id']
+            );
+        }
+        $this->renderJson($response);
     }
 
     public function storeBill(): void {
@@ -2025,12 +2088,20 @@ class PurchaseController extends Controller {
 
     public function updateBill(): void {
         $this->validateCsrf();
+        $isProductAddingEdit = ($_POST['product_adding_redirect'] ?? '') === '1';
+        if ($isProductAddingEdit) {
+            PurchaseBillSourceService::ensureSchema();
+        }
         $billId = (int)($_POST['bill_id'] ?? 0);
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $billListUrl = $isProductAddingEdit ? '/m/product_adding' : '/m/purchase_billing';
+        $editBillUrl = $isProductAddingEdit
+            ? '/m/product_adding/edit_purchase_bill?id=' . $billId
+            : '/m/purchase_billing/edit?id=' . $billId;
 
         if (!$billId) {
             $this->flash('error', 'Invalid purchase bill ID.');
-            $this->redirect('/m/purchase_billing');
+            $this->redirect($billListUrl);
             return;
         }
 
@@ -2046,24 +2117,33 @@ class PurchaseController extends Controller {
 
         if (!$bill) {
             $this->flash('error', 'Purchase Bill not found or access denied.');
-            $this->redirect('/m/purchase_billing');
+            $this->redirect($billListUrl);
+            return;
+        }
+        if ($isProductAddingEdit && ($bill['source_module'] ?? '') !== 'purchase_billing') {
+            $this->flash('error', 'Only Purchase Billing invoices can be edited from Product Adding.');
+            $this->redirect($billListUrl);
             return;
         }
 
         $inwardedItemCount = (int)DB::fetchValue(
-            "SELECT COUNT(*) FROM purchase_bill_items WHERE purchase_bill_id = ? AND inward_status = 'completed'",
+            "SELECT COUNT(*)
+             FROM purchase_bill_items pbi
+             JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+             WHERE pbi.purchase_bill_id = ?
+               AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
             [$billId]
         );
         if (($bill['inward_status'] ?? 'pending') === 'completed' || $inwardedItemCount > 0) {
             $this->flash('error', 'This bill has items already added to stock and can no longer be edited.');
-            $this->redirect('/m/purchase_billing');
+            $this->redirect($billListUrl);
             return;
         }
 
         $supplierId = (int)($_POST['supplier_id'] ?? $bill['supplier_id']);
         if (!$supplierId) {
             $this->flash('error', 'Please select a registered supplier.');
-            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            $this->redirect($editBillUrl);
             return;
         }
 
@@ -2071,12 +2151,12 @@ class PurchaseController extends Controller {
         $supplierInvoiceNo = trim($_POST['supplier_invoice_no'] ?? '');
         if (empty($supplierInvoiceNo)) {
             $this->flash('error', 'Invoice / Bill Number is required.');
-            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            $this->redirect($editBillUrl);
             return;
         }
         if ($this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo, $billId)) {
             $this->flash('error', 'This supplier invoice number has already been recorded for the selected supplier.');
-            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            $this->redirect($editBillUrl);
             return;
         }
         $fabricDescription = trim($_POST['fabric_description'] ?? '');
@@ -2281,7 +2361,7 @@ class PurchaseController extends Controller {
 
         if (empty($itemsToInsert)) {
             $this->flash('error', 'Please enter at least one item with valid quantity and price.');
-            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            $this->redirect($editBillUrl);
             return;
         }
 
@@ -2289,12 +2369,12 @@ class PurchaseController extends Controller {
             $attachmentPaths = $this->uploadBillAttachments($this->getBillAttachmentPaths($bill));
         } catch (\RuntimeException $e) {
             $this->flash('error', $e->getMessage());
-            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            $this->redirect($editBillUrl);
             return;
         }
         if (empty($attachmentPaths)) {
             $this->flash('error', 'Tax Invoice / Bill Attachment is required. Please upload at least one invoice file.');
-            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            $this->redirect($editBillUrl);
             return;
         }
         $attachmentPath = $attachmentPaths[0] ?? null;
@@ -2309,6 +2389,23 @@ class PurchaseController extends Controller {
 
         DB::beginTransaction();
         try {
+            $lockedBillSql = 'SELECT id, concern_id, source_module, inward_status FROM purchase_bills WHERE id = ? AND concern_id = ? FOR UPDATE';
+            $lockedBill = DB::fetch($lockedBillSql, [$billId, $cid]);
+            if (!$lockedBill || ($isProductAddingEdit && ($lockedBill['source_module'] ?? '') !== 'purchase_billing')) {
+                throw new \RuntimeException('Purchase Bill not found or access denied.');
+            }
+            $lockedStockedCount = (int)DB::fetchValue(
+                "SELECT COUNT(*)
+                 FROM purchase_bill_items pbi
+                 JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+                 WHERE pbi.purchase_bill_id = ?
+                   AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
+                [$billId]
+            );
+            if (($lockedBill['inward_status'] ?? 'pending') === 'completed' || $lockedStockedCount > 0) {
+                throw new \RuntimeException('This invoice has already had stock added and can no longer be edited.');
+            }
+
             DB::query(
                 "UPDATE purchase_bills
                  SET supplier_id = ?, bill_date = ?, supplier_invoice_no = ?, notes = ?,
@@ -2387,11 +2484,11 @@ class PurchaseController extends Controller {
             RollRegistryService::syncSpecs($cid);
 
             $this->flash('success', "Purchase Bill '#{$bill['bill_no']}' updated successfully for ₹" . number_format($netAmount, 2) . " (" . count($itemsToInsert) . " items)!");
-            $this->redirect('/m/purchase_billing');
+            $this->redirect($isProductAddingEdit ? '/m/product_adding/edit_purchase_bill?id=' . $billId : '/m/purchase_billing');
         } catch (\Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Error updating purchase bill: ' . $e->getMessage());
-            $this->redirect('/m/purchase_billing/edit?id=' . $billId);
+            $this->redirect($editBillUrl);
         }
     }
 
