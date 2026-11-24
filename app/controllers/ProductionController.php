@@ -6759,7 +6759,12 @@ class ProductionController extends Controller {
     public function qc(): void {
         ModuleGuard::enforce('qc_stocks', 'view');
         $this->ensureQcSchema();
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId();
+        if (!$cid && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Select a concern to view QC inspections.');
+            $this->redirect('/dashboard');
+            return;
+        }
 
         $statusFilter = trim($_GET['status'] ?? '');
         $search       = trim($_GET['search'] ?? '');
@@ -6859,7 +6864,9 @@ class ProductionController extends Controller {
         $batch = DB::fetch("
             SELECT sl.*,
                    COALESCE(sl.batch_no, sl.log_no) AS display_batch_no,
-                   pp.program_no, pp.program_name
+                   pp.program_no, pp.program_name,
+                   (SELECT COUNT(*) FROM stitching_items WHERE stitching_id = sl.id) AS variant_count,
+                   COALESCE((SELECT SUM(stitching_qty) FROM stitching_items WHERE stitching_id = sl.id), sl.stitched_pieces, 0) AS total_pieces
             FROM stitching_logs sl
             LEFT JOIN production_programs pp ON sl.program_id = pp.id
             WHERE sl.id = ?" . ($cid ? " AND (sl.concern_id = ? OR sl.concern_id IS NULL)" : ""),
@@ -6901,10 +6908,15 @@ class ProductionController extends Controller {
     public function createQc(): void {
         ModuleGuard::enforce('qc_stocks', 'add');
         $this->ensureQcSchema();
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId();
+        if (!$cid && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Select a concern before initializing QC.');
+            $this->redirect('/production/qc');
+            return;
+        }
 
         // Fetch completed or in-progress stitching batches ready for QC
-        $stitchingBatches = DB::fetchAll("
+        $batchSql = "
             SELECT sl.*,
                    COALESCE(sl.batch_no, sl.log_no) AS display_batch_no,
                    pp.program_no, pp.program_name,
@@ -6912,29 +6924,33 @@ class ProductionController extends Controller {
                    COALESCE((SELECT SUM(stitching_qty) FROM stitching_items WHERE stitching_id = sl.id), sl.stitched_pieces, 0) AS total_pieces
             FROM stitching_logs sl
             LEFT JOIN production_programs pp ON sl.program_id = pp.id
-            WHERE (sl.concern_id = ? OR sl.concern_id IS NULL)
-              AND (sl.status != 'cancelled' OR sl.status IS NULL)
-            ORDER BY sl.id DESC
-        ", [$cid]);
+            WHERE (sl.status != 'cancelled' OR sl.status IS NULL)";
+        $batchParams = [];
+        if ($cid) {
+            $batchSql .= " AND (sl.concern_id = ? OR sl.concern_id IS NULL)";
+            $batchParams[] = $cid;
+        }
+        $batchSql .= " ORDER BY sl.id DESC";
+        $stitchingBatches = DB::fetchAll($batchSql, $batchParams);
 
         // Preselected stitching batch
-        $selectedStitchingId = (int)($_GET['stitching_batch_id'] ?? ($stitchingBatches[0]['id'] ?? 0));
+        $requestedStitchingId = (int)($_GET['stitching_batch_id'] ?? 0);
         $selectedBatch = null;
         foreach ($stitchingBatches as $b) {
-            if ($b['id'] == $selectedStitchingId) {
+            if ($requestedStitchingId > 0 && (int)$b['id'] === $requestedStitchingId) {
                 $selectedBatch = $b;
                 break;
             }
         }
         if (!$selectedBatch && !empty($stitchingBatches)) {
             $selectedBatch = $stitchingBatches[0];
-            $selectedStitchingId = (int)$selectedBatch['id'];
         }
+        $selectedStitchingId = (int)($selectedBatch['id'] ?? 0);
 
         // Fetch variants for selected stitching batch
         $batchItems = [];
         if ($selectedStitchingId > 0) {
-            $batchItems = DB::fetchAll("
+            $itemsSql = "
                 SELECT si.*,
                        COALESCE(cat.id, pp.catalog_id) AS catalog_id,
                        COALESCE(cat.name, 'Catalog Item') AS catalog_name,
@@ -6948,8 +6964,14 @@ class ProductionController extends Controller {
                 LEFT JOIN catalogs cat ON si.catalog_id = cat.id
                 LEFT JOIN variants v ON si.variant_id = v.id
                 WHERE si.stitching_id = ?
-                ORDER BY si.id ASC
-            ", [$selectedStitchingId]);
+            ";
+            $itemsParams = [$selectedStitchingId];
+            if ($cid) {
+                $itemsSql .= " AND (sl.concern_id = ? OR sl.concern_id IS NULL)";
+                $itemsParams[] = $cid;
+            }
+            $itemsSql .= " ORDER BY si.id ASC";
+            $batchItems = DB::fetchAll($itemsSql, $itemsParams);
         }
 
         // Inspectors list
@@ -6961,11 +6983,6 @@ class ProductionController extends Controller {
             ORDER BY u.name ASC
         ", $cid ? [$cid] : []);
 
-        $warehouses = [
-            ['id' => 1, 'name' => 'Main Store', 'code' => 'WH-01'],
-            ['id' => 2, 'name' => 'Finished Goods Warehouse', 'code' => 'WH-02'],
-        ];
-
         $this->render('concern/qc_create', [
             'pageTitle'           => 'Initialize QC Inspection Batch',
             'currentModule'       => 'qc_stocks',
@@ -6974,7 +6991,6 @@ class ProductionController extends Controller {
             'selectedStitchingId' => $selectedStitchingId,
             'batchItems'          => $batchItems,
             'inspectors'          => $inspectors,
-            'warehouses'          => $warehouses,
             'csrfToken'           => Auth::csrfToken(),
             'selectedCid'         => $cid,
         ]);
@@ -6987,12 +7003,11 @@ class ProductionController extends Controller {
         ModuleGuard::enforce('qc_stocks', 'add');
         $this->ensureQcSchema();
         $this->validateCsrf();
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 1);
+        $authCid = Auth::concernId();
 
         $stitchingBatchId = (int)($_POST['stitching_batch_id'] ?? 0);
         $inspectorId      = (int)($_POST['inspector_id'] ?? Auth::id() ?: 1);
-        $location         = trim($_POST['location'] ?? 'Main Store');
-        if ($location === 'Main Store (WH-01)' || empty($location)) $location = 'Main Store';
+        $location         = 'Main Store';
         $generalNotes     = trim($_POST['notes'] ?? '');
         $submitAction     = trim($_POST['submit_action'] ?? 'direct_inward');
 
@@ -7002,16 +7017,30 @@ class ProductionController extends Controller {
             return;
         }
 
-        $batch = DB::fetch(
-            "SELECT sl.*, COALESCE(sl.batch_no, sl.log_no) AS display_batch_no, pp.program_no, pp.program_name 
-             FROM stitching_logs sl 
-             LEFT JOIN production_programs pp ON sl.program_id = pp.id 
-             WHERE sl.id = ?" . ($cid ? " AND (sl.concern_id = ? OR sl.concern_id IS NULL)" : ""),
-            $cid ? [$stitchingBatchId, $cid] : [$stitchingBatchId]
-        );
+        $batchSql = "SELECT sl.*, COALESCE(sl.batch_no, sl.log_no) AS display_batch_no, pp.program_no, pp.program_name
+                     FROM stitching_logs sl
+                     LEFT JOIN production_programs pp ON sl.program_id = pp.id
+                     WHERE sl.id = ?";
+        $batchParams = [$stitchingBatchId];
+        if ($authCid) {
+            $batchSql .= " AND (sl.concern_id = ? OR sl.concern_id IS NULL)";
+            $batchParams[] = $authCid;
+        } elseif (!Auth::isSuperAdmin()) {
+            $this->flash('error', 'Select a concern before creating a QC inspection.');
+            $this->redirect('/production/qc/create');
+            return;
+        }
+        $batch = DB::fetch($batchSql, $batchParams);
 
         if (!$batch) {
             $this->flash('error', 'Selected stitching batch not found.');
+            $this->redirect('/production/qc/create');
+            return;
+        }
+
+        $cid = $authCid ?: (int)$batch['concern_id'];
+        if ($cid <= 0 || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            $this->flash('error', 'The selected stitching batch is not linked to an active concern.');
             $this->redirect('/production/qc/create');
             return;
         }
@@ -7216,7 +7245,12 @@ class ProductionController extends Controller {
      */
     public function inspectQc(): void {
         $this->ensureQcSchema();
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId();
+        if (!$cid && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Select a concern to inspect this QC batch.');
+            $this->redirect('/production/qc');
+            return;
+        }
         $id = (int)($_GET['id'] ?? 0);
 
         $qc = DB::fetch("
@@ -7409,7 +7443,12 @@ class ProductionController extends Controller {
     public function completeQcInspection(): void {
         $this->ensureQcSchema();
         $this->validateCsrf();
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId();
+        if (!$cid && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Select a concern before completing QC.');
+            $this->redirect('/production/qc');
+            return;
+        }
         $id = (int)($_POST['qc_id'] ?? 0);
 
         $qc = DB::fetch("
@@ -7528,7 +7567,12 @@ class ProductionController extends Controller {
      */
     public function viewQc(): void {
         $this->ensureQcSchema();
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId();
+        if (!$cid && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Select a concern to view this QC inspection.');
+            $this->redirect('/production/qc');
+            return;
+        }
         $id = (int)($_GET['id'] ?? 0);
 
         $qc = DB::fetch("

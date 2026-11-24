@@ -36,7 +36,6 @@
 
     <form action="<?= \App\Core\Controller::url('/production/qc/store') ?>" method="POST" id="formQcCreate">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-        <input type="hidden" name="concern_id" value="<?= htmlspecialchars((string)$selectedCid) ?>">
         <input type="hidden" name="submit_action" id="submitActionInput" value="direct_inward">
 
         <div class="row g-4">
@@ -59,12 +58,13 @@
                                 <option value="">-- Choose Stitching Batch --</option>
                                 <?php foreach ($stitchingBatches as $sb): ?>
                                     <option value="<?= $sb['id'] ?>"
+                                            data-concern="<?= (int)$sb['concern_id'] ?>"
                                             data-no="<?= htmlspecialchars($sb['display_batch_no']) ?>"
                                             data-program="<?= htmlspecialchars(($sb['program_no'] ?? 'PRG') . ' — ' . ($sb['program_name'] ?? 'Production Program')) ?>"
                                             data-pieces="<?= (int)$sb['total_pieces'] ?>"
                                             data-variants="<?= (int)$sb['variant_count'] ?>"
                                             <?= ($selectedStitchingId == $sb['id']) ? 'selected' : '' ?>>
-                                        Batch #<?= $sb['id'] ?> (<?= htmlspecialchars($sb['display_batch_no']) ?> • <?= htmlspecialchars($sb['program_name'] ?: 'Garments') ?> - <?= (int)$sb['total_pieces'] ?> pcs)
+                                        <?= htmlspecialchars($sb['display_batch_no']) ?> • <?= htmlspecialchars(($sb['program_no'] ?? 'PRG') . ' - ' . ($sb['program_name'] ?: 'Garments')) ?> • <?= (int)$sb['total_pieces'] ?> pcs / <?= (int)$sb['variant_count'] ?> variants
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -83,18 +83,6 @@
                                 <?php foreach ($inspectors as $u): ?>
                                     <option value="<?= $u['id'] ?>" <?= ($u['id'] == \App\Core\Auth::id()) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($u['name'] . ($u['role'] ? ' (' . ucfirst($u['role']) . ')' : '')) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <!-- Destination Warehouse -->
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold text-secondary">Destination Warehouse / Location *</label>
-                            <select name="location" class="form-select border-light-subtle shadow-sm">
-                                <?php foreach ($warehouses as $wh): ?>
-                                    <option value="<?= htmlspecialchars($wh['name']) ?>" <?= $wh['id'] == 1 ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($wh['name']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -276,7 +264,10 @@ function onStitchingBatchChange(stitchingId) {
 
 function renderQcVariants(batch, items) {
     document.getElementById('lblBatchNo').textContent = batch.display_batch_no || batch.batch_no || 'STCH';
-    document.getElementById('lblTotalStitched').textContent = (batch.stitched_pieces || 0) + ' Stitched Pcs';
+    const totalStitched = Number(batch.total_pieces || batch.stitched_pieces || (items || []).reduce((sum, item) => {
+        return sum + Number(item.stitching_qty || item.cut_qty || 0);
+    }, 0));
+    document.getElementById('lblTotalStitched').textContent = totalStitched + ' Stitched Pcs';
     document.getElementById('lblProgramName').textContent = (batch.program_no || 'PRG') + ' — ' + (batch.program_name || 'Production Program');
 
     const tbody = document.getElementById('tbodyQcItems');
