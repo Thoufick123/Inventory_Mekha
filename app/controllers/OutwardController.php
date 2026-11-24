@@ -212,9 +212,11 @@ class OutwardController extends Controller {
 
         // Available finished production batches ready to be dispatched
         $availableBatches = DB::fetchAll("
-            SELECT b.*, v.name AS variant_name, v.sku_code, v.size, p.program_no
+            SELECT b.*, 
+                   COALESCE(p.program_name, v.name, 'Finished Production Batch') AS product_name,
+                   v.sku_code, v.size, p.program_no
             FROM batches b
-            JOIN variants v ON b.variant_id = v.id
+            LEFT JOIN variants v ON b.variant_id = v.id
             LEFT JOIN production_programs p ON b.program_id = p.id
             WHERE UPPER(b.status) IN ('PREPARING', 'APPROVED')
             ORDER BY b.id DESC
@@ -359,14 +361,30 @@ class OutwardController extends Controller {
                     VALUES (?, ?, ?, ?, ?)
                 ", [$cid, $outwardId, $batchId, $boxes, $qty]);
 
-                // Link item
-                DB::query("
-                    INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
-                    VALUES (?, ?, ?, ?)
-                ", [$cid, $outwardId, $batch['variant_id'], $qty]);
+                // Link items and deduct stock from Main Store for all variants in the batch
+                $batchVariants = DB::fetchAll("SELECT * FROM batch_items WHERE batch_id = ?", [$batchId]);
+                if (!empty($batchVariants)) {
+                    foreach ($batchVariants as $bv) {
+                        DB::query("
+                            INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
+                            VALUES (?, ?, ?, ?)
+                        ", [$cid, $outwardId, $bv['variant_id'], $bv['qty']]);
+
+                        StockService::move($cid, (int)$bv['variant_id'], 'Main Store', 0.00, (float)$bv['qty'], 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
+                    }
+                } else {
+                    DB::query("
+                        INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
+                        VALUES (?, ?, ?, ?)
+                    ", [$cid, $outwardId, $batch['variant_id'], $qty]);
+
+                    if (!empty($batch['variant_id'])) {
+                        StockService::move($cid, (int)$batch['variant_id'], 'Main Store', 0.00, $qty, 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
+                    }
+                }
 
                 // Update batch status to DISPATCHED
-                DB::query("UPDATE batches SET status = 'DISPATCHED' WHERE id = ?", [$batchId]);
+                DB::query("UPDATE batches SET status = 'DISPATCHED', outward_id = ? WHERE id = ?", [$outwardId, $batchId]);
 
             } else {
                 // Mode 2: Finishing Good (FG) Product Scan & Outward Dispatch

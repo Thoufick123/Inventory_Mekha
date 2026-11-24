@@ -108,11 +108,14 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=0&data
 
     <!-- Top Action Buttons -->
     <div class="action-toolbar">
-        <button type="button" class="btn btn-primary fw-semibold px-4 shadow-sm" onclick="window.print()">
-            <i class="bi bi-printer me-2"></i> Print Warehouse Carton QR Sticker
+        <button type="button" class="btn btn-primary fw-semibold px-3 shadow-sm" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i> Print Carton QR Sticker
         </button>
-        <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-secondary px-4 fw-semibold bg-white shadow-sm">
-            <i class="bi bi-x-lg me-1"></i> Close
+        <a href="<?= \App\Core\Controller::url('/production/batches/challan/' . $batch['id']) ?>" target="_blank" class="btn btn-success fw-bold px-3 shadow-sm">
+            <i class="bi bi-receipt me-1"></i> Delivery Challan & Invoice
+        </a>
+        <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-secondary px-3 fw-semibold bg-white shadow-sm">
+            <i class="bi bi-arrow-left me-1"></i> Batches
         </a>
     </div>
 
@@ -213,27 +216,52 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=0&data
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td class="text-center py-2">
-                        <div class="d-inline-flex p-2 bg-light rounded border text-muted">
-                            <i class="bi bi-image fs-5"></i>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="fw-bold text-dark">GREEN</div>
-                        <small class="badge bg-light text-secondary border px-1" style="font-size: 0.68rem;">BIRDS</small>
-                        <div class="text-muted small mt-0.5" style="font-size: 0.72rem;">Total: <?= $qty ?> pcs</div>
-                    </td>
-                    <td class="font-monospace fw-semibold text-dark">
-                        <?= $sku ?>
-                    </td>
-                    <td class="text-center fw-bold text-dark">
-                        <?= $size ?>
-                    </td>
-                    <td class="text-end fw-bold text-success fs-6">
-                        <?= $qty ?>
-                    </td>
-                </tr>
+                <?php if (!empty($batchItems)): ?>
+                    <?php foreach ($batchItems as $bi): ?>
+                        <tr>
+                            <td class="text-center py-2">
+                                <div class="d-inline-flex p-1.5 bg-light rounded border text-muted">
+                                    <i class="bi bi-box fs-6"></i>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark"><?= htmlspecialchars($bi['variant_name'] ?? $productName) ?></div>
+                                <small class="badge bg-light text-secondary border px-1" style="font-size: 0.68rem;"><?= htmlspecialchars($bi['color'] ?? 'Standard') ?></small>
+                            </td>
+                            <td class="font-monospace fw-semibold text-dark">
+                                <?= htmlspecialchars($bi['sku_code'] ?? '-') ?>
+                            </td>
+                            <td class="text-center fw-bold text-dark">
+                                <?= htmlspecialchars($bi['size'] ?? 'Standard') ?>
+                            </td>
+                            <td class="text-end fw-bold text-success fs-6">
+                                <?= (int)$bi['qty'] ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td class="text-center py-2">
+                            <div class="d-inline-flex p-2 bg-light rounded border text-muted">
+                                <i class="bi bi-image fs-5"></i>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">GREEN</div>
+                            <small class="badge bg-light text-secondary border px-1" style="font-size: 0.68rem;">BIRDS</small>
+                            <div class="text-muted small mt-0.5" style="font-size: 0.72rem;">Total: <?= $qty ?> pcs</div>
+                        </td>
+                        <td class="font-monospace fw-semibold text-dark">
+                            <?= $sku ?>
+                        </td>
+                        <td class="text-center fw-bold text-dark">
+                            <?= $size ?>
+                        </td>
+                        <td class="text-end fw-bold text-success fs-6">
+                            <?= $qty ?>
+                        </td>
+                    </tr>
+                <?php endif; ?>
             </tbody>
         </table>
 

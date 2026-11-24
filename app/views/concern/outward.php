@@ -215,7 +215,14 @@
                                             <i class="bi bi-link-45deg fs-6"></i>
                                         </button>
 
-                                        <!-- 2. Edit Dispatch Modal -->
+                                        <!-- 2. Print Delivery Challan & Invoice -->
+                                        <?php if (!empty($o['linked_batch_id'])): ?>
+                                        <a href="<?= \App\Core\Controller::url('/production/batches/challan/' . $o['linked_batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-success p-1 px-1.5" title="Print Delivery Challan & Outward Invoice">
+                                            <i class="bi bi-receipt"></i>
+                                        </a>
+                                        <?php endif; ?>
+
+                                        <!-- 3. Edit Dispatch Modal -->
                                         <?php if (\App\Core\Auth::can('outward', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary p-1 px-1.5" title="Edit Dispatch" onclick='openEditOutwardModal(<?= json_encode($o, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
                                             <i class="bi bi-pencil"></i>
@@ -364,7 +371,7 @@
                             <option value="">-- Select Finished Production Batch --</option>
                             <?php foreach ($availableBatches as $b): ?>
                                 <option value="<?= $b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 1) ?>">
-                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['variant_name']) ?> (<?= (int)$b['batch_qty'] ?> pcs, <?= (int)$b['total_boxes'] ?> box)
+                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['product_name'] ?? ($b['program_name'] ?? ($b['variant_name'] ?? 'Production Batch'))) ?> (<?= (int)$b['batch_qty'] ?> pcs, <?= (int)$b['total_boxes'] ?> box)
                                 </option>
                             <?php endforeach; ?>
                         </select>
