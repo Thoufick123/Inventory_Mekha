@@ -1,6 +1,6 @@
 <?php
 // app/views/concern/outward.php
-// Production Outward & Dispatch View (With Production Batch & Finishing Good Scanner Flow)
+// Production Outward & Dispatch View (Unified Batch and Finished-Good Scanner)
 ?>
 <div class="container-fluid px-3 py-2">
     <!-- Breadcrumb -->
@@ -18,15 +18,12 @@
             <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
                 <i class="bi bi-truck text-primary"></i> Production Outward &amp; Dispatch
             </h4>
-            <p class="text-secondary small mb-0">Dispatch finished production boxes and scanned finishing goods with vehicle tracking</p>
+            <p class="text-secondary small mb-0">Scan QC-passed production batches and in-stock finished goods together in one outward dispatch</p>
         </div>
         <?php if (\App\Core\Auth::can('outward', 'create')): ?>
         <div class="d-flex align-items-center gap-2">
-            <button type="button" class="btn btn-outline-primary fw-semibold shadow-sm px-3 py-2" onclick="openNewDispatchModal('batch')">
-                <i class="bi bi-boxes me-1"></i> New Batch Outward
-            </button>
-            <button type="button" class="btn btn-primary fw-semibold shadow-sm px-3 py-2" onclick="openNewDispatchModal('finished_goods')" style="background:#4f46e5; border-color:#4f46e5;">
-                <i class="bi bi-upc-scan me-1"></i> Scan Finishing Goods
+            <button type="button" class="btn btn-primary fw-semibold shadow-sm px-3 py-2" onclick="openNewDispatchModal()" style="background:#4f46e5; border-color:#4f46e5;">
+                <i class="bi bi-upc-scan me-1"></i> New Outward Dispatch
             </button>
         </div>
         <?php endif; ?>
@@ -105,9 +102,9 @@
                             <td colspan="9" class="text-center py-5 text-muted">
                                 <i class="bi bi-truck fs-1 d-block mb-2 text-secondary opacity-50"></i>
                                 <?php if ($activeTab === 'fg'): ?>
-                                    No finishing good dispatches found. Click <strong>Scan Finishing Goods</strong> to scan products and outward.
+                                    No finished-good-only dispatches found. Create an outward manifest to scan products.
                                 <?php else: ?>
-                                    No production batch outward records found. Click <strong>New Batch Outward</strong> to dispatch a batch.
+                                    No production batch outward records found. Create a new outward manifest to dispatch stock.
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -275,11 +272,13 @@
 </div>
 
 <?php if (\App\Core\Auth::can('outward', 'create')): ?>
-<!-- Modal: New Outward Dispatch (Two Labels: 1. Production Batch | 2. Finishing Good) -->
+<!-- Modal: Unified Outward Dispatch -->
 <div class="modal fade" id="modalAddOutward" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <form action="<?= \App\Core\Controller::url('/m/outward/store') ?>" method="POST" id="formAddOutward" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
+            <input type="hidden" name="dispatch_mode" value="unified">
+            <input type="hidden" name="batch_id" id="production_batch_id" value="">
             <input type="hidden" name="scanned_items_json" id="scanned_items_json" value="[]">
             <?php if (!empty($posInvoiceTransfer)): ?>
                 <input type="hidden" name="pos_invoice_id" value="<?= (int)$posInvoiceTransfer['id'] ?>">
@@ -291,24 +290,6 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <!-- Two Primary Flow Labels Switcher -->
-                <div class="mb-4">
-                    <label class="form-label small fw-bold text-dark mb-2 text-uppercase" style="letter-spacing:0.05em;">Choose Outward Dispatch Flow *</label>
-                    <div class="btn-group w-100 p-1 bg-light rounded-3 shadow-none border" role="group">
-                        <input type="radio" class="btn-check" name="dispatch_mode" id="mode_batch" value="batch" checked onchange="toggleDispatchMode('batch')">
-                        <label class="btn btn-outline-primary fw-bold py-2.5 rounded-2 d-flex align-items-center justify-content-center gap-2" for="mode_batch">
-                            <i class="bi bi-boxes fs-5"></i>
-                            <span>1. Production Batch</span>
-                        </label>
-
-                        <input type="radio" class="btn-check" name="dispatch_mode" id="mode_fg" value="finished_goods" onchange="toggleDispatchMode('finished_goods')">
-                        <label class="btn btn-outline-primary fw-bold py-2.5 rounded-2 d-flex align-items-center justify-content-center gap-2" for="mode_fg">
-                            <i class="bi bi-upc-scan fs-5"></i>
-                            <span>2. Finishing Good (Scan &amp; Outward)</span>
-                        </label>
-                    </div>
-                </div>
-
                 <?php if (!empty($posInvoiceTransfer)): ?>
                     <div class="alert alert-info py-2 px-3 small">
                         <strong>POS invoice <?= htmlspecialchars($posInvoiceTransfer['invoice_no']) ?></strong>
@@ -317,39 +298,20 @@
                     </div>
                 <?php endif; ?>
 
-                <!-- ========================================================================= -->
-                <!-- FLOW 1: PRODUCTION BATCH DISPATCH (Show the batches)                      -->
-                <!-- ========================================================================= -->
-                <div id="sectionBatchMode" class="row g-3">
+                <div id="outwardRoutingFields" class="row g-3">
                     <div class="col-12">
                         <div class="alert alert-info py-2 px-3 small mb-0 d-flex align-items-center gap-2">
                             <i class="bi bi-info-circle fs-5"></i>
-                            <div>Select QC-passed own-production stock with remaining Main Store quantity, then choose the destination concern.</div>
+                            <div>One manifest can include one QC-passed production batch and multiple finished-good items.</div>
                         </div>
                     </div>
 
-                    <div class="col-12">
-                        <label for="productionBatchScanInput" class="form-label small fw-bold text-dark mb-1">
-                            <i class="bi bi-qr-code-scan text-primary me-1"></i> Scan Production Batch QR / Barcode / Batch Number
-                        </label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-white"><i class="bi bi-upc-scan"></i></span>
-                            <input type="text" id="productionBatchScanInput" class="form-control font-monospace" placeholder="Scan carton label or enter batch number (e.g. BAT-20261124-0001)" autocomplete="off">
-                            <button type="button" class="btn btn-primary" id="productionBatchScanButton">
-                                <i class="bi bi-search me-1"></i> Find Batch
-                            </button>
-                        </div>
-                        <div id="productionBatchScanFeedback" class="small text-muted mt-1" aria-live="polite">
-                            Only QC-passed production batches with available good Main Store stock can be selected.
-                        </div>
-                    </div>
-
-                    <!-- Row 1: Dual Concern Routing: Current Concern -> Destination Concern -->
-                    <div class="col-md-6">
+                    <!-- Shared source and destination for the combined manifest -->
+                    <div class="col-md-6 <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>">
                         <label class="form-label small fw-bold text-dark">
                             <i class="bi bi-geo-alt-fill text-danger me-1"></i> Current Concern (Dispatched From) *
                         </label>
-                        <select name="source_concern_id" id="sourceConcernSelect" class="form-select form-select-sm bg-light fw-semibold" onchange="filterBatchesByConcern(this.value)">
+                        <select name="source_concern_id" id="sourceConcernSelect" class="form-select form-select-sm bg-light fw-semibold" onchange="filterOutwardItemsByConcern(this.value)">
                             <?php foreach ($sourceConcerns as $con): ?>
                                 <option value="<?= $con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'selected' : '' ?>>
                                     🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
@@ -361,11 +323,11 @@
                         </small>
                     </div>
 
-                    <div class="col-md-6">
+                    <div class="col-md-6 <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>">
                         <label class="form-label small fw-bold text-dark">
                             <i class="bi bi-truck text-primary me-1"></i> Destination Concern (Outward To Concern) *
                         </label>
-                        <select name="destination_concern_id" id="dispatchConcernSelect" class="form-select form-select-sm fw-semibold border-primary" required>
+                        <select name="destination_concern_id" id="dispatchConcernSelect" class="form-select form-select-sm fw-semibold border-primary" <?= empty($posInvoiceTransfer) ? 'required' : '' ?>>
                             <option value="">-- Select Outward Destination Concern --</option>
                             <?php foreach ($allConcerns as $con): ?>
                                 <option value="<?= $con['id'] ?>" data-concern-id="<?= (int)$con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'disabled hidden' : '' ?>>
@@ -378,33 +340,23 @@
                         </small>
                     </div>
 
-                    <!-- Row 2: Batch Selection -->
-                    <div class="col-12">
-                        <label class="form-label small fw-semibold text-secondary">
-                            <i class="bi bi-box-seam text-primary me-1"></i> Select QC-Passed Production Stock to Dispatch *
-                        </label>
-                        <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm" required>
-                            <option value="">-- Select QC-Passed Own-Production Stock --</option>
-                            <?php foreach ($availableBatches as $b): ?>
-                                <option value="<?= (int)$b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 0) ?>" data-batch-no="<?= htmlspecialchars($b['batch_no']) ?>" data-qc-no="<?= htmlspecialchars((string)($b['qc_no'] ?? '')) ?>" data-available-qty="<?= (float)$b['dispatch_qty'] ?>">
-                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['product_name'] ?? ($b['program_name'] ?? ($b['variant_name'] ?? 'Production Batch'))) ?>
-                                    (QC <?= htmlspecialchars((string)($b['qc_no'] ?? '-')) ?>, <?= (int)$b['dispatch_qty'] ?> pcs available)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
                 </div>
 
-                <!-- ========================================================================= -->
-                <!-- FLOW 2: FINISHING GOOD (Scan finished good products and outward)          -->
-                <!-- ========================================================================= -->
-                <div id="sectionFgMode" class="d-none">
+                <select id="dispatchBatchSelect" class="d-none" aria-hidden="true">
+                    <option value="">No production batch selected</option>
+                    <?php foreach ($availableBatches as $b): ?>
+                        <option value="<?= (int)$b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 0) ?>" data-batch-no="<?= htmlspecialchars($b['batch_no']) ?>" data-qc-no="<?= htmlspecialchars((string)($b['qc_no'] ?? '')) ?>" data-available-qty="<?= (float)$b['dispatch_qty'] ?>">
+                            <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['product_name'] ?? ($b['program_name'] ?? ($b['variant_name'] ?? 'Production Batch'))) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <div id="sectionOutwardMode">
                     <!-- Scanner Input Bar -->
-                    <div class="card border-0 bg-light p-3 rounded-3 mb-3 border <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>" id="fgScannerTools">
+                    <div class="card border-0 bg-light p-3 rounded-3 mb-3 border <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>" id="outwardScannerTools">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <label class="form-label small fw-bold text-dark mb-0 d-flex align-items-center gap-2">
-                                <i class="bi bi-upc-scan text-primary fs-5"></i> Scan Finishing Good Product QR / Barcode / SKU
+                                <i class="bi bi-upc-scan text-primary fs-5"></i> Scan Production Batch or Finished Good
                             </label>
                             <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 small">
                                 Live Scanner Ready
@@ -412,13 +364,13 @@
                         </div>
                         <div class="input-group">
                             <span class="input-group-text bg-white text-muted"><i class="bi bi-qr-code-scan"></i></span>
-                            <input type="text" id="fgScanInput" class="form-control font-monospace fs-6" placeholder="Scan Barcode or type SKU (e.g. GRM-STY-0001-XL, KBD1126101)..." autocomplete="off">
-                            <button type="button" class="btn btn-primary px-3 fw-bold" onclick="processFgScanInput()">
+                            <input type="text" id="outwardScanInput" class="form-control font-monospace fs-6" placeholder="Scan a batch label, QC number, finished-good QR, barcode, or SKU..." autocomplete="off">
+                            <button type="button" class="btn btn-primary px-3 fw-bold" id="outwardScanButton">
                                 <i class="bi bi-plus-lg me-1"></i> Scan / Add
                             </button>
                         </div>
-                        <div id="fgScanFeedback" class="small mt-1 text-muted" style="min-height: 20px;">
-                            <i class="bi bi-info-circle me-1"></i> Point your handheld barcode scanner or type code and press Enter.
+                        <div id="outwardScanFeedback" class="small mt-1 text-muted" style="min-height: 20px;" aria-live="polite">
+                            <i class="bi bi-info-circle me-1"></i> Scan a production batch carton or an available finished-good item.
                         </div>
 
                         <!-- Manual Quick Select Dropdown Fallback -->
@@ -446,25 +398,26 @@
                     <!-- Scanned Finished Goods Table -->
                     <div class="card border rounded-3 overflow-hidden mb-3">
                         <div class="card-header bg-white py-2 border-bottom d-flex justify-content-between align-items-center">
-                            <span class="small fw-bold text-dark"><i class="bi bi-list-check me-1 text-primary"></i> Scanned Finishing Goods Items (<span id="fgItemsCount">0</span>)</span>
+                            <span class="small fw-bold text-dark"><i class="bi bi-list-check me-1 text-primary"></i> Scanned Outward Items (<span id="fgItemsCount">0</span>)</span>
                             <span class="badge bg-success-subtle text-success border border-success-subtle" id="fgTotalPcsBadge">0 pcs scanned</span>
                         </div>
                         <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
                             <table class="table table-sm table-hover align-middle mb-0" id="tableFgScanned">
                                 <thead class="bg-light text-muted small text-uppercase" style="font-size:0.7rem;">
                                     <tr>
-                                        <th class="ps-3 py-2">PRODUCT &amp; SKU</th>
+                                        <th class="ps-3 py-2">TYPE / PRODUCT</th>
+                                        <th>PRODUCT CODE / BATCH NO.</th>
                                         <th>SIZE</th>
-                                        <th>AVAILABLE STOCK</th>
-                                        <th style="width: 140px;">SCANNED PIECES</th>
+                                        <th>AVAILABLE GOOD STOCK</th>
+                                        <th style="width: 140px;">QTY TO DISPATCH</th>
                                         <th class="text-end pe-3" style="width: 60px;">ACTION</th>
                                     </tr>
                                 </thead>
                                 <tbody id="fgScannedTbody">
                                     <tr id="emptyFgRow">
-                                        <td colspan="5" class="text-center py-4 text-muted small">
+                                        <td colspan="6" class="text-center py-4 text-muted small">
                                             <i class="bi bi-upc-scan fs-3 d-block text-secondary opacity-50 mb-1"></i>
-                                            No finishing good products scanned yet. Scan barcodes or select products above.
+                                            Scan a production batch or finished-good product to add it here.
                                         </td>
                                     </tr>
                                 </tbody>
@@ -472,57 +425,23 @@
                         </div>
                     </div>
 
-                    <!-- Destination Concern (All created concerns listed) & Boxes for Finishing Goods -->
-                    <div class="row g-3 mb-2 p-3 bg-light rounded-3 border">
-                        <div class="col-md-6 <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>" id="fgSourceConcernField">
-                            <label class="form-label small fw-bold text-dark">
-                                <i class="bi bi-geo-alt-fill text-danger me-1"></i> Current Concern (Dispatched From) *
-                            </label>
-                            <select name="source_concern_id_fg" id="fgSourceConcernSelect" class="form-select form-select-sm bg-white fw-semibold">
-                                <?php foreach ($sourceConcerns as $con): ?>
-                                    <option value="<?= $con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'selected' : '' ?>>
-                                        🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <small class="text-muted d-block mt-1" style="font-size:0.73rem;">
-                                <i class="bi bi-info-circle me-1"></i> Current concern we are currently in (origin facility)
-                            </small>
-                        </div>
-
-                        <div class="col-md-6 <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>" id="fgDestinationConcernField">
-                            <label class="form-label small fw-bold text-dark">
-                                <i class="bi bi-truck text-primary me-1"></i> Destination Concern (Outward To Concern) *
-                            </label>
-                            <select name="destination_concern_id_fg" id="fgDestConcernSelect" class="form-select form-select-sm fw-semibold border-primary" <?= empty($posInvoiceTransfer) ? 'required' : '' ?>>
-                                <option value="">-- Select Outward Destination Concern --</option>
-                                <?php foreach ($allConcerns as $con): ?>
-                                    <option value="<?= $con['id'] ?>" data-concern-id="<?= (int)$con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'disabled hidden' : '' ?>>
-                                        🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <small class="text-muted d-block mt-1" style="font-size:0.73rem;">
-                                <i class="bi bi-arrow-right-circle me-1"></i> Select from all created concerns which we outward to
-                            </small>
-                        </div>
-
-                        <?php if (!empty($posInvoiceTransfer)): ?>
-                            <div class="col-12">
-                                <label class="form-label small fw-bold text-dark">Destination Customer</label>
-                                <div class="form-control form-control-sm bg-white">
-                                    <?= htmlspecialchars($posInvoiceTransfer['customer_name']) ?>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-
-                        <div class="<?= !empty($posInvoiceTransfer) ? 'col-md-6' : 'col-12' ?>">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
                             <label class="form-label small fw-semibold text-secondary">
                                 <i class="bi bi-boxes me-1"></i> Total Boxes / Cartons
                             </label>
-                            <input type="number" name="total_boxes" id="fgTotalBoxesInput" class="form-control form-control-sm" min="1" step="1">
+                            <input type="number" name="total_boxes" id="totalBoxesInput" class="form-control form-control-sm" min="1" max="99999" step="1" title="Enter a whole number between 1 and 99999.">
                         </div>
                     </div>
+
+                    <?php if (!empty($posInvoiceTransfer)): ?>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-dark">Destination Customer</label>
+                            <div class="form-control form-control-sm bg-white">
+                                <?= htmlspecialchars($posInvoiceTransfer['customer_name']) ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <hr class="my-3 text-muted">
@@ -531,27 +450,27 @@
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Vehicle Number *</label>
-                        <input type="text" name="vehicle_number" class="form-control form-control-sm font-monospace text-uppercase" placeholder="e.g. rtt31232" required>
+                        <input type="text" name="vehicle_number" class="form-control form-control-sm font-monospace text-uppercase" placeholder="e.g. TN 12 AB 1234" pattern="(?:[A-Za-z]{2}[\s-]?\d{1,2}[\s-]?[A-Za-z]{1,3}[\s-]?\d{1,4}|\d{2}[\s-]?[Bb][Hh][\s-]?\d{4}[\s-]?[A-Za-z]{1,2})" title="Enter a valid Indian registration, e.g. TN 12 AB 1234." required>
                     </div>
 
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Driver Name</label>
-                        <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="e.g. Vanaja">
+                        <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="e.g. Vanaja" maxlength="100" title="Use a name with letters, spaces, apostrophes, periods, or hyphens.">
                     </div>
 
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Driver Contact</label>
-                        <input type="text" name="driver_contact" class="form-control form-control-sm" placeholder="e.g. 9943557998">
+                        <input type="tel" name="driver_contact" class="form-control form-control-sm" placeholder="e.g. 9943557998" inputmode="numeric" pattern="[6-9][0-9]{9}" title="Enter a valid 10-digit Indian mobile number.">
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold text-secondary">Transporter / Carrier Name</label>
-                        <input type="text" name="transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics">
+                        <input type="text" name="transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics" maxlength="150">
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold text-secondary">Notes / Remarks</label>
-                        <input type="text" name="notes" class="form-control form-control-sm" placeholder="e.g. Priority shipment">
+                        <input type="text" name="notes" class="form-control form-control-sm" placeholder="e.g. Priority shipment" maxlength="2000">
                     </div>
                 </div>
             </div>
@@ -700,61 +619,24 @@ function excludeSourceConcernFromDestination(destinationId, sourceConcernId) {
     }
 }
 
-function scanProductionBatch() {
-    const scanInput = document.getElementById('productionBatchScanInput');
-    const batchSelect = document.getElementById('dispatchBatchSelect');
-    const feedback = document.getElementById('productionBatchScanFeedback');
-    const scannedCode = scanInput ? scanInput.value.trim().toUpperCase() : '';
-    if (!scannedCode || !batchSelect || !feedback) return;
-
-    const matches = Array.from(batchSelect.options).slice(1).filter(function(option) {
-        return [option.getAttribute('data-batch-no'), option.getAttribute('data-qc-no')]
-            .some(function(code) {
-                return String(code || '').trim().toUpperCase() === scannedCode;
-            });
-    });
-
-    if (!matches.length) {
-        feedback.className = 'small text-danger mt-1';
-        feedback.textContent = 'Batch not found among QC-passed production batches with available good stock for this concern.';
-        scanInput.select();
-        return;
-    }
-    if (matches.length > 1) {
-        feedback.className = 'small text-danger mt-1';
-        feedback.textContent = 'This QC number matches more than one batch. Scan the unique batch number instead.';
-        scanInput.select();
-        return;
-    }
-
-    const batch = matches[0];
-    if (batch.style.display === 'none') {
-        feedback.className = 'small text-danger mt-1';
-        feedback.textContent = 'This batch is not available for the selected source concern.';
-        scanInput.select();
-        return;
-    }
-
-    batchSelect.value = batch.value;
-    feedback.className = 'small text-success mt-1';
-    feedback.textContent = 'Selected batch ' + batch.getAttribute('data-batch-no') +
-        ' — ' + batch.getAttribute('data-available-qty') + ' good pcs available.';
-    scanInput.value = '';
-    scanInput.focus();
+function getSelectedBatchOption() {
+    const select = document.getElementById('dispatchBatchSelect');
+    return select && select.value ? select.options[select.selectedIndex] : null;
 }
 
-function filterBatchesByConcern(conId) {
+function filterOutwardItemsByConcern(conId) {
     excludeSourceConcernFromDestination('dispatchConcernSelect', conId);
     const select = document.getElementById('dispatchBatchSelect');
-    if (!select) return;
+    if (!select) {
+        refreshFgStockAvailability();
+        return;
+    }
     const conIdStr = String(conId || '');
-    let matched = 0;
     Array.from(select.options).forEach((opt, idx) => {
         if (idx === 0) return;
         const c = opt.getAttribute('data-concern');
         if (!conIdStr || !c || String(c) === conIdStr) {
             opt.style.display = '';
-            matched++;
         } else {
             opt.style.display = 'none';
         }
@@ -763,11 +645,14 @@ function filterBatchesByConcern(conId) {
     const currentOpt = select.options[select.selectedIndex];
     if (currentOpt && currentOpt.style.display === 'none') {
         select.value = '';
+        document.getElementById('production_batch_id').value = '';
     }
+    refreshFgStockAvailability();
+    renderScannedTable();
 }
 
 function getSelectedFgConcernId() {
-    const source = document.getElementById('fgSourceConcernSelect');
+    const source = document.getElementById('sourceConcernSelect');
     return source ? parseInt(source.value || '0', 10) : 0;
 }
 
@@ -809,52 +694,69 @@ function refreshFgStockAvailability() {
         const changes = [];
         if (removedItems) changes.push(`${removedItems} unavailable item${removedItems === 1 ? '' : 's'} removed`);
         if (adjustedItems) changes.push(`${adjustedItems} item ${adjustedItems === 1 ? 'quantity was' : 'quantities were'} reduced to available stock`);
-        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i> ${changes.join('; ')} for the selected concern.</span>`;
+        document.getElementById('outwardScanFeedback').innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i> ${changes.join('; ')} for the selected concern.</span>`;
     }
 }
 
-function toggleDispatchMode(mode) {
-    const batchSec = document.getElementById('sectionBatchMode');
-    const fgSec = document.getElementById('sectionFgMode');
+function processOutwardScan(scannedCode) {
+    const input = document.getElementById('outwardScanInput');
+    const feedback = document.getElementById('outwardScanFeedback');
     const batchSelect = document.getElementById('dispatchBatchSelect');
-    const dispatchConcernSelect = document.getElementById('dispatchConcernSelect');
-    const fgDestConcernSelect = document.getElementById('fgDestConcernSelect');
-    const btnSubmit = document.getElementById('btnSubmitOutward');
+    if (!input || !feedback || !batchSelect) return;
+    const code = String(scannedCode || input.value || '').trim();
+    if (!code) {
+        feedback.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i> Scan or enter a batch label, barcode, or SKU.</span>';
+        playScannerBeep('error');
+        return;
+    }
 
-    if (mode === 'batch') {
-        batchSec.classList.remove('d-none');
-        fgSec.classList.add('d-none');
-        if (batchSelect) batchSelect.required = true;
-        if (dispatchConcernSelect) dispatchConcernSelect.required = true;
-        if (fgDestConcernSelect) fgDestConcernSelect.required = false;
-        btnSubmit.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> Confirm & Dispatch Production Batch';
-    } else {
-        batchSec.classList.add('d-none');
-        fgSec.classList.remove('d-none');
-        if (batchSelect) batchSelect.required = false;
-        if (dispatchConcernSelect) dispatchConcernSelect.required = false;
-        if (fgDestConcernSelect) fgDestConcernSelect.required = !isPosInvoiceTransfer;
-        btnSubmit.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> Confirm & Outward Finishing Goods';
+    const normalizedCode = code.toUpperCase();
+    const selectedConcernId = getSelectedFgConcernId();
+    const batchMatches = Array.from(batchSelect.options).slice(1).filter(function(option) {
+        const sameConcern = parseInt(option.getAttribute('data-concern') || '0', 10) === selectedConcernId;
+        const codeMatches = [option.getAttribute('data-batch-no'), option.getAttribute('data-qc-no')]
+            .some(function(batchCode) {
+                return String(batchCode || '').trim().toUpperCase() === normalizedCode;
+            });
+        return sameConcern && codeMatches;
+    });
+
+    if (batchMatches.length > 1) {
+        feedback.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i> This QC number matches multiple batches; scan the unique batch number.</span>';
+        playScannerBeep('error');
+        input.select();
+        return;
+    }
+    if (batchMatches.length === 1) {
+        const batch = batchMatches[0];
+        const existing = getSelectedBatchOption();
+        if (existing && existing.value !== batch.value) {
+            feedback.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i> One production batch is allowed per outward manifest. Clear the selected batch before scanning another.</span>';
+            playScannerBeep('error');
+            input.select();
+            return;
+        }
+        batchSelect.value = batch.value;
+        document.getElementById('production_batch_id').value = batch.value;
+        feedback.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i> Production batch ${batch.getAttribute('data-batch-no')} added (${batch.getAttribute('data-available-qty')} good pcs available).</span>`;
+        playScannerBeep('success');
+        input.value = '';
+        renderScannedTable();
+        input.focus();
+        return;
+    }
+
+    processFinishedGoodScan(code);
+}
+
+function openNewDispatchModal() {
+    new bootstrap.Modal(document.getElementById('modalAddOutward')).show();
+    if (!isPosInvoiceTransfer) {
         setTimeout(() => {
-            const input = document.getElementById('fgScanInput');
-            if (input && !isPosInvoiceTransfer) input.focus();
+            const input = document.getElementById('outwardScanInput');
+            if (input) input.focus();
         }, 150);
     }
-}
-
-function openNewDispatchModal(mode) {
-    const radioBatch = document.getElementById('mode_batch');
-    const radioFg = document.getElementById('mode_fg');
-
-    if (mode === 'batch') {
-        if (radioBatch) radioBatch.checked = true;
-        toggleDispatchMode('batch');
-    } else {
-        if (radioFg) radioFg.checked = true;
-        toggleDispatchMode('finished_goods');
-    }
-
-    new bootstrap.Modal(document.getElementById('modalAddOutward')).show();
 }
 
 // Web Audio API beep sound for realistic barcode scanner feedback
@@ -882,18 +784,9 @@ function playScannerBeep(type = 'success') {
     }
 }
 
-// Process scanner input
-function processFgScanInput() {
-    const input = document.getElementById('fgScanInput');
-    const feedback = document.getElementById('fgScanFeedback');
-    const code = (input.value || '').trim();
-
-    if (!code) {
-        feedback.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i> Please scan or enter a barcode / SKU code.</span>';
-        playScannerBeep('error');
-        return;
-    }
-
+function processFinishedGoodScan(code) {
+    const input = document.getElementById('outwardScanInput');
+    const feedback = document.getElementById('outwardScanFeedback');
     // Match code against variants: by SKU, ID, or partial name
     const selectedConcernId = getSelectedFgConcernId();
     const match = availableVariants.find(v =>
@@ -908,13 +801,14 @@ function processFgScanInput() {
 
     if (match) {
         if (!addScannedVariant(match)) return;
-        feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned: ${match.name} (${match.sku_code})! +1 piece added.</span>`;
+        feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Added finished good: ${match.name} (${match.sku_code}), +1 piece.</span>`;
         playScannerBeep('success');
         input.value = '';
         input.focus();
     } else {
-        feedback.innerHTML = `<span class="text-danger fw-semibold"><i class="bi bi-x-circle me-1"></i> No matching finishing good found for '${code}'.</span>`;
+        feedback.innerHTML = `<span class="text-danger fw-semibold"><i class="bi bi-x-circle me-1"></i> No available QC-passed batch or finished good matched '${code}'.</span>`;
         playScannerBeep('error');
+        input.select();
     }
 }
 
@@ -929,7 +823,7 @@ function quickAddFromSelect(select) {
             select.value = '';
             return;
         }
-        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i> Added: ${match.name} (${match.sku_code}).</span>`;
+        document.getElementById('outwardScanFeedback').innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i> Added: ${match.name} (${match.sku_code}).</span>`;
         playScannerBeep('success');
     }
     select.value = '';
@@ -939,12 +833,12 @@ function addScannedVariant(v) {
     const id = parseInt(v.id);
     const stock = parseInt(v.stock_qty || 0, 10);
     if (parseInt(v.concern_id, 10) !== getSelectedFgConcernId() || stock <= 0) {
-        document.getElementById('fgScanFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i> This item has no available stock in the selected concern Main Store.</span>';
+        document.getElementById('outwardScanFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i> This item has no available good stock in the selected concern Main Store.</span>';
         playScannerBeep('error');
         return false;
     }
     if (scannedFgMap[id] && scannedFgMap[id].qty >= stock) {
-        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Cannot add more; only ${stock} pcs are available.</span>`;
+        document.getElementById('outwardScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Cannot add more; only ${stock} pcs are available.</span>`;
         playScannerBeep('error');
         return false;
     }
@@ -969,7 +863,7 @@ function updateScannedQty(id, delta) {
     if (!scannedFgMap[id]) return;
     const item = scannedFgMap[id];
     if (delta > 0 && (item.stock <= 0 || item.qty + delta > item.stock)) {
-        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Quantity cannot exceed ${item.stock} available pcs.</span>`;
+        document.getElementById('outwardScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Quantity cannot exceed ${item.stock} available pcs.</span>`;
         playScannerBeep('error');
         return;
     }
@@ -986,7 +880,7 @@ function setScannedQtyManual(id, input) {
         delete scannedFgMap[id];
     } else if (val > scannedFgMap[id].stock) {
         scannedFgMap[id].qty = Math.max(1, scannedFgMap[id].stock);
-        document.getElementById('fgScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Quantity was limited to ${scannedFgMap[id].stock} available pcs.</span>`;
+        document.getElementById('outwardScanFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> Quantity was limited to ${scannedFgMap[id].stock} available pcs.</span>`;
         playScannerBeep('error');
     } else {
         scannedFgMap[id].qty = val;
@@ -999,33 +893,42 @@ function removeScannedItem(id) {
     renderScannedTable();
 }
 
+function clearSelectedBatch() {
+    const batchSelect = document.getElementById('dispatchBatchSelect');
+    if (batchSelect) batchSelect.value = '';
+    document.getElementById('production_batch_id').value = '';
+    renderScannedTable();
+}
+
 function clearAllScanned() {
     scannedFgMap = {};
+    clearSelectedBatch();
     renderScannedTable();
-    document.getElementById('fgScanFeedback').innerHTML = '<span class="text-muted"><i class="bi bi-info-circle me-1"></i> Scanned items cleared.</span>';
+    document.getElementById('outwardScanFeedback').innerHTML = '<span class="text-muted"><i class="bi bi-info-circle me-1"></i> Scanned items cleared.</span>';
 }
 
 function renderScannedTable() {
     const tbody = document.getElementById('fgScannedTbody');
     const items = Object.values(scannedFgMap);
+    const batch = getSelectedBatchOption();
     const countBadge = document.getElementById('fgItemsCount');
     const pcsBadge = document.getElementById('fgTotalPcsBadge');
     const jsonInput = document.getElementById('scanned_items_json');
 
-    countBadge.innerText = items.length;
+    countBadge.innerText = items.length + (batch ? 1 : 0);
 
-    let totalPcs = 0;
+    let totalPcs = batch ? parseFloat(batch.getAttribute('data-available-qty') || '0') : 0;
     items.forEach(it => { totalPcs += it.qty; });
-    pcsBadge.innerText = totalPcs + ' pcs scanned';
+    pcsBadge.innerText = totalPcs + ' pcs';
 
     jsonInput.value = JSON.stringify(items);
 
-    if (items.length === 0) {
+    if (items.length === 0 && !batch) {
         tbody.innerHTML = `
             <tr id="emptyFgRow">
                 <td colspan="5" class="text-center py-4 text-muted small">
                     <i class="bi bi-upc-scan fs-3 d-block text-secondary opacity-50 mb-1"></i>
-                    No finishing good products scanned yet. Scan barcodes or select products above.
+                    Scan a production batch or finished-good product to add it here.
                 </td>
             </tr>
         `;
@@ -1033,6 +936,25 @@ function renderScannedTable() {
     }
 
     let html = '';
+    if (batch) {
+        const batchNo = batch.getAttribute('data-batch-no') || batch.textContent.trim();
+        const qcNo = batch.getAttribute('data-qc-no') || '-';
+        const batchQty = parseFloat(batch.getAttribute('data-available-qty') || '0');
+        html += `
+            <tr>
+                <td class="ps-3 py-2">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Production batch</span>
+                </td>
+                <td class="font-monospace fw-semibold">${batchNo}<small class="d-block text-muted fw-normal">QC ${qcNo}</small></td>
+                <td><span class="badge bg-light text-dark border">Multiple</span></td>
+                <td><span class="badge bg-success-subtle text-success border border-success-subtle">Available: ${batchQty} pcs</span></td>
+                <td><span class="fw-bold font-monospace">${batchQty}</span></td>
+                <td class="text-end pe-3">
+                    <button type="button" class="btn btn-sm btn-outline-danger p-1" onclick="clearSelectedBatch()" title="Remove batch"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>
+        `;
+    }
     items.forEach((it, idx) => {
         const isOverStock = it.stock <= 0 || it.qty > it.stock;
         const stockLabel = isPosInvoiceTransfer
@@ -1052,8 +974,8 @@ function renderScannedTable() {
             <tr>
                 <td class="ps-3 py-2">
                     <div class="fw-semibold text-dark">${it.name}</div>
-                    <small class="text-muted font-monospace">${it.sku}</small>
                 </td>
+                <td><span class="font-monospace fw-semibold text-primary">${it.sku}</span></td>
                 <td><span class="badge bg-light text-dark border">${it.size}</span></td>
                 <td>${stockLabel}</td>
                 <td>${quantityControl}</td>
@@ -1064,71 +986,57 @@ function renderScannedTable() {
     tbody.innerHTML = html;
 }
 
-// Scanner enter key handler
 document.addEventListener('DOMContentLoaded', function() {
-    const productionBatchScanInput = document.getElementById('productionBatchScanInput');
-    const productionBatchScanButton = document.getElementById('productionBatchScanButton');
-    if (productionBatchScanInput && productionBatchScanButton) {
-        productionBatchScanButton.addEventListener('click', scanProductionBatch);
-        productionBatchScanInput.addEventListener('keydown', function(event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                scanProductionBatch();
-            }
-        });
-    }
-
-    const scanInput = document.getElementById('fgScanInput');
+    const scanInput = document.getElementById('outwardScanInput');
+    const scanButton = document.getElementById('outwardScanButton');
+    if (scanButton) scanButton.addEventListener('click', function() { processOutwardScan(); });
     if (scanInput) {
         scanInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                processFgScanInput();
+                processOutwardScan();
             }
         });
     }
 
-    const fgSourceConcernSelect = document.getElementById('fgSourceConcernSelect');
-    if (fgSourceConcernSelect) {
-        const refreshFgConcernOptions = function() {
-            excludeSourceConcernFromDestination('fgDestConcernSelect', fgSourceConcernSelect.value);
-            refreshFgStockAvailability();
-        };
-        fgSourceConcernSelect.addEventListener('change', refreshFgConcernOptions);
-        refreshFgConcernOptions();
-        refreshFgStockAvailability();
+    const sourceConcernSelect = document.getElementById('sourceConcernSelect');
+    if (sourceConcernSelect) {
+        sourceConcernSelect.addEventListener('change', function() {
+            filterOutwardItemsByConcern(sourceConcernSelect.value);
+        });
+        filterOutwardItemsByConcern(sourceConcernSelect.value);
     }
 
-    // Form submit validation for Finishing Good mode
     const form = document.getElementById('formAddOutward');
     if (form) {
-        if (isPosInvoiceTransfer) {
-            renderScannedTable();
-        }
+        renderScannedTable();
         form.addEventListener('submit', function(e) {
-            const isFg = document.getElementById('mode_fg').checked;
-            if (isFg) {
-                const items = Object.values(scannedFgMap);
-                if (items.length === 0) {
-                    e.preventDefault();
-                    alert('Please scan or add at least 1 finishing good product before dispatching!');
-                    return false;
-                }
-                if (!isPosInvoiceTransfer && items.some(item =>
-                    item.concern_id !== getSelectedFgConcernId() ||
-                    item.stock <= 0 ||
-                    item.qty > item.stock
-                )) {
-                    e.preventDefault();
-                    alert('One or more items exceed the available Main Store stock for the selected concern.');
-                    return false;
-                }
+            const batch = getSelectedBatchOption();
+            const items = Object.values(scannedFgMap);
+            if (!batch && items.length === 0) {
+                e.preventDefault();
+                alert('Scan a production batch or add at least one finished-good product before dispatching.');
+                return false;
+            }
+            if (isPosInvoiceTransfer && batch) {
+                e.preventDefault();
+                alert('POS invoice handoff cannot include a production batch.');
+                return false;
+            }
+            if (!isPosInvoiceTransfer && items.some(item =>
+                item.concern_id !== getSelectedFgConcernId() ||
+                item.stock <= 0 ||
+                item.qty > item.stock
+            )) {
+                e.preventDefault();
+                alert('One or more finished-good quantities exceed the available good Main Store stock.');
+                return false;
             }
         });
     }
 
     if (isPosInvoiceTransfer) {
-        openNewDispatchModal('finished_goods');
+        openNewDispatchModal();
     }
 });
 
@@ -1258,11 +1166,4 @@ function openTraceabilityModal(outwardNo, id, concernId) {
         });
 }
 
-// Initialize batch filtering on load based on active current concern
-document.addEventListener('DOMContentLoaded', function() {
-    const srcCon = document.getElementById('sourceConcernSelect');
-    if (srcCon && srcCon.value) {
-        filterBatchesByConcern(srcCon.value);
-    }
-});
 </script>

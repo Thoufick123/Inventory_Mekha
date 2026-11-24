@@ -32,7 +32,7 @@ $checks = [
         && strpos($outwardController, 'AND si.concern_id = ?') !== false
         && strpos($outwardController, 'GROUP BY sii.variant_id, v.sku_code, v.name, v.size') !== false
         && strpos($outwardView, 'initialPosInvoiceItems') !== false
-        && strpos($outwardView, 'openNewDispatchModal(\'finished_goods\')') !== false,
+        && strpos($outwardView, 'openNewDispatchModal()') !== false,
     'Invoice handoff is one-time and does not deduct POS stock twice' =>
         strpos($outwardController, 'already linked to an outward') !== false
         && strpos($outwardController, 'outward items must match the POS invoice items') !== false

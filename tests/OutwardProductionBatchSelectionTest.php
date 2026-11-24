@@ -32,28 +32,41 @@ $checks = [
         && str_contains($controller, '$this->deductMainStoreStock($cid, $line[\'variant_id\'], $line[\'qty\']')
         && str_contains($controller, "ref_module = 'Production QC'")
         && str_contains($controller, "'Main Store (WH-01)'"),
-    'Outward dropdown displays the remaining stocked quantity and label generation points to Outward' =>
+    'Unified outward scanner exposes batch identifiers and label generation points to Outward' =>
         str_contains($outwardView, 'data-concern=')
-        && str_contains($outwardView, 'pcs available')
-        && str_contains($outwardView, 'Select QC-Passed Own-Production Stock')
+        && str_contains($outwardView, 'data-available-qty=')
+        && str_contains($outwardView, 'data-qc-no=')
+        && str_contains($outwardView, 'id="outwardScanInput"')
+        && str_contains($outwardView, 'id="dispatchBatchSelect" class="d-none"')
+        && str_contains($outwardView, 'PRODUCT CODE / BATCH NO.')
+        && str_contains($outwardView, '<span class="font-monospace fw-semibold text-primary">${it.sku}</span>')
+        && strpos($outwardView, 'id="fgScannedTbody"') < strpos($outwardView, 'id="totalBoxesInput"')
         && str_contains($labelView, '/production/outward?tab=batch')
         && !str_contains($labelView, "url('/production/batches')"),
-    'Production batch scanner selects only listed QC-passed stock batches' =>
-        str_contains($outwardView, 'id="productionBatchScanInput"')
-        && str_contains($outwardView, 'id="productionBatchScanButton"')
-        && str_contains($outwardView, 'data-batch-no=')
-        && str_contains($outwardView, 'data-qc-no=')
-        && str_contains($outwardView, 'function scanProductionBatch()')
+    'One scanner selects either an available QC-passed batch or a stocked finished good' =>
+        str_contains($outwardView, 'function processOutwardScan(scannedCode)')
+        && str_contains($outwardView, 'function processFinishedGoodScan(code)')
         && str_contains($outwardView, 'batchSelect.value = batch.value;')
+        && str_contains($outwardView, 'One production batch is allowed per outward manifest.')
+        && !str_contains($outwardView, 'id="mode_batch"')
+        && !str_contains($outwardView, 'id="mode_fg"')
         && str_contains($controller, "UPPER(b.status) = 'APPROVED'")
         && str_contains($controller, "s.location IN ('Main Store', 'Main Store (WH-01)')"),
+    'Unified dispatch combines one batch and scanned goods with locked shared stock validation' =>
+        str_contains($controller, '($_POST[\'dispatch_mode\'] ?? \'\') === \'unified\'')
+        && str_contains($controller, 'private function storeUnifiedDispatch()')
+        && str_contains($controller, '$this->lockMainStoreAvailableQty($cid, (int)$variantId)')
+        && str_contains($controller, '$batchQuantity + $finishedQuantity > $availableByVariant[$variantId]')
+        && str_contains($controller, 'INSERT INTO production_outward_batches')
+        && str_contains($controller, 'INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)')
+        && str_contains($controller, 'COALESCE((SELECT SUM(qty) FROM outward_items oi WHERE oi.outward_id = o.id), pob.pieces_count'),
     'Outward source uses the logged-in concern and destination excludes that source' =>
         str_contains($controller, '$sourceConcerns = $cid')
         && str_contains($controller, '$cid = $authConcernId ?:')
         && str_contains($controller, 'The destination concern must be different from the source concern.')
         && str_contains($outwardView, 'foreach ($sourceConcerns as $con)')
         && str_contains($outwardView, "excludeSourceConcernFromDestination('dispatchConcernSelect', conId)")
-        && str_contains($outwardView, "excludeSourceConcernFromDestination('fgDestConcernSelect', fgSourceConcernSelect.value)")
+        && str_contains($outwardView, 'name="source_concern_id" id="sourceConcernSelect"')
         && str_contains($outwardView, "excludeSourceConcernFromDestination('edit_destination_concern_id', o.concern_id)"),
 ];
 

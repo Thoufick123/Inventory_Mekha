@@ -63,6 +63,22 @@ class OutwardController extends Controller {
         ) ?: 0);
     }
 
+    private function lockMainStoreAvailableQty(int $concernId, int $variantId): float {
+        $rows = DB::fetchAll(
+            "SELECT qty
+             FROM stocks
+             WHERE concern_id = ? AND variant_id = ?
+               AND location IN ('Main Store', 'Main Store (WH-01)')
+             ORDER BY location
+             FOR UPDATE",
+            [$concernId, $variantId]
+        );
+
+        return array_sum(array_map(static function (array $row): float {
+            return max(0.0, (float)$row['qty']);
+        }, $rows));
+    }
+
     private function addOutwardTransitStock(int $concernId, int $variantId, float $qty, int $outwardId, string $outwardNo): void {
         StockService::move(
             $concernId,
@@ -225,7 +241,7 @@ class OutwardController extends Controller {
                        dest_con.name AS dest_concern_name, dest_con.code AS dest_concern_code,
                        c.name AS customer_name,
                        COALESCE(pob.cartons_count, o.total_boxes, b.total_boxes, 1) AS cartons_count,
-                       COALESCE(pob.pieces_count, (SELECT COALESCE(SUM(qty), 0) FROM outward_items oi WHERE oi.outward_id = o.id), b.batch_qty, 490) AS pieces_count,
+                       COALESCE((SELECT SUM(qty) FROM outward_items oi WHERE oi.outward_id = o.id), pob.pieces_count, b.batch_qty, 490) AS pieces_count,
                        b.batch_no,
                        b.id AS linked_batch_id,
                        COALESCE(v.name, p.program_name, 'KIDS - BABY - DRESS') AS product_name,
@@ -468,12 +484,335 @@ class OutwardController extends Controller {
         ]);
     }
 
+    private function validateOutwardDetails(
+        string $vehicleNumber,
+        string $driverName,
+        string $driverContact,
+        string $transporterName,
+        string $notes,
+        string $totalBoxes
+    ): void {
+        $compactVehicleNumber = preg_replace('/[\s-]+/', '', strtoupper(trim($vehicleNumber)));
+        if (
+            $compactVehicleNumber === null
+            || !preg_match('/^(?:[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$/D', $compactVehicleNumber)
+        ) {
+            throw new Exception('Enter a valid vehicle registration number, such as TN 12 AB 1234.');
+        }
+
+        if ($driverName !== '' && !preg_match("/^[\\p{L}\\p{M}][\\p{L}\\p{M} .'-]{0,99}$/u", $driverName)) {
+            throw new Exception('Driver name must contain only letters, spaces, apostrophes, periods, or hyphens.');
+        }
+        if ($driverContact !== '' && !preg_match('/^[6-9][0-9]{9}$/D', $driverContact)) {
+            throw new Exception('Driver contact must be a valid 10-digit Indian mobile number.');
+        }
+        if (strlen($transporterName) > 150) {
+            throw new Exception('Transporter name cannot exceed 150 characters.');
+        }
+        if (strlen($notes) > 2000) {
+            throw new Exception('Outward notes cannot exceed 2000 characters.');
+        }
+        if ($totalBoxes !== '' && (!preg_match('/^\d+$/D', $totalBoxes) || (int)$totalBoxes < 1 || (int)$totalBoxes > 99999)) {
+            throw new Exception('Total boxes/cartons must be a whole number between 1 and 99999.');
+        }
+    }
+
+    private function storeUnifiedDispatch(): void {
+        $authConcernId = Auth::concernId();
+        $postedSourceConcernId = (int)($_POST['source_concern_id'] ?? 0);
+        $cid = $authConcernId ?: ($postedSourceConcernId ?: (Auth::superAdminSelectedConcernId() ?: 1));
+        $destinationConcernId = (int)($_POST['destination_concern_id'] ?? 0);
+        $batchId = (int)($_POST['batch_id'] ?? 0);
+        $posInvoiceId = max(0, (int)($_POST['pos_invoice_id'] ?? 0));
+        $vehicleNumber = trim($_POST['vehicle_number'] ?? '');
+        $driverName = trim($_POST['driver_name'] ?? '');
+        $driverContact = trim($_POST['driver_contact'] ?? '');
+        $transporter = trim($_POST['transporter_name'] ?? '');
+        $notes = trim($_POST['notes'] ?? '');
+        $transactionStarted = false;
+
+        try {
+            $rawTotalBoxes = $_POST['total_boxes'] ?? '';
+            if (!is_scalar($rawTotalBoxes)) {
+                throw new Exception('Total boxes/cartons must be a whole number.');
+            }
+            $this->validateOutwardDetails(
+                $vehicleNumber,
+                $driverName,
+                $driverContact,
+                $transporter,
+                $notes,
+                trim((string)$rawTotalBoxes)
+            );
+            if ($posInvoiceId > 0 && $batchId > 0) {
+                throw new Exception('A POS invoice handoff cannot include a production batch.');
+            }
+            if ($posInvoiceId === 0 && $destinationConcernId <= 0) {
+                throw new Exception('Please select a destination concern.');
+            }
+            if ($destinationConcernId > 0 && $destinationConcernId === $cid) {
+                throw new Exception('The destination concern must be different from the source concern.');
+            }
+
+            $destination = null;
+            if ($destinationConcernId > 0) {
+                $destination = DB::fetch(
+                    "SELECT id, name FROM concerns WHERE id = ? AND status = 'active'",
+                    [$destinationConcernId]
+                );
+                if (!$destination) {
+                    throw new Exception('The selected destination concern does not exist or is inactive.');
+                }
+            }
+
+            $rawScannedItems = $_POST['scanned_items_json'] ?? '[]';
+            if (!is_string($rawScannedItems)) {
+                throw new Exception('The scanned outward items are invalid. Please scan the products again.');
+            }
+            $submittedItems = json_decode($rawScannedItems, true);
+            if (!is_array($submittedItems)) {
+                throw new Exception('The scanned outward items are invalid. Please scan the products again.');
+            }
+            $finishedGoodsByVariant = [];
+            foreach ($submittedItems as $item) {
+                if (!is_array($item)) {
+                    throw new Exception('A scanned finished-good item is invalid.');
+                }
+                $variantId = (int)($item['variant_id'] ?? 0);
+                $quantity = $item['qty'] ?? null;
+                if ($variantId <= 0 || !is_numeric($quantity) || !is_finite((float)$quantity) || (float)$quantity <= 0) {
+                    throw new Exception('A scanned finished-good item has an invalid variant or quantity.');
+                }
+                $finishedGoodsByVariant[$variantId] = ($finishedGoodsByVariant[$variantId] ?? 0.0) + (float)$quantity;
+            }
+            if ($batchId <= 0 && !$finishedGoodsByVariant) {
+                throw new Exception('Scan a production batch or at least one finished-good product before dispatching.');
+            }
+
+            $today = date('Ymd');
+            $countToday = (int)DB::fetchValue("SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?", ["OUT-{$today}-%"]);
+            $sequence = str_pad((string)($countToday + 1), 4, '0', STR_PAD_LEFT);
+            $outwardNo = "OUT-{$today}-{$sequence}";
+            $gatePassNo = "GP-{$today}-{$sequence}";
+
+            DB::beginTransaction();
+            $transactionStarted = true;
+
+            $posInvoice = null;
+            if ($posInvoiceId > 0) {
+                if ($authConcernId && $authConcernId !== $cid) {
+                    throw new Exception('The POS invoice belongs to a different concern.');
+                }
+                $posInvoice = DB::fetch(
+                    "SELECT id, concern_id, invoice_no, customer_id
+                     FROM sales_invoices
+                     WHERE id = ? AND concern_id = ?
+                     LIMIT 1 FOR UPDATE",
+                    [$posInvoiceId, $cid]
+                );
+                if (!$posInvoice) {
+                    throw new Exception('The POS invoice was not found for this concern.');
+                }
+                if (DB::fetchValue("SELECT id FROM outwards WHERE sales_invoice_id = ? LIMIT 1", [$posInvoiceId])) {
+                    throw new Exception("Invoice {$posInvoice['invoice_no']} is already linked to an outward.");
+                }
+                $expectedItems = [];
+                foreach (DB::fetchAll(
+                    "SELECT variant_id, SUM(qty) AS qty
+                     FROM sales_invoice_items
+                     WHERE sales_invoice_id = ?
+                     GROUP BY variant_id",
+                    [$posInvoiceId]
+                ) as $invoiceItem) {
+                    $expectedItems[(int)$invoiceItem['variant_id']] = (float)$invoiceItem['qty'];
+                }
+                ksort($expectedItems);
+                ksort($finishedGoodsByVariant);
+                if (array_keys($expectedItems) !== array_keys($finishedGoodsByVariant)) {
+                    throw new Exception('The outward items must match the POS invoice items.');
+                }
+                foreach ($expectedItems as $variantId => $expectedQuantity) {
+                    if (abs($expectedQuantity - $finishedGoodsByVariant[$variantId]) > 0.0001) {
+                        throw new Exception('The outward quantities must match the POS invoice quantities.');
+                    }
+                }
+                $notes = trim($notes . ' POS invoice ' . $posInvoice['invoice_no'] . '; stock was deducted during billing.');
+            }
+
+            $batch = null;
+            $batchLines = [];
+            $productionUnitId = (int)(DB::fetchValue("SELECT id FROM production_units WHERE concern_id = ? LIMIT 1", [$cid]) ?: 1);
+            if ($batchId > 0) {
+                $batch = DB::fetch(
+                    "SELECT * FROM batches
+                     WHERE id = ? AND concern_id = ? AND UPPER(status) = 'APPROVED'
+                     LIMIT 1 FOR UPDATE",
+                    [$batchId, $cid]
+                );
+                if (!$batch) {
+                    throw new Exception('The selected production batch is no longer available for this concern.');
+                }
+                if (
+                    empty($batch['qc_batch_id'])
+                    || !DB::fetchValue(
+                        "SELECT id FROM stock_ledger
+                         WHERE concern_id = ? AND ref_module = 'Production QC'
+                           AND ref_id = ? AND qty_in > 0
+                         LIMIT 1",
+                        [$cid, (int)$batch['qc_batch_id']]
+                    )
+                ) {
+                    throw new Exception('The selected batch is not linked to QC-passed production stock.');
+                }
+
+                $productionUnitId = (int)($batch['production_unit_id'] ?: $productionUnitId);
+                $batchRows = DB::fetchAll(
+                    "SELECT * FROM batch_items WHERE batch_id = ? ORDER BY id ASC FOR UPDATE",
+                    [$batchId]
+                );
+                if ($batchRows) {
+                    foreach ($batchRows as $batchRow) {
+                        $variantId = (int)$batchRow['variant_id'];
+                        $quantity = (float)$batchRow['qty'];
+                        if ((int)$batchRow['concern_id'] !== $cid || $variantId <= 0 || $quantity <= 0) {
+                            throw new Exception('The selected production batch contains an invalid stock line.');
+                        }
+                        $batchLines[$variantId] = ($batchLines[$variantId] ?? 0.0) + $quantity;
+                    }
+                } else {
+                    $variantId = (int)($batch['variant_id'] ?? 0);
+                    $quantity = (float)$batch['batch_qty'];
+                    if ($variantId <= 0 || $quantity <= 0) {
+                        throw new Exception('The selected production batch has no dispatchable stock lines.');
+                    }
+                    $batchLines[$variantId] = $quantity;
+                }
+            }
+
+            $allVariantIds = array_unique(array_merge(array_keys($finishedGoodsByVariant), array_keys($batchLines)));
+            $availableByVariant = [];
+            foreach ($allVariantIds as $variantId) {
+                if (!DB::fetchValue(
+                    "SELECT id FROM variants WHERE id = ? AND concern_id = ? AND status = 'active'",
+                    [(int)$variantId, $cid]
+                )) {
+                    throw new Exception("Variant #{$variantId} is not active in the selected source concern.");
+                }
+                $availableByVariant[$variantId] = $posInvoiceId > 0
+                    ? 0.0
+                    : $this->lockMainStoreAvailableQty($cid, (int)$variantId);
+            }
+
+            $batchDispatchByVariant = [];
+            foreach ($batchLines as $variantId => $requestedQuantity) {
+                if (!DB::fetchValue(
+                    "SELECT id FROM stock_ledger
+                     WHERE concern_id = ? AND variant_id = ?
+                       AND ref_module = 'Production QC' AND ref_id = ? AND qty_in > 0
+                     LIMIT 1",
+                    [$cid, (int)$variantId, (int)$batch['qc_batch_id']]
+                )) {
+                    throw new Exception('The selected batch contains stock that is not linked to its QC pass.');
+                }
+                $batchDispatchByVariant[$variantId] = min($requestedQuantity, $availableByVariant[$variantId]);
+            }
+
+            $combinedItems = [];
+            foreach ($allVariantIds as $variantId) {
+                $batchQuantity = (float)($batchDispatchByVariant[$variantId] ?? 0);
+                $finishedQuantity = (float)($finishedGoodsByVariant[$variantId] ?? 0);
+                if ($posInvoiceId === 0 && $batchQuantity + $finishedQuantity > $availableByVariant[$variantId] + 0.0001) {
+                    throw new Exception("The combined batch and finished-good quantity exceeds available Main Store stock for variant #{$variantId}.");
+                }
+                $combinedQuantity = $batchQuantity + $finishedQuantity;
+                if ($combinedQuantity > 0) {
+                    $combinedItems[$variantId] = $combinedQuantity;
+                }
+            }
+            if (!$combinedItems) {
+                throw new Exception('No QC-passed batch or finished-good stock remains available for dispatch.');
+            }
+
+            $boxes = max(1, (int)($_POST['total_boxes'] ?? 0));
+            if (empty($_POST['total_boxes']) && $batch) {
+                $boxes = max(1, (int)($batch['total_boxes'] ?: 1));
+            }
+            $customerId = $posInvoice ? (int)$posInvoice['customer_id'] : null;
+            $warehouseName = $destination
+                ? (string)$destination['name']
+                : (string)(DB::fetchValue("SELECT name FROM customers WHERE id = ?", [$customerId]) ?: '');
+            $transferType = $customerId ? 'customer' : 'concern';
+
+            DB::query("
+                INSERT INTO outwards (
+                    concern_id, production_unit_id, outward_no, sales_invoice_id, gate_pass_no, customer_id, transfer_type,
+                    destination_concern_id, outward_date, location, warehouse_name, total_boxes,
+                    vehicle_number, driver_name, driver_contact, transporter_name, dispatched_by_name,
+                    notes, status, dispatched_at, created_at
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?,
+                    ?, CURDATE(), 'Main Store', ?, ?,
+                    ?, ?, ?, ?, 'System Administrator',
+                    ?, 'DISPATCHED', NOW(), NOW()
+                )
+            ", [
+                $cid, $productionUnitId, $outwardNo, $posInvoiceId ?: null, $gatePassNo, $customerId, $transferType,
+                $destinationConcernId ?: null, $warehouseName, $boxes,
+                $vehicleNumber, $driverName, $driverContact, $transporter, $notes
+            ]);
+            $outwardId = (int)DB::lastInsertId();
+
+            $batchPieces = array_sum($batchDispatchByVariant);
+            if ($batch) {
+                DB::query(
+                    "INSERT INTO production_outward_batches (concern_id, outward_id, batch_id, cartons_count, pieces_count)
+                     VALUES (?, ?, ?, ?, ?)",
+                    [$cid, $outwardId, $batchId, $boxes, $batchPieces]
+                );
+            }
+
+            foreach ($combinedItems as $variantId => $quantity) {
+                DB::query(
+                    "INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (?, ?, ?, ?)",
+                    [$cid, $outwardId, (int)$variantId, $quantity]
+                );
+                if ($posInvoiceId === 0) {
+                    $this->deductMainStoreStock($cid, (int)$variantId, $quantity, $outwardId, $outwardNo);
+                    $this->addOutwardTransitStock($cid, (int)$variantId, $quantity, $outwardId, $outwardNo);
+                }
+            }
+            if ($batch) {
+                DB::query("UPDATE batches SET status = 'DISPATCHED', outward_id = ? WHERE id = ?", [$outwardId, $batchId]);
+            }
+
+            DB::commit();
+            $transactionStarted = false;
+            $totalQuantity = array_sum($combinedItems);
+            $this->flash('success', "Outward Manifest {$outwardNo} successfully dispatched via {$vehicleNumber}! ({$totalQuantity} pcs, {$boxes} boxes)");
+            $this->redirect($posInvoiceId > 0 ? '/production/outward?tab=fg' : '/production/outward?tab=batch');
+            return;
+        } catch (\Throwable $e) {
+            if ($transactionStarted) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Dispatch failed: ' . $e->getMessage());
+            $redirectPath = $posInvoiceId > 0
+                ? "/production/outward?tab=fg&pos_invoice_id={$posInvoiceId}"
+                : '/production/outward';
+            $this->redirect($redirectPath);
+        }
+    }
+
     /**
      * Store new Outward Dispatch Manifest (POST)
      * Dynamically supports: Production Batch, Inter-Concern Transfer, Direct Stock, Customer Sale
      */
     public function store(): void {
         $this->validateCsrf();
+        if (($_POST['dispatch_mode'] ?? '') === 'unified') {
+            $this->storeUnifiedDispatch();
+            return;
+        }
         $authConcernId = Auth::concernId();
         $postedSourceConcernId = (int)($_POST['source_concern_id'] ?? ($_POST['source_concern_id_fg'] ?? 0));
         $cid = $authConcernId ?: ($postedSourceConcernId ?: (Auth::superAdminSelectedConcernId() ?: 1));
@@ -521,6 +860,18 @@ class OutwardController extends Controller {
 
         DB::beginTransaction();
         try {
+            $rawTotalBoxes = $_POST['total_boxes'] ?? '';
+            if (!is_scalar($rawTotalBoxes)) {
+                throw new Exception('Total boxes/cartons must be a whole number.');
+            }
+            $this->validateOutwardDetails(
+                $vehicleNumber,
+                $driverName,
+                $driverContact,
+                $transporter,
+                $notes,
+                trim((string)$rawTotalBoxes)
+            );
             if ($dispatchMode === 'batch') {
                 // Mode 1: Production Batch Outward
                 $batchId = (int)($_POST['batch_id'] ?? 0);
@@ -992,7 +1343,7 @@ class OutwardController extends Controller {
                    dest_con.name AS dest_concern_name, dest_con.code AS dest_concern_code,
                    c.name AS customer_name,
                    COALESCE(pob.cartons_count, o.total_boxes, 1) AS cartons_count,
-                   COALESCE(pob.pieces_count, (SELECT COALESCE(SUM(qty), 0) FROM outward_items oi WHERE oi.outward_id = o.id), 490) AS pieces_count,
+                   COALESCE((SELECT SUM(qty) FROM outward_items oi WHERE oi.outward_id = o.id), pob.pieces_count, 490) AS pieces_count,
                    b.batch_no,
                    COALESCE(v.name, 'KIDS - BABY - DRESS') AS product_name,
                    v.sku_code, v.size,
