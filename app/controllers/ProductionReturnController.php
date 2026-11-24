@@ -378,6 +378,7 @@ class ProductionReturnController extends Controller {
                 $qty = (float)($item['qty'] ?? 0);
                 $price = (float)($item['unit_price'] ?? 0);
                 $tagCode = trim((string)($item['tag_code'] ?? ''));
+                $scannedCodesJson = $this->encodeScannedCodes($item['scanned_codes'] ?? []);
                 $condition = trim((string)($item['condition_state'] ?? 'Good'));
                 $action = strtoupper(trim((string)($item['action'] ?? 'RESTOCK')));
                 $tot = $qty * $price;
@@ -386,9 +387,9 @@ class ProductionReturnController extends Controller {
 
                 DB::query(
                     "INSERT INTO production_return_exchange_items (
-                        return_id, direction, variant_id, tag_code, qty, unit_price, total_amount, condition_state, restock_action, created_at
-                     ) VALUES (?, 'IN', ?, ?, ?, ?, ?, ?, ?, NOW())",
-                    [$returnId, $variantId, $tagCode, $qty, $price, $tot, $condition, $action]
+                        return_id, direction, variant_id, tag_code, scanned_codes, qty, unit_price, total_amount, condition_state, restock_action, created_at
+                     ) VALUES (?, 'IN', ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                    [$returnId, $variantId, $tagCode, $scannedCodesJson, $qty, $price, $tot, $condition, $action]
                 );
 
                 // Stock ledger movement based on condition & action
@@ -452,15 +453,16 @@ class ProductionReturnController extends Controller {
                     $qty = (float)($item['qty'] ?? 0);
                     $price = (float)($item['unit_price'] ?? 0);
                     $tagCode = trim((string)($item['tag_code'] ?? ''));
+                    $scannedCodesJson = $this->encodeScannedCodes($item['scanned_codes'] ?? []);
                     $tot = $qty * $price;
 
                     if ($variantId <= 0 || $qty <= 0) continue;
 
                     DB::query(
                         "INSERT INTO production_return_exchange_items (
-                            return_id, direction, variant_id, tag_code, qty, unit_price, total_amount, created_at
-                         ) VALUES (?, 'OUT', ?, ?, ?, ?, ?, NOW())",
-                        [$returnId, $variantId, $tagCode, $qty, $price, $tot]
+                            return_id, direction, variant_id, tag_code, scanned_codes, qty, unit_price, total_amount, created_at
+                         ) VALUES (?, 'OUT', ?, ?, ?, ?, ?, ?, NOW())",
+                        [$returnId, $variantId, $tagCode, $scannedCodesJson, $qty, $price, $tot]
                     );
 
                     // Deduct from live stock
@@ -602,6 +604,7 @@ class ProductionReturnController extends Controller {
              ORDER BY prei.direction ASC, prei.id ASC",
             [$id]
         );
+        $items = $this->withScannedCodeDisplay($items);
 
         $this->render('production/returns/view', [
             'pageTitle'     => "Return / Exchange {$return['return_no']}",
@@ -641,6 +644,7 @@ class ProductionReturnController extends Controller {
              ORDER BY prei.direction ASC, prei.id ASC",
             [$id]
         );
+        $items = $this->withScannedCodeDisplay($items);
 
         $this->render('production/returns/print', [
             'pageTitle' => "Print Voucher {$return['return_no']}",
@@ -778,5 +782,51 @@ class ProductionReturnController extends Controller {
         }
 
         $this->redirect($returnToList ? '/m/return_exchange' : '/production/returns/view/' . $id);
+    }
+
+    private function encodeScannedCodes($rawScannedCodes): ?string {
+        if (!is_array($rawScannedCodes)) {
+            throw new \RuntimeException('Scanned-code details are invalid.');
+        }
+
+        $scannedCodes = [];
+        foreach ($rawScannedCodes as $rawScannedCode) {
+            if (!is_string($rawScannedCode) || trim($rawScannedCode) === '' || strlen($rawScannedCode) > 255) {
+                throw new \RuntimeException('Each scanned code must contain between 1 and 255 characters.');
+            }
+            $scannedCodes[] = $rawScannedCode;
+        }
+        if (!$scannedCodes) {
+            return null;
+        }
+
+        $encoded = json_encode($scannedCodes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($encoded === false) {
+            throw new \RuntimeException('Could not encode the scanned codes.');
+        }
+        if (strlen($encoded) > 65000) {
+            throw new \RuntimeException('Scanned-code details are too large to store.');
+        }
+        return $encoded;
+    }
+
+    private function withScannedCodeDisplay(array $items): array {
+        foreach ($items as &$item) {
+            $scannedCodes = json_decode((string)($item['scanned_codes'] ?? ''), true);
+            $displayCodes = [];
+            if (is_array($scannedCodes)) {
+                foreach ($scannedCodes as $scannedCode) {
+                    if (is_string($scannedCode) && trim($scannedCode) !== '') {
+                        $displayCodes[] = $scannedCode;
+                    }
+                }
+            }
+            if (!$displayCodes && !empty($item['tag_code'])) {
+                $displayCodes[] = (string)$item['tag_code'];
+            }
+            $item['scanned_code_display'] = implode(', ', $displayCodes);
+        }
+        unset($item);
+        return $items;
     }
 }

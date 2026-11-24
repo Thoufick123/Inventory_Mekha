@@ -54,6 +54,7 @@
                         <th>Returned Variant</th>
                         <th>Restocked (+Qty)</th>
                         <th>Exchange Replacement</th>
+                        <th>Scanned Codes</th>
                         <th>Reason</th>
                         <th>Date</th>
                         <th class="text-end">Actions</th>
@@ -61,7 +62,7 @@
                 </thead>
                 <tbody>
                     <?php if (empty($returns)): ?>
-                        <tr><td colspan="10" class="text-center py-4 text-muted">No returns or exchanges recorded.</td></tr>
+                        <tr><td colspan="11" class="text-center py-4 text-muted">No returns or exchanges recorded.</td></tr>
                     <?php else: ?>
                         <?php foreach ($returns as $r): ?>
                             <tr>
@@ -92,6 +93,7 @@
                                         <span class="text-muted small">None (Pure Return)</span>
                                     <?php endif; ?>
                                 </td>
+                                <td class="small font-monospace text-break"><?= htmlspecialchars($r['scanned_code_display'] ?: '-') ?></td>
                                 <td class="small text-muted"><?= htmlspecialchars($r['reason'] ?: '-') ?></td>
                                 <td><?= date('d M Y', strtotime($r['return_date'])) ?></td>
                                 <td class="text-end">
@@ -451,10 +453,16 @@ document.addEventListener('DOMContentLoaded', function() {
         invoiceItemsBody.innerHTML = invoiceItems.map(function(item, index) {
             const pieceTag = item.tag_code ? String(item.tag_code) : '';
             const itemCode = pieceTag ? 'Piece Tag: ' + pieceTag : String(item.sku_code || '');
+            const invoiceScannedCodes = Array.isArray(item.invoice_scanned_codes) ? item.invoice_scanned_codes : [];
+            const returnScannedCodes = Array.isArray(item.return_scanned_codes) ? item.return_scanned_codes : [];
             const label = escapeHtml(itemCode) + ' · ' + escapeHtml(item.product_name) +
                 (item.size ? ' · Size: ' + escapeHtml(item.size) : '');
             return '<tr data-invoice-line="' + index + '" data-sku="' + escapeHtml(item.sku_code) + '" data-tag-code="' + escapeHtml(item.tag_code) + '">' +
-                '<td><strong class="d-block">' + label + '</strong><small class="text-muted">SKU: ' + escapeHtml(item.sku_code) + '</small></td>' +
+                '<td><strong class="d-block">' + label + '</strong><small class="text-muted d-block">SKU: ' + escapeHtml(item.sku_code) + '</small>' +
+                    (invoiceScannedCodes.length ? '<small class="text-muted d-block">Invoice scanned: ' + escapeHtml(invoiceScannedCodes.join(', ')) + '</small>' : '') +
+                    '<small class="text-primary d-block shop-return-scanned-code ' + (returnScannedCodes.length ? '' : 'd-none') + '">' +
+                        (returnScannedCodes.length ? 'Return scanned: ' + escapeHtml(returnScannedCodes.join(', ')) : '') +
+                    '</small></td>' +
                 '<td class="text-center">' + Number(item.sold_qty) + '</td>' +
                 '<td class="text-center"><input type="number" class="form-control form-control-sm text-center shop-return-qty" min="0" max="' + Number(item.sold_qty) + '" step="1" value="0" aria-label="Return quantity for ' + escapeHtml(item.sku_code) + '"></td>' +
                 '<td><select class="form-select form-select-sm shop-return-condition" aria-label="Condition for ' + escapeHtml(item.sku_code) + '">' +
@@ -474,8 +482,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         replacementItemsBody.innerHTML = replacementItems.map(function(item, index) {
+            const scannedCodes = Array.isArray(item.scanned_codes) ? item.scanned_codes : [];
             return '<tr data-replacement-index="' + index + '">' +
-                '<td><strong class="d-block">' + escapeHtml(item.name) + '</strong><small class="text-muted font-monospace">' + escapeHtml(item.sku_code) + '</small></td>' +
+                '<td><strong class="d-block">' + escapeHtml(item.name) + '</strong><small class="text-muted font-monospace d-block">' + escapeHtml(item.sku_code) + '</small>' +
+                    (scannedCodes.length ? '<small class="text-primary font-monospace d-block">Scanned: ' + escapeHtml(scannedCodes.join(', ')) + '</small>' : '') + '</td>' +
                 '<td class="text-center">' + Number(item.available_qty) + '</td>' +
                 '<td class="text-center"><input type="number" class="form-control form-control-sm text-center shop-replacement-qty" min="0" max="' + Number(item.available_qty) + '" step="1" value="' + Number(item.qty) + '" aria-label="Replacement quantity for ' + escapeHtml(item.sku_code) + '"></td>' +
                 '<td class="text-end font-monospace">' + formatMoney(item.price) + '</td>' +
@@ -606,6 +616,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (existing) {
                 if (Number(existing.qty) + 1 > Number(existing.available_qty)) throw new Error('Requested replacement quantity exceeds available stock.');
                 existing.qty = Number(existing.qty) + 1;
+                if (!Array.isArray(existing.scanned_codes)) existing.scanned_codes = [];
+                existing.scanned_codes.push(sku);
             } else {
                 replacementItems.push({
                     id: Number(variant.id),
@@ -614,7 +626,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     size: variant.size,
                     price: Number(variant.price),
                     available_qty: Number(variant.available_qty),
-                    qty: 1
+                    qty: 1,
+                    scanned_codes: [sku]
                 });
             }
             replacementSkuInput.value = '';
@@ -649,11 +662,14 @@ document.addEventListener('DOMContentLoaded', function() {
     invoiceItemsBody.addEventListener('input', updateReturnTotals);
     invoiceItemsBody.addEventListener('change', updateReturnTotals);
     document.getElementById('shop_return_scan_item').addEventListener('click', function() {
-        const scanCode = document.getElementById('shop_return_item_search').value.trim().toUpperCase();
+        const scannedCode = document.getElementById('shop_return_item_search').value.trim();
+        const scanCode = scannedCode.toUpperCase();
         if (!scanCode) return;
         const matchingIndexes = [];
         invoiceItems.forEach(function(item, index) {
-            const codes = [item.sku_code, item.tag_code, item.variant_id];
+            const codes = [item.sku_code, item.tag_code, item.variant_id].concat(
+                Array.isArray(item.invoice_scanned_codes) ? item.invoice_scanned_codes : []
+            );
             if (codes.some(function(code) { return String(code || '').trim().toUpperCase() === scanCode; })) {
                 matchingIndexes.push(index);
             }
@@ -679,6 +695,12 @@ document.addEventListener('DOMContentLoaded', function() {
         scannedRow.scrollIntoView({behavior: 'smooth', block: 'center'});
         const input = invoiceItemsBody.querySelectorAll('.shop-return-qty')[index];
         input.value = Number(input.value) + 1;
+        const item = invoiceItems[index];
+        if (!Array.isArray(item.return_scanned_codes)) item.return_scanned_codes = [];
+        item.return_scanned_codes.push(scannedCode);
+        const scanDetails = scannedRow.querySelector('.shop-return-scanned-code');
+        scanDetails.textContent = 'Return scanned: ' + item.return_scanned_codes.join(', ');
+        scanDetails.classList.remove('d-none');
         document.getElementById('shop_return_item_search').value = '';
         updateReturnTotals();
         document.getElementById('shop_return_item_search').focus();
@@ -717,12 +739,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     invoice_item_id: Number(item.invoice_item_id),
                     variant_id: Number(item.variant_id),
                     qty: qty,
-                    condition_state: row.querySelector('.shop-return-condition').value
+                    condition_state: row.querySelector('.shop-return-condition').value,
+                    scanned_codes: Array.isArray(item.return_scanned_codes) ? item.return_scanned_codes : []
                 });
             }
         });
         const outItems = replacementItems.filter(function(item) { return Number(item.qty) > 0; }).map(function(item) {
-            return {variant_id: item.id, qty: Number(item.qty), unit_price: Number(item.price)};
+            return {
+                variant_id: item.id,
+                qty: Number(item.qty),
+                unit_price: Number(item.price),
+                scanned_codes: Array.isArray(item.scanned_codes) ? item.scanned_codes : []
+            };
         });
         if (!activeInvoice || inItems.length === 0) {
             event.preventDefault();

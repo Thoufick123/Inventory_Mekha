@@ -2033,9 +2033,15 @@ class SalesController extends Controller {
         }
 
         $used = DB::fetchValue(
-            "SELECT id FROM returns_exchanges WHERE sales_invoice_id = ?
+            "SELECT re.id
+             FROM returns_exchanges re
+             LEFT JOIN production_returns linked_pr
+               ON linked_pr.return_no = re.return_no AND linked_pr.concern_id = re.concern_id
+             WHERE re.sales_invoice_id = ?
+               AND (linked_pr.id IS NULL OR linked_pr.status <> 'CANCELLED')
              UNION ALL
-             SELECT id FROM production_returns WHERE sales_invoice_id = ?
+             SELECT id FROM production_returns
+             WHERE sales_invoice_id = ? AND status <> 'CANCELLED'
              LIMIT 1",
             [$invoiceId, $invoiceId]
         );
@@ -2045,7 +2051,7 @@ class SalesController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT sii.id AS invoice_item_id, sii.variant_id, sii.qty AS sold_qty, sii.unit_price,
+            "SELECT sii.id AS invoice_item_id, sii.variant_id, sii.qty AS sold_qty, sii.unit_price, sii.scanned_codes,
                     sii.total_price, v.sku_code, v.name AS product_name, v.size,
                     COALESCE(NULLIF(cat.main_category_code, ''), c.code) AS qr_category_code,
                     COALESCE(NULLIF(cat.sub_category_code, ''), sc.code) AS qr_subcategory_code,
@@ -2078,6 +2084,15 @@ class SalesController extends Controller {
                 $item['qr_subcategory_name'] ?? null,
                 $item['qr_sub_subcategory_name'] ?? null
             );
+            $invoiceScannedCodes = json_decode((string)($item['scanned_codes'] ?? ''), true);
+            $item['invoice_scanned_codes'] = [];
+            if (is_array($invoiceScannedCodes)) {
+                foreach ($invoiceScannedCodes as $scannedCode) {
+                    if (is_string($scannedCode) && trim($scannedCode) !== '') {
+                        $item['invoice_scanned_codes'][] = $scannedCode;
+                    }
+                }
+            }
         }
         unset($item);
 
@@ -2164,6 +2179,41 @@ class SalesController extends Controller {
         }
         $sql .= " ORDER BY re.id DESC";
         $returns = DB::fetchAll($sql, $params);
+        $productionReturnIds = array_values(array_unique(array_filter(array_map(
+            static fn($return) => (int)($return['production_return_id'] ?? 0),
+            $returns
+        ))));
+        $scannedCodesByReturnId = [];
+        if ($productionReturnIds) {
+            $placeholders = implode(',', array_fill(0, count($productionReturnIds), '?'));
+            $returnItemScans = DB::fetchAll(
+                "SELECT return_id, tag_code, scanned_codes
+                 FROM production_return_exchange_items
+                 WHERE return_id IN ({$placeholders})
+                 ORDER BY return_id ASC, id ASC",
+                $productionReturnIds
+            );
+            foreach ($returnItemScans as $returnItemScan) {
+                $returnId = (int)$returnItemScan['return_id'];
+                $codes = json_decode((string)($returnItemScan['scanned_codes'] ?? ''), true);
+                if (is_array($codes)) {
+                    foreach ($codes as $code) {
+                        if (is_string($code) && trim($code) !== '') {
+                            $scannedCodesByReturnId[$returnId][] = $code;
+                        }
+                    }
+                } elseif (!empty($returnItemScan['tag_code'])) {
+                    $scannedCodesByReturnId[$returnId][] = (string)$returnItemScan['tag_code'];
+                }
+            }
+        }
+        foreach ($returns as &$return) {
+            $return['scanned_code_display'] = implode(
+                ', ',
+                $scannedCodesByReturnId[(int)($return['production_return_id'] ?? 0)] ?? []
+            );
+        }
+        unset($return);
 
         $this->render('concern/return_exchange', [
             'pageTitle'     => 'Shop Returns & Exchanges',

@@ -1020,6 +1020,7 @@ CREATE TABLE IF NOT EXISTS `production_return_exchange_items` (
   `direction` enum('IN','OUT') NOT NULL,
   `variant_id` int(11) NOT NULL,
   `tag_code` varchar(50) DEFAULT NULL,
+  `scanned_codes` text DEFAULT NULL,
   `qty` decimal(12,2) NOT NULL,
   `unit_price` decimal(12,2) NOT NULL DEFAULT 0.00,
   `tax_amount` decimal(12,2) NOT NULL DEFAULT 0.00,

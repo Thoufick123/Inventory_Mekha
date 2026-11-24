@@ -5,6 +5,8 @@ $salesController = file_get_contents(__DIR__ . '/../app/controllers/SalesControl
 $productionReturnController = file_get_contents(__DIR__ . '/../app/controllers/ProductionReturnController.php');
 $returnView = file_get_contents(__DIR__ . '/../app/views/concern/return_exchange.php');
 $productionReturnView = file_get_contents(__DIR__ . '/../app/views/production/returns/view.php');
+$schema = file_get_contents(__DIR__ . '/../database/schema.sql');
+$migration = file_get_contents(__DIR__ . '/../database/migrate_all_tables.php');
 
 $updateStart = strpos($salesController, 'public function updateReturn(): void {');
 $updateEnd = strpos($salesController, 'public function deleteReturn(): void {', $updateStart);
@@ -16,6 +18,11 @@ $deleteMethod = substr($salesController, $deleteStart, $deleteEnd - $deleteStart
 $storeStart = strpos($productionReturnController, 'public function store(): void {');
 $storeEnd = strpos($productionReturnController, 'public function view(', $storeStart);
 $storeMethod = str_replace("\r\n", "\n", substr($productionReturnController, $storeStart, $storeEnd - $storeStart));
+$replacementItemInsertMatches = preg_match(
+    '/INSERT INTO production_return_exchange_items \(\s*return_id, direction, variant_id, tag_code, scanned_codes, qty, unit_price, total_amount, created_at\s*\) VALUES \((.*?)\)",\s*\[(.*?)\]/s',
+    $storeMethod,
+    $replacementItemInsert
+);
 $replacementStart = strpos($salesController, 'public function lookupShopReturnReplacement(): void {');
 $replacementEnd = strpos($salesController, 'public function returnExchange(): void {', $replacementStart);
 $replacementMethod = substr($salesController, $replacementStart, $replacementEnd - $replacementStart);
@@ -72,6 +79,26 @@ $checks = [
         && strpos($productionReturnController, "UPDATE production_returns SET status = 'CANCELLED'") !== false
         && strpos($salesController, "linked_pr.status <> 'CANCELLED'") !== false
         && strpos($productionReturnController, "status <> 'CANCELLED'") !== false,
+    'Return creation captures invoice, returned-item, and replacement scan codes' =>
+        strpos($salesController, 'sii.scanned_codes') !== false
+        && strpos($returnView, 'Invoice scanned:') !== false
+        && strpos($returnView, 'item.return_scanned_codes.push(scannedCode)') !== false
+        && strpos($returnView, 'existing.scanned_codes.push(sku)') !== false
+        && strpos($storeMethod, 'encodeScannedCodes($item[\'scanned_codes\'] ?? [])') !== false
+        && strpos($storeMethod, 'tag_code, scanned_codes, qty') !== false,
+    'Replacement scan insert binds every persisted value' =>
+        $replacementItemInsertMatches === 1
+        && substr_count($replacementItemInsert[1], '?') === substr_count($replacementItemInsert[2], ',') + 1
+        && strpos($replacementItemInsert[2], '$scannedCodesJson') !== false,
+    'Return list and detailed view display captured scan codes' =>
+        strpos($salesController, 'scanned_code_display') !== false
+        && strpos($returnView, '<th>Scanned Codes</th>') !== false
+        && strpos($returnView, '$r[\'scanned_code_display\']') !== false
+        && strpos($productionReturnController, 'withScannedCodeDisplay($items)') !== false
+        && strpos($productionReturnView, 'Scanned codes:') !== false,
+    'Return-item scan storage is present in fresh and migrated databases' =>
+        strpos($schema, '`scanned_codes` text DEFAULT NULL') !== false
+        && strpos($migration, 'ADD COLUMN `scanned_codes` TEXT NULL AFTER `tag_code`') !== false,
     'Returned quantities are validated against the invoice and item details are stored' =>
         strpos($storeMethod, 'Returned quantity cannot exceed the quantity sold.') !== false
         && strpos($storeMethod, 'INSERT INTO return_exchange_items') !== false
