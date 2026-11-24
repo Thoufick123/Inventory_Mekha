@@ -153,7 +153,7 @@
                                                     <?= htmlspecialchars($b['display_batch_no']) ?>
                                                 </a>
                                             </td>
-                                            <td class="py-3 fw-semibold text-dark">
+                                            <td class="py-3 fw-semibold text-dark text-uppercase">
                                                 <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" class="text-decoration-none text-dark" title="View Batch Details">
                                                     <?= htmlspecialchars($b['stitching_name'] ?: 'Stitching Batch') ?>
                                                 </a>
