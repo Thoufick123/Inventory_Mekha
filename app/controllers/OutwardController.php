@@ -283,6 +283,12 @@ class OutwardController extends Controller {
         // All created concerns for multi-concern transfers, dispatching & filtering
         $allConcerns = DB::fetchAll("SELECT id, name, code, address, status FROM concerns ORDER BY id ASC");
         $currentConcernId = Auth::concernId() ?: ($selectedConcernId ?: 1);
+        $sourceConcerns = $cid
+            ? array_values(array_filter(
+                $allConcerns,
+                static fn($concern) => (int)$concern['id'] === (int)$currentConcernId
+            ))
+            : $allConcerns;
 
         // Show QC-inwarded production batches with any remaining Main Store stock.
         $availableBatches = DB::fetchAll("
@@ -452,6 +458,7 @@ class OutwardController extends Controller {
             'fgCount'           => $fgCount,
             'selectedConcernId' => $selectedConcernId,
             'currentConcernId'  => $currentConcernId,
+            'sourceConcerns'    => $sourceConcerns,
             'allConcerns'       => $allConcerns,
             'availableBatches'  => $availableBatches,
             'stockVariants'     => $stockVariants,
@@ -467,11 +474,9 @@ class OutwardController extends Controller {
      */
     public function store(): void {
         $this->validateCsrf();
-        $cid = (int)($_POST['source_concern_id'] ?? ($_POST['source_concern_id_fg'] ?? (Auth::concernId() ?: 1)));
         $authConcernId = Auth::concernId();
-        if ($authConcernId && $authConcernId !== $cid) {
-            throw new Exception('You can only create outward dispatches from your assigned source concern.');
-        }
+        $postedSourceConcernId = (int)($_POST['source_concern_id'] ?? ($_POST['source_concern_id_fg'] ?? 0));
+        $cid = $authConcernId ?: ($postedSourceConcernId ?: (Auth::superAdminSelectedConcernId() ?: 1));
         $posInvoiceId = max(0, (int)($_POST['pos_invoice_id'] ?? 0));
 
         $dispatchMode    = trim($_POST['dispatch_mode'] ?? 'batch'); // batch, finished_goods
@@ -485,6 +490,9 @@ class OutwardController extends Controller {
             if (!$destConcernId) {
                 throw new Exception('Please select a valid Destination Concern for this outward dispatch.');
             }
+        }
+        if ($destConcernId !== null && $destConcernId === $cid) {
+            throw new Exception('The destination concern must be different from the source concern.');
         }
 
         if ($destConcernId) {
@@ -823,6 +831,11 @@ class OutwardController extends Controller {
         $status        = strtoupper(trim($_POST['status'] ?? $out['status']));
         $currentStatus = strtolower((string)$out['status']);
 
+        if ($destConcernId !== null && (int)$destConcernId === (int)$out['concern_id']) {
+            $this->flash('error', 'The destination concern must be different from the source concern.');
+            $this->redirect('/production/outward');
+            return;
+        }
         if (
             (int)$destConcernId !== (int)$out['destination_concern_id'] &&
             in_array($currentStatus, ['dispatched', 'partial', 'received'], true)

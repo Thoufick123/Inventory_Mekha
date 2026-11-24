@@ -38,6 +38,23 @@ $checks = [
         && str_contains($outwardView, 'Select QC-Passed Own-Production Stock')
         && str_contains($labelView, '/production/outward?tab=batch')
         && !str_contains($labelView, "url('/production/batches')"),
+    'Production batch scanner selects only listed QC-passed stock batches' =>
+        str_contains($outwardView, 'id="productionBatchScanInput"')
+        && str_contains($outwardView, 'id="productionBatchScanButton"')
+        && str_contains($outwardView, 'data-batch-no=')
+        && str_contains($outwardView, 'data-qc-no=')
+        && str_contains($outwardView, 'function scanProductionBatch()')
+        && str_contains($outwardView, 'batchSelect.value = batch.value;')
+        && str_contains($controller, "UPPER(b.status) = 'APPROVED'")
+        && str_contains($controller, "s.location IN ('Main Store', 'Main Store (WH-01)')"),
+    'Outward source uses the logged-in concern and destination excludes that source' =>
+        str_contains($controller, '$sourceConcerns = $cid')
+        && str_contains($controller, '$cid = $authConcernId ?:')
+        && str_contains($controller, 'The destination concern must be different from the source concern.')
+        && str_contains($outwardView, 'foreach ($sourceConcerns as $con)')
+        && str_contains($outwardView, "excludeSourceConcernFromDestination('dispatchConcernSelect', conId)")
+        && str_contains($outwardView, "excludeSourceConcernFromDestination('fgDestConcernSelect', fgSourceConcernSelect.value)")
+        && str_contains($outwardView, "excludeSourceConcernFromDestination('edit_destination_concern_id', o.concern_id)"),
 ];
 
 $failed = false;

@@ -13,6 +13,7 @@ use App\Services\AuditLog;
 use App\Services\CashService;
 use App\Services\QrService;
 use App\Services\PosBillingCalculator;
+use App\Services\ReturnExchangeSchema;
 use Exception;
 
 class SalesController extends Controller {
@@ -1972,6 +1973,21 @@ class SalesController extends Controller {
     }
 
     // 7. RETURN & EXCHANGE
+    private function activeShopReturnForEdit(int $returnId, ?int $concernId): ?array {
+        if ($returnId <= 0) {
+            return null;
+        }
+
+        return DB::fetch(
+            "SELECT id, concern_id, return_no, sales_invoice_id, status
+             FROM production_returns
+             WHERE id = ? AND (concern_id = ? OR ? IS NULL)
+               AND sales_invoice_id IS NOT NULL AND status = 'COMPLETED'
+             LIMIT 1",
+            [$returnId, $concernId, $concernId]
+        );
+    }
+
     public function lookupShopReturnInvoices(): void {
         $searchTerm = trim((string)($_GET['query'] ?? $_GET['phone'] ?? ''));
         if ($searchTerm === '') {
@@ -1980,6 +1996,12 @@ class SalesController extends Controller {
         }
 
         $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        $editReturnId = (int)($_GET['edit_return_id'] ?? 0);
+        $editReturn = $editReturnId > 0 ? $this->activeShopReturnForEdit($editReturnId, $cid) : null;
+        if ($editReturnId > 0 && !$editReturn) {
+            $this->renderJson(['success' => false, 'message' => 'The return being edited is no longer available.'], 404);
+            return;
+        }
         $sql = "SELECT si.id AS invoice_id, si.concern_id, si.invoice_no, si.invoice_date, si.created_at, si.net_amount,
                        c.id AS customer_id, c.name AS customer_name, c.phone AS customer_phone,
                        con.name AS concern_name,
@@ -2005,14 +2027,31 @@ class SalesController extends Controller {
         }
         $sql .= ' ORDER BY si.invoice_date DESC, si.id DESC';
 
-        $this->renderJson(['success' => true, 'invoices' => DB::fetchAll($sql, $params)]);
+        $invoices = DB::fetchAll($sql, $params);
+        if ($editReturn) {
+            foreach ($invoices as &$invoice) {
+                if ((int)$invoice['invoice_id'] === (int)$editReturn['sales_invoice_id']) {
+                    $invoice['already_used'] = 0;
+                }
+            }
+            unset($invoice);
+        }
+
+        $this->renderJson(['success' => true, 'invoices' => $invoices]);
     }
 
     public function lookupShopReturnInvoice(): void {
+        ReturnExchangeSchema::ensure();
         $invoiceId = (int)($_GET['invoice_id'] ?? 0);
         $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
         if ($invoiceId <= 0) {
             $this->renderJson(['success' => false, 'message' => 'Select a valid invoice.'], 400);
+            return;
+        }
+        $editReturnId = (int)($_GET['edit_return_id'] ?? 0);
+        $editReturn = $editReturnId > 0 ? $this->activeShopReturnForEdit($editReturnId, $cid) : null;
+        if ($editReturnId > 0 && !$editReturn) {
+            $this->renderJson(['success' => false, 'message' => 'The return being edited is no longer available.'], 404);
             return;
         }
 
@@ -2032,19 +2071,41 @@ class SalesController extends Controller {
             return;
         }
 
-        $used = DB::fetchValue(
-            "SELECT re.id
-             FROM returns_exchanges re
-             LEFT JOIN production_returns linked_pr
-               ON linked_pr.return_no = re.return_no AND linked_pr.concern_id = re.concern_id
-             WHERE re.sales_invoice_id = ?
-               AND (linked_pr.id IS NULL OR linked_pr.status <> 'CANCELLED')
-             UNION ALL
-             SELECT id FROM production_returns
-             WHERE sales_invoice_id = ? AND status <> 'CANCELLED'
-             LIMIT 1",
-            [$invoiceId, $invoiceId]
-        );
+        $used = null;
+        if ($editReturn) {
+            $used = DB::fetchValue(
+                "SELECT id FROM production_returns
+                 WHERE sales_invoice_id = ? AND concern_id = ? AND id <> ? AND status <> 'CANCELLED'
+                 LIMIT 1",
+                [$invoiceId, $invoice['concern_id'], $editReturnId]
+            );
+            if (!$used) {
+                $used = DB::fetchValue(
+                    "SELECT re.id
+                     FROM returns_exchanges re
+                     LEFT JOIN production_returns linked_pr
+                       ON linked_pr.return_no = re.return_no AND linked_pr.concern_id = re.concern_id
+                     WHERE re.sales_invoice_id = ? AND re.concern_id = ? AND re.return_no <> ?
+                       AND (linked_pr.id IS NULL OR linked_pr.status <> 'CANCELLED')
+                     LIMIT 1",
+                    [$invoiceId, $invoice['concern_id'], $editReturn['return_no']]
+                );
+            }
+        } else {
+            $used = DB::fetchValue(
+                "SELECT re.id
+                 FROM returns_exchanges re
+                 LEFT JOIN production_returns linked_pr
+                   ON linked_pr.return_no = re.return_no AND linked_pr.concern_id = re.concern_id
+                 WHERE re.sales_invoice_id = ?
+                   AND (linked_pr.id IS NULL OR linked_pr.status <> 'CANCELLED')
+                 UNION ALL
+                 SELECT id FROM production_returns
+                 WHERE sales_invoice_id = ? AND status <> 'CANCELLED'
+                 LIMIT 1",
+                [$invoiceId, $invoiceId]
+            );
+        }
         if ($used) {
             $this->renderJson(['success' => false, 'already_used' => true, 'message' => 'This invoice has already been used for a return or exchange.'], 409);
             return;
@@ -2093,10 +2154,250 @@ class SalesController extends Controller {
                     }
                 }
             }
+            $item['return_qty'] = 0;
+            $item['return_condition'] = 'Good (Restock)';
+            $item['return_scanned_codes'] = [];
+        }
+        if ($editReturn && (int)$editReturn['sales_invoice_id'] === $invoiceId) {
+            $returnedRows = DB::fetchAll(
+                "SELECT sales_invoice_item_id, variant_id, qty, condition_state, restock_action, scanned_codes
+                 FROM production_return_exchange_items
+                 WHERE return_id = ? AND direction = 'IN'
+                 ORDER BY id ASC",
+                [$editReturnId]
+            );
+            $invoiceLineCounts = [];
+            foreach ($items as $item) {
+                $invoiceLineCounts[(int)$item['variant_id']] = ($invoiceLineCounts[(int)$item['variant_id']] ?? 0) + 1;
+            }
+            $unlinkedByVariant = [];
+            foreach ($returnedRows as $returnedRow) {
+                $invoiceItemId = (int)($returnedRow['sales_invoice_item_id'] ?? 0);
+                if ($invoiceItemId > 0) {
+                    foreach ($items as &$item) {
+                        if ((int)$item['invoice_item_id'] === $invoiceItemId) {
+                            $item['return_qty'] = (float)$returnedRow['qty'];
+                            $item['return_condition'] = ($returnedRow['restock_action'] ?? '') === 'SCRAP'
+                                ? 'Damaged (Do Not Restock)'
+                                : 'Good (Restock)';
+                            $item['return_scanned_codes'] = $this->decodeShopReturnScans($returnedRow['scanned_codes'] ?? null);
+                            break;
+                        }
+                    }
+                    unset($item);
+                    continue;
+                }
+                $unlinkedByVariant[(int)$returnedRow['variant_id']][] = $returnedRow;
+            }
+            foreach ($unlinkedByVariant as $variantId => $legacyRows) {
+                if (($invoiceLineCounts[$variantId] ?? 0) !== 1 || count($legacyRows) !== 1) {
+                    $this->renderJson([
+                        'success' => false,
+                        'message' => 'This older return has duplicate invoice variants and cannot be safely matched for full editing. Cancel it and create a corrected return instead.'
+                    ], 409);
+                    return;
+                }
+                foreach ($items as &$item) {
+                    if ((int)$item['variant_id'] === (int)$variantId) {
+                        $item['return_qty'] = (float)$legacyRows[0]['qty'];
+                        $item['return_condition'] = ($legacyRows[0]['restock_action'] ?? '') === 'SCRAP'
+                            ? 'Damaged (Do Not Restock)'
+                            : 'Good (Restock)';
+                        $item['return_scanned_codes'] = $this->decodeShopReturnScans($legacyRows[0]['scanned_codes'] ?? null);
+                        break;
+                    }
+                }
+                unset($item);
+            }
         }
         unset($item);
 
         $this->renderJson(['success' => true, 'invoice' => $invoice, 'items' => $items]);
+    }
+
+    public function lookupShopReturnForEdit(int $id): void {
+        ReturnExchangeSchema::ensure();
+        $returnId = $id;
+        $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        $return = DB::fetch(
+            "SELECT pr.*, si.invoice_no, si.invoice_date, si.net_amount,
+                    c.name AS customer_name, c.phone AS customer_phone
+             FROM production_returns pr
+             JOIN sales_invoices si ON si.id = pr.sales_invoice_id
+             LEFT JOIN customers c ON c.id = pr.customer_id
+             WHERE pr.id = ? AND (pr.concern_id = ? OR ? IS NULL)
+               AND pr.status = 'COMPLETED'
+             LIMIT 1",
+            [$returnId, $cid, $cid]
+        );
+        if (!$return) {
+            $this->renderJson(['success' => false, 'message' => 'Invoice-linked return not found or already cancelled.'], 404);
+            return;
+        }
+
+        $invoiceId = (int)$return['sales_invoice_id'];
+        $invoice = DB::fetch(
+            "SELECT si.id, si.concern_id, si.customer_id, si.invoice_no, si.invoice_date,
+                    si.total_amount, si.tax_amount, si.net_amount, c.name AS customer_name, c.phone AS customer_phone
+             FROM sales_invoices si
+             JOIN customers c ON c.id = si.customer_id
+             WHERE si.id = ? AND si.concern_id = ?",
+            [$invoiceId, $return['concern_id']]
+        );
+        if (!$invoice) {
+            $this->renderJson(['success' => false, 'message' => 'The linked sales invoice is no longer available.'], 404);
+            return;
+        }
+
+        $items = DB::fetchAll(
+            "SELECT sii.id AS invoice_item_id, sii.variant_id, sii.qty AS sold_qty, sii.unit_price, sii.scanned_codes,
+                    sii.total_price, v.sku_code, v.name AS product_name, v.size,
+                    COALESCE(NULLIF(cat.main_category_code, ''), c.code) AS qr_category_code,
+                    COALESCE(NULLIF(cat.sub_category_code, ''), sc.code) AS qr_subcategory_code,
+                    COALESCE(NULLIF(cat.sub_sub_category_code, ''), ssc.code) AS qr_sub_subcategory_code,
+                    c.name AS qr_category_name, sc.name AS qr_subcategory_name, ssc.name AS qr_sub_subcategory_name,
+                    ROUND(
+                        (sii.total_price + CASE WHEN si.total_amount > 0
+                            THEN si.tax_amount * sii.total_price / si.total_amount
+                            ELSE 0 END) / NULLIF(sii.qty, 0),
+                        2
+                    ) AS paid_unit_price
+             FROM sales_invoice_items sii
+             JOIN sales_invoices si ON si.id = sii.sales_invoice_id
+             JOIN variants v ON v.id = sii.variant_id
+             LEFT JOIN catalogs cat ON cat.id = v.catalog_id
+             LEFT JOIN categories c ON c.id = v.category_id
+             LEFT JOIN subcategories sc ON sc.id = v.subcategory_id
+             LEFT JOIN sub_subcategories ssc ON ssc.id = cat.sub_sub_category_id
+             WHERE sii.sales_invoice_id = ?
+             ORDER BY sii.id ASC",
+            [$invoiceId]
+        );
+        foreach ($items as &$item) {
+            $item['tag_code'] = QrService::formatFinishedGoodsCode(
+                (int)$item['variant_id'],
+                $item['qr_category_code'] ?? null,
+                $item['qr_subcategory_code'] ?? null,
+                $item['qr_sub_subcategory_code'] ?? null,
+                $item['qr_category_name'] ?? null,
+                $item['qr_subcategory_name'] ?? null,
+                $item['qr_sub_subcategory_name'] ?? null
+            );
+            $invoiceScannedCodes = json_decode((string)($item['scanned_codes'] ?? ''), true);
+            $item['invoice_scanned_codes'] = is_array($invoiceScannedCodes)
+                ? array_values(array_filter($invoiceScannedCodes, static fn($code) => is_string($code) && trim($code) !== ''))
+                : [];
+            $item['return_qty'] = 0;
+            $item['return_condition'] = 'Good (Restock)';
+            $item['return_scanned_codes'] = [];
+        }
+        unset($item);
+
+        $returnItems = DB::fetchAll(
+            "SELECT sales_invoice_item_id, variant_id, qty, restock_action, scanned_codes
+             FROM production_return_exchange_items
+             WHERE return_id = ? AND direction = 'IN'
+             ORDER BY id ASC",
+            [$returnId]
+        );
+        $invoiceIndexesById = [];
+        $invoiceLineCounts = [];
+        foreach ($items as $index => $item) {
+            $invoiceIndexesById[(int)$item['invoice_item_id']] = $index;
+            $invoiceLineCounts[(int)$item['variant_id']] = ($invoiceLineCounts[(int)$item['variant_id']] ?? 0) + 1;
+        }
+        $unlinkedByVariant = [];
+        foreach ($returnItems as $returnItem) {
+            $invoiceItemId = (int)($returnItem['sales_invoice_item_id'] ?? 0);
+            if ($invoiceItemId > 0 && isset($invoiceIndexesById[$invoiceItemId])) {
+                $index = $invoiceIndexesById[$invoiceItemId];
+                $items[$index]['return_qty'] = (float)$returnItem['qty'];
+                $items[$index]['return_condition'] = ($returnItem['restock_action'] ?? '') === 'SCRAP'
+                    ? 'Damaged (Do Not Restock)'
+                    : 'Good (Restock)';
+                $items[$index]['return_scanned_codes'] = $this->decodeShopReturnScans($returnItem['scanned_codes'] ?? null);
+                continue;
+            }
+            $unlinkedByVariant[(int)$returnItem['variant_id']][] = $returnItem;
+        }
+        foreach ($unlinkedByVariant as $variantId => $legacyRows) {
+            if (($invoiceLineCounts[$variantId] ?? 0) !== 1 || count($legacyRows) !== 1) {
+                $this->renderJson([
+                    'success' => false,
+                    'message' => 'This older return has duplicate invoice variants and cannot be safely matched for full editing. Cancel it and create a corrected return instead.'
+                ], 409);
+                return;
+            }
+            foreach ($items as $index => $item) {
+                if ((int)$item['variant_id'] === (int)$variantId) {
+                    $items[$index]['return_qty'] = (float)$legacyRows[0]['qty'];
+                    $items[$index]['return_condition'] = ($legacyRows[0]['restock_action'] ?? '') === 'SCRAP'
+                        ? 'Damaged (Do Not Restock)'
+                        : 'Good (Restock)';
+                    $items[$index]['return_scanned_codes'] = $this->decodeShopReturnScans($legacyRows[0]['scanned_codes'] ?? null);
+                    break;
+                }
+            }
+        }
+
+        $outItems = DB::fetchAll(
+            "SELECT prei.variant_id AS id, prei.qty, prei.unit_price AS price, prei.scanned_codes,
+                    v.name, v.sku_code, v.size
+             FROM production_return_exchange_items prei
+             JOIN variants v ON v.id = prei.variant_id
+             WHERE prei.return_id = ? AND prei.direction = 'OUT'
+             ORDER BY prei.id ASC",
+            [$returnId]
+        );
+        $groupedOutItems = [];
+        foreach ($outItems as $outItem) {
+            $variantId = (int)$outItem['id'];
+            $codes = $this->decodeShopReturnScans($outItem['scanned_codes'] ?? null);
+            if (!isset($groupedOutItems[$variantId])) {
+                $outItem['scanned_codes'] = $codes;
+                $groupedOutItems[$variantId] = $outItem;
+            } else {
+                $groupedOutItems[$variantId]['qty'] = (float)$groupedOutItems[$variantId]['qty'] + (float)$outItem['qty'];
+                $groupedOutItems[$variantId]['scanned_codes'] = array_merge($groupedOutItems[$variantId]['scanned_codes'], $codes);
+            }
+        }
+        $outItems = array_values($groupedOutItems);
+        $stockRows = DB::fetchAll(
+            "SELECT variant_id, SUM(GREATEST(qty, 0)) AS qty
+             FROM stocks
+             WHERE concern_id = ? AND location IN ('Main Store', 'Main Store (WH-01)')
+             GROUP BY variant_id",
+            [$return['concern_id']]
+        );
+        $availableByVariant = [];
+        foreach ($stockRows as $stockRow) {
+            $availableByVariant[(int)$stockRow['variant_id']] = (float)$stockRow['qty'];
+        }
+        foreach ($outItems as &$item) {
+            $item['available_qty'] = ($availableByVariant[(int)$item['id']] ?? 0)
+                + (float)$item['qty'];
+        }
+        unset($item);
+
+        $this->renderJson([
+            'success' => true,
+            'return' => $return,
+            'invoice' => $invoice,
+            'items' => $items,
+            'out_items' => $outItems,
+        ]);
+    }
+
+    private function decodeShopReturnScans($rawScannedCodes): array {
+        $scannedCodes = json_decode((string)$rawScannedCodes, true);
+        if (!is_array($scannedCodes)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $scannedCodes,
+            static fn($code) => is_string($code) && trim($code) !== ''
+        ));
     }
 
     public function lookupShopReturnReplacement(): void {
@@ -2155,10 +2456,27 @@ class SalesController extends Controller {
             return;
         }
 
+        $returnId = (int)($_GET['return_id'] ?? 0);
+        if ($returnId > 0) {
+            $editableReturn = $this->activeShopReturnForEdit($returnId, $cid);
+            if (!$editableReturn || (int)$editableReturn['concern_id'] !== $invoiceConcernId) {
+                $this->renderJson(['success' => false, 'message' => 'The return being edited is no longer available.'], 404);
+                return;
+            }
+            $existingQty = (float)DB::fetchValue(
+                "SELECT COALESCE(SUM(qty), 0)
+                 FROM production_return_exchange_items
+                 WHERE return_id = ? AND direction = 'OUT' AND variant_id = ?",
+                [$returnId, $variantId]
+            );
+            $variant['available_qty'] = (float)$variant['available_qty'] + $existingQty;
+        }
+
         $this->renderJson(['success' => true, 'variant' => $variant]);
     }
 
     public function returnExchange(): void {
+        ReturnExchangeSchema::ensure();
         $cid = Auth::concernId();
 
         $sql = "SELECT re.*, c.name AS customer_name, v1.name AS returned_variant_name, v1.sku_code AS returned_sku,
@@ -2220,6 +2538,7 @@ class SalesController extends Controller {
             'currentModule' => 'return_exchange',
             'returns'       => $returns,
             'selectedCid'   => $cid,
+            'editRmaId'     => \App\Core\Auth::can('return_exchange', 'edit') ? (int)($_GET['edit_rma'] ?? 0) : 0,
         ]);
     }
 

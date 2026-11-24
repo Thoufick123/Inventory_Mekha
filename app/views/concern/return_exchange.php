@@ -18,7 +18,7 @@
     include __DIR__ . '/../partials/export_card.php';
     ?>
 
-    <?php if (\App\Core\Auth::can('return_exchange', 'add')): ?>
+    <?php if (\App\Core\Auth::can('return_exchange', 'add|edit')): ?>
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body p-3 p-md-4">
             <label for="shop_return_phone" class="form-label fw-semibold small mb-2">
@@ -98,7 +98,7 @@
                                 <td><?= date('d M Y', strtotime($r['return_date'])) ?></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex align-items-center gap-1">
-                                        <?php if (!empty($r['production_return_id'])): ?>
+                                        <?php if (!empty($r['production_return_id']) && ($r['production_status'] ?? '') === 'COMPLETED'): ?>
                                             <a href="<?= \App\Core\Controller::url('/production/returns/view/' . (int)$r['production_return_id']) ?>" class="btn btn-sm btn-outline-info" title="View Full Return Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
@@ -109,9 +109,15 @@
                                         <?php endif; ?>
                                         <?php if (($r['production_status'] ?? '') !== 'CANCELLED'): ?>
                                             <?php if (\App\Core\Auth::can('return_exchange', 'edit')): ?>
-                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditReturnModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Return">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
+                                                <?php if (!empty($r['production_return_id'])): ?>
+                                                    <a href="<?= \App\Core\Controller::url('/m/return_exchange?edit_rma=' . (int)$r['production_return_id']) ?>" class="btn btn-sm btn-outline-primary" title="Edit Full Return / Exchange">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </a>
+                                                <?php else: ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditReturnModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Return">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                <?php endif; ?>
                                             <?php endif; ?>
                                             <?php if (\App\Core\Auth::can('return_exchange', 'delete')): ?>
                                             <form action="<?= \App\Core\Controller::url(!empty($r['production_return_id']) ? '/production/returns/cancel' : '/m/return_exchange/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Cancel return record <?= htmlspecialchars($r['return_no']) ?>? Stock movements will be reversed and the audit record retained.');">
@@ -138,18 +144,20 @@
     </div>
 </div>
 
-<?php if (\App\Core\Auth::can('return_exchange', 'add')): ?>
+<?php if (\App\Core\Auth::can('return_exchange', 'add|edit')): ?>
 <div class="modal fade" id="modalShopReturn" tabindex="-1" aria-labelledby="modalShopReturnTitle" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <form action="<?= \App\Core\Controller::url('/production/returns/store') ?>" method="POST" id="shopReturnForm" class="modal-content border-0 shadow-lg">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <input type="hidden" name="source_workflow" value="shop">
+            <input type="hidden" name="id" id="shop_return_id" value="">
             <input type="hidden" name="concern_id" id="shop_return_concern_id">
             <input type="hidden" name="sales_invoice_id" id="shop_return_invoice_id">
             <input type="hidden" name="customer_id" id="shop_return_customer_id">
-            <input type="hidden" name="return_date" value="<?= date('Y-m-d') ?>">
+            <input type="hidden" name="photo_url" id="shop_return_photo_url" value="">
             <input type="hidden" name="type" id="shop_return_type" value="RETURN">
             <input type="hidden" name="settlement_mode" id="shop_return_settlement_mode" value="Cash">
+            <input type="hidden" name="settlement_reference" id="shop_return_settlement_reference" value="">
             <input type="hidden" name="in_items" id="shop_return_in_items" value="[]">
             <input type="hidden" name="out_items" id="shop_return_out_items" value="[]">
 
@@ -158,6 +166,9 @@
                     <div class="small text-muted"><span class="badge bg-success me-1">SHOP RETAIL POS</span> Return &amp; Exchange Portal</div>
                     <h5 class="modal-title fw-bold mb-0" id="modalShopReturnTitle">Step 2: Select Items &amp; Action Type</h5>
                 </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary me-2 d-none" id="shop_return_change_invoice">
+                    <i class="bi bi-arrow-left-right me-1"></i> Change Invoice
+                </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
@@ -166,6 +177,16 @@
                     <div class="col-6 col-md-3"><small class="text-muted d-block">CUSTOMER NAME</small><strong id="shop_return_summary_customer">-</strong></div>
                     <div class="col-6 col-md-3"><small class="text-muted d-block">ORDER DATE</small><strong id="shop_return_summary_date">-</strong></div>
                     <div class="col-6 col-md-3"><small class="text-muted d-block">TOTAL ORDER VALUE</small><strong class="text-success" id="shop_return_summary_total">₹0.00</strong></div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-4">
+                        <label for="shop_return_date" class="form-label small fw-semibold mb-1">Return Date</label>
+                        <input type="date" id="shop_return_date" name="return_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" required>
+                    </div>
+                    <div class="col-12 col-md-8">
+                        <label for="shop_return_settlement_reference_input" class="form-label small fw-semibold mb-1">Settlement Reference (optional)</label>
+                        <input type="text" id="shop_return_settlement_reference_input" class="form-control form-control-sm" maxlength="100" placeholder="Receipt, UTR, or payment reference">
+                    </div>
                 </div>
 
                 <div class="small fw-bold text-uppercase text-muted mb-2">Choose Action Type for Selected Items</div>
@@ -198,6 +219,10 @@
                 <div class="mb-3">
                     <label for="shop_return_reason" class="form-label small fw-semibold mb-1">Reason / Notes</label>
                     <input type="text" id="shop_return_reason" name="reason" class="form-control form-control-sm" placeholder="e.g. Fitting issue, defect, customer requested refund..." required>
+                </div>
+                <div class="mb-3">
+                    <label for="shop_return_photo_url_input" class="form-label small fw-semibold mb-1">Photo / Inspection URL (optional)</label>
+                    <input type="url" id="shop_return_photo_url_input" class="form-control form-control-sm" maxlength="255" placeholder="https://...">
                 </div>
 
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -369,9 +394,15 @@ document.addEventListener('DOMContentLoaded', function() {
     let activeInvoice = null;
     let invoiceItems = [];
     let returnType = 'RETURN';
+    let activeEditReturnId = 0;
+    const initialEditReturnId = <?= (int)($editRmaId ?? 0) ?>;
+    const todayDate = <?= json_encode(date('Y-m-d')) ?>;
     const customerInvoicesUrl = <?= json_encode(\App\Core\Controller::url('/api/shop-returns/customer-invoices')) ?>;
     const invoiceDetailsUrl = <?= json_encode(\App\Core\Controller::url('/api/shop-returns/invoice')) ?>;
+    const editDetailsUrl = <?= json_encode(\App\Core\Controller::url('/api/shop-returns/edit/')) ?>;
     const replacementLookupUrl = <?= json_encode(\App\Core\Controller::url('/api/shop-returns/replacement')) ?>;
+    const createReturnUrl = <?= json_encode(\App\Core\Controller::url('/production/returns/store')) ?>;
+    const updateReturnUrl = <?= json_encode(\App\Core\Controller::url('/production/returns/update')) ?>;
 
     function escapeHtml(value) {
         return String(value || '').replace(/[&<>"']/g, function(character) {
@@ -434,7 +465,8 @@ document.addEventListener('DOMContentLoaded', function() {
         lookupStatus.innerHTML = '<span class="text-primary"><i class="bi bi-arrow-repeat me-1"></i>Searching customer invoices...</span>';
         invoiceList.classList.add('d-none');
         try {
-            const response = await fetch(customerInvoicesUrl + '?query=' + encodeURIComponent(searchTerm), {headers: {'Accept': 'application/json'}});
+            const editQuery = activeEditReturnId ? '&edit_return_id=' + encodeURIComponent(activeEditReturnId) : '';
+            const response = await fetch(customerInvoicesUrl + '?query=' + encodeURIComponent(searchTerm) + editQuery, {headers: {'Accept': 'application/json'}});
             const data = await response.json();
             if (!response.ok || !data.success) throw new Error(data.message || 'Invoice lookup failed.');
             renderInvoices(data.invoices || []);
@@ -455,6 +487,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const itemCode = pieceTag ? 'Piece Tag: ' + pieceTag : String(item.sku_code || '');
             const invoiceScannedCodes = Array.isArray(item.invoice_scanned_codes) ? item.invoice_scanned_codes : [];
             const returnScannedCodes = Array.isArray(item.return_scanned_codes) ? item.return_scanned_codes : [];
+            const returnCondition = item.return_condition || 'Good (Restock)';
             const label = escapeHtml(itemCode) + ' · ' + escapeHtml(item.product_name) +
                 (item.size ? ' · Size: ' + escapeHtml(item.size) : '');
             return '<tr data-invoice-line="' + index + '" data-sku="' + escapeHtml(item.sku_code) + '" data-tag-code="' + escapeHtml(item.tag_code) + '">' +
@@ -464,10 +497,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         (returnScannedCodes.length ? 'Return scanned: ' + escapeHtml(returnScannedCodes.join(', ')) : '') +
                     '</small></td>' +
                 '<td class="text-center">' + Number(item.sold_qty) + '</td>' +
-                '<td class="text-center"><input type="number" class="form-control form-control-sm text-center shop-return-qty" min="0" max="' + Number(item.sold_qty) + '" step="1" value="0" aria-label="Return quantity for ' + escapeHtml(item.sku_code) + '"></td>' +
+                '<td class="text-center"><input type="number" class="form-control form-control-sm text-center shop-return-qty" min="0" max="' + Number(item.sold_qty) + '" step="1" value="' + Number(item.return_qty || 0) + '" aria-label="Return quantity for ' + escapeHtml(item.sku_code) + '"></td>' +
                 '<td><select class="form-select form-select-sm shop-return-condition" aria-label="Condition for ' + escapeHtml(item.sku_code) + '">' +
-                    '<option value="Good (Restock)">Good (Restock)</option>' +
-                    '<option value="Damaged (Do Not Restock)">Damaged (Do Not Restock)</option>' +
+                    '<option value="Good (Restock)" ' + (returnCondition === 'Good (Restock)' ? 'selected' : '') + '>Good (Restock)</option>' +
+                    '<option value="Damaged (Do Not Restock)" ' + (returnCondition === 'Damaged (Do Not Restock)' ? 'selected' : '') + '>Damaged (Do Not Restock)</option>' +
                 '</select></td>' +
                 '<td class="text-end font-monospace">' + formatMoney(item.paid_unit_price) + '</td>' +
                 '<td class="text-end fw-bold font-monospace shop-return-line-credit">₹0.00</td>' +
@@ -496,6 +529,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function setReturnType(type) {
+        if (type === 'RETURN' && returnType === 'EXCHANGE') {
+            replacementItems.length = 0;
+            renderReplacementItems();
+        }
         returnType = type;
         document.getElementById('shop_return_type').value = type;
         document.getElementById('shop_return_payment_section').classList.toggle('d-none', type !== 'RETURN');
@@ -566,16 +603,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function loadInvoice(invoiceId) {
+    async function loadInvoice(invoiceId, editData = null) {
         clearFormError();
         lookupStatus.innerHTML = '<span class="text-primary">Loading invoice items...</span>';
         try {
-            const response = await fetch(invoiceDetailsUrl + '?invoice_id=' + encodeURIComponent(invoiceId), {headers: {'Accept': 'application/json'}});
-            const data = await response.json();
-            if (!response.ok || !data.success) throw new Error(data.message || 'Could not load invoice.');
+            let data = editData;
+            if (!data) {
+                const editQuery = activeEditReturnId ? '&edit_return_id=' + encodeURIComponent(activeEditReturnId) : '';
+                const response = await fetch(invoiceDetailsUrl + '?invoice_id=' + encodeURIComponent(invoiceId) + editQuery, {headers: {'Accept': 'application/json'}});
+                data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || 'Could not load invoice.');
+            }
             activeInvoice = data.invoice;
             invoiceItems = data.items || [];
-            replacementItems.length = 0;
+            const isEditing = activeEditReturnId > 0;
+            if (!isEditing || editData) {
+                replacementItems.length = 0;
+            }
             document.getElementById('shop_return_invoice_id').value = activeInvoice.id;
             document.getElementById('shop_return_customer_id').value = activeInvoice.customer_id;
             document.getElementById('shop_return_concern_id').value = activeInvoice.concern_id;
@@ -583,14 +627,42 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('shop_return_summary_customer').textContent = activeInvoice.customer_name + ' · ' + activeInvoice.customer_phone;
             document.getElementById('shop_return_summary_date').textContent = activeInvoice.invoice_date;
             document.getElementById('shop_return_summary_total').textContent = formatMoney(activeInvoice.net_amount);
-            document.getElementById('shop_return_reason').value = '';
-            document.getElementById('shop_return_settlement_mode').value = 'Cash';
+            if (editData) {
+                const currentReturn = editData.return;
+                activeEditReturnId = Number(currentReturn.id);
+                document.getElementById('shop_return_id').value = activeEditReturnId;
+                document.getElementById('shop_return_date').value = String(currentReturn.return_date || '').substring(0, 10);
+                document.getElementById('shop_return_reason').value = currentReturn.reason || '';
+                document.getElementById('shop_return_settlement_reference_input').value = currentReturn.settlement_reference || '';
+                document.getElementById('shop_return_photo_url_input').value = currentReturn.photo_url || '';
+                returnType = currentReturn.type || 'RETURN';
+                document.getElementById('shop_return_settlement_mode').value = currentReturn.settlement_mode || 'Cash';
+                replacementItems.push(...(editData.out_items || []));
+                document.getElementById('shop_return_change_invoice').classList.remove('d-none');
+                document.getElementById('modalShopReturnTitle').textContent = 'Edit Return / Exchange';
+                document.getElementById('shop_return_process_button').innerHTML = '<i class="bi bi-check2-circle me-1"></i> Save Return / Exchange';
+                returnForm.action = updateReturnUrl;
+            } else if (!isEditing) {
+                activeEditReturnId = 0;
+                document.getElementById('shop_return_id').value = '';
+                document.getElementById('shop_return_date').value = todayDate;
+                document.getElementById('shop_return_reason').value = '';
+                document.getElementById('shop_return_settlement_reference_input').value = '';
+                document.getElementById('shop_return_photo_url_input').value = '';
+                document.getElementById('shop_return_settlement_mode').value = 'Cash';
+                document.getElementById('shop_return_change_invoice').classList.add('d-none');
+                document.getElementById('modalShopReturnTitle').textContent = 'Step 2: Select Items & Action Type';
+                document.getElementById('shop_return_process_button').innerHTML = '<i class="bi bi-check2-circle me-1"></i> Process Shop Return / Exchange';
+                returnForm.action = createReturnUrl;
+            } else {
+                document.getElementById('shop_return_change_invoice').classList.remove('d-none');
+            }
             document.querySelectorAll('.shop-return-payment').forEach(function(button) {
-                button.classList.toggle('active', button.getAttribute('data-settlement') === 'Cash');
+                button.classList.toggle('active', button.getAttribute('data-settlement') === document.getElementById('shop_return_settlement_mode').value);
             });
             renderInvoiceItems();
             renderReplacementItems();
-            setReturnType('RETURN');
+            setReturnType(returnType);
             lookupStatus.innerHTML = '<span class="text-success">Invoice loaded. Select the items being returned.</span>';
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modalShopReturn')).show();
         } catch (error) {
@@ -606,7 +678,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const button = document.getElementById('shop_return_add_replacement');
         button.disabled = true;
         try {
-            const url = replacementLookupUrl + '?invoice_id=' + encodeURIComponent(activeInvoice.id) + '&sku=' + encodeURIComponent(sku);
+            const returnQuery = activeEditReturnId ? '&return_id=' + encodeURIComponent(activeEditReturnId) : '';
+            const url = replacementLookupUrl + '?invoice_id=' + encodeURIComponent(activeInvoice.id) + '&sku=' + encodeURIComponent(sku) + returnQuery;
             const response = await fetch(url, {headers: {'Accept': 'application/json'}});
             const data = await response.json();
             if (!response.ok || !data.success) throw new Error(data.message || 'Replacement product lookup failed.');
@@ -642,6 +715,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     lookupForm.addEventListener('submit', lookupCustomerInvoices);
+    document.getElementById('shop_return_change_invoice').addEventListener('click', function() {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalShopReturn')).hide();
+        lookupStatus.innerHTML = '<span class="text-primary">Choose the invoice to keep or change for this return.</span>';
+        document.getElementById('shop_return_phone').focus();
+    });
     invoiceList.addEventListener('click', function(event) {
         const button = event.target.closest('[data-select-invoice]');
         if (button) loadInvoice(button.getAttribute('data-select-invoice'));
@@ -764,8 +842,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         document.getElementById('shop_return_in_items').value = JSON.stringify(inItems);
         document.getElementById('shop_return_out_items').value = JSON.stringify(outItems);
+        document.getElementById('shop_return_settlement_reference').value = document.getElementById('shop_return_settlement_reference_input').value.trim();
+        document.getElementById('shop_return_photo_url').value = document.getElementById('shop_return_photo_url_input').value.trim();
         document.getElementById('shop_return_process_button').disabled = true;
     });
+
+    async function openRmaForEdit(returnId) {
+        activeEditReturnId = Number(returnId) || 0;
+        if (!activeEditReturnId) return;
+        lookupStatus.innerHTML = '<span class="text-primary"><i class="bi bi-arrow-repeat me-1"></i>Loading return details for editing...</span>';
+        try {
+            const response = await fetch(editDetailsUrl + encodeURIComponent(activeEditReturnId), {headers: {'Accept': 'application/json'}});
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.message || 'Could not load this return.');
+            await loadInvoice(data.invoice.id, data);
+        } catch (error) {
+            lookupStatus.innerHTML = '<span class="text-danger">' + escapeHtml(error.message) + '</span>';
+            activeEditReturnId = 0;
+        }
+    }
+
+    if (initialEditReturnId > 0) {
+        openRmaForEdit(initialEditReturnId);
+    }
 });
 
 function openViewReturnModal(r) {

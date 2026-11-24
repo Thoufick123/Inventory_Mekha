@@ -5,8 +5,10 @@ $salesController = file_get_contents(__DIR__ . '/../app/controllers/SalesControl
 $productionReturnController = file_get_contents(__DIR__ . '/../app/controllers/ProductionReturnController.php');
 $returnView = file_get_contents(__DIR__ . '/../app/views/concern/return_exchange.php');
 $productionReturnView = file_get_contents(__DIR__ . '/../app/views/production/returns/view.php');
+$productionReturnIndex = file_get_contents(__DIR__ . '/../app/views/production/returns/index.php');
 $schema = file_get_contents(__DIR__ . '/../database/schema.sql');
 $migration = file_get_contents(__DIR__ . '/../database/migrate_all_tables.php');
+$returnExchangeSchema = file_get_contents(__DIR__ . '/../app/services/ReturnExchangeSchema.php');
 
 $updateStart = strpos($salesController, 'public function updateReturn(): void {');
 $updateEnd = strpos($salesController, 'public function deleteReturn(): void {', $updateStart);
@@ -79,6 +81,28 @@ $checks = [
         && strpos($productionReturnController, "UPDATE production_returns SET status = 'CANCELLED'") !== false
         && strpos($salesController, "linked_pr.status <> 'CANCELLED'") !== false
         && strpos($productionReturnController, "status <> 'CANCELLED'") !== false,
+    'Production RMA registry exposes edit and stock-safe cancellation actions' =>
+        strpos($productionReturnIndex, 'data-bs-target="#modalEditRma"') !== false
+        && strpos($productionReturnIndex, 'data-bs-target="#modalCancelRma"') !== false
+        && strpos($productionReturnIndex, 'return_to" value="production_returns"') !== false
+        && strpos($routes, "'/production/returns/update', [ProductionReturnController::class, 'update'], 'return_exchange', 'edit'") !== false
+        && strpos($routes, "'/production/returns/cancel', [ProductionReturnController::class, 'cancel'], 'return_exchange', 'delete'") !== false
+        && strpos($productionReturnController, 'public function update(): void') !== false
+        && strpos($productionReturnController, 'A cancelled return cannot be edited.') !== false
+        && strpos($productionReturnController, "UPDATE returns_exchanges SET return_date = ?, reason = ?") !== false,
+    'Invoice-linked RMA edits reuse creation fields and rebalance stock safely' =>
+        strpos($productionReturnIndex, '/m/return_exchange?edit_rma=') !== false
+        && strpos($returnView, 'shop_return_change_invoice') !== false
+        && strpos($returnView, 'shop_return_settlement_reference_input') !== false
+        && strpos($returnView, 'shop_return_photo_url_input') !== false
+        && strpos($returnView, 'openRmaForEdit') !== false
+        && strpos($routes, '/api/shop-returns/edit/{id}') !== false
+        && strpos($productionReturnController, 'updateShopReturnTransaction') !== false
+        && strpos($productionReturnController, 'RMA Edit Reversal [{$return[\'return_no\']}]') !== false
+        && strpos($productionReturnController, 'DamageService::cancel(') !== false
+        && strpos($productionReturnController, 'sales_invoice_item_id') !== false
+        && strpos($salesController, 'lookupShopReturnForEdit(int $id)') !== false
+        && strpos($salesController, '$returnId = $id;') !== false,
     'Return creation captures invoice, returned-item, and replacement scan codes' =>
         strpos($salesController, 'sii.scanned_codes') !== false
         && strpos($returnView, 'Invoice scanned:') !== false
@@ -98,7 +122,15 @@ $checks = [
         && strpos($productionReturnView, 'Scanned codes:') !== false,
     'Return-item scan storage is present in fresh and migrated databases' =>
         strpos($schema, '`scanned_codes` text DEFAULT NULL') !== false
-        && strpos($migration, 'ADD COLUMN `scanned_codes` TEXT NULL AFTER `tag_code`') !== false,
+        && strpos($migration, 'ADD COLUMN `scanned_codes` TEXT NULL AFTER `tag_code`') !== false
+        && strpos($schema, '`sales_invoice_item_id` int(11) DEFAULT NULL') !== false
+        && strpos($migration, 'ADD COLUMN `sales_invoice_item_id` INT NULL AFTER `variant_id`') !== false,
+    'Return pages ensure existing databases have the scan and invoice-line columns' =>
+        strpos($returnExchangeSchema, 'ALTER TABLE `production_return_exchange_items` ADD COLUMN `sales_invoice_item_id` INT NULL') !== false
+        && strpos($returnExchangeSchema, 'ALTER TABLE `production_return_exchange_items` ADD COLUMN `scanned_codes` TEXT NULL') !== false
+        && strpos($returnExchangeSchema, 'ALTER TABLE `sales_invoice_items` ADD COLUMN `scanned_codes` TEXT NULL') !== false
+        && strpos($salesController, 'ReturnExchangeSchema::ensure();') !== false
+        && strpos($productionReturnController, 'ReturnExchangeSchema::ensure();') !== false,
     'Returned quantities are validated against the invoice and item details are stored' =>
         strpos($storeMethod, 'Returned quantity cannot exceed the quantity sold.') !== false
         && strpos($storeMethod, 'INSERT INTO return_exchange_items') !== false

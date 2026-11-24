@@ -144,6 +144,30 @@
                                         <a href="<?= \App\Core\Controller::url('/production/returns/print/' . $r['id']) ?>" target="_blank" class="btn btn-outline-secondary" title="Print RMA Receipt">
                                             <i class="bi bi-printer"></i>
                                         </a>
+                                        <?php if ($r['status'] !== 'CANCELLED' && \App\Core\Auth::can('return_exchange', 'edit')): ?>
+                                            <?php if (!empty($r['sales_invoice_id']) && $r['status'] === 'COMPLETED'): ?>
+                                                <a href="<?= \App\Core\Controller::url('/m/return_exchange?edit_rma=' . (int)$r['id']) ?>" class="btn btn-outline-warning" title="Edit Full Return / Exchange">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                            <?php else: ?>
+                                                <button type="button" class="btn btn-outline-warning" title="Edit RMA"
+                                                    data-bs-toggle="modal" data-bs-target="#modalEditRma"
+                                                    data-rma-id="<?= (int)$r['id'] ?>"
+                                                    data-return-no="<?= htmlspecialchars($r['return_no'], ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-return-date="<?= htmlspecialchars(substr((string)$r['return_date'], 0, 10), ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-reason="<?= htmlspecialchars((string)($r['reason'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                        <?php if ($r['status'] !== 'CANCELLED' && \App\Core\Auth::can('return_exchange', 'delete')): ?>
+                                            <button type="button" class="btn btn-outline-danger" title="Cancel and reverse RMA"
+                                                data-bs-toggle="modal" data-bs-target="#modalCancelRma"
+                                                data-rma-id="<?= (int)$r['id'] ?>"
+                                                data-return-no="<?= htmlspecialchars($r['return_no'], ENT_QUOTES, 'UTF-8') ?>">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -153,4 +177,82 @@
             </table>
         </div>
     </div>
+
+    <?php if (\App\Core\Auth::can('return_exchange', 'edit')): ?>
+    <div class="modal fade" id="modalEditRma" tabindex="-1" aria-labelledby="modalEditRmaTitle" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="POST" action="<?= \App\Core\Controller::url('/production/returns/update') ?>" class="modal-content">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
+                <input type="hidden" name="id" id="edit_rma_id">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="modalEditRmaTitle">Edit Return / Exchange</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Return No</label>
+                        <input type="text" id="edit_rma_return_no" class="form-control font-monospace" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_rma_return_date" class="form-label">Return Date</label>
+                        <input type="date" name="return_date" id="edit_rma_return_date" class="form-control" required>
+                    </div>
+                    <div>
+                        <label for="edit_rma_reason" class="form-label">Reason / Notes</label>
+                        <textarea name="reason" id="edit_rma_reason" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (\App\Core\Auth::can('return_exchange', 'delete')): ?>
+    <div class="modal fade" id="modalCancelRma" tabindex="-1" aria-labelledby="modalCancelRmaTitle" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="POST" action="<?= \App\Core\Controller::url('/production/returns/cancel') ?>" class="modal-content">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
+                <input type="hidden" name="id" id="cancel_rma_id">
+                <input type="hidden" name="return_to" value="production_returns">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-danger" id="modalCancelRmaTitle">Cancel &amp; Reverse RMA</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-secondary small">
+                        This reverses all stock movements. The RMA remains in the audit history as cancelled.
+                        <span class="fw-semibold" id="cancel_rma_return_no"></span>
+                    </p>
+                    <label for="cancel_rma_reason" class="form-label">Cancellation Reason</label>
+                    <textarea name="cancel_reason" id="cancel_rma_reason" rows="3" class="form-control" required></textarea>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep Active</button>
+                    <button type="submit" class="btn btn-danger">Confirm Reverse</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <script>
+    document.getElementById('modalEditRma')?.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        document.getElementById('edit_rma_id').value = button.dataset.rmaId || '';
+        document.getElementById('edit_rma_return_no').value = button.dataset.returnNo || '';
+        document.getElementById('edit_rma_return_date').value = button.dataset.returnDate || '';
+        document.getElementById('edit_rma_reason').value = button.dataset.reason || '';
+    });
+
+    document.getElementById('modalCancelRma')?.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        document.getElementById('cancel_rma_id').value = button.dataset.rmaId || '';
+        document.getElementById('cancel_rma_return_no').textContent = button.dataset.returnNo || '';
+        document.getElementById('cancel_rma_reason').value = '';
+    });
+    </script>
 </div>

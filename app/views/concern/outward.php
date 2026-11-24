@@ -328,13 +328,29 @@
                         </div>
                     </div>
 
+                    <div class="col-12">
+                        <label for="productionBatchScanInput" class="form-label small fw-bold text-dark mb-1">
+                            <i class="bi bi-qr-code-scan text-primary me-1"></i> Scan Production Batch QR / Barcode / Batch Number
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white"><i class="bi bi-upc-scan"></i></span>
+                            <input type="text" id="productionBatchScanInput" class="form-control font-monospace" placeholder="Scan carton label or enter batch number (e.g. BAT-20261124-0001)" autocomplete="off">
+                            <button type="button" class="btn btn-primary" id="productionBatchScanButton">
+                                <i class="bi bi-search me-1"></i> Find Batch
+                            </button>
+                        </div>
+                        <div id="productionBatchScanFeedback" class="small text-muted mt-1" aria-live="polite">
+                            Only QC-passed production batches with available good Main Store stock can be selected.
+                        </div>
+                    </div>
+
                     <!-- Row 1: Dual Concern Routing: Current Concern -> Destination Concern -->
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-dark">
                             <i class="bi bi-geo-alt-fill text-danger me-1"></i> Current Concern (Dispatched From) *
                         </label>
                         <select name="source_concern_id" id="sourceConcernSelect" class="form-select form-select-sm bg-light fw-semibold" onchange="filterBatchesByConcern(this.value)">
-                            <?php foreach ($allConcerns as $con): ?>
+                            <?php foreach ($sourceConcerns as $con): ?>
                                 <option value="<?= $con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'selected' : '' ?>>
                                     🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                 </option>
@@ -352,7 +368,7 @@
                         <select name="destination_concern_id" id="dispatchConcernSelect" class="form-select form-select-sm fw-semibold border-primary" required>
                             <option value="">-- Select Outward Destination Concern --</option>
                             <?php foreach ($allConcerns as $con): ?>
-                                <option value="<?= $con['id'] ?>">
+                                <option value="<?= $con['id'] ?>" data-concern-id="<?= (int)$con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'disabled hidden' : '' ?>>
                                     🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                 </option>
                             <?php endforeach; ?>
@@ -370,7 +386,7 @@
                         <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm" required>
                             <option value="">-- Select QC-Passed Own-Production Stock --</option>
                             <?php foreach ($availableBatches as $b): ?>
-                                <option value="<?= (int)$b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 0) ?>">
+                                <option value="<?= (int)$b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 0) ?>" data-batch-no="<?= htmlspecialchars($b['batch_no']) ?>" data-qc-no="<?= htmlspecialchars((string)($b['qc_no'] ?? '')) ?>" data-available-qty="<?= (float)$b['dispatch_qty'] ?>">
                                     <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['product_name'] ?? ($b['program_name'] ?? ($b['variant_name'] ?? 'Production Batch'))) ?>
                                     (QC <?= htmlspecialchars((string)($b['qc_no'] ?? '-')) ?>, <?= (int)$b['dispatch_qty'] ?> pcs available)
                                 </option>
@@ -463,7 +479,7 @@
                                 <i class="bi bi-geo-alt-fill text-danger me-1"></i> Current Concern (Dispatched From) *
                             </label>
                             <select name="source_concern_id_fg" id="fgSourceConcernSelect" class="form-select form-select-sm bg-white fw-semibold">
-                                <?php foreach ($allConcerns as $con): ?>
+                                <?php foreach ($sourceConcerns as $con): ?>
                                     <option value="<?= $con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'selected' : '' ?>>
                                         🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                     </option>
@@ -481,7 +497,7 @@
                             <select name="destination_concern_id_fg" id="fgDestConcernSelect" class="form-select form-select-sm fw-semibold border-primary" <?= empty($posInvoiceTransfer) ? 'required' : '' ?>>
                                 <option value="">-- Select Outward Destination Concern --</option>
                                 <?php foreach ($allConcerns as $con): ?>
-                                    <option value="<?= $con['id'] ?>">
+                                    <option value="<?= $con['id'] ?>" data-concern-id="<?= (int)$con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'disabled hidden' : '' ?>>
                                         🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                     </option>
                                 <?php endforeach; ?>
@@ -594,7 +610,7 @@
                         <select name="destination_concern_id" id="edit_destination_concern_id" class="form-select form-select-sm">
                             <option value="">-- Select Created Concern --</option>
                             <?php foreach ($allConcerns as $con): ?>
-                                <option value="<?= $con['id'] ?>">
+                                <option value="<?= $con['id'] ?>" data-concern-id="<?= (int)$con['id'] ?>">
                                     🏢 <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
                                 </option>
                             <?php endforeach; ?>
@@ -669,7 +685,66 @@ if (isPosInvoiceTransfer) {
     });
 }
 
+function excludeSourceConcernFromDestination(destinationId, sourceConcernId) {
+    const destination = document.getElementById(destinationId);
+    if (!destination) return;
+    const sourceId = parseInt(sourceConcernId || '0', 10);
+    Array.from(destination.options).forEach(function(option) {
+        if (!option.value) return;
+        const sameConcern = parseInt(option.getAttribute('data-concern-id') || option.value, 10) === sourceId;
+        option.disabled = sameConcern;
+        option.hidden = sameConcern;
+    });
+    if (destination.value && parseInt(destination.value, 10) === sourceId) {
+        destination.value = '';
+    }
+}
+
+function scanProductionBatch() {
+    const scanInput = document.getElementById('productionBatchScanInput');
+    const batchSelect = document.getElementById('dispatchBatchSelect');
+    const feedback = document.getElementById('productionBatchScanFeedback');
+    const scannedCode = scanInput ? scanInput.value.trim().toUpperCase() : '';
+    if (!scannedCode || !batchSelect || !feedback) return;
+
+    const matches = Array.from(batchSelect.options).slice(1).filter(function(option) {
+        return [option.getAttribute('data-batch-no'), option.getAttribute('data-qc-no')]
+            .some(function(code) {
+                return String(code || '').trim().toUpperCase() === scannedCode;
+            });
+    });
+
+    if (!matches.length) {
+        feedback.className = 'small text-danger mt-1';
+        feedback.textContent = 'Batch not found among QC-passed production batches with available good stock for this concern.';
+        scanInput.select();
+        return;
+    }
+    if (matches.length > 1) {
+        feedback.className = 'small text-danger mt-1';
+        feedback.textContent = 'This QC number matches more than one batch. Scan the unique batch number instead.';
+        scanInput.select();
+        return;
+    }
+
+    const batch = matches[0];
+    if (batch.style.display === 'none') {
+        feedback.className = 'small text-danger mt-1';
+        feedback.textContent = 'This batch is not available for the selected source concern.';
+        scanInput.select();
+        return;
+    }
+
+    batchSelect.value = batch.value;
+    feedback.className = 'small text-success mt-1';
+    feedback.textContent = 'Selected batch ' + batch.getAttribute('data-batch-no') +
+        ' — ' + batch.getAttribute('data-available-qty') + ' good pcs available.';
+    scanInput.value = '';
+    scanInput.focus();
+}
+
 function filterBatchesByConcern(conId) {
+    excludeSourceConcernFromDestination('dispatchConcernSelect', conId);
     const select = document.getElementById('dispatchBatchSelect');
     if (!select) return;
     const conIdStr = String(conId || '');
@@ -991,6 +1066,18 @@ function renderScannedTable() {
 
 // Scanner enter key handler
 document.addEventListener('DOMContentLoaded', function() {
+    const productionBatchScanInput = document.getElementById('productionBatchScanInput');
+    const productionBatchScanButton = document.getElementById('productionBatchScanButton');
+    if (productionBatchScanInput && productionBatchScanButton) {
+        productionBatchScanButton.addEventListener('click', scanProductionBatch);
+        productionBatchScanInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                scanProductionBatch();
+            }
+        });
+    }
+
     const scanInput = document.getElementById('fgScanInput');
     if (scanInput) {
         scanInput.addEventListener('keydown', function(e) {
@@ -1003,7 +1090,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const fgSourceConcernSelect = document.getElementById('fgSourceConcernSelect');
     if (fgSourceConcernSelect) {
-        fgSourceConcernSelect.addEventListener('change', refreshFgStockAvailability);
+        const refreshFgConcernOptions = function() {
+            excludeSourceConcernFromDestination('fgDestConcernSelect', fgSourceConcernSelect.value);
+            refreshFgStockAvailability();
+        };
+        fgSourceConcernSelect.addEventListener('change', refreshFgConcernOptions);
+        refreshFgConcernOptions();
         refreshFgStockAvailability();
     }
 
@@ -1050,7 +1142,11 @@ function openEditOutwardModal(o) {
     document.getElementById('edit_driver_contact').value = o.driver_contact || '';
     document.getElementById('edit_warehouse_name').value = o.display_warehouse_name || o.warehouse_name || '';
     const editCon = document.getElementById('edit_destination_concern_id');
-    if (editCon) editCon.value = o.destination_concern_id || '';
+    if (editCon) {
+        excludeSourceConcernFromDestination('edit_destination_concern_id', o.concern_id);
+        const destinationId = Number(o.destination_concern_id || 0);
+        editCon.value = destinationId === Number(o.concern_id) ? '' : String(destinationId || '');
+    }
     document.getElementById('edit_status').value = (o.status || 'DISPATCHED').toUpperCase();
 
     new bootstrap.Modal(document.getElementById('modalEditOutward')).show();

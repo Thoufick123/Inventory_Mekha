@@ -247,6 +247,7 @@ $router->post('/m/dispatch/delete', [SalesController::class, 'deleteDispatch'], 
 $router->get('/production/returns', [ProductionReturnController::class, 'index'], 'return_exchange', 'view');
 $router->get('/production/returns/create', [SalesController::class, 'returnExchange'], 'return_exchange', 'add');
 $router->post('/production/returns/store', [ProductionReturnController::class, 'store'], 'return_exchange', 'add');
+$router->post('/production/returns/update', [ProductionReturnController::class, 'update'], 'return_exchange', 'edit');
 $router->get('/production/returns/view/{id}', [ProductionReturnController::class, 'view'], 'return_exchange', 'view');
 $router->get('/production/returns/print/{id}', [ProductionReturnController::class, 'print'], 'return_exchange', 'view');
 $router->post('/production/returns/cancel', [ProductionReturnController::class, 'cancel'], 'return_exchange', 'delete');
@@ -254,6 +255,7 @@ $router->get('/api/returns/lookup-bill', [ProductionReturnController::class, 'aj
 $router->get('/m/return_exchange', [SalesController::class, 'returnExchange'], 'return_exchange', 'view');
 $router->get('/api/shop-returns/customer-invoices', [SalesController::class, 'lookupShopReturnInvoices'], 'return_exchange', 'view');
 $router->get('/api/shop-returns/invoice', [SalesController::class, 'lookupShopReturnInvoice'], 'return_exchange', 'view');
+$router->get('/api/shop-returns/edit/{id}', [SalesController::class, 'lookupShopReturnForEdit'], 'return_exchange', 'edit');
 $router->get('/api/shop-returns/replacement', [SalesController::class, 'lookupShopReturnReplacement'], 'return_exchange', 'view');
 $router->get('/m/return_exchange/export', [SalesController::class, 'exportReturnExchange'], 'return_exchange', 'export');
 $router->post('/m/return_exchange/store', [SalesController::class, 'storeReturn'], 'return_exchange', 'add');

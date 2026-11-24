@@ -1019,6 +1019,7 @@ CREATE TABLE IF NOT EXISTS `production_return_exchange_items` (
   `return_id` int(11) NOT NULL,
   `direction` enum('IN','OUT') NOT NULL,
   `variant_id` int(11) NOT NULL,
+  `sales_invoice_item_id` int(11) DEFAULT NULL,
   `tag_code` varchar(50) DEFAULT NULL,
   `scanned_codes` text DEFAULT NULL,
   `qty` decimal(12,2) NOT NULL,

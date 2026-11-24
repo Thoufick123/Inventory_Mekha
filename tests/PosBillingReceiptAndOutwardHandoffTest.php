@@ -44,7 +44,7 @@ $checks = [
         && strpos($outwardView, '$o[\'sales_invoice_no\']') !== false,
     'Outward scanner availability matches the concern Main Store stock deducted on dispatch' =>
         strpos($outwardController, "s.concern_id = v.concern_id") !== false
-        && strpos($outwardController, "s.location = 'Main Store'") !== false
+        && strpos($outwardController, "s.location IN ('Main Store', 'Main Store (WH-01)')") !== false
         && strpos($outwardView, 'refreshFgStockAvailability') !== false
         && strpos($outwardView, 'scannedFgMap[id].qty >= stock') !== false
         && strpos($outwardView, 'item.qty = item.stock') !== false

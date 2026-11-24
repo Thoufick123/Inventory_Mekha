@@ -388,6 +388,7 @@ DB::query("CREATE TABLE IF NOT EXISTS `production_return_exchange_items` (
     `return_id` INT NOT NULL,
     `direction` ENUM('IN', 'OUT') NOT NULL,
     `variant_id` INT NOT NULL,
+    `sales_invoice_item_id` INT NULL,
     `tag_code` VARCHAR(50) NULL,
     `scanned_codes` TEXT NULL,
     `qty` DECIMAL(12,2) NOT NULL,
@@ -402,6 +403,10 @@ DB::query("CREATE TABLE IF NOT EXISTS `production_return_exchange_items` (
     INDEX `idx_prei_direction` (`direction`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 $productionReturnItemColumns = array_column(DB::fetchAll("SHOW COLUMNS FROM `production_return_exchange_items`"), 'Field');
+if (!in_array('sales_invoice_item_id', $productionReturnItemColumns, true)) {
+    DB::query("ALTER TABLE `production_return_exchange_items` ADD COLUMN `sales_invoice_item_id` INT NULL AFTER `variant_id`");
+    echo "  + Added `sales_invoice_item_id` to `production_return_exchange_items`\n";
+}
 if (!in_array('scanned_codes', $productionReturnItemColumns, true)) {
     DB::query("ALTER TABLE `production_return_exchange_items` ADD COLUMN `scanned_codes` TEXT NULL AFTER `tag_code`");
     echo "  + Added `scanned_codes` to `production_return_exchange_items`\n";

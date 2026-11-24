@@ -58,7 +58,10 @@
                                 <td class="small text-muted font-monospace"><?= date('d M Y H:i:s', strtotime($l['created_at'])) ?></td>
                                 <td>
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($l['variant_name']) ?></div>
-                                    <span class="badge bg-dark font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars($l['sku_code']) ?></span>
+                                    <small class="d-block text-muted">SKU: <span class="font-monospace"><?= htmlspecialchars($l['sku_code']) ?></span></small>
+                                    <?php if (!empty($l['qr_tag_code'])): ?>
+                                        <small class="d-block text-primary">QR / Tag: <span class="badge bg-dark font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars($l['qr_tag_code']) ?></span></small>
+                                    <?php endif; ?>
                                 </td>
                                 <td><?= htmlspecialchars($l['location']) ?></td>
                                 <td>
