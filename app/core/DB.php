@@ -21,6 +21,11 @@ class DB {
                 } catch (\Throwable $t) {
                     self::$instance->exec("SET NAMES utf8mb4");
                 }
+                try {
+                    self::$instance->exec("SET time_zone = '+05:30'");
+                } catch (\Throwable $t) {
+                    // Ignore if server lacks timezone table or privileges
+                }
             } catch (PDOException $e) {
                 // If in debug mode, show message; else generic error
                 die("Database connection failed: " . htmlspecialchars($e->getMessage()));
