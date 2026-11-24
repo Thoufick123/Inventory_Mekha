@@ -153,7 +153,7 @@
                                     </td>
                                     <td>
                                         <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
-                                            <?= (int)$c['active_modules_count'] ?> / 22 Modules Active
+                                            <i class="bi bi-check2-circle me-1"></i> <?= (int)$c['active_modules_count'] ?> Active
                                         </span>
                                     </td>
                                     <td><?= (int)$c['users_count'] ?> Staff</td>
