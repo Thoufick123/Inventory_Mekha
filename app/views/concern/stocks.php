@@ -907,7 +907,7 @@
                         </div>
                         <div class="flex-grow-1 overflow-hidden" style="line-height: 1.35; font-size: 0.8rem;">
                             <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" id="quickQrTitle">Product Name</div>
-                            <div class="text-truncate"><span class="text-muted">Product Name:</span> <strong class="text-dark" id="quickQrProduct">Product</strong></div>
+                            <div class="text-break"><span class="text-muted">Product Name:</span> <strong class="text-dark" id="quickQrProduct">Product</strong></div>
                             <div class="text-truncate"><span class="text-muted">Design:</span> <strong class="text-dark text-uppercase" id="quickQrDesign">STANDARD</strong></div>
                             <div class="text-truncate"><span class="text-muted">Color:</span> <strong class="text-dark text-uppercase" id="quickQrColor">-</strong></div>
                             <div class="text-truncate"><span class="text-muted">Size:</span> <strong class="text-dark text-uppercase fw-bold" id="quickQrSize">Free</strong></div>

@@ -16,9 +16,17 @@ $checks = [
         && !str_contains($controller, 'SELECT color FROM cutting_items')
         && !str_contains($controller, 'SELECT color FROM production_programs')
         && str_contains($controller, "'resolved_color'"),
+    'Label design prefers the pattern of the production roll linked to the stitched variant' =>
+        str_contains($controller, 'JOIN cutting_items ci ON ci.id = si.cutting_item_id')
+        && str_contains($controller, 'JOIN program_rolls pr ON pr.id = ci.program_roll_id')
+        && str_contains($controller, 'JOIN purchase_bill_items pbi ON pbi.id = pr.purchase_bill_item_id')
+        && str_contains($controller, 'pbi.pattern')
+        && str_contains($controller, 'pbi.specification'),
     'Stock QR preview displays product name, design, and the resolved color' =>
         str_contains($view, 'Product Name:')
         && str_contains($view, 'id="quickQrDesign"')
+        && str_contains($view, 'id="quickQrProduct">Product</strong></div>')
+        && str_contains($view, 'class="text-break"><span class="text-muted">Product Name:')
         && str_contains($view, 'data-product-name=')
         && str_contains($view, 'data-design=')
         && str_contains($view, '($s[\'resolved_color\'] ??'),

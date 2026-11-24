@@ -77,7 +77,26 @@ class StockController extends Controller {
         return '';
     }
 
-    private static function resolveStockLabelDesign(array $stock, array $variantAttributes): string {
+    private static function resolveStockLabelDesign(array $stock, array $variantAttributes, int $variantId): string {
+        $rollDesign = DB::fetchValue(
+            "SELECT COALESCE(NULLIF(TRIM(pbi.pattern), ''), NULLIF(TRIM(pbi.specification), ''))
+             FROM stitching_items si
+             JOIN cutting_items ci ON ci.id = si.cutting_item_id
+             JOIN program_rolls pr ON pr.id = ci.program_roll_id
+             JOIN purchase_bill_items pbi ON pbi.id = pr.purchase_bill_item_id
+             WHERE si.variant_id = ?
+               AND (
+                   TRIM(COALESCE(pbi.pattern, '')) != ''
+                   OR TRIM(COALESCE(pbi.specification, '')) != ''
+               )
+             ORDER BY si.id DESC
+             LIMIT 1",
+            [$variantId]
+        );
+        if ($rollDesign !== false && $rollDesign !== null && trim((string)$rollDesign) !== '') {
+            return trim((string)$rollDesign);
+        }
+
         foreach (array_merge($variantAttributes, (array)($variantAttributes['custom_attributes'] ?? [])) as $name => $value) {
             if (in_array(strtolower(trim((string)$name)), ['design', 'pattern'], true) && is_scalar($value) && trim((string)$value) !== '') {
                 return trim((string)$value);
@@ -235,7 +254,7 @@ class StockController extends Controller {
                 (string)$stock['variant_name']
             );
             $stock['product_name'] = trim((string)($stock['catalog_name'] ?? '')) ?: (string)$stock['variant_name'];
-            $stock['design_name'] = self::resolveStockLabelDesign($stock, $variantAttributes);
+            $stock['design_name'] = self::resolveStockLabelDesign($stock, $variantAttributes, (int)$stock['variant_id']);
         }
         unset($stock);
         $totalUnits = array_sum(array_column($stocks, 'qty'));
