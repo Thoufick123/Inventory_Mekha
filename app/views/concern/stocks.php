@@ -169,7 +169,7 @@
                                     $variantAttributes = json_decode((string)($s['variant_attributes'] ?? ''), true);
                                     $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
                                     $displayAttributes = [];
-                                    $color = trim((string)($variantAttributes['color'] ?? ''));
+                                    $color = trim((string)($s['resolved_color'] ?? ($variantAttributes['color'] ?? '')));
                                     if ($color === '' && preg_match('/\(([^)]+)\)/', (string)$s['variant_name'], $cm)) {
                                         $color = trim($cm[1]);
                                     }
@@ -303,6 +303,8 @@
                                                         data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-variant-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-product-name="<?= htmlspecialchars((string)($s['product_name'] ?? $s['variant_name']), ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-design="<?= htmlspecialchars((string)($s['design_name'] ?? 'STANDARD'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-category-name="<?= htmlspecialchars((string)($s['category_name'] ?? 'Apparel'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-size="<?= htmlspecialchars((string)($s['size'] ?: 'Free'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-color="<?= htmlspecialchars((string)$color, ENT_QUOTES, 'UTF-8') ?>"
@@ -905,7 +907,8 @@
                         </div>
                         <div class="flex-grow-1 overflow-hidden" style="line-height: 1.35; font-size: 0.8rem;">
                             <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" id="quickQrTitle">Product Name</div>
-                            <div class="text-truncate"><span class="text-muted">Product:</span> <strong class="text-dark" id="quickQrCat">Apparel</strong></div>
+                            <div class="text-truncate"><span class="text-muted">Product Name:</span> <strong class="text-dark" id="quickQrProduct">Product</strong></div>
+                            <div class="text-truncate"><span class="text-muted">Design:</span> <strong class="text-dark text-uppercase" id="quickQrDesign">STANDARD</strong></div>
                             <div class="text-truncate"><span class="text-muted">Color:</span> <strong class="text-dark text-uppercase" id="quickQrColor">-</strong></div>
                             <div class="text-truncate"><span class="text-muted">Size:</span> <strong class="text-dark text-uppercase fw-bold" id="quickQrSize">Free</strong></div>
                             <div class="text-truncate"><span class="text-muted">Price:</span> <strong class="text-success fw-bold" id="quickQrPrice">₹0.00</strong></div>
@@ -1429,7 +1432,8 @@ function populateQuickQr(d) {
     const payload = d.qrPayload || d.skuCode || '';
     const sku = d.skuCode || '-';
     const name = d.variantName || 'Product';
-    const cat = d.categoryName || 'Apparel';
+    const productName = d.productName || name;
+    const design = d.design || 'STANDARD';
     const color = d.color || '-';
     const size = d.size || 'Free';
     const price = d.price ? ('₹' + parseFloat(d.price).toFixed(2)) : '₹0.00';
@@ -1440,7 +1444,8 @@ function populateQuickQr(d) {
     if (document.getElementById('quickQrSizeBadge')) document.getElementById('quickQrSizeBadge').textContent = (size || 'FREE').toUpperCase();
     if (document.getElementById('quickQrSkuBadge')) document.getElementById('quickQrSkuBadge').textContent = sku;
     if (document.getElementById('quickQrTitle')) document.getElementById('quickQrTitle').textContent = name;
-    if (document.getElementById('quickQrCat')) document.getElementById('quickQrCat').textContent = cat;
+    if (document.getElementById('quickQrProduct')) document.getElementById('quickQrProduct').textContent = productName;
+    if (document.getElementById('quickQrDesign')) document.getElementById('quickQrDesign').textContent = design.toUpperCase();
     if (document.getElementById('quickQrColor')) document.getElementById('quickQrColor').textContent = color.toUpperCase();
     if (document.getElementById('quickQrSize')) document.getElementById('quickQrSize').textContent = size;
     if (document.getElementById('quickQrPrice')) document.getElementById('quickQrPrice').textContent = price;

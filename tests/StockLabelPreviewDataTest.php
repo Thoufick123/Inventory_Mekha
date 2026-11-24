@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+$controller = file_get_contents(__DIR__ . '/../app/controllers/StockController.php');
+$view = file_get_contents(__DIR__ . '/../app/views/concern/stocks.php');
+
+$checks = [
+    'Stock rows include the catalog product name instead of reusing the category label' =>
+        str_contains($controller, 'cat.name AS catalog_name')
+        && str_contains($controller, '$stock[\'product_name\'] = trim((string)($stock[\'catalog_name\'] ?? \'\'))'),
+    'Production colors fall back to QC, stitching, cutting, and program records' =>
+        str_contains($controller, 'FROM qc_inspection_items')
+        && str_contains($controller, 'FROM stitching_items')
+        && str_contains($controller, 'FROM cutting_items')
+        && str_contains($controller, 'FROM production_programs')
+        && str_contains($controller, "'resolved_color'"),
+    'Stock QR preview displays product name, design, and the resolved color' =>
+        str_contains($view, 'Product Name:')
+        && str_contains($view, 'id="quickQrDesign"')
+        && str_contains($view, 'data-product-name=')
+        && str_contains($view, 'data-design=')
+        && str_contains($view, '($s[\'resolved_color\'] ??'),
+    'Quick QR modal populates its product and design from the stock row' =>
+        str_contains($view, 'd.productName')
+        && str_contains($view, 'd.design')
+        && str_contains($view, 'quickQrProduct')
+        && str_contains($view, 'quickQrDesign'),
+];
+
+$failed = false;
+foreach ($checks as $title => $passed) {
+    echo ($passed ? '[PASS] ' : '[FAIL] ') . $title . PHP_EOL;
+    $failed = $failed || !$passed;
+}
+
+exit($failed ? 1 : 0);

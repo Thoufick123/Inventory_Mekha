@@ -28,6 +28,66 @@ class StockController extends Controller {
         self::$schemaEnsured = true;
     }
 
+    private static function resolveStockLabelColor(array $variantAttributes, int $variantId, int $catalogId, string $variantName): string {
+        $color = trim((string)($variantAttributes['color'] ?? ''));
+        if ($color !== '') {
+            return $color;
+        }
+
+        $colorQueries = [
+            [
+                "SELECT color FROM qc_inspection_items WHERE variant_id = ? AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
+                [$variantId]
+            ],
+            [
+                "SELECT color FROM stitching_items WHERE variant_id = ? AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
+                [$variantId]
+            ],
+            [
+                "SELECT color FROM cutting_items WHERE (variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
+                [$variantId, $catalogId]
+            ],
+            [
+                "SELECT color FROM production_programs WHERE (target_variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
+                [$variantId, $catalogId]
+            ],
+        ];
+
+        foreach ($colorQueries as [$sql, $params]) {
+            $sourceColor = DB::fetchValue($sql, $params);
+            if ($sourceColor !== false && $sourceColor !== null && trim((string)$sourceColor) !== '') {
+                return trim((string)$sourceColor);
+            }
+        }
+
+        if (preg_match('/\(([^)]+)\)/', $variantName, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return '';
+    }
+
+    private static function resolveStockLabelDesign(array $stock, array $variantAttributes): string {
+        foreach (array_merge($variantAttributes, (array)($variantAttributes['custom_attributes'] ?? [])) as $name => $value) {
+            if (in_array(strtolower(trim((string)$name)), ['design', 'pattern'], true) && is_scalar($value) && trim((string)$value) !== '') {
+                return trim((string)$value);
+            }
+        }
+
+        $design = trim((string)($stock['sub_subcategory_name'] ?? ''));
+        if ($design === '') {
+            $pathParts = array_values(array_filter(array_map('trim', explode('>', (string)($stock['hierarchy_path'] ?? '')))));
+            if (count($pathParts) > 1) {
+                $design = (string)end($pathParts);
+            }
+        }
+        if ($design === '') {
+            $design = trim((string)($stock['subcategory_name'] ?? ''));
+        }
+
+        return $design !== '' && $design !== '-' ? $design : 'STANDARD';
+    }
+
     public function index(): void {
         self::ensureVariantSchema();
         \App\Services\StockService::consolidateLegacyLocations();
@@ -39,7 +99,7 @@ class StockController extends Controller {
                        COALESCE(c.name, 'General') AS category_name, 
                        COALESCE(sub.name, ssc.name, '-') AS subcategory_name,
                        ssc.name AS sub_subcategory_name,
-                       cat.style_code, cat.short_code AS whole_code, cat.hierarchy_path, cat.hsn_code AS catalog_hsn,
+                       cat.name AS catalog_name, cat.style_code, cat.short_code AS whole_code, cat.hierarchy_path, cat.hsn_code AS catalog_hsn,
                        con.name AS concern_name, con.code AS concern_code,
                        (SELECT pbi.id
                         FROM purchase_bill_items pbi
@@ -156,6 +216,19 @@ class StockController extends Controller {
         }
         $sql .= " ORDER BY FIELD(stock_source, 'own', 'purchase', 'other'), s.qty DESC";
         $stocks = DB::fetchAll($sql, $params);
+        foreach ($stocks as &$stock) {
+            $variantAttributes = json_decode((string)($stock['variant_attributes'] ?? ''), true);
+            $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
+            $stock['resolved_color'] = self::resolveStockLabelColor(
+                $variantAttributes,
+                (int)$stock['variant_id'],
+                (int)($stock['catalog_id'] ?? 0),
+                (string)$stock['variant_name']
+            );
+            $stock['product_name'] = trim((string)($stock['catalog_name'] ?? '')) ?: (string)$stock['variant_name'];
+            $stock['design_name'] = self::resolveStockLabelDesign($stock, $variantAttributes);
+        }
+        unset($stock);
         $totalUnits = array_sum(array_column($stocks, 'qty'));
         $totalValuation = array_reduce($stocks, fn($sum, $item) => $sum + ($item['qty'] * $item['cost_price']), 0);
         $stockSourceMetrics = [
@@ -329,49 +402,7 @@ class StockController extends Controller {
             $variantAttributes = json_decode((string)($variant['attributes'] ?? ''), true);
             $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
 
-            // Resolve Color / Shade
-            $color = trim((string)($variantAttributes['color'] ?? ''));
-            if ($color === '') {
-                $qcColor = DB::fetchValue(
-                    "SELECT color FROM qc_inspection_items WHERE variant_id = ? AND color IS NOT NULL AND color != '' ORDER BY id DESC LIMIT 1",
-                    [$variantId]
-                );
-                if ($qcColor) {
-                    $color = trim((string)$qcColor);
-                }
-            }
-            if ($color === '') {
-                $stColor = DB::fetchValue(
-                    "SELECT color FROM stitching_items WHERE variant_id = ? AND color IS NOT NULL AND color != '' ORDER BY id DESC LIMIT 1",
-                    [$variantId]
-                );
-                if ($stColor) {
-                    $color = trim((string)$stColor);
-                }
-            }
-            if ($color === '') {
-                $ctColor = DB::fetchValue(
-                    "SELECT color FROM cutting_items WHERE (variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND color != '' ORDER BY id DESC LIMIT 1",
-                    [$variantId, $catId]
-                );
-                if ($ctColor) {
-                    $color = trim((string)$ctColor);
-                }
-            }
-            if ($color === '') {
-                $progColor = DB::fetchValue(
-                    "SELECT color FROM production_programs WHERE (target_variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND color != '' ORDER BY id DESC LIMIT 1",
-                    [$variantId, $catId]
-                );
-                if ($progColor) {
-                    $color = trim((string)$progColor);
-                }
-            }
-            if ($color === '') {
-                if (preg_match('/\(([^)]+)\)/', $variant['name'], $m)) {
-                    $color = trim($m[1]);
-                }
-            }
+            $color = self::resolveStockLabelColor($variantAttributes, $variantId, $catId, (string)$variant['name']);
 
             // Resolve HSN Code
             $hsn = trim((string)($variantAttributes['hsn'] ?? ''));
