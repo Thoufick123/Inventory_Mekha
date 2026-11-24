@@ -18,6 +18,14 @@
             </h4>
         </div>
         <div class="d-flex gap-2">
+            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
+                <i class="bi bi-upc-scan"></i> Label Generation
+            </a>
+            <?php if (!empty($outward['batch_id'])): ?>
+            <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$outward['batch_id']) ?>" target="_blank" class="btn btn-outline-info btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
+                <i class="bi bi-printer"></i> Print Batch Labels
+            </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/inward') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Back to Ledger
             </a>
@@ -213,8 +221,15 @@
                                 data-sku-code="<?= htmlspecialchars((string)$it['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
                                 data-tag-code="<?= htmlspecialchars((string)$it['tag_code'], ENT_QUOTES, 'UTF-8') ?>"
                                 data-product-name="<?= htmlspecialchars((string)$it['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                data-size="<?= htmlspecialchars((string)($it['size'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                data-color="<?= htmlspecialchars((string)($it['color'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                data-mrp="<?= (float)($it['mrp'] ?? 0) ?>"
+                                data-price="<?= (float)($it['price'] ?? 0) ?>"
+                                data-category="<?= htmlspecialchars((string)($it['category_name'] ?? 'Finished Garment'), ENT_QUOTES, 'UTF-8') ?>"
+                                data-dispatched-qty="<?= (int)$it['dispatched_qty'] ?>"
                                 data-credited-qty="<?= (int)$it['credited_qty'] ?>"
-                                data-damaged-qty="<?= (int)$it['damaged_qty'] ?>">
+                                data-damaged-qty="<?= (int)$it['damaged_qty'] ?>"
+                                data-remaining-qty="<?= (int)$it['remaining_qty'] ?>">
                                 <td class="text-center fw-bold text-muted"><?= $idx + 1 ?></td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
@@ -291,11 +306,22 @@
                 <input type="hidden" name="damaged_qty" id="submitDamagedQty" value="0">
                 <input type="hidden" name="items_json" id="submitItemsJson" value="[]">
                 <input type="hidden" name="damage_reason" id="submitDamageReason" value="Transit handling defects">
+                <input type="hidden" name="move_to_labels" id="submitMoveToLabels" value="0">
 
-                <button type="submit" class="btn btn-success btn-lg w-100 fw-bold shadow py-3 d-flex align-items-center justify-content-center gap-2 text-uppercase" id="btnSubmitStock" style="letter-spacing: 0.03em;">
-                    <i class="bi bi-box-arrow-in-down fs-4"></i>
-                    Update / Credit Inward Stock (+<span id="btnIncrementalQty">0</span> pcs) to <?= htmlspecialchars($outward['dest_warehouse_name']) ?> Inventory
-                </button>
+                <div class="row g-2">
+                    <div class="col-12 col-md-8">
+                        <button type="submit" onclick="document.getElementById('submitMoveToLabels').value='0'" class="btn btn-success btn-lg w-100 fw-bold shadow py-3 d-flex align-items-center justify-content-center gap-2 text-uppercase" id="btnSubmitStock" style="letter-spacing: 0.03em;">
+                            <i class="bi bi-box-arrow-in-down fs-4"></i>
+                            Update / Credit Inward Stock (+<span id="btnIncrementalQty">0</span> pcs) to <?= htmlspecialchars($outward['dest_warehouse_name']) ?>
+                        </button>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <button type="submit" onclick="document.getElementById('submitMoveToLabels').value='1'" class="btn btn-primary btn-lg w-100 fw-bold shadow py-3 d-flex align-items-center justify-content-center gap-2 text-uppercase" id="btnSubmitAndLabels" title="Credit Stock and immediately proceed to Label Generation" style="letter-spacing: 0.03em;">
+                            <i class="bi bi-upc-scan fs-4"></i>
+                            Inward & Move to Labels
+                        </button>
+                    </div>
+                </div>
             </form>
             <?php else: ?>
             <div class="alert alert-secondary text-center small py-3 mb-0 rounded-3">
@@ -307,16 +333,16 @@
 </div>
 
 <!-- ========================================================================================= -->
-<!-- 3. MODAL: Product Specifications & All Individual Piece QR Codes (Image 3) -->
+<!-- 3. MODAL: One-Variant-QR Verification Workstation -->
 <!-- ========================================================================================= -->
 <div class="modal fade" id="modalPieceQrViewer" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content border-0 shadow-lg rounded-3">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
             <!-- Modal Header -->
             <div class="modal-header py-2.5 px-3 bg-dark text-white d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-2">
                     <span class="fs-5">📦</span>
-                    <h6 class="modal-title fw-bold mb-0 text-white">Product Specifications & All Individual Piece QR Codes</h6>
+                    <h6 class="modal-title fw-bold mb-0 text-white">One-Variant-QR Verification Workstation</h6>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <span class="badge bg-primary px-2.5 py-1.5 font-monospace">WH: <?= htmlspecialchars($outward['dest_warehouse_name']) ?> (<?= htmlspecialchars($outward['dest_warehouse_code']) ?>)</span>
@@ -325,68 +351,160 @@
             </div>
 
             <!-- Modal Body -->
-            <div class="modal-body p-3 bg-light">
-                <!-- Top Section: Big Piece QR Code Preview & Mode Switcher -->
-                <div class="row g-3 mb-3 bg-white p-3 rounded-3 shadow-sm mx-0 align-items-center">
-                    <!-- Top Left: QR Preview -->
-                    <div class="col-12 col-md-4 text-center border-end">
-                        <div class="d-inline-block p-2 border rounded-2 bg-light shadow-sm">
-                            <div id="modalPieceQrCanvas" class="d-flex align-items-center justify-content-center" style="width: 140px; height: 140px;"></div>
+            <div class="modal-body p-4 bg-light">
+                <!-- Top Section: Big Variant QR Preview & Mode Switcher -->
+                <div class="row g-3 mb-3 bg-white p-3 rounded-3 shadow-sm mx-0 align-items-center border">
+                    <!-- Top Left: Single Static QR Preview -->
+                    <div class="col-12 col-md-4 text-center border-end pe-md-3">
+                        <div class="d-inline-block p-2 border rounded-2 bg-white shadow-sm">
+                            <div id="modalPieceQrCanvas" class="d-flex align-items-center justify-content-center" style="width: 150px; height: 150px;"></div>
                         </div>
                         <div class="fw-bold font-monospace fs-5 text-primary mt-1" id="modalCurrentPieceTag">—</div>
+                        <div class="badge bg-light text-muted border font-monospace" style="font-size: 0.68rem;">Single Static QR Identity per Variant</div>
                     </div>
 
-                    <!-- Top Right: Mode Switcher & CTA -->
-                    <div class="col-12 col-md-8 ps-md-4">
-                        <div class="small fw-semibold text-muted text-uppercase mb-2" style="font-size: 0.72rem; letter-spacing: 0.05em;">
-                            <i class="bi bi-toggles me-1"></i> Scanner Mode (Click to Switch):
+                    <!-- Top Right: Dual Mode Switcher & Quick Actions -->
+                    <div class="col-12 col-md-8 ps-md-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small fw-bold text-uppercase text-muted" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                                <i class="bi bi-toggles me-1"></i> Dual Verification Mode:
+                            </span>
+                            <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;">Shortcuts: Alt+G / Alt+D</span>
                         </div>
                         <div class="d-flex gap-2 mb-3">
                             <button type="button" class="btn btn-success fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2" id="btnModeGood" onclick="setScanMode('good')">
-                                <i class="bi bi-check-circle-fill"></i> Good / Intact Mode (Alt+G)
+                                <i class="bi bi-check-circle-fill"></i> Good / Intact (Alt+G)
                             </button>
                             <button type="button" class="btn btn-outline-danger fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2" id="btnModeDamaged" onclick="setScanMode('damaged')">
-                                <i class="bi bi-slash-circle"></i> Damaged / Inactivate Mode (Alt+D)
+                                <i class="bi bi-slash-circle"></i> Damaged (Alt+D)
                             </button>
                         </div>
 
-                        <button type="button" class="btn btn-success btn-lg w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2" id="btnInwardNextPiece" onclick="inwardNextPiece()">
-                            <i class="bi bi-check2-circle fs-5"></i> Inward Next Piece (Good Product)
-                        </button>
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-success btn-lg fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2" id="btnInwardNextPiece" onclick="inwardNextPiece()">
+                                <i class="bi bi-check2-circle fs-5"></i> Inward Next Piece (+1 Good)
+                            </button>
+                            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" target="_blank" class="btn btn-outline-primary btn-sm fw-semibold d-flex align-items-center justify-content-center gap-1 shadow-none" id="modalLabelGenLink">
+                                <i class="bi bi-upc-scan"></i> Move to Label Generation for this Variant
+                            </a>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Sub-Section Header & Filter Tabs -->
-                <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 px-1">
-                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-1">
-                        <i class="bi bi-grid-3x3-gap text-secondary"></i>                         All Dispatched Pieces (<span id="modalTotalPiecesText">0</span> total)
-                    </h6>
-                    <!-- Filter Tabs -->
-                    <div class="d-flex gap-1.5 flex-wrap">
-                        <button type="button" class="btn btn-sm btn-outline-danger fw-semibold rounded-pill px-2.5 py-1 piece-tab-btn" id="tabMismatched" onclick="filterModalPieces('mismatched')">
-                            Only Mismatched (<span id="modalCountMismatched">0</span>)
-                        </button>
-                        <button type="button" class="btn btn-sm btn-dark fw-bold rounded-pill px-2.5 py-1 piece-tab-btn active" id="tabAll" onclick="filterModalPieces('all')">
-                            All Pieces (<span id="modalCountAll">0</span>)
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-success fw-semibold rounded-pill px-2.5 py-1 piece-tab-btn" id="tabVerified" onclick="filterModalPieces('verified')">
-                            Verified (<span id="modalCountVerified">0</span>)
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger fw-semibold rounded-pill px-2.5 py-1 piece-tab-btn" id="tabDamaged" onclick="filterModalPieces('damaged')">
-                            Damaged (<span id="modalCountDamaged">0</span>)
-                        </button>
+                <!-- Product Attributes & Specifications Card -->
+                <div class="card border rounded-3 p-3 bg-white shadow-sm mb-3">
+                    <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-3">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-0" id="modalProductName">—</h5>
+                            <div class="font-monospace small text-muted mt-0.5">
+                                SKU: <span class="fw-bold text-dark" id="modalSkuCode">—</span> · Tag: <span class="fw-bold text-primary font-monospace" id="modalVariantTag">—</span>
+                            </div>
+                        </div>
+                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" id="modalCategoryBadge">Finished Garment</span>
                     </div>
-                </div>
 
-                <!-- 2-Column Responsive Piece Grid -->
-                <div class="row g-2 overflow-auto" id="modalPieceCardGrid" style="max-height: 440px;">
-                    <!-- Dynamically populated piece cards -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <div class="p-2 border rounded-2 bg-light text-center">
+                                <div class="small text-muted" style="font-size: 0.7rem;">SIZE</div>
+                                <div class="fw-bold text-dark font-monospace" id="modalSizeText">—</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-2 border rounded-2 bg-light text-center">
+                                <div class="small text-muted" style="font-size: 0.7rem;">COLOR</div>
+                                <div class="fw-bold text-success font-monospace" id="modalColorText">—</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-2 border rounded-2 bg-light text-center">
+                                <div class="small text-muted" style="font-size: 0.7rem;">MRP</div>
+                                <div class="fw-bold text-dark font-monospace" id="modalMrpText">₹0.00</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-2 border rounded-2 bg-light text-center">
+                                <div class="small text-muted" style="font-size: 0.7rem;">UNIT / DISC PRICE</div>
+                                <div class="fw-bold text-primary font-monospace" id="modalPriceText">₹0.00</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4 Clear Batch Count Cards -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 rounded-2 p-2.5 text-center text-white" style="background: #2563eb;">
+                                <div class="small text-uppercase fw-semibold" style="font-size: 0.68rem; opacity: 0.85;">Dispatched Expected</div>
+                                <div class="fs-4 fw-bold mt-1"><span id="modalStatDispatched">0</span> pcs</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 rounded-2 p-2.5 text-center text-white" style="background: #10b981;">
+                                <div class="small text-uppercase fw-semibold" style="font-size: 0.68rem; opacity: 0.85;">Inwarded Good</div>
+                                <div class="fs-4 fw-bold mt-1"><span id="modalStatVerified">0</span> pcs</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 rounded-2 p-2.5 text-center text-white" style="background: #ef4444;">
+                                <div class="small text-uppercase fw-semibold" style="font-size: 0.68rem; opacity: 0.85;">Damaged Defect</div>
+                                <div class="fs-4 fw-bold mt-1"><span id="modalStatDamaged">0</span> pcs</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 rounded-2 p-2.5 text-center text-white" style="background: #f59e0b;">
+                                <div class="small text-uppercase fw-semibold" style="font-size: 0.68rem; opacity: 0.85;">Pending Missing</div>
+                                <div class="fs-4 fw-bold mt-1"><span id="modalStatPending">0</span> pcs</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive + / - Verification Controls -->
+                    <div class="p-3 border rounded-3 bg-light">
+                        <div class="row g-3">
+                            <!-- Good / Intact Verification Controls -->
+                            <div class="col-12 col-md-6 border-end">
+                                <label class="form-label small fw-bold text-success text-uppercase mb-2 d-flex align-items-center gap-1">
+                                    <i class="bi bi-check-circle-fill"></i> Verified Good Pieces (Available for Sale)
+                                </label>
+                                <div class="input-group input-group-lg shadow-sm">
+                                    <button type="button" class="btn btn-outline-success fw-bold px-3" onclick="adjustModalCount('verified', -1)">−</button>
+                                    <input type="number" id="inputModalVerified" class="form-control text-center fw-bold fs-5 font-monospace border-success" style="background: #f0fdf4;" value="0" min="0" oninput="onModalInputDirect('verified')">
+                                    <button type="button" class="btn btn-success fw-bold px-3" onclick="adjustModalCount('verified', 1)">+</button>
+                                </div>
+                                <div class="mt-2 text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-success fw-semibold" onclick="verifyAllRemainingModal()">
+                                        <i class="bi bi-check2-all me-1"></i> Verify All Remaining
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Damaged / Defect Controls -->
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-bold text-danger text-uppercase mb-2 d-flex align-items-center gap-1">
+                                    <i class="bi bi-slash-circle-fill"></i> Damaged Defect Pieces (Quarantine)
+                                </label>
+                                <div class="input-group input-group-lg shadow-sm">
+                                    <button type="button" class="btn btn-outline-danger fw-bold px-3" onclick="adjustModalCount('damaged', -1)">−</button>
+                                    <input type="number" id="inputModalDamaged" class="form-control text-center fw-bold fs-5 font-monospace border-danger" style="background: #fef2f2;" value="0" min="0" oninput="onModalInputDirect('damaged')">
+                                    <button type="button" class="btn btn-danger fw-bold px-3" onclick="adjustModalCount('damaged', 1)">+</button>
+                                </div>
+                                <div class="mt-2 text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-danger fw-semibold" onclick="markAllRemainingDamagedModal()">
+                                        <i class="bi bi-shield-x me-1"></i> Mark Remaining as Defect
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Modal Footer -->
-            <div class="modal-footer bg-white py-2 px-3">
-                <button type="button" class="btn btn-secondary btn-sm px-4 fw-semibold" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer bg-white py-2.5 px-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted"><i class="bi bi-shield-check text-success me-1"></i> Real-time synchronized with Consignment Reconcile Table.</span>
+                <button type="button" class="btn btn-primary px-4 fw-bold" data-bs-dismiss="modal">
+                    <i class="bi bi-check2 me-1"></i> Done & Apply
+                </button>
             </div>
         </div>
     </div>
@@ -632,43 +750,203 @@ function validateCreditSubmission(e) {
     return true;
 }
 
-// Modal Logic (Image 3)
+// One-Variant-QR Verification Workstation Logic
 function openPieceModal(outwardId, variantId) {
     activeModalOutwardId = outwardId;
     activeModalVariantId = variantId;
 
+    const row = document.getElementById(`rowVariant-${variantId}`);
+    if (!row) return;
+
+    const productName = row.dataset.productName || 'Garment';
+    const skuCode = row.dataset.skuCode || '—';
+    const tagCode = row.dataset.tagCode || skuCode;
+    const size = row.dataset.size || '—';
+    const color = row.dataset.color || '—';
+    const mrp = parseFloat(row.dataset.mrp) || 0;
+    const price = parseFloat(row.dataset.price) || 0;
+    const category = row.dataset.category || 'Finished Garment';
+
+    const vInput = row.querySelector('.input-verified');
+    const dInput = row.querySelector('.input-damaged');
+    const curV = parseInt(vInput ? vInput.value : 0, 10) || 0;
+    const curD = parseInt(dInput ? dInput.value : 0, 10) || 0;
+
+    // Populate modal texts
+    const nameEl = document.getElementById('modalProductName');
+    if (nameEl) nameEl.textContent = productName;
+    const skuEl = document.getElementById('modalSkuCode');
+    if (skuEl) skuEl.textContent = skuCode;
+    const tagEl = document.getElementById('modalVariantTag');
+    if (tagEl) tagEl.textContent = tagCode;
+    const catEl = document.getElementById('modalCategoryBadge');
+    if (catEl) catEl.textContent = category;
+    const sizeEl = document.getElementById('modalSizeText');
+    if (sizeEl) sizeEl.textContent = size;
+    const colEl = document.getElementById('modalColorText');
+    if (colEl) colEl.textContent = color;
+    const mrpEl = document.getElementById('modalMrpText');
+    if (mrpEl) mrpEl.textContent = '₹' + mrp.toFixed(2);
+    const prEl = document.getElementById('modalPriceText');
+    if (prEl) prEl.textContent = '₹' + price.toFixed(2);
+
+    // Label generation link
+    const labelLink = document.getElementById('modalLabelGenLink');
+    if (labelLink) {
+        labelLink.href = `<?= \App\Core\Controller::url('/m/label_generation') ?>?variant_id=${variantId}&outward_id=${outwardId}`;
+    }
+
+    // Render single static QR canvas for this variant
+    renderQrToCanvas('modalPieceQrCanvas', tagCode, 140, 140);
+
+    // Set input values
+    const modalVInput = document.getElementById('inputModalVerified');
+    const modalDInput = document.getElementById('inputModalDamaged');
+    if (modalVInput) modalVInput.value = curV;
+    if (modalDInput) modalDInput.value = curD;
+
+    updateModalCountCards(variantId);
+
     const modal = new bootstrap.Modal(document.getElementById('modalPieceQrViewer'));
     modal.show();
+}
 
-    // Fetch pieces
-    const grid = document.getElementById('modalPieceCardGrid');
-    grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div><div class="small text-muted mt-2">Loading individual piece barcodes...</div></div>';
+function updateModalCountCards(variantId) {
+    const row = document.getElementById(`rowVariant-${variantId}`);
+    if (!row) return;
 
-    fetch(`<?= \App\Core\Controller::url('/m/inward/pieces/') ?>${outwardId}?variant_id=${variantId}`)
-        .then(res => res.json().then(data => {
-            if (!res.ok || !data.success) {
-                throw new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
-            }
-            return data;
-        }))
-        .then(data => {
-            pieceData = Array.isArray(data.pieces) ? data.pieces : [];
-            const totEl = document.getElementById('modalTotalPiecesText');
-            if (totEl) totEl.textContent = data.total_pieces;
+    const dispatched = parseInt(row.dataset.dispatchedQty, 10) || 0;
+    const prevCredited = parseInt(row.dataset.creditedQty, 10) || 0;
+    const prevDamaged = parseInt(row.dataset.damagedQty, 10) || 0;
 
-            renderPieceCards('all');
-            updateModalCounters();
+    const modalVInput = document.getElementById('inputModalVerified');
+    const modalDInput = document.getElementById('inputModalDamaged');
+    const incVerified = parseInt(modalVInput ? modalVInput.value : 0, 10) || 0;
+    const incDamaged = parseInt(modalDInput ? modalDInput.value : 0, 10) || 0;
 
-            if (data.next_tag) {
-                const tagEl = document.getElementById('modalCurrentPieceTag');
-                if (tagEl) tagEl.textContent = data.next_tag;
-                renderQrToCanvas('modalPieceQrCanvas', data.next_tag, 140, 140);
-            }
-        })
-        .catch(err => {
-            console.error("Piece fetch error:", err);
-            grid.innerHTML = `<div class="col-12 text-danger text-center py-4">Error loading pieces data. (${err.message || 'Network / parsing issue'})</div>`;
-        });
+    const totalGood = prevCredited + incVerified;
+    const totalDam = prevDamaged + incDamaged;
+    const pending = Math.max(0, dispatched - totalGood - totalDam);
+
+    const statDisp = document.getElementById('modalStatDispatched');
+    if (statDisp) statDisp.textContent = dispatched;
+    const statVer = document.getElementById('modalStatVerified');
+    if (statVer) statVer.textContent = totalGood;
+    const statDam = document.getElementById('modalStatDamaged');
+    if (statDam) statDam.textContent = totalDam;
+    const statPend = document.getElementById('modalStatPending');
+    if (statPend) statPend.textContent = pending;
+}
+
+function syncModalToRow() {
+    const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
+    if (!row) return;
+
+    const modalVInput = document.getElementById('inputModalVerified');
+    const modalDInput = document.getElementById('inputModalDamaged');
+    const vInput = row.querySelector('.input-verified');
+    const dInput = row.querySelector('.input-damaged');
+
+    if (vInput && modalVInput) vInput.value = modalVInput.value;
+    if (dInput && modalDInput) dInput.value = modalDInput.value;
+
+    recalculateTotals();
+    updateModalCountCards(activeModalVariantId);
+}
+
+function adjustModalCount(type, delta) {
+    const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
+    if (!row) return;
+
+    const maxRem = parseInt(row.querySelector('.input-verified').getAttribute('max'), 10) || 0;
+    const modalVInput = document.getElementById('inputModalVerified');
+    const modalDInput = document.getElementById('inputModalDamaged');
+
+    let curV = parseInt(modalVInput ? modalVInput.value : 0, 10) || 0;
+    let curD = parseInt(modalDInput ? modalDInput.value : 0, 10) || 0;
+
+    if (type === 'verified') {
+        const nextV = curV + delta;
+        if (nextV < 0) return;
+        if (nextV + curD > maxRem) {
+            playSound('error');
+            return;
+        }
+        modalVInput.value = nextV;
+    } else {
+        const nextD = curD + delta;
+        if (nextD < 0) return;
+        if (curV + nextD > maxRem) {
+            playSound('error');
+            return;
+        }
+        modalDInput.value = nextD;
+    }
+
+    playSound('success');
+    syncModalToRow();
+}
+
+function onModalInputDirect(type) {
+    const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
+    if (!row) return;
+
+    const maxRem = parseInt(row.querySelector('.input-verified').getAttribute('max'), 10) || 0;
+    const modalVInput = document.getElementById('inputModalVerified');
+    const modalDInput = document.getElementById('inputModalDamaged');
+
+    let curV = parseInt(modalVInput ? modalVInput.value : 0, 10) || 0;
+    let curD = parseInt(modalDInput ? modalDInput.value : 0, 10) || 0;
+
+    if (curV < 0) { curV = 0; if (modalVInput) modalVInput.value = 0; }
+    if (curD < 0) { curD = 0; if (modalDInput) modalDInput.value = 0; }
+
+    if (curV + curD > maxRem) {
+        if (type === 'verified') {
+            curV = Math.max(0, maxRem - curD);
+            if (modalVInput) modalVInput.value = curV;
+        } else {
+            curD = Math.max(0, maxRem - curV);
+            if (modalDInput) modalDInput.value = curD;
+        }
+        playSound('error');
+    }
+
+    syncModalToRow();
+}
+
+function verifyAllRemainingModal() {
+    const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
+    if (!row) return;
+
+    const maxRem = parseInt(row.querySelector('.input-verified').getAttribute('max'), 10) || 0;
+    const modalVInput = document.getElementById('inputModalVerified');
+    const modalDInput = document.getElementById('inputModalDamaged');
+
+    const curD = parseInt(modalDInput ? modalDInput.value : 0, 10) || 0;
+    if (modalVInput) modalVInput.value = Math.max(0, maxRem - curD);
+
+    playSound('success');
+    syncModalToRow();
+}
+
+function markAllRemainingDamagedModal() {
+    const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
+    if (!row) return;
+
+    const maxRem = parseInt(row.querySelector('.input-verified').getAttribute('max'), 10) || 0;
+    const modalVInput = document.getElementById('inputModalVerified');
+    const modalDInput = document.getElementById('inputModalDamaged');
+
+    const curV = parseInt(modalVInput ? modalVInput.value : 0, 10) || 0;
+    if (modalDInput) modalDInput.value = Math.max(0, maxRem - curV);
+
+    playSound('success');
+    syncModalToRow();
+}
+
+function inwardNextPiece() {
+    adjustModalCount(scanMode === 'good' ? 'verified' : 'damaged', 1);
 }
 
 function setScanMode(mode) {
@@ -678,163 +956,25 @@ function setScanMode(mode) {
     const btnNext = document.getElementById('btnInwardNextPiece');
 
     if (mode === 'good') {
-        btnGood.className = 'btn btn-success fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2';
-        btnDamaged.className = 'btn btn-outline-danger fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2';
-        btnNext.className = 'btn btn-success btn-lg w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2';
-        btnNext.innerHTML = '<i class="bi bi-check2-circle fs-5"></i> Inward Next Piece (Good Product)';
+        if (btnGood) btnGood.className = 'btn btn-success fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2';
+        if (btnDamaged) btnDamaged.className = 'btn btn-outline-danger fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2';
+        if (btnNext) {
+            btnNext.className = 'btn btn-success btn-lg w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2';
+            btnNext.innerHTML = '<i class="bi bi-check2-circle fs-5"></i> Inward Next Piece (+1 Good)';
+        }
     } else {
-        btnDamaged.className = 'btn btn-danger fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2';
-        btnGood.className = 'btn btn-outline-success fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2';
-        btnNext.className = 'btn btn-danger btn-lg w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2';
-        btnNext.innerHTML = '<i class="bi bi-slash-circle fs-5"></i> Inward Next Piece (Damaged / Inactive)';
+        if (btnDamaged) btnDamaged.className = 'btn btn-danger fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2';
+        if (btnGood) btnGood.className = 'btn btn-outline-success fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2';
+        if (btnNext) {
+            btnNext.className = 'btn btn-danger btn-lg w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2';
+            btnNext.innerHTML = '<i class="bi bi-slash-circle fs-5"></i> Inward Next Piece (+1 Damaged)';
+        }
     }
-}
-
-function renderPieceCards(filter) {
-    const grid = document.getElementById('modalPieceCardGrid');
-    if (!grid) return;
-    grid.innerHTML = '';
-
-    if (!Array.isArray(pieceData) || pieceData.length === 0) {
-        grid.innerHTML = '<div class="col-12 text-muted text-center py-4">No individual piece barcodes found.</div>';
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-
-    pieceData.forEach(p => {
-        if (filter === 'mismatched' && p.status !== 'unverified') return;
-        if (filter === 'verified' && p.status !== 'verified') return;
-        if (filter === 'damaged' && p.status !== 'damaged') return;
-
-        const col = document.createElement('div');
-        col.className = 'col-12 col-md-6';
-        col.innerHTML = `
-            <div class="card border rounded-3 p-2 bg-white shadow-sm h-100">
-                <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
-                    <span class="badge bg-dark font-monospace" style="font-size: 0.72rem;">${escapeHtml(p.tag_code)}</span>
-                    <span class="small fw-bold text-muted font-monospace">Disc: ₹${parseFloat(p.discount_price || 0).toFixed(2)}</span>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <div class="border rounded-2 p-1 bg-light text-center" style="width: 55px; height: 55px; min-width: 55px;">
-                        <i class="bi bi-qr-code text-primary fs-3"></i>
-                    </div>
-                    <div class="flex-grow-1" style="line-height: 1.2;">
-                        <div class="fw-bold text-dark small text-truncate" style="max-width: 170px;">${escapeHtml(p.product_name)}</div>
-                        <div class="small text-muted font-monospace" style="font-size: 0.68rem;">ID: ${Number(p.variant_id)} · SKU: ${escapeHtml(p.sku_code)}</div>
-                        <div class="small text-muted font-monospace" style="font-size: 0.72rem;">${escapeHtml(p.size || '—')}-${escapeHtml(p.color || '—')}</div>
-                        <div class="small text-muted" style="font-size: 0.7rem;">MRP: ₹${parseFloat(p.mrp || 0).toFixed(2)}</div>
-                        <div class="small text-dark fw-bold font-monospace" style="font-size: 0.72rem;">Disc: ₹${parseFloat(p.discount_price || 0).toFixed(2)}</div>
-                    </div>
-                    <div class="d-flex gap-1">
-                        <button type="button" class="btn btn-sm ${p.status === 'verified' ? 'btn-success' : 'btn-outline-success'} p-1 px-2" onclick="togglePiece(${p.index}, 'verified')" title="Mark Verified">
-                            <i class="bi bi-check2"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm ${p.status === 'damaged' ? 'btn-danger' : 'btn-outline-danger'} p-1 px-2" onclick="togglePiece(${p.index}, 'damaged')" title="Mark Damaged">
-                            <i class="bi bi-slash-circle"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        fragment.appendChild(col);
-    });
-
-    grid.appendChild(fragment);
 }
 
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, function (character) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character];
     });
-}
-
-function filterModalPieces(tab) {
-    document.querySelectorAll('.piece-tab-btn').forEach(b => {
-        b.classList.remove('active', 'btn-dark');
-        if (b.id === 'tabAll') b.classList.add('btn-outline-dark');
-    });
-
-    const activeBtn = document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1));
-    if (activeBtn) {
-        activeBtn.classList.add('active', 'btn-dark');
-        activeBtn.classList.remove('btn-outline-dark', 'btn-outline-danger', 'btn-outline-success');
-    }
-
-    renderPieceCards(tab);
-}
-
-function togglePiece(index, targetStatus) {
-    const item = pieceData.find(p => p.index === index);
-    if (!item) return;
-
-    if (item.status === targetStatus) {
-        item.status = 'unverified';
-    } else {
-        item.status = targetStatus;
-    }
-
-    playSound('success');
-    renderPieceCards('all');
-    updateModalCounters();
-    syncModalToReconcileTable();
-}
-
-function inwardNextPiece() {
-    const targetStatus = scanMode === 'good' ? 'verified' : 'damaged';
-    const nextUnverified = pieceData.find(p => p.status === 'unverified');
-
-    if (!nextUnverified) {
-        alert('All pieces in this batch have already been verified or inspected!');
-        return;
-    }
-
-    nextUnverified.status = targetStatus;
-    playSound('success');
-
-    // Update big QR to the next one
-    const afterNext = pieceData.find(p => p.status === 'unverified');
-    if (afterNext) {
-        document.getElementById('modalCurrentPieceTag').textContent = afterNext.tag_code;
-        renderQrToCanvas('modalPieceQrCanvas', afterNext.tag_code);
-    }
-
-    renderPieceCards('all');
-    updateModalCounters();
-    syncModalToReconcileTable();
-}
-
-function updateModalCounters() {
-    if (!Array.isArray(pieceData)) return;
-    const total = pieceData.length;
-    const verified = pieceData.filter(p => p.status === 'verified').length;
-    const damaged = pieceData.filter(p => p.status === 'damaged').length;
-    const mismatched = total - verified - damaged;
-
-    const elAll = document.getElementById('modalCountAll');
-    const elVer = document.getElementById('modalCountVerified');
-    const elDam = document.getElementById('modalCountDamaged');
-    const elMis = document.getElementById('modalCountMismatched');
-
-    if (elAll) elAll.textContent = total;
-    if (elVer) elVer.textContent = verified;
-    if (elDam) elDam.textContent = damaged;
-    if (elMis) elMis.textContent = Math.max(0, mismatched);
-}
-
-function syncModalToReconcileTable() {
-    const currentModalVerified = pieceData.filter(p => p.status === 'verified').length;
-    const currentModalDamaged = pieceData.filter(p => p.status === 'damaged').length;
-
-    const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
-    if (row) {
-        const incrementalVerified = Math.max(0, currentModalVerified - (parseInt(row.dataset.creditedQty, 10) || 0));
-        const incrementalDamaged = Math.max(0, currentModalDamaged - (parseInt(row.dataset.damagedQty, 10) || 0));
-        const vInput = row.querySelector('.input-verified');
-        const dInput = row.querySelector('.input-damaged');
-        if (vInput) vInput.value = incrementalVerified;
-        if (dInput) dInput.value = incrementalDamaged;
-        recalculateTotals();
-    }
 }
 </script>

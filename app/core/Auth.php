@@ -13,9 +13,9 @@ class Auth {
             if (!is_dir($sessionDirectory)) {
                 @mkdir($sessionDirectory, 0775, true);
             }
-            if (is_dir($sessionDirectory) && is_writable($sessionDirectory)) {
-                ini_set('session.save_path', $sessionDirectory);
-                session_save_path($sessionDirectory);
+            if (!headers_sent() && is_dir($sessionDirectory) && is_writable($sessionDirectory)) {
+                @ini_set('session.save_path', $sessionDirectory);
+                @session_save_path($sessionDirectory);
             }
             if (!headers_sent()) {
                 session_name($config['session']['name'] ?? 'GRM_INVENTORY_SESSID');

@@ -123,8 +123,12 @@ $router->get('/m/stock_ledger/export', [StockController::class, 'exportLedger'],
 // Inward & Warehouse Inward Operations
 $router->get('/m/inward', [InwardController::class, 'index'], 'inward', 'view');
 $router->get('/warehouse/inward', [InwardController::class, 'index'], 'inward', 'view');
+$router->get('/production/inward', [InwardController::class, 'index'], 'inward', 'view');
+$router->get('/production/inwards', [InwardController::class, 'index'], 'inward', 'view');
 $router->get('/m/inward/scan/{id}', [InwardController::class, 'scanView'], 'inward', 'view');
 $router->get('/warehouse/inward/view/{id}', [InwardController::class, 'scanView'], 'inward', 'view');
+$router->get('/production/inward/view/{id}', [InwardController::class, 'scanView'], 'inward', 'view');
+$router->get('/production/inwards/view/{id}', [InwardController::class, 'scanView'], 'inward', 'view');
 $router->post('/m/inward/credit', [InwardController::class, 'creditStock'], 'inward', 'add');
 $router->post('/warehouse/inward/credit', [InwardController::class, 'creditStock'], 'inward', 'add');
 $router->get('/m/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');

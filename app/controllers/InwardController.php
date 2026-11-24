@@ -8,6 +8,7 @@ use App\Core\DB;
 use App\Core\Auth;
 use App\Services\StockService;
 use App\Services\DamageService;
+use App\Services\WarehouseService;
 use App\Services\NumberSeries;
 use App\Services\QrService;
 use App\Models\Inward;
@@ -149,12 +150,14 @@ class InwardController extends Controller {
         $scopeWhere = "";
         $batchParams = [];
         if ($activeScopeCid) {
-            // Strict tenant isolation: ONLY dispatches explicitly sent to this concern appear
-            $scopeWhere = "WHERE o.destination_concern_id = ?";
+            // Cross-concern handshake: dispatches sent explicitly to this concern OR matching warehouse destination
+            $scopeWhere = "WHERE (o.destination_concern_id = ? OR (o.destination_concern_id IS NULL AND (b.warehouse_id = ? OR o.warehouse_id = ?)))";
+            $batchParams[] = $activeScopeCid;
+            $batchParams[] = $activeScopeCid;
             $batchParams[] = $activeScopeCid;
         } else {
-            // Super Admin consolidated view: show only concern transfers (exclude customer dispatches)
-            $scopeWhere = "WHERE o.destination_concern_id IS NOT NULL";
+            // Super Admin consolidated view: show concern transfers
+            $scopeWhere = "WHERE (o.destination_concern_id IS NOT NULL OR b.warehouse_id IS NOT NULL)";
         }
 
         $batchSql = "
@@ -981,135 +984,24 @@ class InwardController extends Controller {
                 throw new Exception('Please verify or record at least 1 dispatched item.');
             }
 
-            // Generate GRN & Inward No
-            $grnNumber = \App\Models\Inward::generateGrnNumber($destConcernId);
-            $inwardNo = 'INW-' . date('Ymd') . '-' . str_pad((string)rand(100, 999), 4, '0', STR_PAD_LEFT);
-
-            DB::query("
-                INSERT INTO inwards (concern_id, outward_id, inward_no, grn_number, production_unit_id, from_concern_id, inward_date, vehicle_number, location, status, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'Main Store', 'VERIFIED', ?)
-            ", [
-                $destConcernId,
+            $res = WarehouseService::receiveProductionBatch(
                 $outwardId,
-                $inwardNo,
-                $grnNumber,
-                $outward['production_unit_id'],
-                $outward['concern_id'],
-                $outward['vehicle_number'],
+                $destConcernId,
+                $itemsToInward,
+                $damageReason,
                 Auth::id()
-            ]);
-            $inwardId = (int)DB::lastInsertId();
-
-            foreach ($itemsToInward as $item) {
-                DB::query("
-                    INSERT INTO inward_items (concern_id, inward_id, variant_id, qty, accepted_qty, rejected_qty, rejection_reason)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ", [
-                    $destConcernId,
-                    $inwardId,
-                    $item['target_variant_id'],
-                    $item['verified_qty'] + $item['damaged_qty'],
-                    $item['verified_qty'],
-                    $item['damaged_qty'],
-                    $item['damaged_qty'] > 0 ? $damageReason : null
-                ]);
-
-                if ($item['verified_qty'] > 0) {
-                    StockService::move(
-                        $destConcernId,
-                        $item['target_variant_id'],
-                        'Main Store',
-                        $item['verified_qty'],
-                        0.00,
-                        'Production Inward',
-                        $inwardId,
-                        "GRN #{$grnNumber} Inward acceptance from Outward #{$outward['outward_no']}"
-                    );
-                }
-
-                if ($item['damaged_qty'] > 0) {
-                    DamageService::recordInwardDamage(
-                        $destConcernId,
-                        $item['target_variant_id'],
-                        $inwardId,
-                        $item['damaged_qty'],
-                        $damageReason,
-                        (int)($outward['warehouse_id'] ?? 1)
-                    );
-                }
-
-                $receiptQty = $item['verified_qty'] + $item['damaged_qty'];
-                $transitLocation = "IN_TRANSIT:OUTWARD:{$outwardId}";
-                $transitQty = DB::fetchValue(
-                    "SELECT qty FROM stocks
-                     WHERE concern_id = ? AND variant_id = ? AND location = ?
-                     FOR UPDATE",
-                    [(int)$outward['concern_id'], $item['source_variant_id'], $transitLocation]
-                );
-                $hasTransitLedger = DB::fetchValue(
-                    "SELECT id FROM stock_ledger
-                     WHERE concern_id = ? AND variant_id = ? AND ref_module = 'Outward Transit' AND ref_id = ?
-                     LIMIT 1",
-                    [(int)$outward['concern_id'], $item['source_variant_id'], $outwardId]
-                );
-                if ($hasTransitLedger) {
-                    if ($transitQty === false || $transitQty === null || (float)$transitQty + 0.0001 < $receiptQty) {
-                        throw new Exception("Transit stock for variant #{$item['source_variant_id']} is lower than the received quantity.");
-                    }
-                    StockService::move(
-                        (int)$outward['concern_id'],
-                        $item['source_variant_id'],
-                        $transitLocation,
-                        0.00,
-                        $receiptQty,
-                        'Production Inward Transit',
-                        $inwardId,
-                        "Consumed in-transit quantity for GRN #{$grnNumber}"
-                    );
-                }
-            }
-
-            // Check if full dispatch is completed
-            $totalCredited = (float)DB::fetchValue(
-                "SELECT sum(ii.accepted_qty)
-                 FROM inwards inw
-                 JOIN inward_items ii ON inw.id = ii.inward_id
-                 JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
-                 WHERE inw.outward_id = ?",
-                [$outwardId]
             );
-            $totalDamaged = (float)DB::fetchValue(
-                "SELECT sum(ii.rejected_qty)
-                 FROM inwards inw
-                 JOIN inward_items ii ON inw.id = ii.inward_id
-                 JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
-                 WHERE inw.outward_id = ?",
-                [$outwardId]
-            );
-
-            if ($totalCredited + $totalDamaged >= $totalDispatched) {
-                DB::query("UPDATE outwards SET status = 'received', received_at = NOW() WHERE id = ?", [$outwardId]);
-                DB::query(
-                    "UPDATE batches b
-                     JOIN production_outward_batches pob ON pob.batch_id = b.id
-                     SET b.status = 'RECEIVED'
-                     WHERE pob.outward_id = ? AND pob.concern_id = ?",
-                    [$outwardId, (int)$outward['concern_id']]
-                );
-            } else {
-                $remainingQty = max(0, $totalDispatched - $totalCredited - $totalDamaged);
-                $discrepancyNote = "[GRN {$grnNumber}] Partial receipt: " . number_format($remainingQty, 2, '.', '') . " pieces remain pending.";
-                DB::query(
-                    "UPDATE outwards
-                     SET status = 'partial',
-                         notes = CONCAT(COALESCE(notes, ''), CASE WHEN COALESCE(notes, '') = '' THEN '' ELSE '\n' END, ?)
-                     WHERE id = ?",
-                    [$discrepancyNote, $outwardId]
-                );
-            }
 
             DB::commit();
-            $this->flash('success', "Inward recorded successfully! Credited +{$verifiedQtyInput} pcs and recorded {$damagedQtyInput} damaged pcs under {$grnNumber}.");
+
+            $moveToLabels = !empty($_POST['move_to_labels']) || !empty($_POST['redirect_to_labels']);
+            if ($moveToLabels) {
+                $this->flash('success', "Inward recorded successfully! Credited +{$res['verified_qty']} pcs and recorded {$res['damaged_qty']} damaged pcs under {$res['grn_number']}. Moving to Label Generation...");
+                $this->redirect("/m/label_generation?inward_id={$res['inward_id']}&outward_id={$outwardId}");
+                return;
+            }
+
+            $this->flash('success', "Inward recorded successfully! Credited +{$res['verified_qty']} pcs and recorded {$res['damaged_qty']} damaged pcs under {$res['grn_number']}.");
             $this->redirect("/m/inward/scan/{$outwardId}");
             return;
         } catch (\Throwable $e) {

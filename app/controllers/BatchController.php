@@ -797,6 +797,7 @@ class BatchController extends Controller {
                     ", [$cid, $outwardId, $bItem['variant_id'], $bItem['qty']]);
 
                     StockService::move($cid, (int)$bItem['variant_id'], 'Main Store', 0.00, (float)$bItem['qty'], 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
+                    StockService::move($cid, (int)$bItem['variant_id'], "IN_TRANSIT:OUTWARD:{$outwardId}", (float)$bItem['qty'], 0.00, 'Outward Transit', $outwardId, "In-transit stock for outward {$outwardNo}");
                 }
             } else {
                 DB::query("
@@ -806,6 +807,7 @@ class BatchController extends Controller {
 
                 if (!empty($batch['variant_id'])) {
                     StockService::move($cid, (int)$batch['variant_id'], 'Main Store', 0.00, $totalQty, 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
+                    StockService::move($cid, (int)$batch['variant_id'], "IN_TRANSIT:OUTWARD:{$outwardId}", $totalQty, 0.00, 'Outward Transit', $outwardId, "In-transit stock for outward {$outwardNo}");
                 }
             }
 

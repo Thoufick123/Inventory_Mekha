@@ -238,6 +238,8 @@
                             </td>
                             <td class="text-end pe-3">
                                 <div class="d-flex align-items-center justify-content-end gap-1">
+                                    <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
+                                    <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-info" title="Consignment Log"><i class="bi bi-clock-history"></i></a>
                                     <?php if (\App\Core\Auth::can('inward', 'edit')): ?>
@@ -248,7 +250,7 @@
                                     <?php endif; ?>
                                     <?php if (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
-                                        <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
+                                        <i class="bi bi-box-arrow-in-down"></i> Inward (<?= $scanQty ?>)
                                     </a>
                                     <?php endif; ?>
                                 </div>
@@ -321,10 +323,12 @@
                 <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
                     <small class="text-muted font-monospace"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></small>
                     <div class="d-flex align-items-center gap-1">
+                        <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
+                        <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                         <?php if (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
-                            <i class="bi bi-upc-scan"></i> Scan (<?= $scanQty ?>)
+                            <i class="bi bi-box-arrow-in-down"></i> Inward (<?= $scanQty ?>)
                         </a>
                         <?php endif; ?>
                     </div>
