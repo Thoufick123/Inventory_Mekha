@@ -5513,7 +5513,30 @@ class ProductionController extends Controller {
     public function apiQuickAddTailor(): void {
         header('Content-Type: application/json');
         $this->ensureStitchingSchema();
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId();
+        $cuttingId = (int)($_POST['cutting_id'] ?? 0);
+
+        if ($cuttingId > 0) {
+            $cuttingSql = "SELECT concern_id FROM cutting_logs WHERE id = ?";
+            $cuttingParams = [$cuttingId];
+            if ($cid) {
+                $cuttingSql .= " AND concern_id = ?";
+                $cuttingParams[] = $cid;
+            }
+            $cutting = DB::fetch($cuttingSql, $cuttingParams);
+            if (!$cutting) {
+                echo json_encode(['success' => false, 'message' => 'Select a valid cutting batch before adding a tailor.']);
+                exit;
+            }
+            if (!$cid) {
+                $cid = (int)$cutting['concern_id'];
+            }
+        }
+
+        if (!$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            echo json_encode(['success' => false, 'message' => 'Select a concern or cutting batch before adding a tailor.']);
+            exit;
+        }
 
         $name = trim($_POST['name'] ?? '');
         $phone = trim($_POST['phone'] ?? '');

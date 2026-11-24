@@ -691,6 +691,7 @@ document.addEventListener('DOMContentLoaded', function () {
         formData.append('name', name);
         formData.append('phone', phone);
         formData.append('employee_code', code);
+        formData.append('cutting_id', document.getElementById('selectCuttingBatch').value);
 
         fetch('<?= \App\Core\Controller::url('/api/stitching/quick-tailor') ?>', {
             method: 'POST',
