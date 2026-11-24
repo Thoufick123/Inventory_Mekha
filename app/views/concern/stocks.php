@@ -315,7 +315,7 @@
                                                         title="Quick View QR Code">
                                                     <i class="bi bi-qr-code"></i> QR
                                                 </button>
-                                                <?php if (($s['stock_source'] ?? '') !== 'purchase'): ?>
+                                                <?php if (($s['stock_source'] ?? '') === 'other'): ?>
                                                     <a href="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $s['variant_id']) ?>" class="btn btn-sm btn-outline-primary" title="Print QR Stickers">
                                                         <i class="bi bi-qr-code"></i> Print Labels
                                                     </a>

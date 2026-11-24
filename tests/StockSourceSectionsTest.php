@@ -81,8 +81,12 @@ $html = ob_get_clean();
 
 $ownPosition = strpos($html, 'Own Products');
 $purchasePosition = strpos($html, 'Purchase Products');
+preg_match('/<tr data-stock-source="own"[^>]*>.*?<\/tr>/s', $html, $ownRowMatch);
+$ownRowHtml = $ownRowMatch[0] ?? '';
 preg_match('/<tr data-stock-source="purchase"[^>]*>.*?<\/tr>/s', $html, $purchaseRowMatch);
 $purchaseRowHtml = $purchaseRowMatch[0] ?? '';
+preg_match('/<tr data-stock-source="other"[^>]*>.*?<\/tr>/s', $html, $otherRowMatch);
+$otherRowHtml = $otherRowMatch[0] ?? '';
 $otherPosition = strpos($html, 'Other Sources');
 $checks = [
     'Own and purchase stocks render as separate ordered sections' =>
@@ -145,6 +149,9 @@ $checks = [
         && strpos($purchaseRowHtml, 'data-stock-edit') !== false
         && strpos($purchaseRowHtml, '/m/stocks/delete-line') !== false
         && strpos($purchaseRowHtml, 'Remove') !== false,
+    'Own product stock actions omit Print Labels while other-source actions remain unchanged' =>
+        strpos($ownRowHtml, 'Print Labels') === false
+        && strpos($otherRowHtml, 'Print Labels') !== false,
 ];
 
 $controllerSource = file_get_contents(__DIR__ . '/../app/controllers/StockController.php');
