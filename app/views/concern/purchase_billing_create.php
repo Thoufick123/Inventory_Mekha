@@ -371,6 +371,9 @@ if ($isEdit && !empty($existingItems)) {
                                     $generatedLabelQty = (int)$savedItem['generated_label_qty'];
                                     $defaultLabelQty = (int)$savedItem['default_label_qty'];
                                     $purchaseQty = $savedItem['purchase_qty_original'] ?? $savedItem['qty'];
+                                    $stockedQty = (float)$savedItem['stocked_qty'];
+                                    $needsStockCorrection = $isSavedItemInStock
+                                        && round($stockedQty, 2) < round((float)$purchaseQty, 2);
                                     ?>
                                     <tr>
                                         <td class="text-center">
@@ -388,7 +391,8 @@ if ($isEdit && !empty($existingItems)) {
                                                     data-default-label-count="<?= $defaultLabelQty ?>"
                                                     data-generated-label-count="<?= $generatedLabelQty ?>"
                                                     data-required-label-count="<?= $requiredLabelQty ?>"
-                                                    data-stock-qty="<?= htmlspecialchars((string)$savedItem['qty']) ?>"
+                                                    data-purchase-qty="<?= htmlspecialchars((string)$purchaseQty) ?>"
+                                                    data-stock-qty="<?= htmlspecialchars((string)$stockedQty) ?>"
                                                     <?= $isSavedItemInStock ? '' : 'checked' ?>
                                                     aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk actions">
                                             </label>
@@ -408,9 +412,9 @@ if ($isEdit && !empty($existingItems)) {
                                         <td class="text-end">
                                             <?= htmlspecialchars((string)$purchaseQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?>
                                             <?php if ($isSavedItemInStock): ?>
-                                                <div class="small text-success">Stocked: <?= htmlspecialchars((string)$savedItem['qty']) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
-                                            <?php elseif ($generatedLabelQty > 0): ?>
-                                                <div class="small text-primary">To stock: <?= $generatedLabelQty ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
+                                                <div class="small text-success">Stocked: <?= htmlspecialchars((string)$stockedQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
+                                            <?php else: ?>
+                                                <div class="small text-primary">Stock qty: <?= htmlspecialchars((string)$purchaseQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-center">
@@ -418,8 +422,8 @@ if ($isEdit && !empty($existingItems)) {
                                                 <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-success">
                                                     <?= $generatedLabelQty ?> labels
                                                     <?= $isSavedItemInStock
-                                                        ? ' · Stocked ' . htmlspecialchars((string)$savedItem['qty'])
-                                                        : ' · Stock qty ' . $generatedLabelQty ?>
+                                                        ? ' · Stocked ' . htmlspecialchars((string)$stockedQty)
+                                                        : ' · Stock qty ' . htmlspecialchars((string)$purchaseQty) ?>
                                                 </span>
                                             <?php else: ?>
                                                 <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-warning">No labels printed</span>
@@ -438,6 +442,16 @@ if ($isEdit && !empty($existingItems)) {
                                             </button>
                                             <?php if ($isSavedItemInStock): ?>
                                                 <span class="badge text-bg-success ms-1">In stock</span>
+                                                <?php if ($needsStockCorrection): ?>
+                                                    <button
+                                                        type="submit"
+                                                        form="productAddingStockCorrectionForm<?= $savedItemId ?>"
+                                                        class="btn btn-sm btn-warning ms-1"
+                                                        title="Add the missing bill quantity to stock and record the correction"
+                                                        onclick="return confirm('Add the missing bill quantity to stock? An audit entry will be recorded.')">
+                                                        Correct stock
+                                                    </button>
+                                                <?php endif; ?>
                                             <?php elseif ($savedItem['labels_complete']): ?>
                                                 <button type="submit" form="productAddingStockForm<?= $savedItemId ?>" class="btn btn-sm btn-success ms-1" data-product-adding-stock-button="<?= $savedItemId ?>">
                                                     <i class="bi bi-box-arrow-in-down me-1"></i>Add stock
@@ -458,7 +472,7 @@ if ($isEdit && !empty($existingItems)) {
                         </table>
                     </div>
                     <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <span class="small text-muted">The most recent print count sets each line’s inward quantity. Each line can be added to stock once.</span>
+                        <span class="small text-muted">Label count controls printed copies only; the full bill quantity is added to stock. Each line can be added once.</span>
                         <div class="d-flex flex-wrap gap-2">
                             <span id="productAddingBulkLabelFeedback" class="small text-danger align-self-center d-none" role="alert"></span>
                             <button
@@ -509,6 +523,11 @@ if ($isEdit && !empty($existingItems)) {
                         <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
                         <input type="hidden" name="tab" value="<?= $itemTab ?>">
                         <input type="hidden" name="product_adding" value="1">
+                    </form>
+                    <form id="productAddingStockCorrectionForm<?= $savedItemId ?>" action="<?= $productAddingCorrectionUrl ?>" method="POST" class="d-none">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                        <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                        <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
                     </form>
                 <?php endforeach; ?>
                 <div class="card-footer bg-light d-none" id="productAddingLabelPreviewPanel">
@@ -2813,7 +2832,12 @@ function applyProductAddingQuickFill(fgId) {
         return;
     }
 
-    if (categoryId) onFinishedVariantCategoryChange(fgId, parseInt(rows[0].dataset.rowIndex, 10));
+    if (categoryId) {
+        const firstRow = rows[0];
+        const firstRowIndex = parseInt(firstRow.dataset.rowIndex, 10);
+        firstRow.querySelector('.fg-variant-category').value = categoryId;
+        onFinishedVariantCategoryChange(fgId, firstRowIndex);
+    }
     rows.forEach((row, index) => {
         if (categoryId) {
             fillFinishedVariantSubcategories(row, categoryId, subcategoryId);
@@ -2853,15 +2877,9 @@ function updateProductAddingVariantRow(fgId, rowIndex) {
     const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
     if (!card || !row) return;
     const variantName = row.querySelector('.fg-variant-name');
-    const color = row.querySelector('[data-attribute-type="color"]')?.value || '';
-    const size = row.querySelector('[data-attribute-type="size"]')?.value || '';
-    const customValues = [...row.querySelectorAll('.fg-variant-attribute')]
-        .filter(input => !['color', 'size'].includes(input.dataset.attributeType || ''))
-        .map(input => input.value.trim())
-        .filter(Boolean);
-    const variantParts = [card.querySelector('.fg-input-product')?.value.trim(), size, color, ...customValues].filter(Boolean);
+    const productName = card.querySelector('.fg-input-product')?.value.trim() || '';
     if (variantName && !variantName.dataset.userEdited) {
-        variantName.value = variantParts.join(' - ').slice(0, 150);
+        variantName.value = productName.slice(0, 150);
     }
     const costInput = row.querySelector('.fg-variant-cost');
     const sellingInput = row.querySelector('.fg-variant-selling');
@@ -5145,7 +5163,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (progress) {
                 const stockText = checkbox.dataset.inStock === '1'
                     ? `Stocked ${checkbox.dataset.stockQty || '—'}`
-                    : `Stock qty ${generatedCount}`;
+                    : `Stock qty ${checkbox.dataset.purchaseQty || '—'}`;
                 progress.textContent = generatedCount > 0 ? `${generatedCount} labels · ${stockText}` : 'No labels printed';
                 progress.classList.toggle('text-bg-success', generatedCount > 0);
                 progress.classList.toggle('text-bg-warning', generatedCount <= 0);
@@ -5158,7 +5176,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 stockButton.disabled = false;
                 stockButton.classList.remove('btn-outline-secondary');
                 stockButton.classList.add('btn-success');
-                stockButton.title = `Add ${generatedCount} units to stock`;
+                stockButton.title = `Add ${checkbox.dataset.purchaseQty || 'all'} units to stock`;
                 stockButton.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i>Add stock';
             }
         });

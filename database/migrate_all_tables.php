@@ -256,6 +256,7 @@ DB::query("CREATE TABLE IF NOT EXISTS `warehouse_damages` (
     `warehouse_id` INT NOT NULL DEFAULT 1,
     `variant_id` INT NOT NULL,
     `qty` DECIMAL(12,2) NOT NULL,
+    `inward_id` INT NULL,
     `location` VARCHAR(100) NOT NULL DEFAULT 'Warehouse Floor',
     `damage_type` VARCHAR(50) NOT NULL DEFAULT 'PHYSICAL_DAMAGE',
     `severity` ENUM('MINOR', 'MODERATE', 'SEVERE', 'SCRAP') NOT NULL DEFAULT 'MODERATE',
@@ -278,6 +279,7 @@ DB::query("CREATE TABLE IF NOT EXISTS `warehouse_damages` (
     INDEX `idx_whd_concern` (`concern_id`),
     INDEX `idx_whd_status` (`status`),
     INDEX `idx_whd_variant` (`variant_id`),
+    INDEX `idx_whd_inward` (`inward_id`),
     INDEX `idx_whd_repl_qr` (`replacement_qr_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
@@ -312,7 +314,28 @@ DB::query("CREATE TABLE IF NOT EXISTS `shop_damages` (
     INDEX `idx_shd_variant` (`variant_id`),
     INDEX `idx_shd_repl_qr` (`replacement_qr_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+$wdCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `warehouse_damages`"), 'Field');
+if (!in_array('inward_id', $wdCols, true)) {
+    DB::query("ALTER TABLE `warehouse_damages` ADD COLUMN `inward_id` INT NULL AFTER `qty`");
+    DB::query("ALTER TABLE `warehouse_damages` ADD INDEX `idx_whd_inward` (`inward_id`)");
+    echo "  + Added `inward_id` to `warehouse_damages`\n";
+}
 echo "  + `warehouse_damages` and `shop_damages` tables verified\n";
+
+// 14a. STOCK LEDGER VALUATION
+echo "\n14a. Checking `stock_ledger` valuation columns...\n";
+$ledgerCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `stock_ledger`"), 'Field');
+foreach ([
+    'unit_cost' => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `qty_out`",
+    'mrp' => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `unit_cost`",
+    'selling_price' => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `mrp`",
+] as $column => $definition) {
+    if (!in_array($column, $ledgerCols, true)) {
+        DB::query("ALTER TABLE `stock_ledger` ADD COLUMN `{$column}` {$definition}");
+        echo "  + Added `{$column}` to `stock_ledger`\n";
+        $ledgerCols[] = $column;
+    }
+}
 
 // 15. PRODUCTION_RETURNS & EXCHANGES
 echo "\n15. Checking `production_returns` & exchange tables...\n";
@@ -584,6 +607,27 @@ DB::query("ALTER TABLE `purchase_damages` CONVERT TO CHARACTER SET utf8mb4 COLLA
 DB::query("ALTER TABLE `purchase_damage_quarantine` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 DB::query("ALTER TABLE `suppliers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 echo "  + Collation aligned to utf8mb4_unicode_ci\n";
+
+// 23. CATALOG SOURCE
+echo "\n23. Checking `catalogs` source...\n";
+$cols = array_column(DB::fetchAll("SHOW COLUMNS FROM `catalogs`"), 'Field');
+if (!in_array('source_module', $cols, true)) {
+    DB::query("ALTER TABLE `catalogs` ADD COLUMN `source_module` VARCHAR(50) NOT NULL DEFAULT 'production_catalog' AFTER `status`");
+    echo "  + Added `source_module` to `catalogs`\n";
+} else {
+    echo "  . `source_module` already exists\n";
+}
+DB::query("UPDATE `catalogs` SET `source_module` = 'product_adding' WHERE `source_module` = 'production_catalog' AND `status` = 'active'");
+$pbiCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `purchase_bill_items`"), 'Field');
+if (in_array('catalog_id', $pbiCols, true) && in_array('section_type', $pbiCols, true)) {
+    DB::query("
+        UPDATE `catalogs` c
+        JOIN `purchase_bill_items` pbi ON pbi.catalog_id = c.id AND pbi.section_type = 'finished_goods'
+        SET c.source_module = 'product_adding'
+        WHERE c.source_module = 'production_catalog'
+    ");
+}
+echo "  + Classified legacy active catalogs as Product Adding\n";
 
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";

@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `concern_id` int(11) NOT NULL,
   `production_unit_id` int(11) DEFAULT NULL,
   `batch_no` varchar(50) NOT NULL,
-  `variant_id` int(11) NOT NULL,
+  `variant_id` int(11) DEFAULT NULL,
   `program_id` int(11) DEFAULT NULL,
   `cutting_batch_id` int(11) DEFAULT NULL,
   `stitching_batch_id` int(11) DEFAULT NULL,
@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `gst_amount` decimal(12,2) DEFAULT 0.00,
   `total_amount` decimal(12,2) DEFAULT 0.00,
   `bill_no` varchar(100) DEFAULT NULL,
+  `outward_id` int(11) DEFAULT NULL,
   `fabric_details` varchar(255) DEFAULT 'GREEN / BIRDS',
   `mfg_date` date DEFAULT NULL,
   `exp_date` date DEFAULT NULL,
@@ -106,6 +107,34 @@ CREATE TABLE IF NOT EXISTS `batches` (
   KEY `fk_bt_var` (`variant_id`),
   CONSTRAINT `fk_bt_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_bt_var` FOREIGN KEY (`variant_id`) REFERENCES `variants` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `batch_items`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `batch_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `concern_id` int(11) NOT NULL,
+  `batch_id` int(11) NOT NULL,
+  `variant_id` int(11) NOT NULL,
+  `size` varchar(50) DEFAULT NULL,
+  `color` varchar(50) DEFAULT NULL,
+  `sku_code` varchar(100) DEFAULT NULL,
+  `qty` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `unit_price` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `taxable_value` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `gst_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `total_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `qr_codes` longtext DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_batch_items_batch` (`batch_id`),
+  KEY `idx_batch_items_variant` (`variant_id`),
+  KEY `idx_batch_items_concern` (`concern_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -262,6 +291,7 @@ CREATE TABLE IF NOT EXISTS `catalogs` (
   `gst_rate` decimal(5,2) DEFAULT NULL,
   `sizes` text DEFAULT NULL,
   `status` enum('active','inactive','in_house') NOT NULL DEFAULT 'in_house',
+  `source_module` varchar(50) NOT NULL DEFAULT 'production_catalog',
   `name` varchar(150) NOT NULL,
   `description` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
@@ -1356,7 +1386,7 @@ CREATE TABLE IF NOT EXISTS `purchase_damage_reasons` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_pdr_concern_reason` (`concern_id`,`reason`),
   CONSTRAINT `fk_pdr_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1460,14 +1490,14 @@ CREATE TABLE IF NOT EXISTS `qc_inspections` (
   `concern_id` int(11) NOT NULL,
   `qc_no` varchar(50) NOT NULL,
   `batch_no` varchar(50) DEFAULT NULL,
-  `variant_id` int(11) NOT NULL,
+  `variant_id` int(11) DEFAULT NULL,
   `program_id` int(11) DEFAULT NULL,
   `cutting_batch_id` int(11) DEFAULT NULL,
   `stitching_batch_id` int(11) DEFAULT NULL,
-  `inspected_qty` decimal(12,2) NOT NULL,
-  `passed_qty` decimal(12,2) NOT NULL,
+  `inspected_qty` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `passed_qty` decimal(12,2) NOT NULL DEFAULT 0.00,
   `rework_qty` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `rejected_qty` decimal(12,2) NOT NULL,
+  `rejected_qty` decimal(12,2) NOT NULL DEFAULT 0.00,
   `location` varchar(50) NOT NULL DEFAULT 'Main Store',
   `defect_notes` text DEFAULT NULL,
   `rework_notes` text DEFAULT NULL,
@@ -1892,6 +1922,9 @@ CREATE TABLE IF NOT EXISTS `stock_ledger` (
   `location` varchar(50) NOT NULL DEFAULT 'Main Store',
   `qty_in` decimal(12,2) NOT NULL DEFAULT 0.00,
   `qty_out` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `unit_cost` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `mrp` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `selling_price` decimal(12,2) NOT NULL DEFAULT 0.00,
   `ref_module` varchar(50) NOT NULL,
   `ref_id` int(11) DEFAULT NULL,
   `note` text DEFAULT NULL,
@@ -2122,6 +2155,7 @@ CREATE TABLE IF NOT EXISTS `warehouse_damages` (
   `warehouse_id` int(11) NOT NULL DEFAULT 1,
   `variant_id` int(11) NOT NULL,
   `qty` decimal(12,2) NOT NULL,
+  `inward_id` int(11) DEFAULT NULL,
   `location` varchar(100) NOT NULL DEFAULT 'Warehouse Floor',
   `damage_type` varchar(50) NOT NULL DEFAULT 'PHYSICAL_DAMAGE',
   `severity` enum('MINOR','MODERATE','SEVERE','SCRAP') NOT NULL DEFAULT 'MODERATE',
@@ -2146,15 +2180,10 @@ CREATE TABLE IF NOT EXISTS `warehouse_damages` (
   KEY `idx_whd_concern` (`concern_id`),
   KEY `idx_whd_status` (`status`),
   KEY `idx_whd_variant` (`variant_id`),
+  KEY `idx_whd_inward` (`inward_id`),
   KEY `idx_whd_repl_qr` (`replacement_qr_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-ALTER TABLE `purchase_bills`
-  ADD COLUMN IF NOT EXISTS `source_module` varchar(50) NOT NULL DEFAULT 'purchase_billing' AFTER `supplier_invoice_no`;
-ALTER TABLE `label_jobs`
-  ADD COLUMN IF NOT EXISTS `source_module` varchar(50) NOT NULL DEFAULT 'label_generation' AFTER `label_type`;
-ALTER TABLE `cutting_logs`
-  ADD COLUMN IF NOT EXISTS `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp() AFTER `created_at`;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

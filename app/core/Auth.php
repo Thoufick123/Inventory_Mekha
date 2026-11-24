@@ -465,6 +465,8 @@ class Auth {
             return false;
         }
 
+        $act = strtolower($action);
+
         // concern_dashboard is a base shell/dashboard module for every tenant concern.
         // It should inherit the user's operational level: if user can add/edit anywhere or has general access, allow view/export.
         if ($moduleCode === 'concern_dashboard') {
@@ -492,7 +494,6 @@ class Auth {
         }
 
         // Action normalization: support 'view', 'add'/'create', 'edit', 'delete', plus operational actions
-        $act = strtolower($action);
         $actionAlias = null;
         if ($act === 'create') {
             $act = 'add';

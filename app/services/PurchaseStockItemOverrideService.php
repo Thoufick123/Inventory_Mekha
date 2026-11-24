@@ -81,10 +81,11 @@ class PurchaseStockItemOverrideService {
         return $items;
     }
 
-    public static function saveInwardQuantity(array $item, int $quantity, ?int $userId): void {
+    public static function saveInwardQuantity(array $item, float $quantity, ?int $userId): void {
         $concernId = (int)($item['concern_id'] ?? 0);
         $itemId = (int)($item['id'] ?? 0);
         $sectionType = (string)($item['section_type'] ?? '');
+        $quantity = round($quantity, 2);
         if ($concernId <= 0 || $itemId <= 0 || $quantity <= 0) {
             throw new \InvalidArgumentException('A valid purchase line and positive inward quantity are required.');
         }

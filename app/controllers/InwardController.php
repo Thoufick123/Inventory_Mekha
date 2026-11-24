@@ -7,8 +7,10 @@ use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
 use App\Services\StockService;
+use App\Services\DamageService;
 use App\Services\NumberSeries;
 use App\Services\QrService;
+use App\Models\Inward;
 use Exception;
 
 class InwardController extends Controller {
@@ -182,7 +184,17 @@ class InwardController extends Controller {
                              FROM inwards inw
                              JOIN inward_items ii ON inw.id = ii.inward_id
                              WHERE inw.outward_id = o.id
-                               AND inw.concern_id = o.destination_concern_id), 0) AS credited_qty
+                               AND inw.concern_id = o.destination_concern_id), 0) AS credited_qty,
+                   coalesce((SELECT sum(ii.rejected_qty)
+                              FROM inwards inw
+                              JOIN inward_items ii ON inw.id = ii.inward_id
+                              WHERE inw.outward_id = o.id
+                                AND inw.concern_id = o.destination_concern_id), 0) AS damaged_qty,
+                   coalesce((SELECT sum(ii.accepted_qty + ii.rejected_qty)
+                              FROM inwards inw
+                              JOIN inward_items ii ON inw.id = ii.inward_id
+                              WHERE inw.outward_id = o.id
+                                AND inw.concern_id = o.destination_concern_id), 0) AS received_qty
             FROM outwards o
             LEFT JOIN (
                 SELECT outward_id,
@@ -213,12 +225,14 @@ class InwardController extends Controller {
         foreach ($inwardBatches as &$batch) {
             $dispQty = (float)$batch['total_qty'];
             $credQty = (float)$batch['credited_qty'];
-            $shortQty = max(0, $dispQty - $credQty);
+            $receivedQty = (float)$batch['received_qty'];
+            $damagedQty = (float)$batch['damaged_qty'];
+            $shortQty = max(0, $dispQty - $receivedQty);
             $batch['short_qty'] = $shortQty;
 
             $totalDispatchedPcsSum += $dispQty;
 
-            if ($credQty > 0) {
+            if ($receivedQty > 0) {
                 $receivedBatchesCount++;
                 $warehouseStockPcsSum += $credQty;
             }
@@ -235,7 +249,9 @@ class InwardController extends Controller {
                 }
             } else {
                 $batch['status_badge'] = 'completed';
-                $batch['status_label'] = 'Credited & Intact';
+                $batch['status_label'] = $damagedQty > 0
+                    ? "Received; {$damagedQty} Quarantined"
+                    : 'Credited & Intact';
             }
         }
         unset($batch);
@@ -660,31 +676,109 @@ class InwardController extends Controller {
             return (int)$existing['id'];
         }
 
-        // Safe fallback for category & subcategory
-        $catId = $var['category_id'] ?: (int)DB::fetchValue("SELECT id FROM categories LIMIT 1");
-        $subId = $var['subcategory_id'] ?: (int)DB::fetchValue("SELECT id FROM subcategories WHERE category_id = ? LIMIT 1", [$catId]);
-        if (!$subId) {
-            $subId = (int)DB::fetchValue("SELECT id FROM subcategories LIMIT 1") ?: null;
+        $sourceConcernId = (int)$var['concern_id'];
+        $sourceCategory = DB::fetch(
+            "SELECT name, code, default_hsn, default_gst_rate
+             FROM categories WHERE id = ? AND concern_id = ?",
+            [(int)$var['category_id'], $sourceConcernId]
+        );
+        if (!$sourceCategory) {
+            throw new Exception("Source category for variant #{$sourceVariantId} is unavailable.");
+        }
+        $catId = (int)DB::fetchValue(
+            "SELECT id FROM categories WHERE concern_id = ? AND name = ? LIMIT 1",
+            [$destConcernId, $sourceCategory['name']]
+        );
+        if (!$catId) {
+            DB::query(
+                "INSERT INTO categories (concern_id, name, code, default_hsn, default_gst_rate, status)
+                 VALUES (?, ?, ?, ?, ?, 'active')",
+                [$destConcernId, $sourceCategory['name'], $sourceCategory['code'], $sourceCategory['default_hsn'], $sourceCategory['default_gst_rate']]
+            );
+            $catId = (int)DB::lastInsertId();
+        }
+
+        $subId = null;
+        if (!empty($var['subcategory_id'])) {
+            $sourceSubcategory = DB::fetch(
+                "SELECT name, code FROM subcategories WHERE id = ? AND concern_id = ?",
+                [(int)$var['subcategory_id'], $sourceConcernId]
+            );
+            if ($sourceSubcategory) {
+                $subId = (int)DB::fetchValue(
+                    "SELECT id FROM subcategories WHERE concern_id = ? AND category_id = ? AND name = ? LIMIT 1",
+                    [$destConcernId, $catId, $sourceSubcategory['name']]
+                );
+                if (!$subId) {
+                    DB::query(
+                        "INSERT INTO subcategories (concern_id, category_id, name, code, status)
+                         VALUES (?, ?, ?, ?, 'active')",
+                        [$destConcernId, $catId, $sourceSubcategory['name'], $sourceSubcategory['code']]
+                    );
+                    $subId = (int)DB::lastInsertId();
+                }
+            }
+        }
+
+        $brandId = null;
+        if (!empty($var['brand_id'])) {
+            $brandName = DB::fetchValue(
+                "SELECT name FROM brands WHERE id = ? AND concern_id = ?",
+                [(int)$var['brand_id'], $sourceConcernId]
+            );
+            if ($brandName) {
+                $brandId = (int)DB::fetchValue(
+                    "SELECT id FROM brands WHERE concern_id = ? AND name = ? LIMIT 1",
+                    [$destConcernId, $brandName]
+                );
+                if (!$brandId) {
+                    DB::query("INSERT INTO brands (concern_id, name, status) VALUES (?, ?, 'active')", [$destConcernId, $brandName]);
+                    $brandId = (int)DB::lastInsertId();
+                }
+            }
+        }
+
+        $catalogId = null;
+        if (!empty($var['catalog_id'])) {
+            $catalog = DB::fetch(
+                "SELECT name, source_module FROM catalogs WHERE id = ? AND concern_id = ?",
+                [(int)$var['catalog_id'], $sourceConcernId]
+            );
+            if ($catalog) {
+                $catalogId = (int)DB::fetchValue(
+                    "SELECT id FROM catalogs WHERE concern_id = ? AND name = ? AND source_module = ? LIMIT 1",
+                    [$destConcernId, $catalog['name'], $catalog['source_module']]
+                );
+                if (!$catalogId) {
+                    DB::query(
+                        "INSERT INTO catalogs (concern_id, category_id, subcategory_id, name, status, source_module)
+                         VALUES (?, ?, ?, ?, 'in_house', ?)",
+                        [$destConcernId, $catId, $subId, $catalog['name'], $catalog['source_module']]
+                    );
+                    $catalogId = (int)DB::lastInsertId();
+                }
+            }
         }
 
         DB::query("
             INSERT INTO variants (
                 concern_id, catalog_id, sku_code, name, category_id, subcategory_id,
-                brand_id, size, weight, weight_unit, attributes, price, mrp,
+                brand_id, size, weight, weight_unit, attributes, cost_price, price, mrp,
                 creation_date, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'active', NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'active', NOW())
         ", [
             $destConcernId,
-            $var['catalog_id'],
+            $catalogId,
             $var['sku_code'],
             $var['name'],
             $catId,
             $subId,
-            $var['brand_id'],
+            $brandId,
             $var['size'] ?: 'Standard',
             $var['weight'] ?: 0.00,
             $var['weight_unit'] ?: 'pcs',
             $var['attributes'],
+            $var['cost_price'] ?: 0.00,
             $var['price'] ?: 0.00,
             $var['mrp'] ?: 0.00
         ]);
@@ -752,6 +846,12 @@ class InwardController extends Controller {
             return;
         }
 
+        if (!$cid) {
+            $this->flash('error', 'Select an active concern before receiving an outward shipment.');
+            $this->redirect('/m/inward');
+            return;
+        }
+
         $outward = DB::fetch("SELECT * FROM outwards WHERE id = ?", [$outwardId]);
         if (!$outward) {
             $this->flash('error', "Outward consignment #{$outwardId} not found.");
@@ -766,7 +866,7 @@ class InwardController extends Controller {
             return;
         }
 
-        if ($cid && (int)$outward['destination_concern_id'] !== (int)$cid) {
+        if ((int)$outward['destination_concern_id'] !== (int)$cid) {
             $this->flash('error', "Access Denied: Outward consignment #{$outwardId} was dispatched to a different concern and cannot be received by your concern.");
             $this->redirect('/m/inward');
             return;
@@ -782,6 +882,19 @@ class InwardController extends Controller {
 
         DB::beginTransaction();
         try {
+            $outward = DB::fetch("SELECT * FROM outwards WHERE id = ? FOR UPDATE", [$outwardId]);
+            if (
+                !$outward ||
+                empty($outward['destination_concern_id']) ||
+                (int)$outward['destination_concern_id'] !== (int)$cid
+            ) {
+                throw new Exception('This outward shipment is not assigned to the active destination concern.');
+            }
+            if (!in_array(strtolower((string)$outward['status']), ['dispatched', 'partial'], true)) {
+                throw new Exception('Only dispatched or partially received outward shipments can be inwarded.');
+            }
+            $destConcernId = (int)$outward['destination_concern_id'];
+
             $dispatchedItems = DB::fetchAll(
                 "SELECT oi.variant_id, SUM(oi.qty) AS qty, v.sku_code
                  FROM outward_items oi
@@ -913,6 +1026,47 @@ class InwardController extends Controller {
                         "GRN #{$grnNumber} Inward acceptance from Outward #{$outward['outward_no']}"
                     );
                 }
+
+                if ($item['damaged_qty'] > 0) {
+                    DamageService::recordInwardDamage(
+                        $destConcernId,
+                        $item['target_variant_id'],
+                        $inwardId,
+                        $item['damaged_qty'],
+                        $damageReason,
+                        (int)($outward['warehouse_id'] ?? 1)
+                    );
+                }
+
+                $receiptQty = $item['verified_qty'] + $item['damaged_qty'];
+                $transitLocation = "IN_TRANSIT:OUTWARD:{$outwardId}";
+                $transitQty = DB::fetchValue(
+                    "SELECT qty FROM stocks
+                     WHERE concern_id = ? AND variant_id = ? AND location = ?
+                     FOR UPDATE",
+                    [(int)$outward['concern_id'], $item['source_variant_id'], $transitLocation]
+                );
+                $hasTransitLedger = DB::fetchValue(
+                    "SELECT id FROM stock_ledger
+                     WHERE concern_id = ? AND variant_id = ? AND ref_module = 'Outward Transit' AND ref_id = ?
+                     LIMIT 1",
+                    [(int)$outward['concern_id'], $item['source_variant_id'], $outwardId]
+                );
+                if ($hasTransitLedger) {
+                    if ($transitQty === false || $transitQty === null || (float)$transitQty + 0.0001 < $receiptQty) {
+                        throw new Exception("Transit stock for variant #{$item['source_variant_id']} is lower than the received quantity.");
+                    }
+                    StockService::move(
+                        (int)$outward['concern_id'],
+                        $item['source_variant_id'],
+                        $transitLocation,
+                        0.00,
+                        $receiptQty,
+                        'Production Inward Transit',
+                        $inwardId,
+                        "Consumed in-transit quantity for GRN #{$grnNumber}"
+                    );
+                }
             }
 
             // Check if full dispatch is completed
@@ -935,8 +1089,23 @@ class InwardController extends Controller {
 
             if ($totalCredited + $totalDamaged >= $totalDispatched) {
                 DB::query("UPDATE outwards SET status = 'received', received_at = NOW() WHERE id = ?", [$outwardId]);
+                DB::query(
+                    "UPDATE batches b
+                     JOIN production_outward_batches pob ON pob.batch_id = b.id
+                     SET b.status = 'RECEIVED'
+                     WHERE pob.outward_id = ? AND pob.concern_id = ?",
+                    [$outwardId, (int)$outward['concern_id']]
+                );
             } else {
-                DB::query("UPDATE outwards SET status = 'partial' WHERE id = ?", [$outwardId]);
+                $remainingQty = max(0, $totalDispatched - $totalCredited - $totalDamaged);
+                $discrepancyNote = "[GRN {$grnNumber}] Partial receipt: " . number_format($remainingQty, 2, '.', '') . " pieces remain pending.";
+                DB::query(
+                    "UPDATE outwards
+                     SET status = 'partial',
+                         notes = CONCAT(COALESCE(notes, ''), CASE WHEN COALESCE(notes, '') = '' THEN '' ELSE '\n' END, ?)
+                     WHERE id = ?",
+                    [$discrepancyNote, $outwardId]
+                );
             }
 
             DB::commit();
@@ -961,70 +1130,46 @@ class InwardController extends Controller {
             return;
         }
 
-        $inwardType = trim($_POST['inward_type'] ?? 'purchase');
+        $inwardType = strtolower(trim($_POST['inward_type'] ?? 'purchase'));
         $outwardId  = !empty($_POST['outward_id']) ? (int)$_POST['outward_id'] : null;
+
+        if ($inwardType === 'transfer') {
+            if (!$outwardId) {
+                $this->flash('error', 'Select a valid outward shipment before receiving a transfer.');
+                $this->redirect('/m/inward');
+                return;
+            }
+            $this->flash('info', 'Use the inward verification scanner to receive inter-concern shipments.');
+            $this->redirect("/m/inward/scan/{$outwardId}");
+            return;
+        }
+        if ($inwardType !== 'purchase' || $outwardId) {
+            $this->flash('error', 'This form only accepts direct purchase inwards. Use the verification scanner for outward transfers.');
+            $this->redirect('/m/inward');
+            return;
+        }
 
         $inwardDate = $_POST['inward_date'] ?: date('Y-m-d');
         $location   = trim($_POST['location'] ?? 'Main Store');
         $remarks    = trim($_POST['remarks'] ?? '');
+        $submittedItem = is_array($_POST['items'][0] ?? null) ? $_POST['items'][0] : [];
+        $submittedAcceptedQty = $_POST['accepted_qty'] ?? $submittedItem['accepted_qty'] ?? null;
+        $submittedRejectedQty = $_POST['rejected_qty'] ?? $submittedItem['rejected_qty'] ?? null;
 
         DB::beginTransaction();
         try {
             $fromConcernId = null;
-            $supplierId = null;
+            $supplierId = !empty($_POST['supplier_id']) ? (int)$_POST['supplier_id'] : null;
+            $variantId  = (int)($_POST['variant_id'] ?? $submittedItem['variant_id'] ?? 0);
+            $enteredQty = $_POST['qty'] ?? null;
+            if ($enteredQty === null && $submittedAcceptedQty !== null) {
+                $enteredQty = (float)$submittedAcceptedQty + (float)($submittedRejectedQty ?? 0);
+            }
+            $qty        = (float)($enteredQty ?? 0);
+            $unitCost   = (float)($_POST['unit_cost'] ?? 0);
 
-            if ($inwardType === 'transfer' && $outwardId) {
-                // Inter-concern transfer receiving
-                $outward = DB::fetch(
-                    "SELECT o.*, oi.variant_id AS source_variant_id, oi.qty AS transfer_qty,
-                            con.name AS from_concern_name, con.code AS from_concern_code
-                     FROM outwards o
-                     JOIN outward_items oi ON o.id = oi.outward_id
-                     JOIN concerns con ON o.concern_id = con.id
-                     WHERE o.id = ?",
-                    [$outwardId]
-                );
-
-                if (!$outward) {
-                    throw new Exception("Outward transfer consignment #{$outwardId} not found.");
-                }
-
-                // STRICT TENANT ISOLATION: Must match destination concern selected during outward!
-                if (empty($outward['destination_concern_id'])) {
-                    throw new Exception("Outward consignment #{$outwardId} has no destination concern specified.");
-                }
-
-                if ((int)$outward['destination_concern_id'] !== (int)$cid) {
-                    throw new Exception("Security Violation: This outward was dispatched to concern #{$outward['destination_concern_id']} and cannot be inwarded into this concern.");
-                }
-
-                if ($outward['status'] === 'received') {
-                    throw new Exception("This outward consignment has already been inwarded.");
-                }
-
-                $fromConcernId = (int)$outward['concern_id'];
-                $qty = (float)($_POST['qty'] ?? $outward['transfer_qty']);
-                if ($qty <= 0) {
-                    $qty = (float)$outward['transfer_qty'];
-                }
-                $unitCost = (float)($_POST['unit_cost'] ?? 0);
-
-                // Resolve/maintain product variant in the receiving concern ($cid)
-                $variantId = $this->resolveVariantForConcern($cid, (int)$outward['source_variant_id']);
-
-                $transferRemarks = "Received transfer from {$outward['from_concern_name']} (Gate Pass #{$outward['outward_no']})";
-                $remarks = $remarks ? "{$transferRemarks} - {$remarks}" : $transferRemarks;
-
-            } else {
-                // Standard Purchase / Supplier Inward
-                $supplierId = !empty($_POST['supplier_id']) ? (int)$_POST['supplier_id'] : null;
-                $variantId  = (int)($_POST['variant_id'] ?? 0);
-                $qty        = (float)($_POST['qty'] ?? 0);
-                $unitCost   = (float)($_POST['unit_cost'] ?? 0);
-
-                if (!$variantId || $qty <= 0) {
-                    throw new Exception("Please select a valid variant and specify a quantity greater than zero.");
-                }
+            if (!$variantId || $qty <= 0) {
+                throw new Exception("Please select a valid variant and specify a quantity greater than zero.");
             }
 
             $inwardNo = NumberSeries::getNext($cid, 'INWARD');
@@ -1034,11 +1179,15 @@ class InwardController extends Controller {
             $vehicleNumber = !empty($_POST['vehicle_number']) ? trim($_POST['vehicle_number']) : null;
             $poId = !empty($_POST['po_id']) ? (int)$_POST['po_id'] : null;
 
-            $acceptedQty = isset($_POST['accepted_qty']) ? (float)$_POST['accepted_qty'] : $qty;
-            if ($acceptedQty > $qty) {
-                $acceptedQty = $qty;
+            $acceptedQty = $submittedAcceptedQty !== null ? (float)$submittedAcceptedQty : $qty;
+            $rejectedQty = $submittedRejectedQty !== null ? (float)$submittedRejectedQty : max(0.00, $qty - $acceptedQty);
+            if (
+                $acceptedQty < 0 ||
+                $rejectedQty < 0 ||
+                abs(($acceptedQty + $rejectedQty) - $qty) > 0.0001
+            ) {
+                throw new Exception('Accepted and rejected quantities must be non-negative and add up to the total received quantity.');
             }
-            $rejectedQty = isset($_POST['rejected_qty']) ? (float)$_POST['rejected_qty'] : max(0.00, $qty - $acceptedQty);
             $rejectionReason = !empty($_POST['rejection_reason']) ? trim($_POST['rejection_reason']) : null;
 
             DB::query(
@@ -1065,6 +1214,16 @@ class InwardController extends Controller {
                     $inwardId,
                     "GRN Inward receipt #{$grnNumber} (Inward {$inwardNo})" . ($remarks ? ": {$remarks}" : ""),
                     Auth::id()
+                );
+            }
+            if ($rejectedQty > 0) {
+                DamageService::recordInwardDamage(
+                    $cid,
+                    $variantId,
+                    $inwardId,
+                    $rejectedQty,
+                    $rejectionReason ?: 'Damaged during inward inspection',
+                    $warehouseId ?: 1
                 );
             }
 

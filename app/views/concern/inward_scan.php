@@ -343,10 +343,10 @@
                         </div>
                         <div class="d-flex gap-2 mb-3">
                             <button type="button" class="btn btn-success fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2" id="btnModeGood" onclick="setScanMode('good')">
-                                <i class="bi bi-check-circle-fill"></i> Good / Intact Mode
+                                <i class="bi bi-check-circle-fill"></i> Good / Intact Mode (Alt+G)
                             </button>
                             <button type="button" class="btn btn-outline-danger fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2" id="btnModeDamaged" onclick="setScanMode('damaged')">
-                                <i class="bi bi-slash-circle"></i> Damaged / Inactivate Mode
+                                <i class="bi bi-slash-circle"></i> Damaged / Inactivate Mode (Alt+D)
                             </button>
                         </div>
 
@@ -465,6 +465,18 @@ function renderQrToCanvas(targetId, text, width, height) {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function () {
     renderQrToCanvas('batchQrCanvas', '<?= htmlspecialchars($outward['batch_no']) ?>');
+    document.addEventListener('keydown', function (event) {
+        if (!event.altKey || event.ctrlKey || event.metaKey) return;
+        const key = event.key.toLowerCase();
+        if (key === 'g') {
+            event.preventDefault();
+            setScanMode('good');
+        } else if (key === 'd') {
+            event.preventDefault();
+            setScanMode('damaged');
+        }
+    });
+
     // Enter key handling for inputQrScanner
     const scannerInput = document.getElementById('inputQrScanner');
     if (scannerInput) {
@@ -502,18 +514,23 @@ function processManualScan() {
     }
 
     const verifiedInput = matchedRow.querySelector('.input-verified');
-    const cur = parseInt(verifiedInput.value, 10) || 0;
+    const damagedInput = matchedRow.querySelector('.input-damaged');
+    const targetInput = scanMode === 'good' ? verifiedInput : damagedInput;
+    const cur = parseInt(targetInput.value, 10) || 0;
+    const verified = parseInt(verifiedInput.value, 10) || 0;
+    const damaged = parseInt(damagedInput.value, 10) || 0;
     const max = parseInt(verifiedInput.getAttribute('max'), 10) || 0;
-    if (cur >= max) {
-        feedback.innerHTML = `<span class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i> All dispatched pieces for ${escapeHtml(matchedRow.dataset.productName)} have already been verified.</span>`;
+    if (verified + damaged >= max) {
+        feedback.innerHTML = `<span class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i> All dispatched pieces for ${escapeHtml(matchedRow.dataset.productName)} have already been accounted for.</span>`;
         playSound('error');
         input.value = '';
         return;
     }
 
-    verifiedInput.value = cur + 1;
+    targetInput.value = cur + 1;
     recalculateTotals();
-    feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned ${escapeHtml(matchedRow.dataset.productName)} (${escapeHtml(matchedRow.dataset.skuCode)}). +1 verified.</span>`;
+    const scanResult = scanMode === 'good' ? '+1 good' : '+1 damaged';
+    feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned ${escapeHtml(matchedRow.dataset.productName)} (${escapeHtml(matchedRow.dataset.skuCode)}). ${scanResult}.</span>`;
     playSound('success');
     input.value = '';
     input.focus();

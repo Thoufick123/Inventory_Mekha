@@ -10,6 +10,32 @@ use App\Core\DB;
 use Exception;
 
 class StockService {
+    private static bool $ledgerValuationSchemaEnsured = false;
+
+    public static function ensureLedgerValuationSchema(): void {
+        if (self::$ledgerValuationSchemaEnsured) {
+            return;
+        }
+
+        $columns = array_column(DB::fetchAll("SHOW COLUMNS FROM `stock_ledger`"), 'Field');
+        foreach ([
+            'unit_cost' => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `qty_out`",
+            'mrp' => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `unit_cost`",
+            'selling_price' => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `mrp`",
+        ] as $column => $definition) {
+            if (in_array($column, $columns, true)) {
+                continue;
+            }
+            if (DB::pdo()->inTransaction()) {
+                throw new Exception("The stock ledger is missing '{$column}'. Run the database migration before moving stock.");
+            }
+            DB::query("ALTER TABLE `stock_ledger` ADD COLUMN `{$column}` {$definition}");
+            $columns[] = $column;
+        }
+
+        self::$ledgerValuationSchemaEnsured = true;
+    }
+
     /**
      * Consolidate legacy 'Main Store (WH-01)' rows to unified 'Main Store'
      */
@@ -109,6 +135,7 @@ class StockService {
 
         $userId = $userId ?? Auth::id();
         $location = trim($location) ?: 'Main Store';
+        self::ensureLedgerValuationSchema();
 
         $hasActiveTx = DB::pdo()->inTransaction();
         if (!$hasActiveTx) {
@@ -118,7 +145,7 @@ class StockService {
         try {
             // 1. Verify variant belongs to concern
             $var = DB::fetch(
-                "SELECT id, name, sku_code FROM variants WHERE id = ? AND concern_id = ?",
+                "SELECT id, name, sku_code, cost_price, price, mrp FROM variants WHERE id = ? AND concern_id = ?",
                 [$variantId, $concernId]
             );
             if (!$var) {
@@ -153,9 +180,23 @@ class StockService {
 
             // 4. Append to immutable stock ledger
             DB::query(
-                "INSERT INTO stock_ledger (concern_id, variant_id, location, qty_in, qty_out, ref_module, ref_id, note, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                [$concernId, $variantId, $location, $qtyIn, $qtyOut, $refModule, $refId, $note, $userId]
+                "INSERT INTO stock_ledger
+                    (concern_id, variant_id, location, qty_in, qty_out, unit_cost, mrp, selling_price, ref_module, ref_id, note, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                [
+                    $concernId,
+                    $variantId,
+                    $location,
+                    $qtyIn,
+                    $qtyOut,
+                    (float)$var['cost_price'],
+                    (float)$var['mrp'],
+                    (float)$var['price'],
+                    $refModule,
+                    $refId,
+                    $note,
+                    $userId,
+                ]
             );
 
             // Audit

@@ -75,7 +75,7 @@ class ProductionCatalogProgramCreateStyleTest
 
         // Test 3: editStyle() executes without error 3065
         try {
-            $catalog = DB::fetch("SELECT id FROM catalogs ORDER BY id ASC LIMIT 1");
+            $catalog = DB::fetch("SELECT id FROM catalogs WHERE source_module = 'production_catalog' ORDER BY id ASC LIMIT 1");
             if ($catalog) {
                 $_GET['id'] = (string)$catalog['id'];
                 $_SESSION['concern_id'] = null;

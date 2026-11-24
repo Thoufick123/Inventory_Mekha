@@ -72,6 +72,7 @@ $router->post('/m/product_adding/update_purchase_bill', [PurchaseController::cla
 $router->post('/m/product_adding/check_invoice', [PurchaseController::class, 'checkSupplierInvoiceNumberAjax'], 'product_adding', 'view');
 $router->post('/m/product_adding/generate_labels', [LabelController::class, 'generateProductAddingLabels'], 'product_adding', 'add');
 $router->post('/m/product_adding/add_to_stock', [LabelController::class, 'addProductAddingToStock'], 'product_adding', 'add');
+$router->post('/m/product_adding/correct_stock_quantity', [LabelController::class, 'correctProductAddingStockQuantity'], 'product_adding', 'add');
 $router->post('/m/product_adding/add_purchase_bill_to_stock', [LabelController::class, 'addPurchaseBillingToStock'], 'product_adding', 'add');
 $router->post('/m/product_adding/save_hsn', [PurchaseController::class, 'saveHsnAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/save_roll_spec', [PurchaseController::class, 'saveRollSpecAjax'], 'product_adding', 'add');
@@ -372,7 +373,7 @@ $router->get('/production/stitching/view', [ProductionController::class, 'viewSt
 $router->post('/production/stitching/delete', [ProductionController::class, 'deleteStitchingBatch'], 'stitching_wastage', 'delete');
 
 // Stitching API Endpoints
-$router->get('/api/stitching/cutting-details', [ProductionController::class, 'apiCuttingDetailsForStitching'], 'stitching_wastage', 'view');
+$router->get('/api/stitching/cutting-details', [ProductionController::class, 'apiCuttingDetailsForStitching'], 'stitching_wastage', 'add');
 $router->post('/api/stitching/quick-tailor', [ProductionController::class, 'apiQuickAddTailor'], 'stitching_wastage', 'add');
 
 // Stitching Wastage Selling (Image 2)

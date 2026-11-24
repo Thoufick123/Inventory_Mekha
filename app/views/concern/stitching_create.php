@@ -353,8 +353,21 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        fetch('<?= \App\Core\Controller::url('/api/stitching/cutting-details') ?>?id=' + cuttingId)
-            .then(res => res.json())
+        fetch('<?= \App\Core\Controller::url('/api/stitching/cutting-details') ?>?id=' + cuttingId, {
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(async res => {
+                let data;
+                try {
+                    data = await res.json();
+                } catch (error) {
+                    throw new Error('The server returned an invalid response while loading cutting details.');
+                }
+                if (!res.ok) {
+                    throw new Error(data.message || `Unable to load cutting details (HTTP ${res.status}).`);
+                }
+                return data;
+            })
             .then(data => {
                 if (!data.success) {
                     alert(data.message || 'Failed to load cutting batch details.');
@@ -399,7 +412,7 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(err => {
                 console.error(err);
-                alert('Network or server error while loading cutting details.');
+                alert(err.message || 'Unable to load cutting details. Please try again.');
             });
     });
 

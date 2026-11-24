@@ -11,6 +11,72 @@ use Exception;
 
 class DamageService {
     /**
+     * Record items received damaged and add them directly to quarantine stock.
+     */
+    public static function recordInwardDamage(
+        int $concernId,
+        int $variantId,
+        int $inwardId,
+        float $qty,
+        string $reason,
+        int $warehouseId = 1,
+        ?int $userId = null
+    ): array {
+        if ($qty <= 0) {
+            throw new Exception("Damage quantity must be greater than zero.");
+        }
+
+        $userId = $userId ?? Auth::id();
+        $hasActiveTx = DB::pdo()->inTransaction();
+        if (!$hasActiveTx) {
+            DB::beginTransaction();
+        }
+
+        try {
+            $damageNo = DocumentNumberService::generate('DAMAGE_WH', $concernId);
+            DB::query(
+                "INSERT INTO warehouse_damages
+                    (concern_id, damage_no, warehouse_id, variant_id, qty, inward_id, location, damage_type, severity, status, resolution_reason, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, 'Main Store', 'TRANSIT_DAMAGE', 'MODERATE', 'LOGGED', ?, ?, NOW())",
+                [$concernId, $damageNo, max(1, $warehouseId), $variantId, $qty, $inwardId, $reason, $userId]
+            );
+            $damageId = (int)DB::lastInsertId();
+
+            StockService::move(
+                $concernId,
+                $variantId,
+                'Main Store:DAMAGED',
+                $qty,
+                0.00,
+                'Production Inward Damage',
+                $inwardId,
+                "Quarantined {$qty} damaged piece(s) [{$damageNo}]: {$reason}",
+                $userId
+            );
+
+            AuditService::log('DAMAGE_LOG', 'warehouse_damages', $damageId, null, [
+                'damage_no' => $damageNo,
+                'variant_id' => $variantId,
+                'qty' => $qty,
+                'inward_id' => $inwardId,
+                'location' => 'Main Store:DAMAGED',
+                'reason' => $reason,
+            ]);
+
+            if (!$hasActiveTx) {
+                DB::commit();
+            }
+
+            return ['id' => $damageId, 'damage_no' => $damageNo];
+        } catch (\Throwable $e) {
+            if (!$hasActiveTx) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
      * Log a new damage incident and move stock from AVAILABLE to DAMAGED.
      *
      * @param int $concernId

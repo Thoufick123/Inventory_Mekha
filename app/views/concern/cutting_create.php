@@ -78,7 +78,7 @@
                                     <option value="<?= $prog['id'] ?>" 
                                             data-planned="<?= $prog['planned_qty'] ?>"
                                             data-rolls="<?= $prog['rolls_count'] ?>">
-                                        <?= htmlspecialchars($prog['program_no']) ?> • <?= htmlspecialchars($prog['program_name']) ?> (<?= $prog['rolls_count'] ?> Uncut Roll<?= $prog['rolls_count'] > 1 ? 's' : '' ?>)
+                                        <?= htmlspecialchars($prog['program_no']) ?> • <?= htmlspecialchars($prog['program_name']) ?><?php if (empty($selectedCid) && !empty($prog['concern_name'])): ?> • <?= htmlspecialchars($prog['concern_name']) ?><?php endif; ?> (<?= $prog['rolls_count'] ?> Uncut Roll<?= $prog['rolls_count'] > 1 ? 's' : '' ?>)
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -384,8 +384,21 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        fetch(`<?= \App\Core\Controller::url('/api/cutting/program-details?id=') ?>${progId}`)
-            .then(res => res.json())
+        fetch(`<?= \App\Core\Controller::url('/api/cutting/program-details?id=') ?>${progId}`, {
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(async res => {
+                let data;
+                try {
+                    data = await res.json();
+                } catch (error) {
+                    throw new Error('The server returned an invalid response while loading program details.');
+                }
+                if (!res.ok) {
+                    throw new Error(data.message || `Unable to load program details (HTTP ${res.status}).`);
+                }
+                return data;
+            })
             .then(data => {
                 if (!data.success) {
                     alert(data.message || 'Failed to load program details.');
@@ -414,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(err => {
                 console.error(err);
-                alert('Network error while loading program details.');
+                alert(err.message || 'Unable to load program details. Please try again.');
             });
     });
 

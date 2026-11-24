@@ -35,6 +35,7 @@ class GranularStaffCrudPermissionsTest {
         try {
             $this->setupFixtures();
 
+            $this->testConcernDashboardPermissionNormalization();
             $this->testViewOnlyPermissions();
             $this->testCreateOnlyPermissions();
             $this->testEditOnlyPermissions();
@@ -140,6 +141,28 @@ class GranularStaffCrudPermissionsTest {
         ];
         $_SESSION['enabled_modules'] = array_keys($this->moduleIds);
         Auth::loadPermissions($this->userId, $this->roleId);
+    }
+
+    private function testConcernDashboardPermissionNormalization(): void {
+        $this->applyPermissions('stocks', 1, 0, 0, 0);
+        $_SESSION['enabled_modules'][] = 'concern_dashboard';
+        $warnings = [];
+        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+            return true;
+        }, E_WARNING | E_NOTICE);
+
+        try {
+            $viewAllowed = Auth::can('concern_dashboard', 'view');
+            $exportAllowed = Auth::can('concern_dashboard', 'export');
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assert(
+            $viewAllowed && !$exportAllowed && !$warnings,
+            'Concern dashboard permissions normalize the action without PHP warnings'
+        );
     }
 
     // Helper to capture view template rendering into a string

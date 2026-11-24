@@ -2112,6 +2112,7 @@ class LabelController extends Controller {
         $this->validateCsrf();
         PurchaseBillSourceService::ensureSchema();
         PurchaseStockItemOverrideService::initTable();
+        StockService::ensureLedgerValuationSchema();
 
         $isProductAddingRequest = ($_POST['product_adding'] ?? '') === '1';
         $isPurchaseBillingRequest = ($_POST['purchase_billing_request'] ?? '') === '1';
@@ -2212,7 +2213,8 @@ class LabelController extends Controller {
                     if ($selectedItem['section_type'] === 'finished_goods' && empty($selectedItem['variant_id'])) {
                         throw new Exception("Finished good '{$selectedItem['item_name']}' must be mapped to a catalog variant before adding it to stock.");
                     }
-                    $stockQuantities[(int)$selectedItem['id']] = $this->getProductAddingLabelCount((int)$selectedItem['id']);
+                    $this->assertProductAddingLabelsGenerated((int)$selectedItem['id']);
+                    $stockQuantities[(int)$selectedItem['id']] = (float)$selectedItem['qty'];
                     $hasRolls = $hasRolls || $selectedItem['section_type'] === 'rolls';
                     $hasOtherItems = $hasOtherItems || $selectedItem['section_type'] === 'garment_other';
                     $hasFinishedGoods = $hasFinishedGoods || $selectedItem['section_type'] === 'finished_goods';
@@ -2304,7 +2306,8 @@ class LabelController extends Controller {
 
                 $productAddingStockQuantity = null;
                 if (($item['source_module'] ?? '') === 'product_adding') {
-                    $productAddingStockQuantity = $this->getProductAddingLabelCount($itemId);
+                    $this->assertProductAddingLabelsGenerated($itemId);
+                    $productAddingStockQuantity = (float)$item['qty'];
                 }
                 $concernId = (int)$item['concern_id'];
                 $billId = (int)$item['purchase_bill_id'];
@@ -2400,7 +2403,8 @@ class LabelController extends Controller {
                         throw new Exception('There are no pending Product Adding lines to add to stock.');
                     }
                     foreach ($pendingItems as $pendingItem) {
-                        $stockQuantity = $this->getProductAddingLabelCount((int)$pendingItem['id']);
+                        $this->assertProductAddingLabelsGenerated((int)$pendingItem['id']);
+                        $stockQuantity = (float)$pendingItem['qty'];
                         PurchaseStockItemOverrideService::saveInwardQuantity($pendingItem, $stockQuantity, Auth::id());
                     }
                 }
@@ -2570,6 +2574,137 @@ class LabelController extends Controller {
         $this->addToStock();
     }
 
+    public function correctProductAddingStockQuantity(): void
+    {
+        $this->validateCsrf();
+        PurchaseBillSourceService::ensureSchema();
+        PurchaseStockItemOverrideService::initTable();
+        StockService::ensureLedgerValuationSchema();
+
+        $billId = (int)($_POST['bill_id'] ?? 0);
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        $concernId = Auth::concernId();
+        $redirectUrl = $billId > 0 ? '/m/product_adding?bill_id=' . $billId : '/m/product_adding';
+
+        try {
+            if ($billId <= 0 || $itemId <= 0) {
+                throw new Exception('A valid Product Adding bill line is required for stock correction.');
+            }
+
+            DB::beginTransaction();
+            $itemSql = "SELECT pbi.*, pb.bill_no, pb.source_module
+                        FROM purchase_bill_items pbi
+                        JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+                        WHERE pb.id = ? AND pbi.id = ? AND pb.source_module = 'product_adding'";
+            $itemParams = [$billId, $itemId];
+            if ($concernId) {
+                $itemSql .= ' AND pbi.concern_id = ?';
+                $itemParams[] = $concernId;
+            }
+            $itemSql .= ' FOR UPDATE';
+            $item = DB::fetch($itemSql, $itemParams);
+            if (!$item) {
+                throw new Exception('Product Adding line not found or access denied.');
+            }
+            if (($item['inward_status'] ?? 'pending') !== 'completed') {
+                throw new Exception('Only an already-stocked Product Adding line can be corrected.');
+            }
+
+            $purchaseQty = round((float)$item['qty'], 2);
+            if ($purchaseQty <= 0) {
+                throw new Exception('The bill quantity must be greater than zero.');
+            }
+            $sectionType = (string)$item['section_type'];
+            if (!in_array($sectionType, ['finished_goods', 'rolls', 'garment_other'], true)) {
+                throw new Exception('This Product Adding line type cannot be corrected from this screen.');
+            }
+
+            $overrideBefore = DB::fetch(
+                'SELECT * FROM purchase_stock_item_overrides WHERE concern_id = ? AND purchase_bill_item_id = ? FOR UPDATE',
+                [(int)$item['concern_id'], $itemId]
+            );
+            $overrideQty = round((float)($overrideBefore['qty'] ?? $purchaseQty), 2);
+            $previousStockedQty = $overrideQty;
+
+            if ($sectionType === 'finished_goods') {
+                $variantId = (int)($item['variant_id'] ?? 0);
+                if ($variantId <= 0) {
+                    throw new Exception('Map this finished good to a catalog variant before correcting stock.');
+                }
+
+                $ledgerQty = round((float)DB::fetchValue(
+                    "SELECT COALESCE(SUM(qty_in - qty_out), 0)
+                     FROM stock_ledger
+                     WHERE concern_id = ? AND variant_id = ? AND ref_id = ?
+                       AND ref_module IN ('Purchase Inward Item', 'Product Adding Stock Correction')",
+                    [(int)$item['concern_id'], $variantId, $itemId]
+                ), 2);
+                if ($ledgerQty > $purchaseQty) {
+                    throw new Exception('The inward ledger already exceeds the bill quantity; no automatic reduction was made.');
+                }
+
+                $previousStockedQty = min($overrideQty, $ledgerQty);
+                $missingQty = round($purchaseQty - $ledgerQty, 2);
+                if ($missingQty > 0) {
+                    StockService::move(
+                        (int)$item['concern_id'],
+                        $variantId,
+                        'Main Store',
+                        $missingQty,
+                        0.00,
+                        'Product Adding Stock Correction',
+                        $itemId,
+                        "Corrected Product Adding item '{$item['item_name']}' to bill quantity {$purchaseQty} from Bill #{$item['bill_no']}",
+                        Auth::id()
+                    );
+                }
+            } elseif ($overrideQty >= $purchaseQty) {
+                throw new Exception('This line already has its full bill quantity in stock.');
+            }
+
+            PurchaseStockItemOverrideService::saveInwardQuantity($item, $purchaseQty, Auth::id());
+            $overrideAfter = DB::fetch(
+                'SELECT * FROM purchase_stock_item_overrides WHERE concern_id = ? AND purchase_bill_item_id = ?',
+                [(int)$item['concern_id'], $itemId]
+            );
+            if (!$overrideAfter) {
+                throw new Exception('The corrected stock quantity could not be saved.');
+            }
+
+            AuditLog::logOrThrow(
+                'CORRECT_STOCK_QUANTITY',
+                'purchase_stock_item_overrides',
+                (int)$overrideAfter['id'],
+                $overrideBefore,
+                $overrideAfter
+            );
+            AuditLog::logOrThrow(
+                'CORRECT_STOCK_QUANTITY',
+                'purchase_bill_items',
+                $itemId,
+                ['stocked_qty' => $previousStockedQty, 'purchase_qty' => $purchaseQty],
+                ['stocked_qty' => $purchaseQty, 'purchase_qty' => $purchaseQty, 'bill_no' => $item['bill_no']]
+            );
+
+            if ($sectionType === 'rolls') {
+                RollRegistryService::syncSpecs((int)$item['concern_id']);
+            }
+
+            DB::commit();
+            $this->flash(
+                'success',
+                "Stock quantity corrected from {$previousStockedQty} to {$purchaseQty}. The correction was recorded in the audit log."
+            );
+        } catch (Exception $e) {
+            if (DB::pdo()->inTransaction()) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Could not correct Product Adding stock quantity: ' . $e->getMessage());
+        }
+
+        $this->redirect($redirectUrl);
+    }
+
     private function assertPurchaseBillingBillIsUnstocked(int $billId, string $billNo): void
     {
         $itemCount = (int)DB::fetchValue(
@@ -2593,10 +2728,11 @@ class LabelController extends Controller {
         }
     }
 
-    private function getProductAddingLabelCount(int $itemId): int
+    private function assertProductAddingLabelsGenerated(int $itemId): void
     {
         $item = DB::fetch(
-            "SELECT pbi.*, COALESCE(pso.label_job_baseline_id, 0) AS label_job_baseline_id
+            "SELECT pbi.id, pbi.concern_id, pbi.section_type,
+                    COALESCE(pso.label_job_baseline_id, 0) AS label_job_baseline_id
              FROM purchase_bill_items pbi
              LEFT JOIN purchase_stock_item_overrides pso
                ON pso.purchase_bill_item_id = pbi.id AND pso.concern_id = pbi.concern_id
@@ -2606,13 +2742,13 @@ class LabelController extends Controller {
         if (!$item) {
             throw new Exception("Product Adding line #{$itemId} was not found.");
         }
-        $item = PurchaseStockItemOverrideService::applyToItems([$item], false)[0];
         $labelType = $item['section_type'] === 'finished_goods' ? 'purchase_fg' : 'purchase_raw';
         $generatedQty = (int)DB::fetchValue(
             "SELECT COALESCE((
                  SELECT lj.qty
                  FROM label_jobs lj
-                 WHERE lj.concern_id = ? AND lj.ref_id = ? AND lj.label_type = ?
+                 WHERE lj.concern_id = ? AND lj.source_module = 'product_adding'
+                   AND lj.ref_id = ? AND lj.label_type = ?
                    AND lj.id > ?
                  ORDER BY lj.id DESC
                  LIMIT 1
@@ -2625,9 +2761,8 @@ class LabelController extends Controller {
             ]
         );
         if ($generatedQty < 1) {
-            throw new Exception("Print at least one label for '{$item['item_name']}' before adding it to stock.");
+            throw new Exception('Print at least one label for this Product Adding line before adding it to stock.');
         }
-        return $generatedQty;
     }
 
     private function inwardPurchaseFinishedGood(int $concernId, array $item, string $billNo): void

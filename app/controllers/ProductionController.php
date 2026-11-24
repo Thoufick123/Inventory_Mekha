@@ -77,6 +77,19 @@ class ProductionController extends Controller {
             if (!in_array('status', $catlgCols)) {
                 DB::query("ALTER TABLE `catalogs` ADD COLUMN status ENUM('active', 'inactive', 'in_house') NOT NULL DEFAULT 'in_house' AFTER sizes");
             }
+            if (!in_array('source_module', $catlgCols)) {
+                DB::query("ALTER TABLE `catalogs` ADD COLUMN source_module VARCHAR(50) NOT NULL DEFAULT 'production_catalog' AFTER status");
+            }
+            DB::query("UPDATE `catalogs` SET source_module = 'product_adding' WHERE source_module = 'production_catalog' AND status = 'active'");
+            $purchaseItemCols = array_column(DB::fetchAll('DESCRIBE `purchase_bill_items`'), 'Field');
+            if (in_array('catalog_id', $purchaseItemCols, true) && in_array('section_type', $purchaseItemCols, true)) {
+                DB::query("
+                    UPDATE `catalogs` c
+                    JOIN `purchase_bill_items` pbi ON pbi.catalog_id = c.id AND pbi.section_type = 'finished_goods'
+                    SET c.source_module = 'product_adding'
+                    WHERE c.source_module = 'production_catalog'
+                ");
+            }
 
             // 3. Ensure categories columns
             $catCols = array_column(DB::fetchAll('DESCRIBE `categories`'), 'Field');
@@ -197,7 +210,7 @@ class ProductionController extends Controller {
                 LEFT JOIN subcategories sub ON c.subcategory_id = sub.id
                 LEFT JOIN sub_subcategories subsub ON c.sub_sub_category_id = subsub.id
                 LEFT JOIN concerns con ON c.concern_id = con.id
-                WHERE 1=1";
+                WHERE c.source_module = 'production_catalog'";
         
         $params = [];
         if ($cid) {
@@ -229,12 +242,12 @@ class ProductionController extends Controller {
             $categories = DB::fetchAll("SELECT * FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]);
             $subcategories = DB::fetchAll("SELECT * FROM subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]);
             $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'", [$cid]);
-            $catalogs = DB::fetchAll("SELECT id, name, style_code FROM catalogs WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY id DESC", [$cid]);
+            $catalogs = DB::fetchAll("SELECT id, name, style_code FROM catalogs WHERE source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY id DESC", [$cid]);
         } else {
             $categories = DB::fetchAll("SELECT * FROM categories WHERE status = 'active' ORDER BY name ASC");
             $subcategories = DB::fetchAll("SELECT * FROM subcategories WHERE status = 'active' ORDER BY name ASC");
             $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE status = 'active'");
-            $catalogs = DB::fetchAll("SELECT id, name, style_code FROM catalogs ORDER BY id DESC");
+            $catalogs = DB::fetchAll("SELECT id, name, style_code FROM catalogs WHERE source_module = 'production_catalog' ORDER BY id DESC");
         }
 
         // Fetch Production Programs register for the tab
@@ -243,16 +256,20 @@ class ProductionController extends Controller {
                            (SELECT COUNT(*) FROM program_rolls pr WHERE pr.program_id = pp.id) AS rolls_count,
                            (SELECT GROUP_CONCAT(DISTINCT COALESCE(rc.name, pc.name) SEPARATOR ', ')
                             FROM program_rolls pr
-                            LEFT JOIN catalogs rc ON pr.catalog_id = rc.id
-                            LEFT JOIN catalogs pc ON pc.id = pp.catalog_id
+                            LEFT JOIN catalogs rc ON pr.catalog_id = rc.id AND rc.source_module = 'production_catalog'
+                                AND (rc.concern_id = pr.concern_id OR rc.concern_id = 1 OR rc.concern_id IS NULL)
+                            LEFT JOIN catalogs pc ON pc.id = pp.catalog_id AND pc.source_module = 'production_catalog'
+                                AND (pc.concern_id = pp.concern_id OR pc.concern_id = 1 OR pc.concern_id IS NULL)
                             WHERE pr.program_id = pp.id) AS roll_catalog_names
                     FROM production_programs pp
-                    LEFT JOIN catalogs c ON pp.catalog_id = c.id
+                    LEFT JOIN catalogs c ON pp.catalog_id = c.id AND c.source_module = 'production_catalog'
+                        AND (c.concern_id = pp.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                     LEFT JOIN variants v ON pp.target_variant_id = v.id
-                    LEFT JOIN concerns con ON pp.concern_id = con.id";
+                    LEFT JOIN concerns con ON pp.concern_id = con.id
+                    WHERE (pp.catalog_id IS NULL OR c.id IS NOT NULL)";
         $progParams = [];
         if ($cid) {
-            $progSql .= " WHERE pp.concern_id = ?";
+            $progSql .= " AND pp.concern_id = ?";
             $progParams[] = $cid;
         }
         $progSql .= " ORDER BY pp.id DESC";
@@ -273,7 +290,8 @@ class ProductionController extends Controller {
                 LEFT JOIN categories cat ON pr.category_id = cat.id
                 LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
                 LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-                LEFT JOIN catalogs c ON pr.catalog_id = c.id
+                LEFT JOIN catalogs c ON pr.catalog_id = c.id AND c.source_module = 'production_catalog'
+                    AND (c.concern_id = pr.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                 WHERE pr.program_id IN ($inClause)
                 ORDER BY pr.id ASC
             ");
@@ -350,7 +368,7 @@ class ProductionController extends Controller {
             $this->redirect('/production/catalog');
         }
 
-        $sql = "SELECT * FROM catalogs WHERE id = ?";
+        $sql = "SELECT * FROM catalogs WHERE id = ? AND source_module = 'production_catalog'";
         $params = [$id];
         if ($cid) {
             $sql .= " AND concern_id = ?";
@@ -560,11 +578,11 @@ class ProductionController extends Controller {
             // Insert into catalogs
             DB::query(
                 "INSERT INTO catalogs (
-                    concern_id, code, style_code, short_code, 
+                    concern_id, code, style_code, short_code, source_module,
                     category_id, subcategory_id, sub_sub_category_id,
                     main_category_code, sub_category_code, sub_sub_category_code,
                     hierarchy_path, hsn_code, gst_rate, sizes, status, name, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_house', ?, NOW())",
+                ) VALUES (?, ?, ?, ?, 'production_catalog', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_house', ?, NOW())",
                 [
                     $cid,
                     $styleCode,
@@ -654,7 +672,7 @@ class ProductionController extends Controller {
             $this->redirect('/production/catalog');
         }
 
-        $style = DB::fetch("SELECT * FROM catalogs WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""), $cid ? [$id, $cid] : [$id]);
+        $style = DB::fetch("SELECT * FROM catalogs WHERE id = ? AND source_module = 'production_catalog'" . ($cid ? " AND concern_id = ?" : ""), $cid ? [$id, $cid] : [$id]);
         if (!$style) {
             $this->flash('error', 'Style not found or access denied.');
             $this->redirect('/production/catalog');
@@ -805,7 +823,7 @@ class ProductionController extends Controller {
             $this->redirect('/production/catalog');
         }
 
-        $style = DB::fetch("SELECT * FROM catalogs WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""), $cid ? [$id, $cid] : [$id]);
+        $style = DB::fetch("SELECT * FROM catalogs WHERE id = ? AND source_module = 'production_catalog'" . ($cid ? " AND concern_id = ?" : ""), $cid ? [$id, $cid] : [$id]);
         if (!$style) {
             $this->flash('error', 'Product Style not found or access denied.');
             $this->redirect('/production/catalog');
@@ -1741,7 +1759,7 @@ class ProductionController extends Controller {
         $cid = Auth::concernId();
         $id = (int)($_GET['id'] ?? 0);
 
-        $style = DB::fetch("SELECT * FROM catalogs WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""), $cid ? [$id, $cid] : [$id]);
+        $style = DB::fetch("SELECT * FROM catalogs WHERE id = ? AND source_module = 'production_catalog'" . ($cid ? " AND concern_id = ?" : ""), $cid ? [$id, $cid] : [$id]);
         if (!$style) {
             echo json_encode(['success' => false, 'message' => 'Style not found.']);
             exit;
@@ -1772,16 +1790,20 @@ class ProductionController extends Controller {
                            (SELECT COUNT(*) FROM program_rolls pr WHERE pr.program_id = pp.id) AS rolls_count,
                            (SELECT GROUP_CONCAT(DISTINCT COALESCE(rc.name, pc.name) SEPARATOR ', ')
                             FROM program_rolls pr
-                            LEFT JOIN catalogs rc ON pr.catalog_id = rc.id
-                            LEFT JOIN catalogs pc ON pc.id = pp.catalog_id
+                            LEFT JOIN catalogs rc ON pr.catalog_id = rc.id AND rc.source_module = 'production_catalog'
+                                AND (rc.concern_id = pr.concern_id OR rc.concern_id = 1 OR rc.concern_id IS NULL)
+                            LEFT JOIN catalogs pc ON pc.id = pp.catalog_id AND pc.source_module = 'production_catalog'
+                                AND (pc.concern_id = pp.concern_id OR pc.concern_id = 1 OR pc.concern_id IS NULL)
                             WHERE pr.program_id = pp.id) AS roll_catalog_names
                     FROM production_programs pp
-                    LEFT JOIN catalogs c ON pp.catalog_id = c.id
+                    LEFT JOIN catalogs c ON pp.catalog_id = c.id AND c.source_module = 'production_catalog'
+                        AND (c.concern_id = pp.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                     LEFT JOIN variants v ON pp.target_variant_id = v.id
-                    LEFT JOIN concerns con ON pp.concern_id = con.id";
+                    LEFT JOIN concerns con ON pp.concern_id = con.id
+                    WHERE (pp.catalog_id IS NULL OR c.id IS NOT NULL)";
         $progParams = [];
         if ($cid) {
-            $progSql .= " WHERE pp.concern_id = ?";
+            $progSql .= " AND pp.concern_id = ?";
             $progParams[] = $cid;
         }
         $progSql .= " ORDER BY pp.id DESC";
@@ -1802,7 +1824,8 @@ class ProductionController extends Controller {
                 LEFT JOIN categories cat ON pr.category_id = cat.id
                 LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
                 LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-                LEFT JOIN catalogs c ON pr.catalog_id = c.id
+                LEFT JOIN catalogs c ON pr.catalog_id = c.id AND c.source_module = 'production_catalog'
+                    AND (c.concern_id = pr.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                 WHERE pr.program_id IN ($inClause)
                 ORDER BY pr.id ASC
             ");
@@ -1816,10 +1839,10 @@ class ProductionController extends Controller {
         unset($p);
 
         if ($cid) {
-            $catalogs = DB::fetchAll("SELECT * FROM catalogs WHERE concern_id = ?", [$cid]);
+            $catalogs = DB::fetchAll("SELECT * FROM catalogs WHERE concern_id = ? AND source_module = 'production_catalog'", [$cid]);
             $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
         } else {
-            $catalogs = DB::fetchAll("SELECT * FROM catalogs");
+            $catalogs = DB::fetchAll("SELECT * FROM catalogs WHERE source_module = 'production_catalog'");
             $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE status = 'active'");
         }
 
@@ -2004,10 +2027,10 @@ class ProductionController extends Controller {
         // Load Categories for 3-tier hierarchy
         if ($cid) {
             $categories = DB::fetchAll("SELECT * FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]);
-            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status != 'inactive' ORDER BY id DESC", [$cid]);
+            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status != 'inactive' ORDER BY id DESC", [$cid]);
         } else {
             $categories = DB::fetchAll("SELECT * FROM categories WHERE status = 'active' ORDER BY name ASC");
-            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE status != 'inactive' ORDER BY id DESC");
+            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND status != 'inactive' ORDER BY id DESC");
         }
 
         $this->render('concern/program_create', [
@@ -2383,8 +2406,6 @@ class ProductionController extends Controller {
 
         $validatedRolls = [];
         $totalPlannedQty = 0.00;
-        $catalogScopeSql = $cid ? " AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)" : "";
-        $catalogScopeParams = $cid ? [$cid] : [];
 
         foreach ($rolls as $index => $r) {
             $rollItemId = (int)($r['purchase_bill_item_id'] ?? 0);
@@ -2394,6 +2415,12 @@ class ProductionController extends Controller {
             $subcatId = !empty($r['subcategory_id']) ? (int)$r['subcategory_id'] : null;
             $subSubcatId = !empty($r['sub_sub_category_id']) ? (int)$r['sub_sub_category_id'] : null;
             $catalogId = !empty($r['catalog_id']) ? (int)$r['catalog_id'] : null;
+            $rollConcernId = $cid ?: (int)DB::fetchValue(
+                "SELECT concern_id FROM purchase_bill_items WHERE id = ?",
+                [$rollItemId]
+            );
+            $catalogScopeSql = " AND source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)";
+            $catalogScopeParams = [$rollConcernId];
 
             // Auto-resolve catalog from 3-tier hierarchy if not explicitly chosen
             if (!$catalogId && $subSubcatId) {
@@ -2421,6 +2448,16 @@ class ProductionController extends Controller {
                 );
                 if ($matchedCat) {
                     $catalogId = (int)$matchedCat['id'];
+                }
+            }
+            if ($catalogId) {
+                $selectedCatalog = DB::fetch(
+                    "SELECT id FROM catalogs WHERE id = ? AND source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                    [$catalogId, $rollConcernId]
+                );
+                if (!$selectedCatalog) {
+                    $this->flash('error', "Roll #" . ($index + 1) . ": Select a product style belonging to the roll's concern.");
+                    $this->redirect('/production/programs/create');
                 }
             }
 
@@ -2604,7 +2641,8 @@ class ProductionController extends Controller {
                        v.name AS target_variant_name, v.sku_code,
                        con.name AS concern_name, con.code AS concern_code
                 FROM production_programs pp
-                LEFT JOIN catalogs c ON pp.catalog_id = c.id
+                LEFT JOIN catalogs c ON pp.catalog_id = c.id AND c.source_module = 'production_catalog'
+                    AND (c.concern_id = pp.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                 LEFT JOIN variants v ON pp.target_variant_id = v.id
                 LEFT JOIN concerns con ON pp.concern_id = con.id
                 WHERE pp.id = ?";
@@ -2631,7 +2669,8 @@ class ProductionController extends Controller {
              LEFT JOIN categories cat ON pr.category_id = cat.id
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-             LEFT JOIN catalogs c ON pr.catalog_id = c.id
+             LEFT JOIN catalogs c ON pr.catalog_id = c.id AND c.source_module = 'production_catalog'
+                 AND (c.concern_id = pr.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
              WHERE pr.program_id = ?
              ORDER BY pr.id ASC",
             [$id]
@@ -2674,7 +2713,8 @@ class ProductionController extends Controller {
                        v.name AS target_variant_name, v.sku_code,
                        con.name AS concern_name, con.code AS concern_code
                 FROM production_programs pp
-                LEFT JOIN catalogs c ON pp.catalog_id = c.id
+                LEFT JOIN catalogs c ON pp.catalog_id = c.id AND c.source_module = 'production_catalog'
+                    AND (c.concern_id = pp.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                 LEFT JOIN variants v ON pp.target_variant_id = v.id
                 LEFT JOIN concerns con ON pp.concern_id = con.id
                 WHERE pp.id = ?";
@@ -2701,7 +2741,8 @@ class ProductionController extends Controller {
              LEFT JOIN categories cat ON pr.category_id = cat.id
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
-             LEFT JOIN catalogs c ON pr.catalog_id = c.id
+             LEFT JOIN catalogs c ON pr.catalog_id = c.id AND c.source_module = 'production_catalog'
+                 AND (c.concern_id = pr.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
              WHERE pr.program_id = ?
              ORDER BY pr.id ASC",
             [$id]
@@ -2760,13 +2801,12 @@ class ProductionController extends Controller {
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
              LEFT JOIN catalogs c ON c.id = COALESCE(
-                 pr.catalog_id,
-                 (SELECT c_m.id FROM catalogs c_m WHERE pr.sub_sub_category_id IS NOT NULL AND c_m.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c_m.id ASC LIMIT 1),
-                 (SELECT c_s.id FROM catalogs c_s WHERE pr.subcategory_id IS NOT NULL AND c_s.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c_s.category_id = pr.category_id) ORDER BY c_s.id ASC LIMIT 1),
-                 (SELECT c_c.id FROM catalogs c_c WHERE pr.category_id IS NOT NULL AND c_c.category_id = pr.category_id ORDER BY c_c.id ASC LIMIT 1)
+                 (SELECT c0.id FROM catalogs c0 WHERE c0.id = pr.catalog_id AND c0.source_module = 'production_catalog' AND (c0.concern_id = pr.concern_id OR c0.concern_id = 1 OR c0.concern_id IS NULL)),
+                 (SELECT c_m.id FROM catalogs c_m WHERE c_m.source_module = 'production_catalog' AND (c_m.concern_id = pr.concern_id OR c_m.concern_id = 1 OR c_m.concern_id IS NULL) AND pr.sub_sub_category_id IS NOT NULL AND c_m.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c_m.id ASC LIMIT 1),
+                 (SELECT c_s.id FROM catalogs c_s WHERE c_s.source_module = 'production_catalog' AND (c_s.concern_id = pr.concern_id OR c_s.concern_id = 1 OR c_s.concern_id IS NULL) AND pr.subcategory_id IS NOT NULL AND c_s.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c_s.category_id = pr.category_id) ORDER BY c_s.id ASC LIMIT 1),
+                 (SELECT c_c.id FROM catalogs c_c WHERE c_c.source_module = 'production_catalog' AND (c_c.concern_id = pr.concern_id OR c_c.concern_id = 1 OR c_c.concern_id IS NULL) AND pr.category_id IS NOT NULL AND c_c.category_id = pr.category_id ORDER BY c_c.id ASC LIMIT 1)
              )
              WHERE pr.program_id = ?
-             GROUP BY pr.id
              ORDER BY pr.id ASC",
             [$id]
         );
@@ -2774,6 +2814,8 @@ class ProductionController extends Controller {
         foreach ($existingRolls as &$er) {
             if (empty($er['catalog_id']) && !empty($er['resolved_catalog_id'])) {
                 $er['catalog_id'] = $er['resolved_catalog_id'];
+            } elseif (empty($er['resolved_catalog_id'])) {
+                $er['catalog_id'] = null;
             }
         }
         unset($er);
@@ -2885,7 +2927,7 @@ class ProductionController extends Controller {
         $categories = DB::fetchAll("SELECT * FROM categories WHERE {$catWhere} AND status = 'active' ORDER BY name ASC", $catParams);
         $subcategories = DB::fetchAll("SELECT * FROM subcategories WHERE {$catWhere} AND status = 'active' ORDER BY name ASC", $catParams);
         $subSubcategories = DB::fetchAll("SELECT * FROM sub_subcategories WHERE {$catWhere} AND status = 'active' ORDER BY name ASC", $catParams);
-        $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE {$catWhere} AND status != 'inactive' ORDER BY id DESC", $catParams);
+        $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND {$catWhere} AND status != 'inactive' ORDER BY id DESC", $catParams);
 
         $this->render('concern/program_edit', [
             'pageTitle'        => 'Edit Production Program: ' . $program['program_no'],
@@ -3034,19 +3076,27 @@ class ProductionController extends Controller {
 
             // Auto-resolve catalog from 3-tier hierarchy if not explicitly chosen
             if (!$catalogId && $subSubcatId) {
-                $matchedCat = DB::fetch("SELECT id FROM catalogs WHERE sub_sub_category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) LIMIT 1", [$subSubcatId, $programConcernId]);
+                $matchedCat = DB::fetch("SELECT id FROM catalogs WHERE sub_sub_category_id = ? AND source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) LIMIT 1", [$subSubcatId, $programConcernId]);
                 if ($matchedCat) {
                     $catalogId = (int)$matchedCat['id'];
                 }
             }
             if (!$catalogId && $subcatId && $catId) {
-                $matchedCat = DB::fetch("SELECT id FROM catalogs WHERE subcategory_id = ? AND category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) LIMIT 1", [$subcatId, $catId, $programConcernId]);
+                $matchedCat = DB::fetch("SELECT id FROM catalogs WHERE subcategory_id = ? AND category_id = ? AND source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) LIMIT 1", [$subcatId, $catId, $programConcernId]);
                 if ($matchedCat) {
                     $catalogId = (int)$matchedCat['id'];
                 }
             }
 
             if ($catalogId) {
+                $selectedCatalog = DB::fetch(
+                    "SELECT id FROM catalogs WHERE id = ? AND source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                    [$catalogId, $programConcernId]
+                );
+                if (!$selectedCatalog) {
+                    $this->flash('error', "Roll #" . ($index + 1) . ": Select a product style belonging to this program's concern.");
+                    $this->redirect('/production/programs/edit?id=' . $id);
+                }
                 if ($firstCatalogId === null) {
                     $firstCatalogId = $catalogId;
                 }
@@ -3504,6 +3554,8 @@ class ProductionController extends Controller {
                 FROM cutting_logs cl
                 LEFT JOIN production_programs pp ON cl.program_id = pp.id
                 LEFT JOIN catalogs c ON pp.catalog_id = c.id
+                    AND c.source_module = 'production_catalog'
+                    AND (c.concern_id = pp.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                 LEFT JOIN cutting_masters cm ON cl.cutting_master_id = cm.id
                 LEFT JOIN concerns con ON cl.concern_id = con.id";
         $params = [];
@@ -3584,6 +3636,7 @@ class ProductionController extends Controller {
      */
     public function createCutting(): void {
         ModuleGuard::enforce('cutting_wastage', 'add');
+        $this->ensureCatalogSchema();
         $this->ensureCuttingSchema();
         $cid = Auth::concernId();
 
@@ -3591,13 +3644,22 @@ class ProductionController extends Controller {
 
         // Fetch active production programs that have UNCUT assigned fabric rolls
         $params = [];
-        $progSql = "SELECT pp.id, pp.concern_id, pp.program_no, pp.program_name, pp.planned_qty,
+        $progSql = "SELECT pp.id, pp.concern_id, pp.program_no, pp.program_name, pp.planned_qty, con.name AS concern_name,
                            COUNT(pr.id) AS rolls_count,
                            COALESCE(SUM(pr.roll_weight), 0.00) AS total_rolls_weight,
                            COALESCE(SUM(pr.roll_price), 0.00) AS total_rolls_price
                     FROM production_programs pp
                     JOIN program_rolls pr ON pp.id = pr.program_id
+                    LEFT JOIN purchase_bill_items pbi ON pr.purchase_bill_item_id = pbi.id
+                    LEFT JOIN concerns con ON pp.concern_id = con.id
                     WHERE pp.status != 'cancelled'
+                      AND (pp.catalog_id IS NULL OR EXISTS (
+                          SELECT 1 FROM catalogs pc
+                          WHERE pc.id = pp.catalog_id AND pc.source_module = 'production_catalog'
+                            AND (pc.concern_id = pp.concern_id OR pc.concern_id = 1 OR pc.concern_id IS NULL)
+                      ))
+                      AND pr.concern_id = pp.concern_id
+                      AND (pbi.id IS NULL OR (pbi.section_type = 'rolls' AND pbi.concern_id = pr.concern_id))
                       AND pr.id NOT IN (
                           SELECT DISTINCT program_roll_id 
                           FROM cutting_items 
@@ -3607,7 +3669,7 @@ class ProductionController extends Controller {
             $progSql .= " AND pp.concern_id = ?";
             $params[] = $cid;
         }
-        $progSql .= " GROUP BY pp.id HAVING rolls_count > 0 ORDER BY pp.id DESC";
+        $progSql .= " GROUP BY pp.id, pp.concern_id, pp.program_no, pp.program_name, pp.planned_qty, con.name HAVING rolls_count > 0 ORDER BY pp.id DESC";
         $programs = DB::fetchAll($progSql, $params);
 
         // Fetch active cutting masters
@@ -3629,6 +3691,8 @@ class ProductionController extends Controller {
      */
     public function apiCuttingProgramDetails(): void {
         header('Content-Type: application/json');
+        try {
+        $this->ensureCatalogSchema();
         $this->ensureCuttingSchema();
         $cid = Auth::concernId();
         $progId = (int)($_GET['id'] ?? ($_GET['program_id'] ?? 0));
@@ -3641,8 +3705,9 @@ class ProductionController extends Controller {
         $program = DB::fetch(
             "SELECT pp.*, c.name AS catalog_name, c.style_code AS catalog_code 
              FROM production_programs pp 
-             LEFT JOIN catalogs c ON pp.catalog_id = c.id 
-             WHERE pp.id = ?" . ($cid ? " AND pp.concern_id = ?" : ""),
+             LEFT JOIN catalogs c ON pp.catalog_id = c.id AND c.source_module = 'production_catalog'
+                 AND (c.concern_id = pp.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
+             WHERE pp.id = ? AND pp.status != 'cancelled' AND (pp.catalog_id IS NULL OR c.id IS NOT NULL)" . ($cid ? " AND pp.concern_id = ?" : ""),
             $cid ? [$progId, $cid] : [$progId]
         );
 
@@ -3665,21 +3730,22 @@ class ProductionController extends Controller {
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
              LEFT JOIN catalogs c ON c.id = COALESCE(
-                 pr.catalog_id,
-                 (SELECT pp.catalog_id FROM production_programs pp WHERE pp.id = pr.program_id),
-                 (SELECT c1.id FROM catalogs c1 WHERE pr.sub_sub_category_id IS NOT NULL AND c1.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c1.id ASC LIMIT 1),
-                 (SELECT c2.id FROM catalogs c2 WHERE pr.subcategory_id IS NOT NULL AND c2.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c2.category_id = pr.category_id) ORDER BY c2.id ASC LIMIT 1),
-                 (SELECT c3.id FROM catalogs c3 WHERE pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
-             )
+                 (SELECT c0.id FROM catalogs c0 WHERE c0.id = pr.catalog_id AND c0.source_module = 'production_catalog' AND (c0.concern_id = pr.concern_id OR c0.concern_id = 1 OR c0.concern_id IS NULL)),
+                 (SELECT pp.catalog_id FROM production_programs pp JOIN catalogs pc ON pc.id = pp.catalog_id AND pc.source_module = 'production_catalog' AND (pc.concern_id = pp.concern_id OR pc.concern_id = 1 OR pc.concern_id IS NULL) WHERE pp.id = pr.program_id),
+                 (SELECT c1.id FROM catalogs c1 WHERE c1.source_module = 'production_catalog' AND (c1.concern_id = pr.concern_id OR c1.concern_id = 1 OR c1.concern_id IS NULL) AND pr.sub_sub_category_id IS NOT NULL AND c1.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c1.id ASC LIMIT 1),
+                 (SELECT c2.id FROM catalogs c2 WHERE c2.source_module = 'production_catalog' AND (c2.concern_id = pr.concern_id OR c2.concern_id = 1 OR c2.concern_id IS NULL) AND pr.subcategory_id IS NOT NULL AND c2.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c2.category_id = pr.category_id) ORDER BY c2.id ASC LIMIT 1),
+                 (SELECT c3.id FROM catalogs c3 WHERE c3.source_module = 'production_catalog' AND (c3.concern_id = pr.concern_id OR c3.concern_id = 1 OR c3.concern_id IS NULL) AND pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
+             ) AND c.source_module = 'production_catalog'
              WHERE pr.program_id = ?
+               AND pr.concern_id = ?
+               AND (pbi.id IS NULL OR (pbi.section_type = 'rolls' AND pbi.concern_id = pr.concern_id))
                AND pr.id NOT IN (
                    SELECT DISTINCT program_roll_id 
                    FROM cutting_items 
                    WHERE program_roll_id IS NOT NULL AND cut_pieces > 0
                )
-             GROUP BY pr.id
              ORDER BY pr.id ASC",
-            [$progId]
+            [$progId, (int)$program['concern_id']]
         );
 
         if (empty($rolls)) {
@@ -3713,20 +3779,20 @@ class ProductionController extends Controller {
                 $r['roll_catalog_name'] = $r['hierarchy_display'];
             }
 
-            $catId = $r['roll_catalog_id'] ?: ($r['catalog_id'] ?: (empty($r['hierarchy_display']) ? ($program['catalog_id'] ?? null) : null));
+            $catId = $r['roll_catalog_id'] ?: null;
             $variants = [];
 
             if ($catId) {
                 $variants = DB::fetchAll(
                     "SELECT id, sku_code, name, size, weight, price, mrp 
                      FROM variants 
-                     WHERE catalog_id = ? AND status = 'active' 
+                     WHERE catalog_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'
                      ORDER BY id ASC",
-                    [$catId]
+                    [$catId, (int)$program['concern_id']]
                 );
 
                 if (empty($variants)) {
-                    $catRecord = DB::fetch("SELECT id, style_code, name, sizes FROM catalogs WHERE id = ?", [$catId]);
+                    $catRecord = DB::fetch("SELECT id, style_code, name, sizes FROM catalogs WHERE id = ? AND source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)", [$catId, (int)$program['concern_id']]);
                     if ($catRecord && !empty($catRecord['sizes'])) {
                         $sizesList = json_decode($catRecord['sizes'], true);
                         if (is_array($sizesList)) {
@@ -3774,6 +3840,12 @@ class ProductionController extends Controller {
             'fabric_rate_per_kg' => $fabricRate,
         ]);
         exit;
+        } catch (\Throwable $e) {
+            error_log('Cutting program details failed: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Unable to load program details. Please try again.']);
+            exit;
+        }
     }
 
     /**
@@ -5308,6 +5380,9 @@ class ProductionController extends Controller {
      */
     public function apiCuttingDetailsForStitching(): void {
         header('Content-Type: application/json');
+        try {
+        $this->ensureCatalogSchema();
+        $this->ensureCuttingSchema();
         $this->ensureStitchingSchema();
         $cid = Auth::concernId();
         $cuttingId = (int)($_GET['id'] ?? ($_GET['cutting_id'] ?? 0));
@@ -5321,7 +5396,7 @@ class ProductionController extends Controller {
             "SELECT cl.*, pp.id AS program_id, pp.program_no, pp.program_name, pp.catalog_id AS prog_catalog_id
              FROM cutting_logs cl
              LEFT JOIN production_programs pp ON cl.program_id = pp.id
-             WHERE cl.id = ?" . ($cid ? " AND cl.concern_id = ?" : ""),
+             WHERE cl.id = ? AND (cl.status IS NULL OR cl.status != 'cancelled')" . ($cid ? " AND cl.concern_id = ?" : ""),
             $cid ? [$cuttingId, $cid] : [$cuttingId]
         );
 
@@ -5350,15 +5425,18 @@ class ProductionController extends Controller {
              LEFT JOIN subcategories sub ON pr.subcategory_id = sub.id
              LEFT JOIN sub_subcategories subsub ON pr.sub_sub_category_id = subsub.id
              LEFT JOIN catalogs c_roll ON pr.catalog_id = c_roll.id
+                 AND c_roll.source_module = 'production_catalog'
+                 AND (c_roll.concern_id = pr.concern_id OR c_roll.concern_id = 1 OR c_roll.concern_id IS NULL)
              LEFT JOIN variants v ON ci.variant_id = v.id
              LEFT JOIN catalogs c_var ON v.catalog_id = c_var.id
+                 AND c_var.source_module = 'production_catalog'
+                 AND (c_var.concern_id = v.concern_id OR c_var.concern_id = 1 OR c_var.concern_id IS NULL)
              LEFT JOIN catalogs c_fallback ON c_fallback.id = COALESCE(
-                 (SELECT c1.id FROM catalogs c1 WHERE pr.sub_sub_category_id IS NOT NULL AND c1.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c1.id ASC LIMIT 1),
-                 (SELECT c2.id FROM catalogs c2 WHERE pr.subcategory_id IS NOT NULL AND c2.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c2.category_id = pr.category_id) ORDER BY c2.id ASC LIMIT 1),
-                 (SELECT c3.id FROM catalogs c3 WHERE pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
+                 (SELECT c1.id FROM catalogs c1 WHERE c1.source_module = 'production_catalog' AND (c1.concern_id = pr.concern_id OR c1.concern_id = 1 OR c1.concern_id IS NULL) AND pr.sub_sub_category_id IS NOT NULL AND c1.sub_sub_category_id = pr.sub_sub_category_id ORDER BY c1.id ASC LIMIT 1),
+                 (SELECT c2.id FROM catalogs c2 WHERE c2.source_module = 'production_catalog' AND (c2.concern_id = pr.concern_id OR c2.concern_id = 1 OR c2.concern_id IS NULL) AND pr.subcategory_id IS NOT NULL AND c2.subcategory_id = pr.subcategory_id AND (pr.category_id IS NULL OR c2.category_id = pr.category_id) ORDER BY c2.id ASC LIMIT 1),
+                 (SELECT c3.id FROM catalogs c3 WHERE c3.source_module = 'production_catalog' AND (c3.concern_id = pr.concern_id OR c3.concern_id = 1 OR c3.concern_id IS NULL) AND pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
              )
              WHERE ci.cutting_id = ?
-             GROUP BY ci.id
              ORDER BY ci.id ASC",
             [$cuttingId]
         );
@@ -5378,7 +5456,7 @@ class ProductionController extends Controller {
         $catalogsMap = [];
 
         foreach ($rawItems as $it) {
-            $catId = $it['cat_id'] ?: ($it['var_cat_id'] ?: ($it['roll_catalog_id'] ?: null));
+            $catId = $it['cat_id'] ?: null;
             $catName = $it['cat_name'];
             $catCode = $it['cat_code'];
 
@@ -5387,7 +5465,13 @@ class ProductionController extends Controller {
                 if (!empty($it['sku_code'])) {
                     $skuPrefix = explode('-', $it['sku_code'])[0] ?? '';
                     if ($skuPrefix) {
-                        $matchedBySku = DB::fetch("SELECT id, name, style_code FROM catalogs WHERE style_code LIKE ? LIMIT 1", [$skuPrefix . '%']);
+                        $matchedBySku = DB::fetch(
+                            "SELECT id, name, style_code FROM catalogs
+                             WHERE style_code LIKE ? AND source_module = 'production_catalog'
+                               AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                             LIMIT 1",
+                            [$skuPrefix . '%', (int)$cutting['concern_id']]
+                        );
                         if ($matchedBySku) {
                             $catId = (int)$matchedBySku['id'];
                             $catName = $matchedBySku['name'];
@@ -5456,9 +5540,11 @@ class ProductionController extends Controller {
             $progRollCats = DB::fetchAll(
                 "SELECT DISTINCT c.id, c.name, c.style_code 
                  FROM program_rolls pr 
-                 JOIN catalogs c ON pr.catalog_id = c.id 
-                 WHERE pr.program_id = ?",
-                [$cutting['program_id']]
+                 JOIN catalogs c ON pr.catalog_id = c.id
+                   AND c.source_module = 'production_catalog'
+                   AND (c.concern_id = pr.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
+                 WHERE pr.program_id = ? AND pr.concern_id = ?",
+                [$cutting['program_id'], (int)$cutting['concern_id']]
             );
             foreach ($progRollCats as $prc) {
                 if (!isset($catalogsMap[$prc['id']])) {
@@ -5475,7 +5561,12 @@ class ProductionController extends Controller {
 
         // Also if program had a primary catalog
         if (!empty($cutting['prog_catalog_id']) && !isset($catalogsMap[$cutting['prog_catalog_id']])) {
-            $progCat = DB::fetch("SELECT id, name, style_code FROM catalogs WHERE id = ?", [$cutting['prog_catalog_id']]);
+            $progCat = DB::fetch(
+                "SELECT id, name, style_code FROM catalogs
+                 WHERE id = ? AND source_module = 'production_catalog'
+                   AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                [$cutting['prog_catalog_id'], (int)$cutting['concern_id']]
+            );
             if ($progCat) {
                 $catalogsMap[$progCat['id']] = [
                     'id'             => $progCat['id'],
@@ -5505,6 +5596,12 @@ class ProductionController extends Controller {
             'default_per_pc_weight'=> $defaultPerPcWeight,
         ]);
         exit;
+        } catch (\Throwable $e) {
+            error_log('Stitching cutting details failed: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Unable to load cutting details. Please try again.']);
+            exit;
+        }
     }
 
     /**

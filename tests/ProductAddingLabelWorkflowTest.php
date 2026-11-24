@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 $controllerSource = file_get_contents(__DIR__ . '/../app/controllers/LabelController.php');
+$stockServiceSource = file_get_contents(__DIR__ . '/../app/services/StockService.php');
 $purchaseSource = file_get_contents(__DIR__ . '/../app/controllers/PurchaseController.php');
 $productAddingSource = file_get_contents(__DIR__ . '/../app/controllers/ProductAddingController.php');
 $routesSource = file_get_contents(__DIR__ . '/../app/routes.php');
 $formSource = file_get_contents(__DIR__ . '/../app/views/concern/purchase_billing_create.php');
-$migrationSource = file_get_contents(__DIR__ . '/../database/live_db_update.sql');
 $schemaSource = file_get_contents(__DIR__ . '/../database/schema.sql');
 $sourceService = file_get_contents(__DIR__ . '/../app/services/PurchaseBillSourceService.php');
 $stockOverrideSource = file_get_contents(__DIR__ . '/../app/services/PurchaseStockItemOverrideService.php');
@@ -18,10 +18,10 @@ $checks = [
     'Product Adding bills are tagged separately without changing Purchase Billing defaults' =>
         str_contains($purchaseSource, "'product_adding' : 'purchase_billing'")
         && str_contains($purchaseSource, "source_module, supplier_id")
-        && str_contains($schemaSource, "`source_module` VARCHAR(50) NOT NULL DEFAULT 'purchase_billing'")
-        && str_contains($migrationSource, "AddColSafe('purchase_bills', 'source_module'")
-        && str_contains($schemaSource, "`source_module` VARCHAR(50) NOT NULL DEFAULT 'label_generation'")
-        && str_contains($migrationSource, "AddColSafe('label_jobs', 'source_module'")
+        && str_contains($schemaSource, "`source_module` varchar(50) NOT NULL DEFAULT 'purchase_billing'")
+        && str_contains($sourceService, "ADD COLUMN source_module VARCHAR(50) NOT NULL DEFAULT 'purchase_billing'")
+        && str_contains($schemaSource, "`source_module` varchar(50) NOT NULL DEFAULT 'label_generation'")
+        && str_contains($sourceService, "ADD COLUMN source_module VARCHAR(50) NOT NULL DEFAULT 'label_generation'")
         && str_contains($sourceService, "ALTER TABLE label_jobs"),
     'A saved Product Adding bill returns to its label and stock panel' =>
         str_contains($purchaseSource, '$successRedirect . \'?bill_id=\' . $billId')
@@ -32,14 +32,14 @@ $checks = [
         && str_contains($formSource, '$savedBill[\'supplier_invoice_no\']')
         && str_contains($formSource, '$savedBill[\'net_amount\']')
         && str_contains($formSource, '<?= !empty($savedBill) ? \'d-none\' : \'\' ?>'),
-    'Latest printed count is displayed as the per-line stock quantity' =>
+    'Label count and the original bill quantity are shown independently' =>
         str_contains($productAddingSource, 'pbi.qty AS purchase_qty_original')
         && str_contains($productAddingSource, 'SELECT lj.qty')
         && str_contains($productAddingSource, 'ORDER BY lj.id DESC')
         && !str_contains($productAddingSource, 'SELECT SUM(lj.qty)')
         && str_contains($productAddingSource, '$savedItem[\'generated_label_qty\'] > 0')
-        && str_contains($formSource, 'To stock:')
-        && str_contains($formSource, 'Stock qty ')
+        && str_contains($formSource, 'Stock qty: <?= htmlspecialchars((string)$purchaseQty)')
+        && str_contains($formSource, 'data-purchase-qty="<?= htmlspecialchars((string)$purchaseQty) ?>"')
         && str_contains($formSource, 'const generatedCount = Number(event.data.itemCounts[itemId]) || 0;'),
     'Individual and checked-line bulk label routes are Product Adding scoped' =>
         str_contains($routesSource, '/m/product_adding/generate_labels')
@@ -73,14 +73,30 @@ $checks = [
         str_contains($controllerSource, '$redirectUrl = \'/m/stocks\';')
         && str_contains($controllerSource, "'/m/purchase_stocks' .")
         && str_contains($controllerSource, '$targetTab === \'finished_goods\' ? \'/m/stocks\''),
-    'Latest per-line label count sets stock quantity and each line can be inwarded only once' =>
+    'Printed labels are only required for inwarding and do not set stock quantity' =>
         str_contains($routesSource, 'addProductAddingToStock')
-        && str_contains($controllerSource, 'getProductAddingLabelCount($itemId)')
-        && str_contains($controllerSource, "lj.source_module = 'product_adding' AND lj.id > ?")
+        && str_contains($controllerSource, 'assertProductAddingLabelsGenerated($itemId)')
+        && str_contains($controllerSource, "lj.source_module = 'product_adding'")
+        && str_contains($controllerSource, 'lj.id > ?')
         && str_contains($controllerSource, 'if ($generatedQty < 1)')
+        && str_contains($controllerSource, '$stockQuantities[(int)$selectedItem[\'id\']] = (float)$selectedItem[\'qty\'];')
         && str_contains($controllerSource, 'saveInwardQuantity($selectedItem, $stockQuantity, Auth::id())')
         && str_contains($controllerSource, 'already been added to stock')
+        && str_contains($stockOverrideSource, 'public static function saveInwardQuantity(array $item, float $quantity, ?int $userId)')
         && str_contains($stockOverrideSource, 'SET qty = ?, total_value = ?, updated_by = ?'),
+    'Previously inwarded short quantities can be corrected with an audit trail' =>
+        str_contains($routesSource, '/m/product_adding/correct_stock_quantity')
+        && str_contains($routesSource, 'correctProductAddingStockQuantity')
+        && str_contains($controllerSource, "ref_module IN ('Purchase Inward Item', 'Product Adding Stock Correction')")
+        && str_contains($controllerSource, "'Product Adding Stock Correction'")
+        && str_contains($controllerSource, '$missingQty = round($purchaseQty - $ledgerQty, 2);')
+        && str_contains($controllerSource, 'StockService::move(')
+        && str_contains($controllerSource, "'CORRECT_STOCK_QUANTITY'")
+        && str_contains($controllerSource, 'AuditLog::logOrThrow')
+        && str_contains($controllerSource, 'FOR UPDATE')
+        && str_contains($productAddingSource, 'AS finished_goods_inward_qty')
+        && str_contains($formSource, '$needsStockCorrection')
+        && str_contains($formSource, 'productAddingStockCorrectionForm'),
     'Purchase stock views and roll registry use the inward quantity override' =>
         str_contains($purchaseStockSource, 'PurchaseStockItemOverrideService::applyToItems($rolls)')
         && str_contains($rollRegistrySource, 'COALESCE(stock_override.qty, pbi.qty)')
@@ -105,6 +121,15 @@ $checks = [
         && str_contains($formSource, 'data-quick-fill-field="hsn" data-hsn-autocomplete')
         && !str_contains($formSource, 'data-quick-fill-field="gst"')
         && str_contains($formSource, 'onFinishedVariantHsnChange(fgId, parseInt(row.dataset.rowIndex, 10))'),
+    'Quick Fill applies the selected category to every variant and keeps variant names product-only' =>
+        str_contains($formSource, "firstRow.querySelector('.fg-variant-category').value = categoryId;")
+        && str_contains($formSource, "const productName = card.querySelector('.fg-input-product')?.value.trim() || '';")
+        && str_contains($formSource, 'variantName.value = productName.slice(0, 150);')
+        && str_contains($purchaseSource, '$variantName = $styleName;'),
+    'Product Adding ensures valuation columns before stock ledger writes' =>
+        str_contains($controllerSource, 'StockService::ensureLedgerValuationSchema();')
+        && str_contains($stockServiceSource, 'SHOW COLUMNS FROM `stock_ledger`')
+        && str_contains($stockServiceSource, 'ADD COLUMN `{$column}`'),
     'Finished-goods prices are ordered and GST is sourced from the registered HSN' =>
         str_contains($purchaseSource, 'Every finished-goods variant must satisfy Supplier Cost < Selling Price < MRP')
         && str_contains($purchaseSource, '$sellingPrice <= $supplierCost || $mrp <= $sellingPrice')
@@ -136,7 +161,7 @@ $checks = [
         && strpos($formSource, 'for="fgQuickMrp_${id}"')
             < strpos($formSource, 'for="fgQuickSelling_${id}"')
         && str_contains($formSource, 'data-hsn-gst-target="#fgQuickGst_${id}"'),
-    'Bulk Add Stock uses selected lines and submits their latest printed quantities' =>
+    'Bulk Add Stock uses selected lines and submits each purchased quantity' =>
         str_contains($formSource, 'id="productAddingBulkStockButton"')
         && str_contains($formSource, 'id="productAddingBulkStockForm"')
         && str_contains($formSource, 'form="productAddingBulkStockForm"')
@@ -144,10 +169,14 @@ $checks = [
         && str_contains($formSource, 'const eligibleItems = selectedItems.filter(function (input)')
         && str_contains($formSource, 'bulkStockForm.appendChild(itemId)')
         && str_contains($controllerSource, 'if ($isProductAddingRequest && $selectedItemIds)')
-        && str_contains($controllerSource, '$this->getProductAddingLabelCount((int)$selectedItem[\'id\'])')
+        && str_contains($controllerSource, '$this->assertProductAddingLabelsGenerated((int)$selectedItem[\'id\'])')
+        && str_contains($controllerSource, '$stockQuantities[(int)$selectedItem[\'id\']] = (float)$selectedItem[\'qty\'];')
         && str_contains($controllerSource, '$this->inwardProductAddingFinishedGood($concernId, $selectedItem, $billNo)')
         && str_contains($controllerSource, 'RollRegistryService::syncSpecs($concernId)')
-        && str_contains($controllerSource, "section_type'] === 'garment_other'"),
+        && str_contains($controllerSource, "section_type'] === 'garment_other'")
+        && str_contains($formSource, 'data-purchase-qty="<?= htmlspecialchars((string)$purchaseQty) ?>"')
+        && str_contains($formSource, 'Stock qty: <?= htmlspecialchars((string)$purchaseQty)')
+        && str_contains($formSource, 'checkbox.dataset.purchaseQty'),
     'Bulk checkboxes remain visible after printing and Select all includes pending lines' =>
         str_contains($formSource, 'product-adding-bulk-checkbox')
         && str_contains($formSource, 'id="productAddingSelectAllLines"')

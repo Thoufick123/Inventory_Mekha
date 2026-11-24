@@ -1505,7 +1505,7 @@ class PurchaseController extends Controller {
                         $styleName = trim((string)($f['catalog_style_name'] ?? $productName));
                         $variantName = trim((string)($f['variant_name'] ?? $productName));
                         if ($variantName === '') {
-                            $variantName = trim($styleName . ' - ' . $size . ' - ' . $color);
+                            $variantName = $styleName;
                         }
                         $productName = $variantName;
                         if ($styleCode === '' || $categoryId <= 0 || $size === '' || $color === '' || $styleName === '') {
@@ -1860,7 +1860,7 @@ class PurchaseController extends Controller {
             throw new Exception('Choose a valid size and color for the new catalog variant.');
         }
         if ($variantName === '') {
-            $variantName = trim($styleName . ' - ' . $size . ' - ' . $color);
+            $variantName = $styleName;
         }
         if (mb_strlen($variantName) < 2 || mb_strlen($variantName) > 150) {
             throw new Exception('Variant name must be between 2 and 150 characters.');
@@ -1969,7 +1969,7 @@ class PurchaseController extends Controller {
             }
         } else {
             if (DB::fetchValue(
-                'SELECT id FROM catalogs WHERE concern_id = ? AND style_code = ? LIMIT 1',
+                "SELECT id FROM catalogs WHERE concern_id = ? AND style_code = ? AND source_module = 'product_adding' LIMIT 1",
                 [$concernId, $styleCode]
             )) {
                 throw new Exception('This style code already exists. Enter a unique style code for the new style.');
@@ -1989,8 +1989,8 @@ class PurchaseController extends Controller {
                 "INSERT INTO catalogs (
                     concern_id, code, style_code, short_code, category_id, subcategory_id, sub_sub_category_id,
                     main_category_code, sub_category_code, sub_sub_category_code, hierarchy_path,
-                    hsn_code, gst_rate, sizes, status, name, created_at
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())",
+                    hsn_code, gst_rate, sizes, status, source_module, name, created_at
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 'product_adding', ?, NOW())",
                 [
                     $concernId, $styleCode, $styleCode, $shortCode, $categoryId, $subcategoryId, $subSubcategoryId,
                     substr($categoryCode, 0, 10), substr($subcategoryCode, 0, 10), substr($subSubcategoryCode, 0, 10),

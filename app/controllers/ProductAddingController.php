@@ -58,6 +58,7 @@ class ProductAddingController extends Controller
                                 FROM label_jobs lj
                                 WHERE lj.ref_id = pbi.id
                                   AND lj.concern_id = pbi.concern_id
+                                  AND lj.source_module = 'product_adding'
                                   AND lj.label_type = CASE
                                       WHEN pbi.section_type = 'finished_goods' THEN 'purchase_fg'
                                       ELSE 'purchase_raw'
@@ -65,7 +66,15 @@ class ProductAddingController extends Controller
                                   AND lj.id > COALESCE(pso.label_job_baseline_id, 0)
                                 ORDER BY lj.id DESC
                                 LIMIT 1
-                            ), 0) AS generated_label_qty
+                            ), 0) AS generated_label_qty,
+                            COALESCE((
+                                SELECT SUM(sl.qty_in - sl.qty_out)
+                                FROM stock_ledger sl
+                                WHERE sl.concern_id = pbi.concern_id
+                                  AND sl.variant_id = pbi.variant_id
+                                  AND sl.ref_id = pbi.id
+                                  AND sl.ref_module IN ('Purchase Inward Item', 'Product Adding Stock Correction')
+                            ), 0) AS finished_goods_inward_qty
                      FROM purchase_bill_items pbi
                      LEFT JOIN purchase_stock_item_overrides pso
                        ON pso.purchase_bill_item_id = pbi.id AND pso.concern_id = pbi.concern_id
@@ -78,6 +87,9 @@ class ProductAddingController extends Controller
                     $savedItem['required_label_qty'] = (int)ceil((float)($savedItem['purchase_qty_original'] ?? $savedItem['qty']));
                     $savedItem['generated_label_qty'] = max(0, (int)$savedItem['generated_label_qty']);
                     $savedItem['labels_complete'] = $savedItem['generated_label_qty'] > 0;
+                    $savedItem['stocked_qty'] = $savedItem['section_type'] === 'finished_goods'
+                        ? min((float)$savedItem['qty'], max(0, (float)$savedItem['finished_goods_inward_qty']))
+                        : (float)$savedItem['qty'];
                     $savedItem['default_label_qty'] = $savedItem['generated_label_qty'] > 0
                         ? $savedItem['generated_label_qty']
                         : $savedItem['required_label_qty'];
@@ -149,6 +161,7 @@ class ProductAddingController extends Controller
             'savedBillItems' => $savedBillItems,
             'productAddingLabelUrl' => \App\Core\Controller::url('/m/product_adding/generate_labels'),
             'productAddingStockUrl' => \App\Core\Controller::url('/m/product_adding/add_to_stock'),
+            'productAddingCorrectionUrl' => \App\Core\Controller::url('/m/product_adding/correct_stock_quantity'),
             'invoiceCheckUrl' => \App\Core\Controller::url('/m/product_adding/check_invoice'),
         ]);
     }
@@ -530,18 +543,18 @@ class ProductAddingController extends Controller
             $path = implode(' > ', array_filter([$cat['name'] ?? '', $sub['name'] ?? '', $subSub['name'] ?? '']));
 
             $catalogId = (int)DB::fetchValue(
-                "SELECT id FROM catalogs WHERE concern_id = ? AND style_code = ? LIMIT 1",
+                "SELECT id FROM catalogs WHERE concern_id = ? AND style_code = ? AND source_module = 'product_adding' LIMIT 1",
                 [$cid, $styleCode]
             );
             if ($catalogId > 0) {
                 DB::query(
-                    "UPDATE catalogs SET name = ?, category_id = ?, subcategory_id = ?, sub_sub_category_id = ?, hierarchy_path = ?, hsn_code = ?, gst_rate = ?, short_code = ?, main_category_code = ?, sub_category_code = ?, sub_sub_category_code = ?, sizes = ?, status = 'active', updated_at = NOW() WHERE id = ?",
+                    "UPDATE catalogs SET name = ?, category_id = ?, subcategory_id = ?, sub_sub_category_id = ?, hierarchy_path = ?, hsn_code = ?, gst_rate = ?, short_code = ?, main_category_code = ?, sub_category_code = ?, sub_sub_category_code = ?, sizes = ?, status = 'active', updated_at = NOW() WHERE id = ? AND source_module = 'product_adding'",
                     [$styleName, $categoryId, $subcategoryId, $subSubcategoryId, $path, $hsnCode, $gstRate, $wholeCode, substr($mainCode, 0, 10), substr($subCode, 0, 10), substr($subSubCode, 0, 10), json_encode(array_values($sizes)), $catalogId]
                 );
             } else {
                 DB::query(
-                    "INSERT INTO catalogs (concern_id, code, style_code, short_code, category_id, subcategory_id, sub_sub_category_id, main_category_code, sub_category_code, sub_sub_category_code, hierarchy_path, hsn_code, gst_rate, sizes, status, name, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())",
+                    "INSERT INTO catalogs (concern_id, code, style_code, short_code, category_id, subcategory_id, sub_sub_category_id, main_category_code, sub_category_code, sub_sub_category_code, hierarchy_path, hsn_code, gst_rate, sizes, status, source_module, name, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 'product_adding', ?, NOW())",
                     [$cid, $styleCode, $styleCode, $wholeCode, $categoryId, $subcategoryId, $subSubcategoryId, substr($mainCode, 0, 10), substr($subCode, 0, 10), substr($subSubCode, 0, 10), $path, $hsnCode, $gstRate, json_encode(array_values($sizes)), $styleName]
                 );
                 $catalogId = (int)DB::lastInsertId();

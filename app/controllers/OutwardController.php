@@ -63,6 +63,19 @@ class OutwardController extends Controller {
         ) ?: 0);
     }
 
+    private function addOutwardTransitStock(int $concernId, int $variantId, float $qty, int $outwardId, string $outwardNo): void {
+        StockService::move(
+            $concernId,
+            $variantId,
+            "IN_TRANSIT:OUTWARD:{$outwardId}",
+            $qty,
+            0.00,
+            'Outward Transit',
+            $outwardId,
+            "In-transit stock for outward {$outwardNo}"
+        );
+    }
+
     public function __construct() {
         parent::__construct();
         $this->ensureOutwardSchema();
@@ -622,6 +635,7 @@ class OutwardController extends Controller {
                     ", [$cid, $outwardId, $line['variant_id'], $line['qty']]);
 
                     $this->deductMainStoreStock($cid, $line['variant_id'], $line['qty'], $outwardId, $outwardNo);
+                    $this->addOutwardTransitStock($cid, $line['variant_id'], $line['qty'], $outwardId, $outwardNo);
                 }
 
                 // Update batch status to DISPATCHED
@@ -757,6 +771,7 @@ class OutwardController extends Controller {
 
                     if ($posInvoiceId === 0) {
                         StockService::move($cid, $vId, 'Main Store', 0.00, $iQty, 'Outward', $outwardId, "Outward FG dispatch {$outwardNo}");
+                        $this->addOutwardTransitStock($cid, $vId, $iQty, $outwardId, $outwardNo);
                     }
                 }
 
@@ -806,6 +821,21 @@ class OutwardController extends Controller {
         $destConcernId = !empty($_POST['destination_concern_id']) ? (int)$_POST['destination_concern_id'] : $out['destination_concern_id'];
         $boxes         = max(1, (int)($_POST['total_boxes'] ?? ($out['total_boxes'] ?? 1)));
         $status        = strtoupper(trim($_POST['status'] ?? $out['status']));
+        $currentStatus = strtolower((string)$out['status']);
+
+        if (
+            (int)$destConcernId !== (int)$out['destination_concern_id'] &&
+            in_array($currentStatus, ['dispatched', 'partial', 'received'], true)
+        ) {
+            $this->flash('error', 'The destination concern cannot be changed after dispatch.');
+            $this->redirect('/production/outward');
+            return;
+        }
+        if ($status === 'RECEIVED' && $currentStatus !== 'received') {
+            $this->flash('error', 'An outward can be marked received only after inward verification is completed.');
+            $this->redirect('/production/outward');
+            return;
+        }
 
         try {
             DB::query("
@@ -844,6 +874,14 @@ class OutwardController extends Controller {
 
         try {
             DB::beginTransaction();
+            $lockedOutward = DB::fetch("SELECT * FROM outwards WHERE id = ? FOR UPDATE", [$id]);
+            if (!$lockedOutward) {
+                throw new Exception('Outward record not found.');
+            }
+            if ((int)DB::fetchValue("SELECT COUNT(*) FROM inwards WHERE outward_id = ?", [$id]) > 0) {
+                throw new Exception('An outward with recorded inward receipts cannot be deleted.');
+            }
+            $out = $lockedOutward;
 
             // Find linked batch and restore status to APPROVED
             $batchId = (int)DB::fetchValue("SELECT batch_id FROM production_outward_batches WHERE outward_id = ? LIMIT 1", [$id]);
@@ -855,6 +893,32 @@ class OutwardController extends Controller {
             $items = DB::fetchAll("SELECT * FROM outward_items WHERE outward_id = ?", [$id]);
             if (empty($out['sales_invoice_id'])) {
                 foreach ($items as $item) {
+                    $transitLocation = "IN_TRANSIT:OUTWARD:{$id}";
+                    $transitQty = DB::fetchValue(
+                        "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE",
+                        [(int)$out['concern_id'], (int)$item['variant_id'], $transitLocation]
+                    );
+                    $hasTransitLedger = DB::fetchValue(
+                        "SELECT id FROM stock_ledger
+                         WHERE concern_id = ? AND variant_id = ? AND ref_module = 'Outward Transit' AND ref_id = ?
+                         LIMIT 1",
+                        [(int)$out['concern_id'], (int)$item['variant_id'], $id]
+                    );
+                    if ($hasTransitLedger) {
+                        if ($transitQty === false || $transitQty === null || (float)$transitQty + 0.0001 < (float)$item['qty']) {
+                            throw new Exception("Transit stock for variant #{$item['variant_id']} cannot be fully restored.");
+                        }
+                        StockService::move(
+                            (int)$out['concern_id'],
+                            (int)$item['variant_id'],
+                            $transitLocation,
+                            0.00,
+                            (float)$item['qty'],
+                            'Outward Transit Reversal',
+                            $id,
+                            "Reverted outward deletion {$out['outward_no']}"
+                        );
+                    }
                     StockService::move((int)$out['concern_id'], (int)$item['variant_id'], 'Main Store', (float)$item['qty'], 0.00, 'inward', $id, "Reverted outward deletion {$out['outward_no']}");
                 }
             }

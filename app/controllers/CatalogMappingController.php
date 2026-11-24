@@ -777,8 +777,8 @@ class CatalogMappingController extends Controller
                         concern_id, code, style_code, short_code, name,
                         category_id, subcategory_id, sub_sub_category_id,
                         main_category_code, sub_category_code, sub_sub_category_code,
-                        hierarchy_path, hsn_code, gst_rate, sizes, status, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_house', NOW())",
+                        hierarchy_path, hsn_code, gst_rate, sizes, status, source_module, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_house', 'catalog_mapping', NOW())",
                     [
                         $cid, $styleCode, $styleCode, $wholeCode, $styleName,
                         $categoryId, $subcategoryId, $subSubcategoryId,
