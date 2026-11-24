@@ -78,6 +78,14 @@ $checks = [
         && strpos($completeSaleMethod, "WHERE id = ? AND status = 'active'") !== false
         && strpos($completeSaleMethod, "No active concern is available for POS billing") !== false
         && strpos($terminalView, 'name="concern_id"') === false,
+    'POS deducts each variant billed quantity across all eligible stock locations' =>
+        strpos($completeSaleMethod, '$requestedQtyByVariant as $variantId => $requestedQty') !== false
+        && strpos($completeSaleMethod, 'SELECT location, qty') !== false
+        && strpos($completeSaleMethod, "WHEN location = 'Main Store' THEN 0") !== false
+        && strpos($completeSaleMethod, "WHEN location = 'Main Store (WH-01)' THEN 1") !== false
+        && strpos($completeSaleMethod, 'StockService::move(') !== false
+        && strpos($completeSaleMethod, '$remainingQty -= $deductQty') !== false
+        && strpos($completeSaleMethod, 'Remaining quantity to deduct') !== false,
 ];
 
 $failed = false;

@@ -53,6 +53,16 @@ class OutwardController extends Controller {
         }
     }
 
+    private function mainStoreAvailableQty(int $concernId, int $variantId): float {
+        return (float)(DB::fetchValue(
+            "SELECT COALESCE(SUM(qty), 0)
+             FROM stocks
+             WHERE concern_id = ? AND variant_id = ?
+               AND location IN ('Main Store', 'Main Store (WH-01)')",
+            [$concernId, $variantId]
+        ) ?: 0);
+    }
+
     public function __construct() {
         parent::__construct();
         $this->ensureOutwardSchema();
@@ -261,21 +271,46 @@ class OutwardController extends Controller {
         $allConcerns = DB::fetchAll("SELECT id, name, code, address, status FROM concerns ORDER BY id ASC");
         $currentConcernId = Auth::concernId() ?: ($selectedConcernId ?: 1);
 
-        // Only show approved production batches whose complete quantity is still stocked.
+        // Show QC-inwarded production batches with any remaining Main Store stock.
         $availableBatches = DB::fetchAll("
             SELECT b.*,
                    COALESCE(v.name, p.program_name, 'Finished Production Batch') AS product_name,
-                   v.sku_code, v.size, p.program_no,
-                   COALESCE(
-                       (SELECT SUM(bi.qty) FROM batch_items bi WHERE bi.batch_id = b.id),
-                       b.batch_qty
-                   ) AS dispatch_qty
+                   v.sku_code, v.size, p.program_no, qi.qc_no,
+                   COALESCE((
+                       SELECT SUM(LEAST(batch_line.qty, COALESCE((
+                           SELECT SUM(s.qty)
+                           FROM stocks s
+                           WHERE s.concern_id = batch_line.concern_id
+                             AND s.variant_id = batch_line.variant_id
+                             AND s.location IN ('Main Store', 'Main Store (WH-01)')
+                       ), 0)))
+                       FROM (
+                           SELECT batch_id, concern_id, variant_id, SUM(qty) AS qty
+                           FROM batch_items
+                           GROUP BY batch_id, concern_id, variant_id
+                       ) batch_line
+                       WHERE batch_line.batch_id = b.id
+                   ), LEAST(b.batch_qty, COALESCE((
+                       SELECT SUM(s.qty)
+                       FROM stocks s
+                       WHERE s.concern_id = b.concern_id
+                         AND s.variant_id = b.variant_id
+                         AND s.location IN ('Main Store', 'Main Store (WH-01)')
+                   ), 0))) AS dispatch_qty
             FROM batches b
             LEFT JOIN variants v ON b.variant_id = v.id
             LEFT JOIN production_programs p ON b.program_id = p.id
+            JOIN qc_inspections qi ON qi.id = b.qc_batch_id AND qi.concern_id = b.concern_id
             WHERE b.concern_id = ?
               AND UPPER(b.status) = 'APPROVED'
-              AND (b.batch_qty > 0 OR EXISTS (SELECT 1 FROM batch_items bi WHERE bi.batch_id = b.id))
+              AND EXISTS (
+                  SELECT 1
+                  FROM stock_ledger qc_ledger
+                  WHERE qc_ledger.concern_id = b.concern_id
+                    AND qc_ledger.ref_module = 'Production QC'
+                    AND qc_ledger.ref_id = b.qc_batch_id
+                    AND qc_ledger.qty_in > 0
+              )
               AND (
                   (
                       EXISTS (SELECT 1 FROM batch_items bi WHERE bi.batch_id = b.id)
@@ -293,24 +328,34 @@ class OutwardController extends Controller {
                                       AND bv.concern_id = b.concern_id
                                       AND bv.status = 'active'
                                 )
-                                OR COALESCE((
-                                    SELECT SUM(s.qty)
-                                    FROM stocks s
-                                    WHERE s.concern_id = b.concern_id
-                                      AND s.variant_id = bi.variant_id
-                                      AND s.location IN ('Main Store', 'Main Store (WH-01)')
-                                ), 0) < (
-                                    SELECT SUM(bi2.qty)
-                                    FROM batch_items bi2
-                                    WHERE bi2.batch_id = b.id
-                                      AND bi2.variant_id = bi.variant_id
+                                OR NOT EXISTS (
+                                    SELECT 1
+                                    FROM stock_ledger qc_line
+                                    WHERE qc_line.concern_id = bi.concern_id
+                                      AND qc_line.variant_id = bi.variant_id
+                                      AND qc_line.ref_module = 'Production QC'
+                                      AND qc_line.ref_id = b.qc_batch_id
+                                      AND qc_line.qty_in > 0
                                 )
                             )
+                      )
+                      AND EXISTS (
+                          SELECT 1
+                          FROM batch_items bi
+                          WHERE bi.batch_id = b.id
+                            AND COALESCE((
+                                SELECT SUM(s.qty)
+                                FROM stocks s
+                                WHERE s.concern_id = bi.concern_id
+                                  AND s.variant_id = bi.variant_id
+                                  AND s.location IN ('Main Store', 'Main Store (WH-01)')
+                            ), 0) > 0
                       )
                   )
                   OR (
                       NOT EXISTS (SELECT 1 FROM batch_items bi WHERE bi.batch_id = b.id)
                       AND b.variant_id IS NOT NULL
+                      AND b.batch_qty > 0
                       AND EXISTS (
                           SELECT 1
                           FROM variants bv
@@ -318,15 +363,45 @@ class OutwardController extends Controller {
                             AND bv.concern_id = b.concern_id
                             AND bv.status = 'active'
                       )
+                      AND EXISTS (
+                          SELECT 1
+                          FROM stock_ledger qc_line
+                          WHERE qc_line.concern_id = b.concern_id
+                            AND qc_line.variant_id = b.variant_id
+                            AND qc_line.ref_module = 'Production QC'
+                            AND qc_line.ref_id = b.qc_batch_id
+                            AND qc_line.qty_in > 0
+                      )
                       AND COALESCE((
                           SELECT SUM(s.qty)
                           FROM stocks s
                           WHERE s.concern_id = b.concern_id
                             AND s.variant_id = b.variant_id
                             AND s.location IN ('Main Store', 'Main Store (WH-01)')
-                      ), 0) >= b.batch_qty
+                      ), 0) > 0
                   )
               )
+              AND COALESCE((
+                  SELECT SUM(LEAST(batch_line.qty, COALESCE((
+                      SELECT SUM(s.qty)
+                      FROM stocks s
+                      WHERE s.concern_id = batch_line.concern_id
+                        AND s.variant_id = batch_line.variant_id
+                        AND s.location IN ('Main Store', 'Main Store (WH-01)')
+                  ), 0)))
+                  FROM (
+                      SELECT batch_id, concern_id, variant_id, SUM(qty) AS qty
+                      FROM batch_items
+                      GROUP BY batch_id, concern_id, variant_id
+                  ) batch_line
+                  WHERE batch_line.batch_id = b.id
+              ), LEAST(b.batch_qty, COALESCE((
+                  SELECT SUM(s.qty)
+                  FROM stocks s
+                  WHERE s.concern_id = b.concern_id
+                    AND s.variant_id = b.variant_id
+                    AND s.location IN ('Main Store', 'Main Store (WH-01)')
+              ), 0))) > 0
             ORDER BY b.id DESC
         ", [$currentConcernId]);
 
@@ -441,6 +516,18 @@ class OutwardController extends Controller {
                 if (!$batch) {
                     throw new Exception('The selected production batch is no longer available for this concern.');
                 }
+                if (
+                    empty($batch['qc_batch_id'])
+                    || !DB::fetchValue(
+                        "SELECT id FROM stock_ledger
+                         WHERE concern_id = ? AND ref_module = 'Production QC'
+                           AND ref_id = ? AND qty_in > 0
+                         LIMIT 1",
+                        [$cid, (int)$batch['qc_batch_id']]
+                    )
+                ) {
+                    throw new Exception('The selected batch is not linked to QC-passed production stock.');
+                }
 
                 $puId = (int)($batch['production_unit_id'] ?: 1);
                 $boxes = max(1, (int)($batch['total_boxes'] ?: 1));
@@ -448,8 +535,8 @@ class OutwardController extends Controller {
                     "SELECT * FROM batch_items WHERE batch_id = ? ORDER BY id ASC FOR UPDATE",
                     [$batchId]
                 );
+                $requestedByVariant = [];
                 if (!empty($batchVariants)) {
-                    $qty = 0.0;
                     foreach ($batchVariants as $batchVariant) {
                         if (
                             (int)$batchVariant['concern_id'] !== $cid
@@ -458,13 +545,47 @@ class OutwardController extends Controller {
                         ) {
                             throw new Exception('The selected production batch contains an invalid stock line.');
                         }
-                        $qty += (float)$batchVariant['qty'];
+                        $requestedByVariant[(int)$batchVariant['variant_id']] =
+                            ($requestedByVariant[(int)$batchVariant['variant_id']] ?? 0.0)
+                            + (float)$batchVariant['qty'];
                     }
                 } else {
-                    $qty = (float)$batch['batch_qty'];
-                    if ((int)($batch['variant_id'] ?? 0) <= 0 || $qty <= 0) {
+                    $variantId = (int)($batch['variant_id'] ?? 0);
+                    $batchQty = (float)$batch['batch_qty'];
+                    if ($variantId <= 0 || $batchQty <= 0) {
                         throw new Exception('The selected production batch has no dispatchable stock lines.');
                     }
+                    $requestedByVariant[$variantId] = $batchQty;
+                }
+
+                $dispatchLines = [];
+                $qty = 0.0;
+                foreach ($requestedByVariant as $variantId => $requestedQty) {
+                    if (!DB::fetchValue(
+                        "SELECT id FROM stock_ledger
+                         WHERE concern_id = ? AND variant_id = ?
+                           AND ref_module = 'Production QC' AND ref_id = ?
+                           AND qty_in > 0
+                         LIMIT 1",
+                        [$cid, (int)$variantId, (int)$batch['qc_batch_id']]
+                    )) {
+                        throw new Exception('The selected batch contains stock that is not linked to its QC pass.');
+                    }
+                    $variant = DB::fetch(
+                        "SELECT id FROM variants WHERE id = ? AND concern_id = ? AND status = 'active'",
+                        [$variantId, $cid]
+                    );
+                    if (!$variant) {
+                        throw new Exception('The selected production batch contains an invalid stock line.');
+                    }
+                    $dispatchQty = min($requestedQty, $this->mainStoreAvailableQty($cid, (int)$variantId));
+                    if ($dispatchQty > 0) {
+                        $dispatchLines[] = ['variant_id' => (int)$variantId, 'qty' => $dispatchQty];
+                        $qty += $dispatchQty;
+                    }
+                }
+                if ($qty <= 0) {
+                    throw new Exception('No QC-passed production stock remains available in Main Store for this batch.');
                 }
 
                 DB::query("
@@ -493,23 +614,14 @@ class OutwardController extends Controller {
                     VALUES (?, ?, ?, ?, ?)
                 ", [$cid, $outwardId, $batchId, $boxes, $qty]);
 
-                // Link items and deduct stock from Main Store for all variants in the batch
-                if (!empty($batchVariants)) {
-                    foreach ($batchVariants as $bv) {
-                        DB::query("
-                            INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
-                            VALUES (?, ?, ?, ?)
-                        ", [$cid, $outwardId, $bv['variant_id'], $bv['qty']]);
-
-                        $this->deductMainStoreStock($cid, (int)$bv['variant_id'], (float)$bv['qty'], $outwardId, $outwardNo);
-                    }
-                } else {
+                // Link and deduct only the QC-passed quantity still available in Main Store.
+                foreach ($dispatchLines as $line) {
                     DB::query("
                         INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
                         VALUES (?, ?, ?, ?)
-                    ", [$cid, $outwardId, $batch['variant_id'], $qty]);
+                    ", [$cid, $outwardId, $line['variant_id'], $line['qty']]);
 
-                    $this->deductMainStoreStock($cid, (int)$batch['variant_id'], $qty, $outwardId, $outwardNo);
+                    $this->deductMainStoreStock($cid, $line['variant_id'], $line['qty'], $outwardId, $outwardNo);
                 }
 
                 // Update batch status to DISPATCHED

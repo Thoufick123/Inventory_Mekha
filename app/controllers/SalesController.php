@@ -1410,10 +1410,22 @@ class SalesController extends Controller {
 
             ksort($requestedQtyByVariant);
             foreach ($requestedQtyByVariant as $variantId => $requestedQty) {
-                $availableQty = (float)(DB::fetchValue(
-                    "SELECT COALESCE(SUM(qty), 0) FROM stocks WHERE concern_id = ? AND variant_id = ? AND (location = 'Main Store' OR location = 'Main Store (WH-01)') FOR UPDATE",
+                $availableRows = DB::fetchAll(
+                    "SELECT qty
+                     FROM stocks
+                     WHERE concern_id = ? AND variant_id = ?
+                       AND qty > 0
+                       AND location NOT LIKE '%:DAMAGED%'
+                       AND location NOT LIKE '%:QUARANTINE%'
+                       AND location NOT LIKE '%:RESERVED%'
+                       AND location NOT LIKE '%:IN_TRANSIT%'
+                     FOR UPDATE",
                     [$cid, (int)$variantId]
-                ) ?: 0);
+                );
+                $availableQty = array_sum(array_map(
+                    static fn(array $stockRow): float => (float)$stockRow['qty'],
+                    $availableRows
+                ));
                 if ($requestedQty > $availableQty) {
                     $variantName = DB::fetchValue(
                         "SELECT name FROM variants WHERE id = ? AND concern_id = ?",
@@ -1469,31 +1481,59 @@ class SalesController extends Controller {
             );
             $invoiceId = (int)DB::lastInsertId();
 
-            // 4. Record items & atomically deduct stock via single stock gateway
+            // 4. Record invoice lines before deducting the grouped variant quantities.
             foreach ($calculatedItems as $item) {
                 DB::query(
                     "INSERT INTO sales_invoice_items (concern_id, sales_invoice_id, variant_id, production_batch_id, qty, unit_price, total_price)
                      VALUES (?, ?, ?, ?, ?, ?, ?)",
                     [$cid, $invoiceId, $item['variant_id'], $item['production_batch_id'], $item['qty'], $item['unit_price'], $item['total_price']]
                 );
+            }
 
-                // Deduct stock via StockService::move
-                $qtyToDeduct = (float)$item['qty'];
-                $msQty = (float)DB::fetchValue("SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'", [$cid, $item['variant_id']]);
-                if ($msQty >= $qtyToDeduct) {
-                    StockService::move($cid, $item['variant_id'], 'Main Store', 0.00, $qtyToDeduct, 'Billing', $invoiceId, "POS Sale #{$invoiceNo}", Auth::id());
-                } else {
-                    if ($msQty > 0) {
-                        StockService::move($cid, $item['variant_id'], 'Main Store', 0.00, $msQty, 'Billing', $invoiceId, "POS Sale #{$invoiceNo}", Auth::id());
-                        $qtyToDeduct -= $msQty;
+            // Deduct across eligible locations in priority order, without leaving any sold quantity in stocks.
+            foreach ($requestedQtyByVariant as $variantId => $requestedQty) {
+                $remainingQty = (float)$requestedQty;
+                $stockRows = DB::fetchAll(
+                    "SELECT location, qty
+                     FROM stocks
+                     WHERE concern_id = ? AND variant_id = ? AND qty > 0
+                       AND location NOT LIKE '%:DAMAGED%'
+                       AND location NOT LIKE '%:QUARANTINE%'
+                       AND location NOT LIKE '%:RESERVED%'
+                       AND location NOT LIKE '%:IN_TRANSIT%'
+                     ORDER BY CASE
+                         WHEN location = 'Main Store' THEN 0
+                         WHEN location = 'Main Store (WH-01)' THEN 1
+                         ELSE 2
+                     END, qty DESC, location ASC
+                     FOR UPDATE",
+                    [$cid, (int)$variantId]
+                );
+                foreach ($stockRows as $stockRow) {
+                    if ($remainingQty <= 0.00001) {
+                        break;
                     }
-                    if ($qtyToDeduct > 0) {
-                        $otherLoc = DB::fetchValue(
-                            "SELECT location FROM stocks WHERE concern_id = ? AND variant_id = ? AND qty >= ? AND location NOT LIKE '%:DAMAGED%' AND location NOT LIKE '%:QUARANTINE%' ORDER BY qty DESC LIMIT 1",
-                            [$cid, $item['variant_id'], $qtyToDeduct]
-                        ) ?: 'Main Store';
-                        StockService::move($cid, $item['variant_id'], $otherLoc, 0.00, $qtyToDeduct, 'Billing', $invoiceId, "POS Sale #{$invoiceNo}", Auth::id());
+                    $deductQty = min($remainingQty, (float)$stockRow['qty']);
+                    if ($deductQty <= 0) {
+                        continue;
                     }
+                    StockService::move(
+                        $cid,
+                        (int)$variantId,
+                        (string)$stockRow['location'],
+                        0.00,
+                        $deductQty,
+                        'Billing',
+                        $invoiceId,
+                        "POS Sale #{$invoiceNo}",
+                        Auth::id()
+                    );
+                    $remainingQty -= $deductQty;
+                }
+                if ($remainingQty > 0.00001) {
+                    throw new \RuntimeException(
+                        "Insufficient sellable stock for variant #{$variantId}. Remaining quantity to deduct: {$remainingQty}."
+                    );
                 }
             }
 

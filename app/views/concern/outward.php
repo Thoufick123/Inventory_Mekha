@@ -324,7 +324,7 @@
                     <div class="col-12">
                         <div class="alert alert-info py-2 px-3 small mb-0 d-flex align-items-center gap-2">
                             <i class="bi bi-info-circle fs-5"></i>
-                            <div>Select an approved pre-packaged production batch (BAT-XXXX) and choose the destination concern / warehouse.</div>
+                            <div>Select QC-passed own-production stock with remaining Main Store quantity, then choose the destination concern.</div>
                         </div>
                     </div>
 
@@ -365,13 +365,14 @@
                     <!-- Row 2: Batch Selection -->
                     <div class="col-12">
                         <label class="form-label small fw-semibold text-secondary">
-                            <i class="bi bi-box-seam text-primary me-1"></i> Select Production Batch to Dispatch *
+                            <i class="bi bi-box-seam text-primary me-1"></i> Select QC-Passed Production Stock to Dispatch *
                         </label>
                         <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm" required>
-                            <option value="">-- Select Finished Production Batch --</option>
+                            <option value="">-- Select QC-Passed Own-Production Stock --</option>
                             <?php foreach ($availableBatches as $b): ?>
                                 <option value="<?= (int)$b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 0) ?>">
-                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['product_name'] ?? ($b['program_name'] ?? ($b['variant_name'] ?? 'Production Batch'))) ?> (<?= (int)$b['dispatch_qty'] ?> pcs available, <?= (int)$b['total_boxes'] ?> box)
+                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['product_name'] ?? ($b['program_name'] ?? ($b['variant_name'] ?? 'Production Batch'))) ?>
+                                    (QC <?= htmlspecialchars((string)($b['qc_no'] ?? '-')) ?>, <?= (int)$b['dispatch_qty'] ?> pcs available)
                                 </option>
                             <?php endforeach; ?>
                         </select>
