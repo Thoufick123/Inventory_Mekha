@@ -86,6 +86,16 @@ if (!in_array('received_by', $cols)) {
     echo "  . `received_by` already exists\n";
 }
 
+echo "\n3a. Checking `inward_items`...\n";
+$inwardItemCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `inward_items`"), 'Field');
+if (!in_array('inward_id', $inwardItemCols, true)) {
+    DB::query("ALTER TABLE `inward_items` ADD COLUMN `inward_id` INT NULL AFTER `concern_id`");
+    DB::query("ALTER TABLE `inward_items` ADD INDEX `idx_ini_inward` (`inward_id`)");
+    echo "  + Added `inward_id` to `inward_items`\n";
+} else {
+    echo "  . `inward_id` already exists on `inward_items`\n";
+}
+
 // 4. CASHIER_SHIFTS
 echo "\n4. Checking `cashier_shifts`...\n";
 $cols = array_column(DB::fetchAll("SHOW COLUMNS FROM `cashier_shifts`"), 'Field');

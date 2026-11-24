@@ -141,7 +141,7 @@ $dispatchDate = date('d M Y, h:i A', strtotime($outward['dispatched_at'] ?? ($ba
     <!-- Action Toolbar (Hidden during print) -->
     <div class="action-bar">
         <div class="d-flex align-items-center gap-2">
-            <a href="<?= \App\Core\Controller::url('/production/outward?tab=batch') ?>" class="btn btn-outline-secondary btn-sm fw-semibold">
+            <a href="<?= \App\Core\Controller::url('/production/outward') ?>" class="btn btn-outline-secondary btn-sm fw-semibold">
                 <i class="bi bi-arrow-left me-1"></i> Back to Outward
             </a>
             <a href="<?= \App\Core\Controller::url('/production/batches/label/' . $batch['id']) ?>" class="btn btn-outline-primary btn-sm fw-semibold">

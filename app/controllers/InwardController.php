@@ -90,6 +90,10 @@ class InwardController extends Controller {
             }
 
             $inItemCols = array_column(DB::fetchAll("DESCRIBE `inward_items`"), 'Field');
+            if (!in_array('inward_id', $inItemCols, true)) {
+                DB::query("ALTER TABLE `inward_items` ADD COLUMN `inward_id` INT NULL AFTER `concern_id`");
+                DB::query("ALTER TABLE `inward_items` ADD INDEX `idx_ini_inward` (`inward_id`)");
+            }
             if (!in_array('accepted_qty', $inItemCols)) {
                 DB::query("ALTER TABLE `inward_items` ADD COLUMN `accepted_qty` DECIMAL(12,2) DEFAULT 0.00 AFTER `qty`");
             }
@@ -98,6 +102,12 @@ class InwardController extends Controller {
             }
             if (!in_array('rejection_reason', $inItemCols)) {
                 DB::query("ALTER TABLE `inward_items` ADD COLUMN `rejection_reason` VARCHAR(255) NULL AFTER `rejected_qty`");
+            }
+
+            $damageCols = array_column(DB::fetchAll("DESCRIBE `warehouse_damages`"), 'Field');
+            if (!in_array('inward_id', $damageCols, true)) {
+                DB::query("ALTER TABLE `warehouse_damages` ADD COLUMN `inward_id` INT NULL AFTER `qty`");
+                DB::query("ALTER TABLE `warehouse_damages` ADD INDEX `idx_whd_inward` (`inward_id`)");
             }
 
             $outCols = array_column(DB::fetchAll("DESCRIBE `outwards`"), 'Field');
@@ -791,6 +801,7 @@ class InwardController extends Controller {
 
     public function creditStock(): void {
         $this->validateCsrf();
+        $this->ensureSchema();
         $cid = Auth::concernId();
         $outwardId = (int)($_POST['outward_id'] ?? 0);
         $damageReason     = trim($_POST['damage_reason'] ?? 'Damaged during transit / handling');

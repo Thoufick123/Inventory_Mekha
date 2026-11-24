@@ -840,7 +840,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                 <button type="button" class="btn btn-primary fw-bold shadow-sm" onclick="printReceiptArea('pos')" style="border-radius: 9999px; background: #4f46e5;">
                     <i class="bi bi-printer me-1"></i> POS Format
                 </button>
-                <a href="<?= \App\Core\Controller::url('/production/outward?tab=fg&pos_invoice_id=' . (int)$printInvoice['id']) ?>" class="btn btn-success fw-bold shadow-sm" style="border-radius: 9999px;">
+                <a href="<?= \App\Core\Controller::url('/production/outward?pos_invoice_id=' . (int)$printInvoice['id']) ?>" class="btn btn-success fw-bold shadow-sm" style="border-radius: 9999px;">
                     <i class="bi bi-box-arrow-up-right me-1"></i> Move to Outward
                 </a>
             </div>

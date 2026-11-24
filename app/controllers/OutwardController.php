@@ -166,14 +166,14 @@ class OutwardController extends Controller {
                 $invoiceParams[] = $invoiceScopeId;
             } elseif (!Auth::isSuperAdmin()) {
                 $this->flash('error', 'Select a concern before transferring a POS invoice to Outward.');
-                $this->redirect('/production/outward?tab=fg');
+                $this->redirect('/production/outward');
                 return;
             }
 
             $posInvoiceTransfer = DB::fetch($invoiceSql, $invoiceParams);
             if (!$posInvoiceTransfer) {
                 $this->flash('error', 'The POS invoice was not found for the selected concern.');
-                $this->redirect('/production/outward?tab=fg');
+                $this->redirect('/production/outward');
                 return;
             }
             if (!$selectedConcernId) {
@@ -186,7 +186,7 @@ class OutwardController extends Controller {
             );
             if ($existingInvoiceOutward) {
                 $this->flash('warning', "Invoice {$posInvoiceTransfer['invoice_no']} is already linked to outward {$existingInvoiceOutward['outward_no']}.");
-                $this->redirect('/production/outward?tab=fg');
+                $this->redirect('/production/outward');
                 return;
             }
 
@@ -201,40 +201,15 @@ class OutwardController extends Controller {
             );
             if (!$posInvoiceItems) {
                 $this->flash('error', "Invoice {$posInvoiceTransfer['invoice_no']} has no items to transfer.");
-                $this->redirect('/production/outward?tab=fg');
+                $this->redirect('/production/outward');
                 return;
             }
         }
 
         $search       = trim($_GET['search'] ?? '');
-        $typeFilter   = trim($_GET['type'] ?? '');
-        $activeTab    = trim($_GET['tab'] ?? ''); // 'batch', 'fg', or ''
         $page         = max(1, (int)($_GET['page'] ?? 1));
         $perPage      = max(5, (int)($_GET['per_page'] ?? 10));
         $offset       = ($page - 1) * $perPage;
-
-        // Calculate count of Production Batch Outwards vs Finished Goods Outwards
-        $scopeCon = $selectedConcernId ? " AND o.concern_id = {$selectedConcernId}" : "";
-        $batchCount = (int)DB::fetchValue("
-            SELECT COUNT(DISTINCT o.id) 
-            FROM outwards o 
-            LEFT JOIN production_outward_batches pob ON pob.outward_id = o.id 
-            WHERE (pob.batch_id IS NOT NULL) {$scopeCon}
-        ");
-        $fgCount = (int)DB::fetchValue("
-            SELECT COUNT(DISTINCT o.id) 
-            FROM outwards o 
-            LEFT JOIN production_outward_batches pob ON pob.outward_id = o.id 
-            WHERE (pob.batch_id IS NULL) {$scopeCon}
-        ");
-
-        if ($activeTab === '' && $typeFilter === '') {
-            $activeTab = 'batch';
-        } elseif ($typeFilter === 'batch') {
-            $activeTab = 'batch';
-        } elseif ($typeFilter === 'fg') {
-            $activeTab = 'fg';
-        }
 
         $sql = "SELECT o.*, si.invoice_no AS sales_invoice_no,
                        con.name AS source_concern_name, con.code AS source_concern_code,
@@ -281,12 +256,6 @@ class OutwardController extends Controller {
             $params[] = $term;
             $params[] = $term;
             $params[] = $term;
-        }
-
-        if ($activeTab === 'batch') {
-            $sql .= " AND (pob.batch_id IS NOT NULL OR b.batch_no IS NOT NULL)";
-        } elseif ($activeTab === 'fg') {
-            $sql .= " AND (pob.batch_id IS NULL AND b.id IS NULL)";
         }
 
         $countSql = "SELECT COUNT(*) FROM (" . $sql . ") AS cnt_tbl";
@@ -468,10 +437,6 @@ class OutwardController extends Controller {
             'perPage'           => $perPage,
             'totalPages'        => $totalPages,
             'search'            => $search,
-            'typeFilter'        => $typeFilter,
-            'activeTab'         => $activeTab,
-            'batchCount'        => $batchCount,
-            'fgCount'           => $fgCount,
             'selectedConcernId' => $selectedConcernId,
             'currentConcernId'  => $currentConcernId,
             'sourceConcerns'    => $sourceConcerns,
@@ -789,7 +754,7 @@ class OutwardController extends Controller {
             $transactionStarted = false;
             $totalQuantity = array_sum($combinedItems);
             $this->flash('success', "Outward Manifest {$outwardNo} successfully dispatched via {$vehicleNumber}! ({$totalQuantity} pcs, {$boxes} boxes)");
-            $this->redirect($posInvoiceId > 0 ? '/production/outward?tab=fg' : '/production/outward?tab=batch');
+            $this->redirect('/production/outward');
             return;
         } catch (\Throwable $e) {
             if ($transactionStarted) {
@@ -797,7 +762,7 @@ class OutwardController extends Controller {
             }
             $this->flash('error', 'Dispatch failed: ' . $e->getMessage());
             $redirectPath = $posInvoiceId > 0
-                ? "/production/outward?tab=fg&pos_invoice_id={$posInvoiceId}"
+                ? "/production/outward?pos_invoice_id={$posInvoiceId}"
                 : '/production/outward';
             $this->redirect($redirectPath);
         }
@@ -1148,8 +1113,8 @@ class OutwardController extends Controller {
         $redirectPath = '/production/outward';
         if ($posInvoiceId > 0) {
             $redirectPath = $handoffCompleted
-                ? '/production/outward?tab=fg'
-                : "/production/outward?tab=fg&pos_invoice_id={$posInvoiceId}";
+                ? '/production/outward'
+                : "/production/outward?pos_invoice_id={$posInvoiceId}";
         }
         $this->redirect($redirectPath);
     }

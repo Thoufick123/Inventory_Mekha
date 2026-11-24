@@ -41,8 +41,16 @@ $checks = [
         && str_contains($outwardView, 'PRODUCT CODE / BATCH NO.')
         && str_contains($outwardView, '<span class="font-monospace fw-semibold text-primary">${it.sku}</span>')
         && strpos($outwardView, 'id="fgScannedTbody"') < strpos($outwardView, 'id="totalBoxesInput"')
-        && str_contains($labelView, '/production/outward?tab=batch')
+        && str_contains($labelView, '/production/outward')
+        && !str_contains($labelView, '/production/outward?tab=batch')
         && !str_contains($labelView, "url('/production/batches')"),
+    'Outward list shows all dispatch types without type-specific filters' =>
+        !str_contains($outwardView, 'DISPATCH TYPE:')
+        && !str_contains($outwardView, 'tab=batch')
+        && !str_contains($outwardView, 'tab=fg')
+        && !str_contains($controller, '$activeTab')
+        && !str_contains($controller, '$typeFilter')
+        && !str_contains($controller, 'pob.batch_id IS NOT NULL OR b.batch_no IS NOT NULL'),
     'One scanner selects either an available QC-passed batch or a stocked finished good' =>
         str_contains($outwardView, 'function processOutwardScan(scannedCode)')
         && str_contains($outwardView, 'function processFinishedGoodScan(code)')

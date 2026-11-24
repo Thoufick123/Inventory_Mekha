@@ -31,30 +31,14 @@
 
     <!-- Main Card -->
     <div class="card border-0 shadow-sm rounded-3">
-        <!-- Top Navigation: Two Primary Labels (1. Production Batches | 2. Finishing Good) + Filter & Search -->
+        <!-- Concern filter and search -->
         <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <!-- Two Flow Labels / Tabs -->
-            <div class="d-flex align-items-center gap-2">
-                <span class="small fw-bold text-muted text-uppercase d-none d-md-inline" style="font-size:0.75rem; letter-spacing:0.05em;">DISPATCH TYPE:</span>
-                <div class="btn-group btn-group-sm" role="group">
-                    <a href="<?= \App\Core\Controller::url('/production/outward?tab=batch' . ($selectedConcernId ? '&concern_id=' . $selectedConcernId : '') . (!empty($search) ? '&search=' . urlencode($search) : '')) ?>" class="btn <?= ($activeTab === 'batch') ? 'btn-primary' : 'btn-outline-secondary' ?> fw-semibold px-3 py-1.5 d-flex align-items-center gap-1.5" style="<?= ($activeTab === 'batch') ? 'background:#4f46e5; border-color:#4f46e5;' : '' ?>">
-                        <i class="bi bi-boxes"></i> 1. Production Batches
-                        <span class="badge <?= ($activeTab === 'batch') ? 'bg-white text-dark' : 'bg-secondary text-white' ?> ms-1"><?= (int)$batchCount ?></span>
-                    </a>
-                    <a href="<?= \App\Core\Controller::url('/production/outward?tab=fg' . ($selectedConcernId ? '&concern_id=' . $selectedConcernId : '') . (!empty($search) ? '&search=' . urlencode($search) : '')) ?>" class="btn <?= ($activeTab === 'fg') ? 'btn-primary' : 'btn-outline-secondary' ?> fw-semibold px-3 py-1.5 d-flex align-items-center gap-1.5" style="<?= ($activeTab === 'fg') ? 'background:#4f46e5; border-color:#4f46e5;' : '' ?>">
-                        <i class="bi bi-upc-scan"></i> 2. Finishing Good
-                        <span class="badge <?= ($activeTab === 'fg') ? 'bg-white text-dark' : 'bg-secondary text-white' ?> ms-1"><?= (int)$fgCount ?></span>
-                    </a>
-                </div>
-                <span class="badge bg-light text-dark border px-2 py-1 ms-2" style="font-size:0.75rem;">
-                    <?= (int)$totalRecords ?> Total
-                </span>
-            </div>
+            <span class="badge bg-light text-dark border px-2 py-1" style="font-size:0.75rem;">
+                <?= (int)$totalRecords ?> Total dispatches
+            </span>
 
-            <!-- Toolbar: Dynamic Concern Filter and Search -->
+            <!-- Toolbar: Concern Filter and Search -->
             <form method="GET" action="<?= \App\Core\Controller::url('/production/outward') ?>" class="d-flex flex-wrap align-items-center gap-2 m-0" style="max-width: 500px;">
-                <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab) ?>">
-
                 <!-- Concern Selector -->
                 <div style="min-width: 170px;">
                     <select name="concern_id" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -72,7 +56,7 @@
                     <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-search"></i></span>
                     <input type="text" name="search" class="form-control border-start-0" placeholder="Search dispatches..." value="<?= htmlspecialchars($search ?? '') ?>">
                     <?php if (!empty($search)): ?>
-                        <a href="<?= \App\Core\Controller::url('/production/outward?tab=' . urlencode($activeTab) . ($selectedConcernId ? '&concern_id=' . $selectedConcernId : '')) ?>" class="btn btn-outline-secondary" title="Clear">
+                        <a href="<?= \App\Core\Controller::url('/production/outward' . ($selectedConcernId ? '?concern_id=' . (int)$selectedConcernId : '')) ?>" class="btn btn-outline-secondary" title="Clear">
                             <i class="bi bi-x-lg"></i>
                         </a>
                     <?php endif; ?>
@@ -101,11 +85,7 @@
                         <tr>
                             <td colspan="9" class="text-center py-5 text-muted">
                                 <i class="bi bi-truck fs-1 d-block mb-2 text-secondary opacity-50"></i>
-                                <?php if ($activeTab === 'fg'): ?>
-                                    No finished-good-only dispatches found. Create an outward manifest to scan products.
-                                <?php else: ?>
-                                    No production batch outward records found. Create a new outward manifest to dispatch stock.
-                                <?php endif; ?>
+                                No outward dispatches found. Create a new outward manifest to dispatch stock.
                             </td>
                         </tr>
                     <?php else: ?>
@@ -255,15 +235,15 @@
             <nav aria-label="Page navigation">
                 <ul class="pagination pagination-sm mb-0">
                     <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                        <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . max(1, $page - 1) . '&tab=' . urlencode($activeTab) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>">&lt; Prev</a>
+                        <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . max(1, $page - 1) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>">&lt; Prev</a>
                     </li>
                     <?php for ($p = 1; $p <= $totalPages; $p++): ?>
                         <li class="page-item <?= ($page === $p) ? 'active' : '' ?>">
-                            <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . $p . '&tab=' . urlencode($activeTab) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>"><?= $p ?></a>
+                            <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . $p . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>"><?= $p ?></a>
                         </li>
                     <?php endfor; ?>
                     <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
-                        <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . min($totalPages, $page + 1) . '&tab=' . urlencode($activeTab) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>">Next &gt;</a>
+                        <a class="page-link" href="<?= \App\Core\Controller::url('/production/outward?page=' . min($totalPages, $page + 1) . '&search=' . urlencode($search ?? '') . '&concern_id=' . urlencode((string)($selectedConcernId ?? ''))) ?>">Next &gt;</a>
                     </li>
                 </ul>
             </nav>
