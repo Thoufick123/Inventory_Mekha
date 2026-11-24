@@ -5158,6 +5158,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const generatedCount = Number(event.data.itemCounts[itemId]) || 0;
             checkbox.dataset.generatedLabelCount = String(generatedCount);
             checkbox.dataset.labelsComplete = generatedCount > 0 ? '1' : '0';
+            if (generatedCount > 0 && checkbox.dataset.inStock !== '1') {
+                checkbox.checked = true;
+            }
 
             const progress = document.getElementById(`productAddingLabelProgress${itemId}`);
             if (progress) {

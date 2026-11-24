@@ -208,7 +208,7 @@
             <form action="<?= \App\Core\Controller::url('/production/qc/save-inspection') ?>" method="POST" id="formCompleteInspection" class="d-inline">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="qc_id" value="<?= (int)$qc['id'] ?>">
-                <button type="submit" class="btn btn-success px-4 py-2 fw-semibold shadow-sm fs-6">
+                <button type="submit" id="saveInspectionButton" class="btn btn-success px-4 py-2 fw-semibold shadow-sm fs-6">
                     <i class="bi bi-save me-1"></i> Save Inspection
                 </button>
             </form>
@@ -403,6 +403,21 @@ document.getElementById('inputQrScanner').addEventListener('keydown', function(e
     }
 });
 
+const pendingVerdictRequests = new Set();
+const saveInspectionButton = document.getElementById('saveInspectionButton');
+let submitAfterVerdictsComplete = false;
+
+function trackVerdictRequest(request) {
+    let trackedRequest;
+    trackedRequest = request.finally(() => {
+        pendingVerdictRequests.delete(trackedRequest);
+        saveInspectionButton.disabled = pendingVerdictRequests.size > 0;
+    });
+    pendingVerdictRequests.add(trackedRequest);
+    saveInspectionButton.disabled = true;
+    return trackedRequest;
+}
+
 function setPieceVerdict(pieceId, verdict, explicitNote = null) {
     const note = explicitNote !== null ? explicitNote : (document.getElementById('note_' + pieceId)?.value || '');
 
@@ -412,14 +427,17 @@ function setPieceVerdict(pieceId, verdict, explicitNote = null) {
     formData.append('verdict', verdict);
     formData.append('defect_reason', note);
 
-    fetch('<?= \App\Core\Controller::url('/production/qc/update-piece') ?>', {
+    return trackVerdictRequest(fetch('<?= \App\Core\Controller::url('/production/qc/update-piece') ?>', {
         method: 'POST',
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
         },
         body: formData
     })
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    })
     .then(data => {
         if (data.success) {
             const tr = document.getElementById('row_piece_' + pieceId);
@@ -443,14 +461,17 @@ function setPieceVerdict(pieceId, verdict, explicitNote = null) {
             if (currentFilter !== 'all' && currentFilter !== verdict) {
                 tr.style.display = 'none';
             }
+            return true;
         } else {
             alert(data.message || 'Error updating piece verdict.');
+            return false;
         }
     })
     .catch(err => {
         console.error(err);
         alert('Network or server error updating piece verdict.');
-    });
+        return false;
+    }));
 }
 
 // Modal open and submit functions for Reject
@@ -548,14 +569,17 @@ function passAllPieces() {
     formData.append('csrf_token', '<?= htmlspecialchars($csrfToken) ?>');
     formData.append('qc_id', '<?= (int)$qc['id'] ?>');
 
-    fetch('<?= \App\Core\Controller::url('/production/qc/pass-all') ?>', {
+    return trackVerdictRequest(fetch('<?= \App\Core\Controller::url('/production/qc/pass-all') ?>', {
         method: 'POST',
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
         },
         body: formData
     })
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    })
     .then(data => {
         if (data.success) {
             document.querySelectorAll('#tbodyPieces tr').forEach(tr => {
@@ -569,15 +593,40 @@ function passAllPieces() {
                 }
             });
             if (data.counts) updateBadgeCounts(data.counts);
+            return true;
         } else {
             alert(data.message || 'Error updating pieces.');
+            return false;
         }
     })
     .catch(err => {
         console.error(err);
         alert('Network or server error updating pieces.');
-    });
+        return false;
+    }));
 }
+
+document.getElementById('formCompleteInspection').addEventListener('submit', async function(event) {
+    if (submitAfterVerdictsComplete) {
+        submitAfterVerdictsComplete = false;
+        return;
+    }
+
+    event.preventDefault();
+    if (pendingVerdictRequests.size > 0) {
+        const results = await Promise.all(Array.from(pendingVerdictRequests));
+        if (results.some(result => !result)) return;
+    }
+
+    const pendingCount = document.querySelectorAll('#tbodyPieces tr[data-verdict="PENDING"]').length;
+    if (pendingCount > 0) {
+        alert(`Record a verdict for each of the ${pendingCount} remaining garments before saving. Use Pass All only if every remaining garment passes.`);
+        return;
+    }
+
+    submitAfterVerdictsComplete = true;
+    this.requestSubmit();
+});
 
 function updateBadgeCounts(counts) {
     if (!counts) return;

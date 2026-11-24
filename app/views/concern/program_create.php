@@ -525,31 +525,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // 4 & 5. Dynamically calculate Weight & Price based on selected Qty
             calculateCardWeightAndPrice();
 
-            // 6. Pre-select Catalog Hierarchy if mapped
-            const catId = opt.getAttribute('data-category-id');
-            const subcatId = opt.getAttribute('data-subcategory-id');
-            const subsubcatId = opt.getAttribute('data-subsubcategory-id');
-            const catalogId = opt.getAttribute('data-catalog-id');
-            const hierarchy = opt.getAttribute('data-hierarchy');
-            const catCode = opt.getAttribute('data-catalog-code');
-            const catName = opt.getAttribute('data-catalog-name');
-
-            if (catalogId) {
-                catalogSelect.value = catalogId;
-                catalogBadge.textContent = catCode ? `[${catCode}] ${catName}` : (catName || 'Mapped Catalog');
-                catalogBadge.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
-            } else if (hierarchy) {
-                catalogBadge.textContent = hierarchy;
-                catalogBadge.className = 'badge bg-info-subtle text-info-emphasis border border-info-subtle roll-catalog-badge';
-            } else {
-                catalogBadge.textContent = 'No Catalog Selected';
-                catalogBadge.className = 'badge bg-white text-secondary border roll-catalog-badge';
-            }
-
-            if (catId) {
-                catSelect.value = catId;
-                loadSubcatsForCard(catSelect, subcatSelect, subsubcatSelect, subcatId, subsubcatId);
-            }
+            // Catalog hierarchy is selected explicitly for each program.
+            catalogSelect.value = '';
+            catalogBadge.textContent = 'No Catalog Selected';
+            catalogBadge.className = 'badge bg-white text-secondary border roll-catalog-badge';
+            catSelect.value = '';
+            subcatSelect.innerHTML = '<option value="">-- Select Category First --</option>';
+            subsubcatSelect.innerHTML = '<option value="">-- Select Sub Category First --</option>';
 
             validateRollAllocation(allocatedInput, stock, exceedMsg);
             updateAllCreateCardsStock(card);

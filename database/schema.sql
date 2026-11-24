@@ -1654,6 +1654,7 @@ CREATE TABLE IF NOT EXISTS `sales_invoice_items` (
   `sales_invoice_id` int(11) NOT NULL,
   `variant_id` int(11) NOT NULL,
   `production_batch_id` int(11) DEFAULT NULL,
+  `scanned_codes` text DEFAULT NULL,
   `qty` decimal(12,2) NOT NULL,
   `inward_status` enum('pending','completed') NOT NULL DEFAULT 'pending',
   `unit_price` decimal(12,2) NOT NULL,

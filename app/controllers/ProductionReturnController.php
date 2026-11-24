@@ -218,11 +218,19 @@ class ProductionReturnController extends Controller {
                     throw new \RuntimeException('The selected customer does not match the invoice.');
                 }
                 $usedReturn = DB::fetch(
-                    "SELECT id FROM returns_exchanges WHERE sales_invoice_id = ? LIMIT 1 FOR UPDATE",
+                    "SELECT re.id
+                     FROM returns_exchanges re
+                     LEFT JOIN production_returns linked_pr
+                       ON linked_pr.return_no = re.return_no AND linked_pr.concern_id = re.concern_id
+                     WHERE re.sales_invoice_id = ?
+                       AND (linked_pr.id IS NULL OR linked_pr.status <> 'CANCELLED')
+                     LIMIT 1 FOR UPDATE",
                     [$salesInvoiceId]
                 );
                 $usedProductionReturn = DB::fetch(
-                    "SELECT id FROM production_returns WHERE sales_invoice_id = ? LIMIT 1 FOR UPDATE",
+                    "SELECT id FROM production_returns
+                     WHERE sales_invoice_id = ? AND status <> 'CANCELLED'
+                     LIMIT 1 FOR UPDATE",
                     [$salesInvoiceId]
                 );
                 if ($usedReturn || $usedProductionReturn) {
@@ -306,16 +314,20 @@ class ProductionReturnController extends Controller {
                         throw new \RuntimeException('A replacement product is not active in this shop.');
                     }
                     $requestedOutQtyByVariant[$variantId] = ($requestedOutQtyByVariant[$variantId] ?? 0) + (float)$qty;
-                    $stock = DB::fetch(
+                    $stockRows = DB::fetchAll(
                         "SELECT qty FROM stocks
-                         WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'
-                         LIMIT 1 FOR UPDATE",
+                         WHERE concern_id = ? AND variant_id = ?
+                           AND location IN ('Main Store', 'Main Store (WH-01)')
+                         FOR UPDATE",
                         [$cid, $variantId]
                     );
-                    $availableQty = $stock ? (float)$stock['qty'] : 0.0;
+                    $availableQty = 0.0;
+                    foreach ($stockRows as $stockRow) {
+                        $availableQty += max(0.0, (float)$stockRow['qty']);
+                    }
                     if ($availableQty <= 0 || $requestedOutQtyByVariant[$variantId] > $availableQty) {
                         throw new \RuntimeException(
-                            "Replacement product '{$variant['name']}' has {$availableQty} available in Main Store; requested {$requestedOutQtyByVariant[$variantId]}."
+                            "Replacement product '{$variant['name']}' has {$availableQty} good units available in shop stock; requested {$requestedOutQtyByVariant[$variantId]}."
                         );
                     }
                     $item['unit_price'] = (float)$variant['price'];
@@ -452,17 +464,37 @@ class ProductionReturnController extends Controller {
                     );
 
                     // Deduct from live stock
-                    StockService::move(
-                        $cid,
-                        $variantId,
-                        'Main Store',
-                        0.00,
-                        $qty,
-                        'Return & Exchange',
-                        $returnId,
-                        "Exchange delivery for RMA {$returnNo}",
-                        Auth::id()
-                    );
+                    $qtyRemaining = $qty;
+                    foreach (['Main Store', 'Main Store (WH-01)'] as $stockLocation) {
+                        if ($qtyRemaining <= 0.00001) {
+                            break;
+                        }
+                        $locationQty = (float)DB::fetchValue(
+                            "SELECT qty FROM stocks
+                             WHERE concern_id = ? AND variant_id = ? AND location = ?
+                             FOR UPDATE",
+                            [$cid, $variantId, $stockLocation]
+                        );
+                        $qtyToMove = min($qtyRemaining, max(0.0, $locationQty));
+                        if ($qtyToMove <= 0) {
+                            continue;
+                        }
+                        StockService::move(
+                            $cid,
+                            $variantId,
+                            $stockLocation,
+                            0.00,
+                            $qtyToMove,
+                            'Return & Exchange',
+                            $returnId,
+                            "Exchange delivery for RMA {$returnNo}",
+                            Auth::id()
+                        );
+                        $qtyRemaining -= $qtyToMove;
+                    }
+                    if ($qtyRemaining > 0.00001) {
+                        throw new \RuntimeException("Insufficient good shop stock for replacement product #{$variantId}.");
+                    }
                 }
             }
 
@@ -619,75 +651,108 @@ class ProductionReturnController extends Controller {
 
     public function cancel(): void {
         ModuleGuard::enforce('return_exchange', 'delete');
+        $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
-        $reason = trim($_POST['cancel_reason'] ?? 'Cancelled by administrator');
-        $cid = Auth::concernId();
-
-        $return = DB::fetch(
-            "SELECT * FROM production_returns WHERE id = ? AND (concern_id = ? OR ? IS NULL)",
-            [$id, $cid, $cid]
-        );
-
-        if (!$return) {
-            $this->flash('error', 'Return record not found.');
-            $this->redirect('/production/returns');
-            return;
-        }
-        if ($return['status'] === 'CANCELLED') {
-            $this->flash('error', 'This return is already cancelled.');
-            $this->redirect('/production/returns/view/' . $id);
-            return;
-        }
-
-        $items = DB::fetchAll(
-            "SELECT * FROM production_return_exchange_items WHERE return_id = ?",
-            [$id]
-        );
-
+        $reason = trim((string)($_POST['cancel_reason'] ?? '')) ?: 'Cancelled by administrator';
+        $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        $returnToList = ($_POST['return_to'] ?? '') === 'return_exchange';
         $hasActiveTx = DB::pdo()->inTransaction();
         if (!$hasActiveTx) {
             DB::beginTransaction();
         }
 
         try {
+            $return = DB::fetch(
+                "SELECT * FROM production_returns
+                 WHERE id = ? AND (concern_id = ? OR ? IS NULL)
+                 LIMIT 1 FOR UPDATE",
+                [$id, $cid, $cid]
+            );
+            if (!$return) {
+                throw new \RuntimeException('Return record not found.');
+            }
+            if ($return['status'] === 'CANCELLED') {
+                throw new \RuntimeException('This return is already cancelled.');
+            }
+
             $concernId = (int)$return['concern_id'];
+            $items = DB::fetchAll(
+                "SELECT * FROM production_return_exchange_items WHERE return_id = ? ORDER BY id ASC FOR UPDATE",
+                [$id]
+            );
+            if (!$items) {
+                throw new \RuntimeException('Return item history is missing; the RMA cannot be safely reversed.');
+            }
 
-            // Reverse stock ledger movements
+            $scrapItemCount = 0;
             foreach ($items as $item) {
-                $variantId = (int)$item['variant_id'];
-                $qty = (float)$item['qty'];
-                $dir = $item['direction'];
-                $action = $item['restock_action'] ?? 'RESTOCK';
-
-                if ($dir === 'IN') {
-                    // Reversing returned restock: deduct from where it was credited
-                    if ($action === 'RESTOCK') {
-                        StockService::move(
-                            $concernId,
-                            $variantId,
-                            'Main Store',
-                            0.00,
-                            $qty,
-                            'Return & Exchange',
-                            $id,
-                            "RMA Cancellation Reversal [{$return['return_no']}]: Deducted restocked item",
-                            Auth::id()
+                if ($item['direction'] === 'IN' && ($item['restock_action'] ?? '') === 'SCRAP') {
+                    $scrapItemCount++;
+                }
+            }
+            if ($scrapItemCount > 0) {
+                $damageRows = DB::fetchAll(
+                    "SELECT id, status
+                     FROM concern_damages
+                     WHERE concern_id = ? AND severity = 'SCRAP'
+                       AND LEFT(reason, LENGTH(?)) = ?
+                     ORDER BY id ASC
+                     FOR UPDATE",
+                    [
+                        $concernId,
+                        'RMA Scrapped Return [' . $return['return_no'] . ']:',
+                        'RMA Scrapped Return [' . $return['return_no'] . ']:',
+                    ]
+                );
+                if (count($damageRows) !== $scrapItemCount) {
+                    throw new \RuntimeException('The damaged-item quarantine history is incomplete; no stock was changed.');
+                }
+                foreach ($damageRows as $damageRow) {
+                    if ($damageRow['status'] !== 'CANCELLED') {
+                        DamageService::cancel(
+                            (int)$damageRow['id'],
+                            "RMA {$return['return_no']} cancellation: {$reason}",
+                            Auth::id(),
+                            'CONCERN'
                         );
                     }
-                } elseif ($dir === 'OUT') {
-                    // Reversing exchange OUT: credit back to Main Store
-                    StockService::move(
-                        $concernId,
-                        $variantId,
-                        'Main Store',
-                        $qty,
-                        0.00,
-                        'Return & Exchange',
-                        $id,
-                        "RMA Cancellation Reversal [{$return['return_no']}]: Restored exchange item",
-                        Auth::id()
-                    );
                 }
+            }
+
+            $movements = DB::fetchAll(
+                "SELECT variant_id, location, qty_in, qty_out
+                 FROM stock_ledger
+                 WHERE concern_id = ? AND ref_module = 'Return & Exchange' AND ref_id = ?
+                   AND (note LIKE ? OR note = ?)
+                 ORDER BY id DESC
+                 FOR UPDATE",
+                [
+                    $concernId,
+                    $id,
+                    '%[' . $return['return_no'] . ']%',
+                    'Exchange delivery for RMA ' . $return['return_no'],
+                ]
+            );
+            if (!$movements) {
+                throw new \RuntimeException('Original stock ledger movements were not found; the RMA cannot be safely reversed.');
+            }
+            foreach ($movements as $movement) {
+                $qtyIn = (float)$movement['qty_in'];
+                $qtyOut = (float)$movement['qty_out'];
+                if ($qtyIn <= 0 && $qtyOut <= 0) {
+                    continue;
+                }
+                StockService::move(
+                    $concernId,
+                    (int)$movement['variant_id'],
+                    (string)$movement['location'],
+                    $qtyOut,
+                    $qtyIn,
+                    'Return & Exchange',
+                    $id,
+                    "RMA Cancellation Reversal [{$return['return_no']}]: {$reason}",
+                    Auth::id()
+                );
             }
 
             DB::query(
@@ -712,6 +777,6 @@ class ProductionReturnController extends Controller {
             $this->flash('error', 'Failed to cancel return: ' . $e->getMessage());
         }
 
-        $this->redirect('/production/returns/view/' . $id);
+        $this->redirect($returnToList ? '/m/return_exchange' : '/production/returns/view/' . $id);
     }
 }

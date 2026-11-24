@@ -513,6 +513,10 @@ if (!in_array('production_batch_id', $salesItemCols, true)) {
 } else {
     echo "  . `production_batch_id` already exists\n";
 }
+if (!in_array('scanned_codes', $salesItemCols, true)) {
+    DB::query("ALTER TABLE `sales_invoice_items` ADD COLUMN `scanned_codes` TEXT NULL AFTER `production_batch_id`");
+    echo "  + Added `scanned_codes` to `sales_invoice_items`\n";
+}
 $salesItemIndexes = array_column(DB::fetchAll("SHOW INDEX FROM `sales_invoice_items`"), 'Key_name');
 if (!in_array('idx_sii_production_batch', $salesItemIndexes, true)) {
     DB::query("ALTER TABLE `sales_invoice_items` ADD INDEX `idx_sii_production_batch` (`production_batch_id`)");

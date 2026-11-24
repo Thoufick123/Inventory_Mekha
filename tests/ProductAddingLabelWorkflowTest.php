@@ -182,6 +182,10 @@ $checks = [
         && str_contains($formSource, 'id="productAddingSelectAllLines"')
         && str_contains($formSource, 'if (input.dataset.inStock !== \'1\')')
         && str_contains($formSource, 'input.checked = true;'),
+    'Printing labels selects the pending line for bulk stock and refreshes eligibility' =>
+        str_contains($formSource, 'if (generatedCount > 0 && checkbox.dataset.inStock !== \'1\')')
+        && str_contains($formSource, 'checkbox.checked = true;')
+        && str_contains($formSource, 'bulkStockButton.disabled = eligibleItems.length === 0;'),
 ];
 
 $failed = false;

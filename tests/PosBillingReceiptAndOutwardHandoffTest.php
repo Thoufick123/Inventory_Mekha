@@ -1,6 +1,7 @@
 <?php
 
 $billingView = file_get_contents(__DIR__ . '/../app/views/concern/billing.php');
+$salesController = file_get_contents(__DIR__ . '/../app/controllers/SalesController.php');
 $outwardView = file_get_contents(__DIR__ . '/../app/views/concern/outward.php');
 $outwardController = file_get_contents(__DIR__ . '/../app/controllers/OutwardController.php');
 $addModalStart = strpos($outwardView, 'id="modalAddOutward"');
@@ -17,6 +18,12 @@ $checks = [
         && strpos($billingView, '<h3>Bill To</h3>') !== false
         && strpos($billingView, '<th>Invoice Total</th>') !== false
         && strpos($billingView, "format === 'a4' ? 'a4_invoice_print_area'") !== false,
+    'POS and A4 invoices show catalog product names and variant product codes' =>
+        strpos($salesController, "COALESCE(NULLIF(cat.name, ''), v.name) AS item_name") !== false
+        && strpos($salesController, 'LEFT JOIN catalogs cat ON cat.id = v.catalog_id') !== false
+        && strpos($billingView, '<small class="d-block">Code: <?= htmlspecialchars($it[\'sku_code\'] ?: \'-\') ?></small>') !== false
+        && strpos($billingView, '<th>Product Code</th>') !== false
+        && strpos($billingView, "htmlspecialchars(\$it['sku_code'] ?: '-')") !== false,
     'POS success modal sends the invoice to the Outward workflow' =>
         strpos($billingView, 'Move to Outward') !== false
         && strpos($billingView, 'pos_invoice_id=\' . (int)$printInvoice[\'id\']') !== false,

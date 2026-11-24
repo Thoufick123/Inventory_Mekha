@@ -674,7 +674,12 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                             <?php foreach ($printItems as $it): ?>
                                 <tr>
                                     <td>
-                                        <?= htmlspecialchars($it['item_name']) ?> <small>(<?= htmlspecialchars($it['size'] ?: '-') ?>)</small>
+                                        <strong class="d-block"><?= htmlspecialchars($it['item_name']) ?></strong>
+                                        <small class="d-block">Code: <?= htmlspecialchars($it['sku_code'] ?: '-') ?></small>
+                                        <small>Size: <?= htmlspecialchars($it['size'] ?: '-') ?></small>
+                                        <?php if (!empty($it['scanned_code_display'])): ?>
+                                            <small class="d-block">Scanned code: <?= htmlspecialchars($it['scanned_code_display']) ?></small>
+                                        <?php endif; ?>
                                         <?php if (!empty($it['batch_no'])): ?><small class="d-block">Batch <?= htmlspecialchars($it['batch_no']) ?></small><?php endif; ?>
                                     </td>
                                     <td class="text-center"><?= (int)$it['qty'] ?></td>
@@ -770,7 +775,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         <tr>
                             <th>#</th>
                             <th>Item Description</th>
-                            <th>SKU</th>
+                            <th>Product Code</th>
                             <th>Size</th>
                             <th class="number">Qty</th>
                             <th class="number">Base / Unit</th>
@@ -783,6 +788,12 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <td><?= $index + 1 ?></td>
                                 <td>
                                     <?= htmlspecialchars($it['item_name']) ?>
+                                    <?php if (!empty($it['variant_name']) && $it['variant_name'] !== $it['item_name']): ?>
+                                        <small>Variant: <?= htmlspecialchars($it['variant_name']) ?></small>
+                                    <?php endif; ?>
+                                    <?php if (!empty($it['scanned_code_display'])): ?>
+                                        <small>Scanned code: <?= htmlspecialchars($it['scanned_code_display']) ?></small>
+                                    <?php endif; ?>
                                     <?php if (!empty($it['batch_no'])): ?>
                                         <small>Batch <?= htmlspecialchars($it['batch_no']) ?></small>
                                     <?php endif; ?>
@@ -1804,11 +1815,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (existingIndex > -1) {
                         cart[existingIndex].qty += qtyToAdd;
                         cart[existingIndex].available_qty = availableQty;
+                        if (!Array.isArray(cart[existingIndex].scanned_codes)) {
+                            cart[existingIndex].scanned_codes = [];
+                        }
+                        if (!cart[existingIndex].scanned_codes.includes(query)) {
+                            cart[existingIndex].scanned_codes.push(query);
+                        }
                     } else {
                         cart.push({
                             id: v.id,
                             name: v.name,
                             sku_code: v.sku_code,
+                            scanned_codes: [query],
                             size: v.size,
                             hsn_code: v.hsn_code || '',
                             price: isComplementary ? 0 : Number(v.price),
@@ -1954,6 +1972,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const qty = Math.max(1, parseInt(item.qty, 10) || 1);
                 const discount = parseFloat(item.discount) || 0;
                 const qtyMax = maxQuantityForCartLine(index);
+                const scannedCodes = Array.isArray(item.scanned_codes) ? item.scanned_codes : [];
                 tr.dataset.index = index;
 
                 tr.innerHTML = `
@@ -1961,6 +1980,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>
                         <strong class="text-dark d-block">${escapeHtml(item.name)}</strong>
                         <small class="text-muted font-monospace">${escapeHtml(item.sku_code)} &bull; Size: ${escapeHtml(item.size)}${item.is_complementary ? ' &bull; Complimentary' : ''}${item.batch_no ? ' &bull; Batch: ' + escapeHtml(item.batch_no) : ''}</small>
+                        ${scannedCodes.length ? `<small class="text-primary d-block font-monospace">Scanned code: ${escapeHtml(scannedCodes.join(', '))}</small>` : ''}
                     </td>
                     <td><span class="badge bg-light text-dark border font-monospace">${escapeHtml(item.hsn_code)}</span></td>
                     <td>

@@ -97,7 +97,7 @@ if (!$styleConcernId && $isEdit) {
                         <select name="category_id" id="selectMainCategory" class="form-select d-none" required>
                             <option value="">-- Select Category --</option>
                             <?php foreach ($categories as $cat): 
-                                $isSel = ($isEdit && $style['category_id'] == $cat['id']) || (!$isEdit && $cat['name'] === 'KIDS');
+                                $isSel = $isEdit && $style['category_id'] == $cat['id'];
                             ?>
                                 <option value="<?= $cat['id'] ?>" 
                                         data-name="<?= htmlspecialchars($cat['name']) ?>"

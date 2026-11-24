@@ -161,7 +161,7 @@
             </div>
             <div class="modal-body py-3">
                 <p class="text-secondary small mb-3">
-                    Cancelling this RMA will automatically reverse all inventory ledger entries: restocked items will be deducted back from store, and exchanged items will be credited back to live stock.
+                    Cancelling this RMA reverses the recorded stock movements, including returned, rework, quarantined, and exchange items. The RMA remains in the audit history as cancelled.
                 </p>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted text-uppercase">Cancellation Reason</label>

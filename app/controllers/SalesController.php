@@ -904,13 +904,29 @@ class SalesController extends Controller {
             );
             if ($printInvoice) {
                 $printItems = DB::fetchAll(
-                    "SELECT sii.*, v.sku_code, v.name AS item_name, v.size, b.batch_no
+                    "SELECT sii.*, v.sku_code,
+                            COALESCE(NULLIF(cat.name, ''), v.name) AS item_name,
+                            v.name AS variant_name, v.size, b.batch_no
                      FROM sales_invoice_items sii
                      JOIN variants v ON sii.variant_id = v.id
+                     LEFT JOIN catalogs cat ON cat.id = v.catalog_id
                      LEFT JOIN batches b ON b.id = sii.production_batch_id
                      WHERE sii.sales_invoice_id = ?",
                     [$printId]
                 );
+                foreach ($printItems as &$printItem) {
+                    $scannedCodes = json_decode((string)($printItem['scanned_codes'] ?? ''), true);
+                    $scannedCodeLabels = [];
+                    if (is_array($scannedCodes)) {
+                        foreach ($scannedCodes as $scannedCode) {
+                            if (is_string($scannedCode) && trim($scannedCode) !== '') {
+                                $scannedCodeLabels[] = $scannedCode;
+                            }
+                        }
+                    }
+                    $printItem['scanned_code_display'] = implode(', ', $scannedCodeLabels);
+                }
+                unset($printItem);
             }
         }
 
@@ -1352,6 +1368,27 @@ class SalesController extends Controller {
                 if ($variantId <= 0 || !is_numeric($qtyInput) || !is_numeric($priceInput) || !is_numeric($discountInput)) {
                     throw new \RuntimeException('A cart item has invalid product, quantity, price, or discount data.');
                 }
+                $rawScannedCodes = $item['scanned_codes'] ?? [];
+                if (!is_array($rawScannedCodes) || count($rawScannedCodes) > 50) {
+                    throw new \RuntimeException('A cart item has invalid scanned-code details.');
+                }
+                $scannedCodes = [];
+                foreach ($rawScannedCodes as $rawScannedCode) {
+                    if (!is_string($rawScannedCode)) {
+                        throw new \RuntimeException('A scanned product code must be text.');
+                    }
+                    if (trim($rawScannedCode) === '' || strlen($rawScannedCode) > 255) {
+                        throw new \RuntimeException('A scanned product code must contain between 1 and 255 characters.');
+                    }
+                    $scannedCodes[] = $rawScannedCode;
+                }
+                $scannedCodes = array_values(array_unique($scannedCodes));
+                $scannedCodesJson = $scannedCodes
+                    ? json_encode($scannedCodes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)
+                    : null;
+                if ($scannedCodes && $scannedCodesJson === false) {
+                    throw new \RuntimeException('Could not encode the scanned product codes.');
+                }
 
                 $qty = (float)$qtyInput;
                 $itemDiscount = (float)$discountInput;
@@ -1404,6 +1441,7 @@ class SalesController extends Controller {
                     'qty' => $qty,
                     'unit_price' => $line['base_unit_price'],
                     'total_price' => $line['taxable_amount'],
+                    'scanned_codes' => $scannedCodesJson,
                 ];
                 $requestedQtyByVariant[$variantId] = ($requestedQtyByVariant[$variantId] ?? 0) + $qty;
             }
@@ -1484,9 +1522,9 @@ class SalesController extends Controller {
             // 4. Record invoice lines before deducting the grouped variant quantities.
             foreach ($calculatedItems as $item) {
                 DB::query(
-                    "INSERT INTO sales_invoice_items (concern_id, sales_invoice_id, variant_id, production_batch_id, qty, unit_price, total_price)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    [$cid, $invoiceId, $item['variant_id'], $item['production_batch_id'], $item['qty'], $item['unit_price'], $item['total_price']]
+                    "INSERT INTO sales_invoice_items (concern_id, sales_invoice_id, variant_id, production_batch_id, qty, unit_price, total_price, scanned_codes)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$cid, $invoiceId, $item['variant_id'], $item['production_batch_id'], $item['qty'], $item['unit_price'], $item['total_price'], $item['scanned_codes']]
                 );
             }
 
@@ -1935,9 +1973,9 @@ class SalesController extends Controller {
 
     // 7. RETURN & EXCHANGE
     public function lookupShopReturnInvoices(): void {
-        $phone = trim((string)($_GET['phone'] ?? ''));
-        if ($phone === '') {
-            $this->renderJson(['success' => false, 'message' => 'Enter the customer phone number.'], 400);
+        $searchTerm = trim((string)($_GET['query'] ?? $_GET['phone'] ?? ''));
+        if ($searchTerm === '') {
+            $this->renderJson(['success' => false, 'message' => 'Enter a customer phone number or invoice number.'], 400);
             return;
         }
 
@@ -1946,15 +1984,21 @@ class SalesController extends Controller {
                        c.id AS customer_id, c.name AS customer_name, c.phone AS customer_phone,
                        con.name AS concern_name,
                        CASE WHEN EXISTS (
-                           SELECT 1 FROM returns_exchanges re WHERE re.sales_invoice_id = si.id
+                           SELECT 1
+                           FROM returns_exchanges re
+                           LEFT JOIN production_returns linked_pr
+                             ON linked_pr.return_no = re.return_no AND linked_pr.concern_id = re.concern_id
+                           WHERE re.sales_invoice_id = si.id
+                             AND (linked_pr.id IS NULL OR linked_pr.status <> 'CANCELLED')
                        ) OR EXISTS (
-                           SELECT 1 FROM production_returns pr WHERE pr.sales_invoice_id = si.id
+                           SELECT 1 FROM production_returns pr
+                           WHERE pr.sales_invoice_id = si.id AND pr.status <> 'CANCELLED'
                        ) THEN 1 ELSE 0 END AS already_used
                 FROM customers c
                 JOIN sales_invoices si ON si.customer_id = c.id
                 LEFT JOIN concerns con ON con.id = si.concern_id
-                WHERE c.phone = ?";
-        $params = [$phone];
+                WHERE (c.phone = ? OR si.invoice_no = ?)";
+        $params = [$searchTerm, $searchTerm];
         if ($cid) {
             $sql .= ' AND si.concern_id = ?';
             $params[] = $cid;
@@ -2080,16 +2124,19 @@ class SalesController extends Controller {
             "SELECT v.id, v.sku_code, v.name, v.size, v.price,
                     COALESCE(s.qty, 0) AS available_qty
              FROM variants v
-             LEFT JOIN stocks s ON s.concern_id = v.concern_id
-                               AND s.variant_id = v.id
-                               AND s.location = 'Main Store'
+             LEFT JOIN (
+                 SELECT concern_id, variant_id, SUM(GREATEST(qty, 0)) AS qty
+                 FROM stocks
+                 WHERE location IN ('Main Store', 'Main Store (WH-01)')
+                 GROUP BY concern_id, variant_id
+             ) s ON s.concern_id = v.concern_id AND s.variant_id = v.id
              WHERE v.concern_id = ? AND v.status = 'active' AND v.id = ?
                AND COALESCE(s.qty, 0) > 0
              LIMIT 1",
             [$invoiceConcernId, $variantId]
         );
         if (!$variant) {
-            $this->renderJson(['success' => false, 'message' => 'Replacement product has no available Main Store stock.'], 404);
+            $this->renderJson(['success' => false, 'message' => 'Replacement product has no good available shop stock.'], 404);
             return;
         }
 
@@ -2102,7 +2149,7 @@ class SalesController extends Controller {
         $sql = "SELECT re.*, c.name AS customer_name, v1.name AS returned_variant_name, v1.sku_code AS returned_sku,
                        v2.name AS exchange_variant_name, v2.sku_code AS exchange_sku,
                        con.name AS concern_name, con.code AS concern_code, si.invoice_no,
-                       pr.id AS production_return_id
+                       pr.id AS production_return_id, pr.status AS production_status
                 FROM returns_exchanges re
                 JOIN customers c ON re.customer_id = c.id
                 JOIN variants v1 ON re.returned_variant_id = v1.id
@@ -2279,35 +2326,71 @@ class SalesController extends Controller {
     public function updateReturn(): void {
         $this->validateCsrf();
         $id = (int)($_POST['id'] ?? 0);
-        $cid = Auth::concernId();
-
-        $sql = "SELECT * FROM returns_exchanges WHERE id = ?";
-        $params = [$id];
-        if ($cid) {
-            $sql .= " AND concern_id = ?";
-            $params[] = $cid;
+        $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        $hasActiveTx = DB::pdo()->inTransaction();
+        if (!$hasActiveTx) {
+            DB::beginTransaction();
         }
-        $return = DB::fetch($sql, $params);
-        if (!$return) {
-            $this->flash('error', 'Return/Exchange record not found.');
-            $this->redirect('/m/return_exchange');
-        }
-        if (!empty($return['sales_invoice_id']) || DB::fetchValue("SELECT id FROM production_returns WHERE return_no = ? AND concern_id = ? LIMIT 1", [$return['return_no'], $return['concern_id']])) {
-            $this->flash('error', 'Invoice-based returns are locked to preserve their full item and stock history.');
-            $this->redirect('/m/return_exchange');
-            return;
-        }
-
-        $returnDate = $_POST['return_date'] ?: $return['return_date'];
-        $reason     = trim($_POST['reason'] ?? '');
-
         try {
+            $sql = "SELECT * FROM returns_exchanges WHERE id = ?";
+            $params = [$id];
+            if ($cid) {
+                $sql .= " AND concern_id = ?";
+                $params[] = $cid;
+            }
+            $sql .= " LIMIT 1 FOR UPDATE";
+            $return = DB::fetch($sql, $params);
+            if (!$return) {
+                throw new \RuntimeException('Return/Exchange record not found.');
+            }
+
+            $productionReturn = DB::fetch(
+                "SELECT id, status FROM production_returns WHERE return_no = ? AND concern_id = ? LIMIT 1 FOR UPDATE",
+                [$return['return_no'], $return['concern_id']]
+            );
+            if ($productionReturn && $productionReturn['status'] === 'CANCELLED') {
+                throw new \RuntimeException('A cancelled return cannot be edited.');
+            }
+
+            $returnDate = trim((string)($_POST['return_date'] ?? $return['return_date']));
+            $parsedDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $returnDate);
+            if (!$parsedDate || $parsedDate->format('Y-m-d') !== $returnDate) {
+                throw new \RuntimeException('Enter a valid return date.');
+            }
+            $reason = trim((string)($_POST['reason'] ?? ''));
+
             DB::query(
                 "UPDATE returns_exchanges SET return_date = ?, reason = ? WHERE id = ?",
                 [$returnDate, $reason, $id]
             );
+            \App\Services\AuditService::log('RETURN_UPDATE', 'returns_exchanges', $id, [
+                'return_date' => $return['return_date'],
+                'reason' => $return['reason'],
+            ], [
+                'return_date' => $returnDate,
+                'reason' => $reason,
+            ]);
+            if ($productionReturn) {
+                DB::query(
+                    "UPDATE production_returns SET return_date = ?, reason = ? WHERE id = ?",
+                    [$returnDate, $reason, $productionReturn['id']]
+                );
+                \App\Services\AuditService::log('RETURN_UPDATE', 'production_returns', (int)$productionReturn['id'], [
+                    'return_date' => $return['return_date'],
+                    'reason' => $return['reason'],
+                ], [
+                    'return_date' => $returnDate,
+                    'reason' => $reason,
+                ]);
+            }
+            if (!$hasActiveTx) {
+                DB::commit();
+            }
             $this->flash('success', "Return/Exchange '{$return['return_no']}' updated successfully.");
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
+            if (!$hasActiveTx) {
+                DB::rollBack();
+            }
             $this->flash('error', 'Failed to update return: ' . $e->getMessage());
         }
 
@@ -2331,8 +2414,11 @@ class SalesController extends Controller {
             $this->redirect('/m/return_exchange');
             return;
         }
-        if (!empty($return['sales_invoice_id']) || DB::fetchValue("SELECT id FROM production_returns WHERE return_no = ? AND concern_id = ? LIMIT 1", [$return['return_no'], $return['concern_id']])) {
-            $this->flash('error', 'Invoice-based returns are locked to preserve their full item and stock history.');
+        if (DB::fetchValue(
+            "SELECT id FROM production_returns WHERE return_no = ? AND concern_id = ? LIMIT 1",
+            [$return['return_no'], $return['concern_id']]
+        )) {
+            $this->flash('error', 'Use the RMA cancellation action to reverse this invoice-linked return safely.');
             $this->redirect('/m/return_exchange');
             return;
         }

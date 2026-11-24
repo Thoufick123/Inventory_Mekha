@@ -22,11 +22,11 @@
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body p-3 p-md-4">
             <label for="shop_return_phone" class="form-label fw-semibold small mb-2">
-                <i class="bi bi-search text-success me-1"></i> Search Shop Customer Order
+                <i class="bi bi-search text-success me-1"></i> Search by Customer Phone or Invoice No.
             </label>
             <form id="shopReturnLookupForm" class="input-group shop-return-lookup">
                 <span class="input-group-text bg-white"><i class="bi bi-qr-code text-success"></i></span>
-                <input type="tel" id="shop_return_phone" class="form-control" placeholder="Enter customer phone number" autocomplete="tel" required>
+                <input type="text" id="shop_return_phone" class="form-control" placeholder="Scan or enter customer phone or invoice number" autocomplete="off" required>
                 <button type="submit" class="btn btn-success px-4 fw-semibold" id="shop_return_lookup_button">
                     <i class="bi bi-search me-1"></i> Lookup Order
                 </button>
@@ -64,9 +64,13 @@
                         <tr><td colspan="10" class="text-center py-4 text-muted">No returns or exchanges recorded.</td></tr>
                     <?php else: ?>
                         <?php foreach ($returns as $r): ?>
-                            <?php $invoiceReturn = !empty($r['sales_invoice_id']) || !empty($r['production_return_id']); ?>
                             <tr>
-                                <td><span class="badge bg-dark font-monospace"><?= htmlspecialchars($r['return_no']) ?></span></td>
+                                <td>
+                                    <span class="badge bg-dark font-monospace"><?= htmlspecialchars($r['return_no']) ?></span>
+                                    <?php if (($r['production_status'] ?? '') === 'CANCELLED'): ?>
+                                        <span class="badge bg-danger-subtle text-danger d-block mt-1">Cancelled</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="font-monospace small"><?= htmlspecialchars($r['invoice_no'] ?: '-', ENT_QUOTES, 'UTF-8') ?></td>
                                 <td>
                                     <span class="badge <?= $r['type'] === 'exchange' ? 'bg-info text-dark' : 'bg-secondary' ?>">
@@ -92,26 +96,34 @@
                                 <td><?= date('d M Y', strtotime($r['return_date'])) ?></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex align-items-center gap-1">
-                                        <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewReturnModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Return Details">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                        <?php if (!$invoiceReturn): ?>
+                                        <?php if (!empty($r['production_return_id'])): ?>
+                                            <a href="<?= \App\Core\Controller::url('/production/returns/view/' . (int)$r['production_return_id']) ?>" class="btn btn-sm btn-outline-info" title="View Full Return Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        <?php else: ?>
+                                            <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewReturnModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Return Details">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                        <?php if (($r['production_status'] ?? '') !== 'CANCELLED'): ?>
                                             <?php if (\App\Core\Auth::can('return_exchange', 'edit')): ?>
                                             <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditReturnModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Return">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             <?php endif; ?>
                                             <?php if (\App\Core\Auth::can('return_exchange', 'delete')): ?>
-                                            <form action="<?= \App\Core\Controller::url('/m/return_exchange/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete return record <?= htmlspecialchars($r['return_no']) ?>? This will reverse stock additions/deductions.');">
+                                            <form action="<?= \App\Core\Controller::url(!empty($r['production_return_id']) ? '/production/returns/cancel' : '/m/return_exchange/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Cancel return record <?= htmlspecialchars($r['return_no']) ?>? Stock movements will be reversed and the audit record retained.');">
                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                                                <input type="hidden" name="id" value="<?= $r['id'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Return">
+                                                <input type="hidden" name="id" value="<?= !empty($r['production_return_id']) ? (int)$r['production_return_id'] : (int)$r['id'] ?>">
+                                                <?php if (!empty($r['production_return_id'])): ?>
+                                                    <input type="hidden" name="return_to" value="return_exchange">
+                                                    <input type="hidden" name="cancel_reason" value="Cancelled from return and exchange register">
+                                                <?php endif; ?>
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="<?= !empty($r['production_return_id']) ? 'Cancel and reverse return' : 'Delete Return' ?>">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             </form>
                                             <?php endif; ?>
-                                        <?php else: ?>
-                                            <span class="badge bg-secondary-subtle text-secondary">Invoice used</span>
                                         <?php endif; ?>
                                     </div>
                                 </td>
@@ -385,11 +397,11 @@ document.addEventListener('DOMContentLoaded', function() {
         invoiceList.innerHTML = '';
         if (!invoices.length) {
             invoiceList.classList.add('d-none');
-            lookupStatus.innerHTML = '<span class="text-warning">No invoices found for this customer phone number.</span>';
+            lookupStatus.innerHTML = '<span class="text-warning">No invoices found for this phone number or invoice number.</span>';
             return;
         }
 
-        lookupStatus.innerHTML = '<span class="text-primary fw-semibold">This customer has ' + invoices.length + ' invoice(s). Select a bill to continue.</span>';
+        lookupStatus.innerHTML = '<span class="text-primary fw-semibold">Found ' + invoices.length + ' invoice(s). Select a bill to continue.</span>';
         invoices.forEach(function(invoice) {
             const alreadyUsed = Number(invoice.already_used) === 1;
             const date = String(invoice.created_at || invoice.invoice_date || '').replace('T', ' ');
@@ -413,14 +425,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function lookupCustomerInvoices(event) {
         if (event) event.preventDefault();
-        const phone = document.getElementById('shop_return_phone').value.trim();
-        if (!phone) return;
+        const searchTerm = document.getElementById('shop_return_phone').value.trim();
+        if (!searchTerm) return;
 
         lookupButton.disabled = true;
         lookupStatus.innerHTML = '<span class="text-primary"><i class="bi bi-arrow-repeat me-1"></i>Searching customer invoices...</span>';
         invoiceList.classList.add('d-none');
         try {
-            const response = await fetch(customerInvoicesUrl + '?phone=' + encodeURIComponent(phone), {headers: {'Accept': 'application/json'}});
+            const response = await fetch(customerInvoicesUrl + '?query=' + encodeURIComponent(searchTerm), {headers: {'Accept': 'application/json'}});
             const data = await response.json();
             if (!response.ok || !data.success) throw new Error(data.message || 'Invoice lookup failed.');
             renderInvoices(data.invoices || []);
@@ -589,7 +601,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             if (!response.ok || !data.success) throw new Error(data.message || 'Replacement product lookup failed.');
             const variant = data.variant;
-            if (Number(variant.available_qty) <= 0) throw new Error('Replacement product has no available Main Store stock.');
+            if (Number(variant.available_qty) <= 0) throw new Error('Replacement product has no good available shop stock.');
             const existing = replacementItems.find(function(item) { return Number(item.id) === Number(variant.id); });
             if (existing) {
                 if (Number(existing.qty) + 1 > Number(existing.available_qty)) throw new Error('Requested replacement quantity exceeds available stock.');
