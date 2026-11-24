@@ -332,9 +332,21 @@ class DamageController extends Controller {
     }
 
     private function resolveConcernDamageTag(int $concernId, string $tagCode): array {
-        if (QrService::parseFinishedGoodsCode($tagCode)) {
+        $finishedGoodsCode = QrService::parseFinishedGoodsCode($tagCode);
+        if ($finishedGoodsCode) {
             $variant = QrService::lookupVariant($tagCode, $concernId);
             if ($variant && ($variant['status'] ?? '') === 'active') {
+                return $variant;
+            }
+
+            $variant = DB::fetch(
+                "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name
+                 FROM variants v
+                 LEFT JOIN categories c ON c.id = v.category_id
+                 WHERE v.id = ? AND v.concern_id = ? AND v.status = 'active'",
+                [(int)$finishedGoodsCode['variant_id'], $concernId]
+            );
+            if ($variant) {
                 return $variant;
             }
         }

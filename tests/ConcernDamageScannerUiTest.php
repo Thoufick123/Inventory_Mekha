@@ -113,6 +113,12 @@ $checks['Quarantine location mapping preserves the exact available location'] =
     && $locationMethod->invoke(null, 'WAREHOUSE:1:AVAILABLE', 'DAMAGED') === 'WAREHOUSE:1:DAMAGED'
     && $locationMethod->invoke(null, 'WAREHOUSE:1:AVAILABLE', 'AVAILABLE') === 'WAREHOUSE:1:AVAILABLE';
 
+$damageController = file_get_contents(__DIR__ . '/../app/controllers/DamageController.php');
+$checks['Finished-goods damage labels resolve by embedded variant ID within the selected concern'] =
+    strpos($damageController, 'QrService::parseFinishedGoodsCode($tagCode)') !== false
+    && strpos($damageController, '$finishedGoodsCode[\'variant_id\']') !== false
+    && strpos($damageController, 'WHERE v.id = ? AND v.concern_id = ? AND v.status = \'active\'') !== false;
+
 $failed = false;
 foreach ($checks as $description => $passed) {
     echo ($passed ? '[PASS] ' : '[FAIL] ') . $description . "\n";
