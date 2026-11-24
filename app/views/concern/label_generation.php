@@ -8,6 +8,8 @@ if (!$concern && !empty($selectedCid)) {
     $concern = DB::fetch("SELECT * FROM concerns WHERE id = ?", [$selectedCid]);
 }
 $concernName = $concern['name'] ?? 'GRM Inventory';
+$canAddLabels = Auth::isSuperAdmin() || Auth::can('label_generation', 'add');
+$canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('label_generation', 'add') || Auth::can('inward', 'add') || Auth::can('stocks', 'view');
 ?>
 <div class="container-fluid px-0">
     <!-- Page Header -->
@@ -19,9 +21,11 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
             </p>
         </div>
         <div class="d-flex gap-2">
+            <?php if ($canScan): ?>
             <a href="<?= \App\Core\Controller::url('/scan') ?>" class="btn btn-outline-primary shadow-sm rounded-2 d-flex align-items-center gap-2">
                 <i class="bi bi-qr-code-scan fs-6"></i> Open Live QR Scanner
             </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_stocks') ?>" class="btn btn-outline-success shadow-sm rounded-2 d-flex align-items-center gap-2">
                 <i class="bi bi-boxes fs-6"></i> Purchase Stocks
             </a>
@@ -276,9 +280,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                     </div>
 
                                     <div class="d-flex gap-2 mt-auto align-items-center">
+                                        <?php if ($canAddLabels): ?>
                                         <button type="submit" class="btn btn-primary flex-grow-1 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                         </button>
+                                        <?php else: ?>
+                                        <button type="button" class="btn btn-secondary flex-grow-1 py-2 fw-semibold shadow-sm" disabled title="Generate label restricted (requires Create / Add permission)">
+                                            <i class="bi bi-lock-fill me-1"></i> Generate Restricted
+                                        </button>
+                                        <?php endif; ?>
                                         <?php if (\App\Core\Auth::can('purchase_stocks', 'add') || \App\Core\Auth::can('inward', 'add')): ?>
                                         <button type="button" class="btn btn-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="roll_add_stock_btn" onclick="submitRollToStock()" title="Inward selected roll directly into Purchase Stocks">
                                             <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
@@ -358,9 +368,11 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                             <?php endif; ?>
                                                         </td>
                                                         <td class="text-end pe-3 text-nowrap">
+                                                            <?php if ($canAddLabels): ?>
                                                             <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-semibold me-1" onclick="selectRollItem(<?= (int)$item['id'] ?>)">
                                                                 <i class="bi bi-printer me-1"></i> Print
                                                             </button>
+                                                            <?php endif; ?>
                                                             <?php $isInStock = (($item['inward_status'] ?? '') === 'completed'); ?>
                                                             <?php if ($isInStock): ?>
                                                                 <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=rolls') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" title="In Stock - View in Purchase Stocks">
@@ -491,9 +503,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                     </div>
 
                                     <div class="d-flex gap-2 mt-auto align-items-center">
+                                        <?php if ($canAddLabels): ?>
                                         <button type="submit" class="btn btn-info text-white flex-grow-1 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                         </button>
+                                        <?php else: ?>
+                                        <button type="button" class="btn btn-secondary flex-grow-1 py-2 fw-semibold shadow-sm" disabled title="Generate label restricted (requires Create / Add permission)">
+                                            <i class="bi bi-lock-fill me-1"></i> Generate Restricted
+                                        </button>
+                                        <?php endif; ?>
                                         <button type="button" class="btn btn-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="other_add_stock_btn" onclick="submitOtherToStock()" title="Inward selected trim directly into Purchase Stocks">
                                             <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
                                         </button>
@@ -557,9 +575,11 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                             <span class="badge bg-dark font-monospace"><?= number_format((float)$item['qty'], 2) ?> <?= htmlspecialchars($item['unit'] ?: 'pcs') ?></span>
                                                         </td>
                                                         <td class="text-end pe-3 text-nowrap">
+                                                            <?php if ($canAddLabels): ?>
                                                             <button type="button" class="btn btn-sm btn-outline-info py-1 px-2 fw-semibold me-1" onclick="selectOtherItem(<?= (int)$item['id'] ?>)">
                                                                 <i class="bi bi-printer me-1"></i> Print
                                                             </button>
+                                                            <?php endif; ?>
                                                             <?php $isInStock = (($item['inward_status'] ?? '') === 'completed'); ?>
                                                             <?php if ($isInStock): ?>
                                                                 <a href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=garment_other') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" title="In Stock - View in Purchase Stocks">
@@ -829,9 +849,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                             </div>
 
                             <div class="d-flex gap-2 mt-auto align-items-center">
+                                <?php if ($canAddLabels): ?>
                                 <button type="submit" class="btn btn-success flex-grow-1 py-2 fw-semibold shadow-sm">
                                     <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet
                                 </button>
+                                <?php else: ?>
+                                <button type="button" class="btn btn-secondary flex-grow-1 py-2 fw-semibold shadow-sm" disabled title="Generate label restricted (requires Create / Add permission)">
+                                    <i class="bi bi-lock-fill me-1"></i> Generate Restricted
+                                </button>
+                                <?php endif; ?>
                                 <?php if (\App\Core\Auth::can('stocks', 'add') || \App\Core\Auth::can('inward', 'add')): ?>
                                 <button type="button" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 text-nowrap" id="fg_add_stock_btn" onclick="submitFgToStock()" title="Inward selected finished goods into Live Stocks">
                                     <i class="bi bi-box-arrow-in-down me-1"></i> Add to Stock
@@ -904,11 +930,11 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                     <div class="small text-danger fw-bold">MRP ₹<?= number_format((float)($fg['variant_mrp'] ?: ($fg['mrp'] ?: $fg['unit_price'])), 2) ?></div>
                                                 </td>
                                                 <td class="text-end pe-3 text-nowrap">
-                                                    <?php if ($isMapped): ?>
+                                                    <?php if ($isMapped && $canAddLabels): ?>
                                                         <button type="button" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold me-1" onclick="selectFgItem(<?= (int)$fg['id'] ?>)">
                                                             <i class="bi bi-printer me-1"></i> Print
                                                         </button>
-                                                    <?php else: ?>
+                                                    <?php elseif (!$isMapped): ?>
                                                         <a href="<?= \App\Core\Controller::url('/production/catalog-mapping/map?id=' . (int)$fg['id']) ?>" class="btn btn-sm btn-outline-warning py-1 px-2 fw-semibold me-1" title="Map item in Catalog Mapping before printing retail label">
                                                             <i class="bi bi-link-45deg me-1"></i> Map to Catalog
                                                         </a>
@@ -1056,10 +1082,16 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         <input type="hidden" name="label_type" value="production">
                                         <input type="hidden" name="prod_print_mode" value="batch">
                                         <input type="hidden" name="batch_id" id="hidden_batch_id" value="">
+                                        <?php if ($canAddLabels): ?>
                                         <button type="submit" class="btn btn-warning text-dark w-100 py-2 fw-semibold shadow-sm"
                                                 id="prod_batch_print_btn" disabled onclick="return validateBatchSelect()">
                                             <i class="bi bi-printer-fill me-1"></i> Generate All Labels
                                         </button>
+                                        <?php else: ?>
+                                        <button type="button" class="btn btn-secondary w-100 py-2 fw-semibold shadow-sm" disabled title="Generate label restricted (requires Create / Add permission)">
+                                            <i class="bi bi-lock-fill me-1"></i> Generate Restricted
+                                        </button>
+                                        <?php endif; ?>
                                     </form>
                                     <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>"
                                        class="btn btn-primary py-2 px-3 fw-semibold shadow-sm text-nowrap disabled"
@@ -1168,9 +1200,15 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                     </div>
 
                                     <div class="d-flex gap-2 mt-auto align-items-center">
+                                        <?php if ($canAddLabels): ?>
                                         <button type="submit" class="btn btn-warning text-dark flex-grow-1 py-2 fw-semibold shadow-sm">
                                             <i class="bi bi-printer-fill me-1"></i> Generate Printable Sheet (N Labels)
                                         </button>
+                                        <?php else: ?>
+                                        <button type="button" class="btn btn-secondary flex-grow-1 py-2 fw-semibold shadow-sm" disabled title="Generate label restricted (requires Create / Add permission)">
+                                            <i class="bi bi-lock-fill me-1"></i> Generate Restricted
+                                        </button>
+                                        <?php endif; ?>
                                         <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>" class="btn btn-primary py-2 px-3 fw-semibold shadow-sm text-nowrap" id="prod_add_stock_btn" title="Inspect production garments in Quality Control (QC)">
                                             <i class="bi bi-shield-check me-1"></i> Move to QC
                                         </a>
@@ -1257,6 +1295,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         </td>
                                         <td class="text-end pe-3">
                                             <div class="d-inline-flex gap-1 align-items-center">
+                                                <?php if ($canAddLabels): ?>
                                                 <form action="<?= \App\Core\Controller::url('/m/label_generation/generate') ?>" method="POST" target="_blank" class="d-inline" onsubmit="event.stopPropagation()">
                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                                     <input type="hidden" name="label_type" value="production">
@@ -1266,6 +1305,7 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                         <i class="bi bi-printer-fill me-1"></i>Print All
                                                     </button>
                                                 </form>
+                                                <?php endif; ?>
                                                 <?php if (!$bAllStock): ?>
                                                 <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>?stitching_batch_id=<?= (int)$batch['stitching_id'] ?>"
                                                    class="btn btn-sm btn-primary py-1 px-2 fw-semibold text-nowrap"
@@ -1335,11 +1375,13 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         </td>
                                         <td class="text-end pe-3">
                                             <div class="d-inline-flex gap-1">
+                                                <?php if ($canAddLabels): ?>
                                                 <button type="button" class="btn btn-sm btn-outline-warning text-dark py-1 px-2 fw-semibold"
                                                         onclick="selectProdItemAndSwitchMode(<?= (int)$bItem['id'] ?>)"
                                                         title="Print labels for this variant (Way 2)">
                                                     <i class="bi bi-printer me-1"></i>Print
                                                 </button>
+                                                <?php endif; ?>
                                                 <?php if ($bInStock): ?>
                                                     <a href="<?= \App\Core\Controller::url('/m/stocks') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold">
                                                         <i class="bi bi-eye"></i>
@@ -2077,7 +2119,13 @@ function onBatchSelect() {
     if (hiddenStock) hiddenStock.value = 'batch_' + batchId;
 
     // Check if labels were already generated
-    if (isLabelsGenerated) {
+    const canAddLabels = <?= $canAddLabels ? 'true' : 'false' ?>;
+    if (!canAddLabels) {
+        if (printBtn) {
+            printBtn.disabled = true;
+            printBtn.title = 'Label generation restricted (requires Create / Add permission)';
+        }
+    } else if (isLabelsGenerated) {
         if (printBtn) {
             printBtn.disabled = true;
             printBtn.title = 'Labels already generated for this batch';

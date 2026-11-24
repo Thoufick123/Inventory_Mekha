@@ -566,6 +566,7 @@ class LabelController extends Controller {
      * Generate & render printable label sheet for any of the 3 sections
      */
     public function generate(): void {
+        ModuleGuard::enforce('label_generation', 'add');
         $this->validateCsrf();
         $this->renderGeneratedLabels(false);
     }
