@@ -62,7 +62,6 @@ class ProductAddingController extends Controller
                                       WHEN pbi.section_type = 'finished_goods' THEN 'purchase_fg'
                                       ELSE 'purchase_raw'
                                   END
-                                  AND lj.source_module = 'product_adding'
                                   AND lj.id > COALESCE(pso.label_job_baseline_id, 0)
                                 ORDER BY lj.id DESC
                                 LIMIT 1

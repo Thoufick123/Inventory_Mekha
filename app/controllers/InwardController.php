@@ -8,6 +8,7 @@ use App\Core\DB;
 use App\Core\Auth;
 use App\Services\StockService;
 use App\Services\NumberSeries;
+use App\Services\QrService;
 use Exception;
 
 class InwardController extends Controller {
@@ -378,15 +379,15 @@ class InwardController extends Controller {
         // Fetch outward dispatch
         $outward = DB::fetch("
             SELECT o.*,
-                   coalesce(pu.name, 'Kadampadi') AS source_unit_name,
-                   coalesce(pu.code, 'PU-01') AS source_unit_code,
-                   coalesce(pu.location, 'Kadampadi') AS source_unit_location,
-                   coalesce(pu.manager_name, 'Vanaja (9943557998)') AS manager_name,
-                   coalesce(dest_con.name, 'wareouse') AS dest_warehouse_name,
-                   coalesce(dest_con.code, 'WH-01') AS dest_warehouse_code,
+                   COALESCE(NULLIF(pu.name, ''), '—') AS source_unit_name,
+                   COALESCE(NULLIF(pu.code, ''), '—') AS source_unit_code,
+                   COALESCE(NULLIF(pu.location, ''), '—') AS source_unit_location,
+                   COALESCE(NULLIF(pu.manager_name, ''), '—') AS manager_name,
+                   COALESCE(NULLIF(dest_con.name, ''), '—') AS dest_warehouse_name,
+                   COALESCE(NULLIF(dest_con.code, ''), '—') AS dest_warehouse_code,
                    coalesce(b.batch_no, (SELECT batch_no FROM batches WHERE id = (SELECT batch_id FROM production_outward_batches WHERE outward_id = o.id LIMIT 1)), concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
-                   coalesce(pp.program_no, 'PRG-20261113-0001') AS program_no,
-                   coalesce(pp.program_name, 'KIDS - BABY - DRESS') AS program_name
+                   COALESCE(NULLIF(pp.program_no, ''), '—') AS program_no,
+                   COALESCE(NULLIF(pp.program_name, ''), '—') AS program_name
             FROM outwards o
             LEFT JOIN production_units pu ON o.production_unit_id = pu.id
             LEFT JOIN concerns dest_con ON o.destination_concern_id = dest_con.id
@@ -416,47 +417,76 @@ class InwardController extends Controller {
             return;
         }
 
-        // Fetch items
+        // Fetch the exact dispatched variants, aggregated by variant ID.
         $items = DB::fetchAll("
-            SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+            SELECT oi.variant_id, SUM(oi.qty) AS qty,
+                   v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                   v.attributes AS variant_attributes,
                    c.name AS category_name,
-                   coalesce((SELECT sum(ii.accepted_qty)
+                   COALESCE((SELECT SUM(ii.accepted_qty)
                              FROM inwards inw
                              JOIN inward_items ii ON inw.id = ii.inward_id
                              JOIN variants iv ON ii.variant_id = iv.id
                              JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
                              WHERE inw.outward_id = oi.outward_id
-                               AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
+                               AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty,
+                   COALESCE((SELECT SUM(ii.rejected_qty)
+                             FROM inwards inw
+                             JOIN inward_items ii ON inw.id = ii.inward_id
+                             JOIN variants iv ON ii.variant_id = iv.id
+                             JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
+                             WHERE inw.outward_id = oi.outward_id
+                               AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS damaged_qty
             FROM outward_items oi
             JOIN variants v ON oi.variant_id = v.id
             LEFT JOIN categories c ON v.category_id = c.id
             WHERE oi.outward_id = ?
+            GROUP BY oi.outward_id, oi.variant_id, v.name, v.sku_code, v.size, v.price, v.mrp, v.attributes, c.name
         ", [$outwardId]);
 
         if (empty($items)) {
-            // Fallback for single batch
-            $batchRow = DB::fetch("SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name FROM batches b JOIN variants v ON b.variant_id = v.id LEFT JOIN categories c ON v.category_id = c.id WHERE b.batch_no = ?", [$outward['batch_no']]);
+            // Legacy batch outward records may have no outward_items row; use only the batch explicitly linked to this outward.
+            $batchRow = DB::fetch("
+                SELECT b.variant_id, b.batch_qty AS qty,
+                       v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                       v.attributes AS variant_attributes, c.name AS category_name,
+                       COALESCE((
+                           SELECT SUM(ii.accepted_qty)
+                           FROM inwards inw
+                           JOIN inward_items ii ON inw.id = ii.inward_id
+                           JOIN variants iv ON ii.variant_id = iv.id
+                           JOIN outwards ow ON ow.id = inw.outward_id
+                           WHERE inw.outward_id = pob.outward_id
+                             AND inw.concern_id = ow.destination_concern_id
+                             AND (ii.variant_id = b.variant_id OR iv.sku_code = v.sku_code)
+                       ), 0) AS credited_qty,
+                       COALESCE((
+                           SELECT SUM(ii.rejected_qty)
+                           FROM inwards inw
+                           JOIN inward_items ii ON inw.id = ii.inward_id
+                           JOIN variants iv ON ii.variant_id = iv.id
+                           JOIN outwards ow ON ow.id = inw.outward_id
+                           WHERE inw.outward_id = pob.outward_id
+                             AND inw.concern_id = ow.destination_concern_id
+                             AND (ii.variant_id = b.variant_id OR iv.sku_code = v.sku_code)
+                       ), 0) AS damaged_qty
+                FROM production_outward_batches pob
+                JOIN batches b ON b.id = pob.batch_id
+                JOIN variants v ON v.id = b.variant_id
+                LEFT JOIN categories c ON c.id = v.category_id
+                WHERE pob.outward_id = ?
+                ORDER BY pob.id ASC
+                LIMIT 1
+            ", [$outwardId]);
             if ($batchRow) {
-                $credited = (float)DB::fetchValue(
-                    "SELECT sum(ii.accepted_qty)
-                     FROM inwards inw
-                     JOIN inward_items ii ON inw.id = ii.inward_id
-                     JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
-                     WHERE inw.outward_id = ?",
-                    [$outwardId]
-                ) ?: 0.0;
-                $items = [[
-                    'variant_id'   => $batchRow['variant_id'],
-                    'qty'          => $batchRow['batch_qty'],
-                    'credited_qty' => $credited,
-                    'variant_name' => $batchRow['variant_name'],
-                    'sku_code'     => $batchRow['sku_code'],
-                    'size'         => $batchRow['size'] ?: 'XL',
-                    'price'        => $batchRow['price'] ?: 700.00,
-                    'mrp'          => $batchRow['mrp'] ?: 1000.00,
-                    'category_name'=> $batchRow['category_name'] ?: 'KIDS',
-                ]];
+                $items = [$batchRow];
             }
+        }
+
+        if (empty($items)) {
+            $this->flash('error', 'No exact dispatched items were found for this outward consignment.');
+            $this->redirect('/m/inward');
+            return;
         }
 
         // Compute variant stats and pieces metadata
@@ -467,22 +497,21 @@ class InwardController extends Controller {
         foreach ($items as &$item) {
             $disp = (float)$item['qty'];
             $cred = (float)$item['credited_qty'];
-            $rem = max(0, $disp - $cred);
+            $damaged = (float)($item['damaged_qty'] ?? 0);
+            $rem = max(0, $disp - $cred - $damaged);
             $item['dispatched_qty'] = $disp;
             $item['credited_qty']   = $cred;
+            $item['damaged_qty']    = $damaged;
             $item['remaining_qty']  = $rem;
 
             $totalDispatched += $disp;
             $totalCredited   += $cred;
+            $totalDamaged    += $damaged;
 
-            // Generate tag range and next tag
-            $cleanName = strtoupper(preg_replace('/[^A-Za-z]/', '', $item['variant_name']));
-            $pPrefix = (str_contains($cleanName, 'KIDS') && str_contains($cleanName, 'BABY')) ? 'KBD' : (strlen($cleanName) >= 3 ? substr($cleanName, 0, 3) : 'KBD');
-            $item['qr_prefix'] = $pPrefix;
-            $item['tag_start'] = "{$pPrefix}1126101";
-            $item['tag_end']   = "{$pPrefix}1126" . (100 + (int)$disp);
-            $item['next_tag']  = "{$pPrefix}1126" . (100 + (int)$cred + 1);
-            $item['color']     = 'GREEN';
+            $attributes = json_decode((string)($item['variant_attributes'] ?? ''), true);
+            $attributes = is_array($attributes) ? $attributes : [];
+            $item['color'] = trim((string)($attributes['color'] ?? ''));
+            $item['tag_code'] = QrService::generateFinishedGoodsCode((int)$item['variant_id']) ?? '';
         }
         unset($item);
 
@@ -512,109 +541,136 @@ class InwardController extends Controller {
             $outwardId = (int)$id;
             $variantId = (int)($_GET['variant_id'] ?? 0);
 
+            if ($outwardId <= 0 || $variantId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'A valid outward and variant ID are required']);
+                return;
+            }
+
             $outward = DB::fetch("SELECT * FROM outwards WHERE id = ?", [$outwardId]);
             if (!$outward) {
+                http_response_code(404);
                 echo json_encode(['success' => false, 'error' => 'Outward dispatch not found']);
-                exit;
+                return;
             }
 
             // STRICT TENANT ISOLATION: Consignment must belong to this destination concern
             if (empty($outward['destination_concern_id']) || ($cid && (int)$outward['destination_concern_id'] !== (int)$cid)) {
+                http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Access Denied: Consignment belongs to a different destination concern']);
-                exit;
+                return;
             }
 
-            $item = null;
-            if ($variantId > 0) {
-                $item = DB::fetch("
-                    SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
-                           coalesce((SELECT sum(ii.accepted_qty)
-                                     FROM inwards inw
-                                     JOIN inward_items ii ON inw.id = ii.inward_id
-                                     JOIN variants iv ON ii.variant_id = iv.id
-                                     JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
-                                     WHERE inw.outward_id = oi.outward_id
-                                       AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
-                    FROM outward_items oi
-                    JOIN variants v ON oi.variant_id = v.id
-                    WHERE oi.outward_id = ? AND oi.variant_id = ? LIMIT 1
-                ", [$outwardId, $variantId]);
-            }
+            $item = DB::fetch("
+                SELECT oi.variant_id, SUM(oi.qty) AS qty,
+                       v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                       v.attributes AS variant_attributes,
+                       COALESCE((
+                           SELECT SUM(ii.accepted_qty)
+                           FROM inwards inw
+                           JOIN inward_items ii ON inw.id = ii.inward_id
+                           JOIN variants iv ON ii.variant_id = iv.id
+                           JOIN outwards ow ON ow.id = inw.outward_id
+                           WHERE inw.outward_id = oi.outward_id
+                             AND inw.concern_id = ow.destination_concern_id
+                             AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)
+                       ), 0) AS credited_qty,
+                       COALESCE((
+                           SELECT SUM(ii.rejected_qty)
+                           FROM inwards inw
+                           JOIN inward_items ii ON inw.id = ii.inward_id
+                           JOIN variants iv ON ii.variant_id = iv.id
+                           JOIN outwards ow ON ow.id = inw.outward_id
+                           WHERE inw.outward_id = oi.outward_id
+                             AND inw.concern_id = ow.destination_concern_id
+                             AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)
+                       ), 0) AS damaged_qty
+                FROM outward_items oi
+                JOIN variants v ON oi.variant_id = v.id
+                WHERE oi.outward_id = ? AND oi.variant_id = ?
+                GROUP BY oi.outward_id, oi.variant_id, v.name, v.sku_code, v.size, v.price, v.mrp, v.attributes
+            ", [$outwardId, $variantId]);
 
-            if (!$item) {
-                $item = DB::fetch("
-                    SELECT oi.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
-                           coalesce((SELECT sum(ii.accepted_qty)
-                                     FROM inwards inw
-                                     JOIN inward_items ii ON inw.id = ii.inward_id
-                                     JOIN variants iv ON ii.variant_id = iv.id
-                                     JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
-                                     WHERE inw.outward_id = oi.outward_id
-                                       AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty
-                    FROM outward_items oi
-                    JOIN variants v ON oi.variant_id = v.id
-                    WHERE oi.outward_id = ? LIMIT 1
-                ", [$outwardId]);
-            }
-
-            // Fallback from batch if outward_items was not populated
+            // Legacy batch records may lack outward_items; only use the exact linked batch variant.
             if (!$item) {
                 $batchRow = DB::fetch("
-                    SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp
-                    FROM batches b
-                    JOIN variants v ON b.variant_id = v.id
-                    WHERE b.id = (SELECT batch_id FROM production_outward_batches WHERE outward_id = ? LIMIT 1)
-                       OR b.batch_no = ?
+                    SELECT b.variant_id, b.batch_qty AS qty,
+                           v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                           v.attributes AS variant_attributes,
+                           COALESCE((
+                               SELECT SUM(ii.accepted_qty)
+                               FROM inwards inw
+                               JOIN inward_items ii ON inw.id = ii.inward_id
+                               JOIN variants iv ON ii.variant_id = iv.id
+                               JOIN outwards ow ON ow.id = inw.outward_id
+                               WHERE inw.outward_id = pob.outward_id
+                                 AND inw.concern_id = ow.destination_concern_id
+                                 AND (ii.variant_id = b.variant_id OR iv.sku_code = v.sku_code)
+                           ), 0) AS credited_qty,
+                           COALESCE((
+                               SELECT SUM(ii.rejected_qty)
+                               FROM inwards inw
+                               JOIN inward_items ii ON inw.id = ii.inward_id
+                               JOIN variants iv ON ii.variant_id = iv.id
+                               JOIN outwards ow ON ow.id = inw.outward_id
+                               WHERE inw.outward_id = pob.outward_id
+                                 AND inw.concern_id = ow.destination_concern_id
+                                 AND (ii.variant_id = b.variant_id OR iv.sku_code = v.sku_code)
+                           ), 0) AS damaged_qty
+                    FROM production_outward_batches pob
+                    JOIN batches b ON b.id = pob.batch_id
+                    JOIN variants v ON v.id = b.variant_id
+                    WHERE pob.outward_id = ? AND b.variant_id = ?
+                    ORDER BY pob.id ASC
                     LIMIT 1
-                ", [$outwardId, $outward['gate_pass_no'] ?? '']);
-
-                if ($batchRow) {
-                    $credited = (float)DB::fetchValue(
-                        "SELECT sum(ii.accepted_qty)
-                         FROM inwards inw
-                         JOIN inward_items ii ON inw.id = ii.inward_id
-                         JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
-                         WHERE inw.outward_id = ?",
-                        [$outwardId]
-                    ) ?: 0.0;
-                    $item = [
-                        'variant_id'   => $batchRow['variant_id'],
-                        'qty'          => $batchRow['batch_qty'],
-                        'credited_qty' => $credited,
-                        'variant_name' => $batchRow['variant_name'],
-                        'sku_code'     => $batchRow['sku_code'],
-                        'size'         => $batchRow['size'] ?: 'XL',
-                        'price'        => $batchRow['price'] ?: 700.00,
-                        'mrp'          => $batchRow['mrp'] ?: 1000.00,
-                    ];
-                }
+                ", [$outwardId, $variantId]);
+                $item = $batchRow ?: null;
             }
 
-            $totalPieces = max(1, (int)($item['qty'] ?? 490));
-            $creditedCount = (int)($item['credited_qty'] ?? 3);
-            $productName = $item['variant_name'] ?? 'KIDS - BABY - DRESS';
-            $skuCode = $item['sku_code'] ?? 'GRM-STY-0001-XL';
-            $size = $item['size'] ?? 'XL';
-            $color = 'GREEN';
-            $price = (float)($item['price'] ?? 700.00);
-            $mrp = (float)($item['mrp'] ?? 1000.00);
+            if (!$item) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'This variant is not part of the selected outward consignment']);
+                return;
+            }
 
-            $cleanName = strtoupper(preg_replace('/[^A-Za-z]/', '', $productName));
-            $prefix = (str_contains($cleanName, 'KIDS') && str_contains($cleanName, 'BABY')) ? 'KBD' : (strlen($cleanName) >= 3 ? substr($cleanName, 0, 3) : 'KBD');
+            $totalPieces = (int)floor((float)$item['qty']);
+            if ($totalPieces <= 0) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'error' => 'The selected outward item has no dispatched quantity']);
+                return;
+            }
+            $creditedCount = max(0, min($totalPieces, (int)$item['credited_qty']));
+            $damagedCount = max(0, min($totalPieces - $creditedCount, (int)$item['damaged_qty']));
+            $productName = (string)$item['variant_name'];
+            $skuCode = (string)$item['sku_code'];
+            $size = (string)($item['size'] ?? '');
+            $attributes = json_decode((string)($item['variant_attributes'] ?? ''), true);
+            $attributes = is_array($attributes) ? $attributes : [];
+            $color = trim((string)($attributes['color'] ?? ''));
+            $price = (float)$item['price'];
+            $mrp = (float)$item['mrp'];
+            $tagCode = QrService::generateFinishedGoodsCode($variantId);
+            if (!$tagCode) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'error' => 'A valid QR code could not be generated for this outward variant']);
+                return;
+            }
 
             $pieces = [];
             for ($i = 1; $i <= $totalPieces; $i++) {
-                $tagCode = $prefix . '1126' . (100 + $i);
                 $pieces[] = [
                     'index'          => $i,
                     'tag_code'       => $tagCode,
+                    'variant_id'     => $variantId,
                     'product_name'   => $productName,
                     'sku_code'       => $skuCode,
                     'size'           => $size,
                     'color'          => $color,
                     'mrp'            => $mrp,
                     'discount_price' => $price,
-                    'status'         => $i <= $creditedCount ? 'verified' : 'unverified',
+                    'status'         => $i <= $creditedCount
+                        ? 'verified'
+                        : ($i <= $creditedCount + $damagedCount ? 'damaged' : 'unverified'),
                 ];
             }
 
@@ -626,19 +682,23 @@ class InwardController extends Controller {
                 'color'         => $color,
                 'mrp'           => $mrp,
                 'discount_price'=> $price,
+                'variant_id'    => $variantId,
+                'tag_code'      => $tagCode,
                 'total_pieces'  => $totalPieces,
                 'credited_count'=> $creditedCount,
-                'pending_count' => max(0, $totalPieces - $creditedCount),
-                'next_tag'      => $prefix . '1126' . (100 + $creditedCount + 1),
+                'damaged_count' => $damagedCount,
+                'pending_count' => max(0, $totalPieces - $creditedCount - $damagedCount),
+                'next_tag'      => $tagCode,
                 'pieces'        => $pieces,
             ]);
-            exit;
+            return;
         } catch (\Throwable $e) {
+            http_response_code(500);
             echo json_encode([
                 'success' => false,
                 'error'   => 'Database error: ' . $e->getMessage()
             ]);
-            exit;
+            return;
         }
     }
 
@@ -699,10 +759,55 @@ class InwardController extends Controller {
         $this->validateCsrf();
         $cid = Auth::concernId();
         $outwardId = (int)($_POST['outward_id'] ?? 0);
-        $verifiedQtyInput = (float)($_POST['verified_qty'] ?? 0);
-        $damagedQtyInput  = (float)($_POST['damaged_qty'] ?? 0);
-        $variantIdInput   = (int)($_POST['variant_id'] ?? 0);
         $damageReason     = trim($_POST['damage_reason'] ?? 'Damaged during transit / handling');
+        $requestedItems = [];
+
+        if (array_key_exists('items_json', $_POST)) {
+            $decodedItems = json_decode((string)$_POST['items_json'], true);
+            if (!is_array($decodedItems)) {
+                $this->flash('error', 'The inward item quantities are invalid. Please refresh and try again.');
+                $this->redirect($outwardId > 0 ? "/m/inward/scan/{$outwardId}" : '/m/inward');
+                return;
+            }
+            foreach ($decodedItems as $entry) {
+                if (!is_array($entry)) {
+                    $this->flash('error', 'The inward item quantities are invalid. Please refresh and try again.');
+                    $this->redirect($outwardId > 0 ? "/m/inward/scan/{$outwardId}" : '/m/inward');
+                    return;
+                }
+                $variantId = (int)($entry['variant_id'] ?? 0);
+                $rawVerifiedQty = $entry['verified_qty'] ?? 0;
+                $rawDamagedQty = $entry['damaged_qty'] ?? 0;
+                if (
+                    $variantId <= 0 ||
+                    !is_numeric($rawVerifiedQty) ||
+                    !is_numeric($rawDamagedQty) ||
+                    !is_finite((float)$rawVerifiedQty) ||
+                    !is_finite((float)$rawDamagedQty) ||
+                    (float)$rawVerifiedQty < 0 ||
+                    (float)$rawDamagedQty < 0
+                ) {
+                    $this->flash('error', 'The inward item quantities are invalid. Please refresh and try again.');
+                    $this->redirect($outwardId > 0 ? "/m/inward/scan/{$outwardId}" : '/m/inward');
+                    return;
+                }
+                $requestedItems[$variantId] = [
+                    'verified_qty' => ($requestedItems[$variantId]['verified_qty'] ?? 0) + (float)$rawVerifiedQty,
+                    'damaged_qty' => ($requestedItems[$variantId]['damaged_qty'] ?? 0) + (float)$rawDamagedQty,
+                ];
+            }
+        } else {
+            $variantId = (int)($_POST['variant_id'] ?? 0);
+            if ($variantId > 0) {
+                $requestedItems[$variantId] = [
+                    'verified_qty' => max(0, (float)($_POST['verified_qty'] ?? 0)),
+                    'damaged_qty' => max(0, (float)($_POST['damaged_qty'] ?? 0)),
+                ];
+            }
+        }
+
+        $verifiedQtyInput = array_sum(array_column($requestedItems, 'verified_qty'));
+        $damagedQtyInput = array_sum(array_column($requestedItems, 'damaged_qty'));
 
         if (!$outwardId) {
             $this->flash('error', 'Invalid outward shipment ID.');
@@ -740,22 +845,90 @@ class InwardController extends Controller {
 
         DB::beginTransaction();
         try {
-            // Resolve target variant strictly for destination concern
-            $targetVariantId = 0;
-            if ($variantIdInput > 0) {
-                $targetVariantId = $this->resolveVariantForConcern($destConcernId, $variantIdInput);
-            } else {
-                $srcVarId = (int)DB::fetchValue("SELECT variant_id FROM outward_items WHERE outward_id = ? LIMIT 1", [$outwardId]);
-                if (!$srcVarId) {
-                    $srcVarId = (int)DB::fetchValue("SELECT variant_id FROM batches WHERE id = (SELECT batch_id FROM production_outward_batches WHERE outward_id = ? LIMIT 1)", [$outwardId]);
-                }
-                if ($srcVarId) {
-                    $targetVariantId = $this->resolveVariantForConcern($destConcernId, $srcVarId);
-                }
+            $dispatchedItems = DB::fetchAll(
+                "SELECT oi.variant_id, SUM(oi.qty) AS qty, v.sku_code
+                 FROM outward_items oi
+                 JOIN variants v ON v.id = oi.variant_id
+                 WHERE oi.outward_id = ?
+                 GROUP BY oi.variant_id, v.sku_code",
+                [$outwardId]
+            );
+            if (!$dispatchedItems) {
+                $batchItem = DB::fetch(
+                    "SELECT b.variant_id, b.batch_qty AS qty, v.sku_code
+                     FROM production_outward_batches pob
+                     JOIN batches b ON b.id = pob.batch_id
+                     JOIN variants v ON v.id = b.variant_id
+                     WHERE pob.outward_id = ?
+                     ORDER BY pob.id ASC
+                     LIMIT 1",
+                    [$outwardId]
+                );
+                $dispatchedItems = $batchItem ? [$batchItem] : [];
+            }
+            if (!$dispatchedItems) {
+                throw new Exception('No exact dispatched items were found for this outward consignment.');
             }
 
-            if (!$targetVariantId) {
-                throw new Exception("Unable to resolve product variant for destination concern #{$destConcernId}.");
+            $dispatchedByVariant = [];
+            $totalDispatched = 0.0;
+            foreach ($dispatchedItems as $dispatchedItem) {
+                $sourceVariantId = (int)$dispatchedItem['variant_id'];
+                $dispatchedByVariant[$sourceVariantId] = [
+                    'qty' => (float)$dispatchedItem['qty'],
+                    'sku_code' => (string)$dispatchedItem['sku_code'],
+                ];
+                $totalDispatched += (float)$dispatchedItem['qty'];
+            }
+
+            $itemsToInward = [];
+            foreach ($requestedItems as $sourceVariantId => $quantities) {
+                $sourceVariantId = (int)$sourceVariantId;
+                $verifiedQty = (float)$quantities['verified_qty'];
+                $damagedQty = (float)$quantities['damaged_qty'];
+                if ($verifiedQty <= 0 && $damagedQty <= 0) {
+                    continue;
+                }
+                if (!isset($dispatchedByVariant[$sourceVariantId])) {
+                    throw new Exception("Variant #{$sourceVariantId} is not part of this outward consignment.");
+                }
+
+                $dispatchedItem = $dispatchedByVariant[$sourceVariantId];
+                $previousInward = DB::fetch(
+                    "SELECT COALESCE(SUM(ii.accepted_qty), 0) AS accepted_qty,
+                            COALESCE(SUM(ii.rejected_qty), 0) AS damaged_qty
+                     FROM inwards inw
+                     JOIN inward_items ii ON ii.inward_id = inw.id
+                     JOIN variants iv ON iv.id = ii.variant_id
+                     WHERE inw.outward_id = ? AND inw.concern_id = ?
+                       AND (ii.variant_id = ? OR iv.sku_code = ?)",
+                    [$outwardId, $destConcernId, $sourceVariantId, $dispatchedItem['sku_code']]
+                );
+                $remainingQty = max(
+                    0.0,
+                    $dispatchedItem['qty'] -
+                        (float)($previousInward['accepted_qty'] ?? 0) -
+                        (float)($previousInward['damaged_qty'] ?? 0)
+                );
+                if ($verifiedQty + $damagedQty > $remainingQty + 0.0001) {
+                    throw new Exception(
+                        "Received quantity for {$dispatchedItem['sku_code']} exceeds its remaining outward quantity ({$remainingQty})."
+                    );
+                }
+
+                $targetVariantId = $this->resolveVariantForConcern($destConcernId, $sourceVariantId);
+                if (!$targetVariantId) {
+                    throw new Exception("Unable to resolve product variant #{$sourceVariantId} for destination concern #{$destConcernId}.");
+                }
+                $itemsToInward[] = [
+                    'source_variant_id' => $sourceVariantId,
+                    'target_variant_id' => $targetVariantId,
+                    'verified_qty' => $verifiedQty,
+                    'damaged_qty' => $damagedQty,
+                ];
+            }
+            if (!$itemsToInward) {
+                throw new Exception('Please verify or record at least 1 dispatched item.');
             }
 
             // Generate GRN & Inward No
@@ -777,39 +950,35 @@ class InwardController extends Controller {
             ]);
             $inwardId = (int)DB::lastInsertId();
 
-            // Insert item
-            DB::query("
-                INSERT INTO inward_items (concern_id, inward_id, variant_id, qty, accepted_qty, rejected_qty, rejection_reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ", [
-                $destConcernId,
-                $inwardId,
-                $targetVariantId,
-                $verifiedQtyInput + $damagedQtyInput,
-                $verifiedQtyInput,
-                $damagedQtyInput,
-                $damagedQtyInput > 0 ? $damageReason : null
-            ]);
-
-            // Credit stock via StockService::move strictly for destination concern
-            if ($verifiedQtyInput > 0) {
-                StockService::move(
+            foreach ($itemsToInward as $item) {
+                DB::query("
+                    INSERT INTO inward_items (concern_id, inward_id, variant_id, qty, accepted_qty, rejected_qty, rejection_reason)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ", [
                     $destConcernId,
-                    $targetVariantId,
-                    'Main Store',
-                    $verifiedQtyInput,
-                    0.00,
-                    'Production Inward',
                     $inwardId,
-                    "GRN #{$grnNumber} Inward acceptance from Outward #{$outward['outward_no']}"
-                );
+                    $item['target_variant_id'],
+                    $item['verified_qty'] + $item['damaged_qty'],
+                    $item['verified_qty'],
+                    $item['damaged_qty'],
+                    $item['damaged_qty'] > 0 ? $damageReason : null
+                ]);
+
+                if ($item['verified_qty'] > 0) {
+                    StockService::move(
+                        $destConcernId,
+                        $item['target_variant_id'],
+                        'Main Store',
+                        $item['verified_qty'],
+                        0.00,
+                        'Production Inward',
+                        $inwardId,
+                        "GRN #{$grnNumber} Inward acceptance from Outward #{$outward['outward_no']}"
+                    );
+                }
             }
 
             // Check if full dispatch is completed
-            $totalDispatched = (float)DB::fetchValue("SELECT sum(qty) FROM outward_items WHERE outward_id = ?", [$outwardId]);
-            if ($totalDispatched <= 0) {
-                $totalDispatched = (float)DB::fetchValue("SELECT pieces_count FROM production_outward_batches WHERE outward_id = ?", [$outwardId]) ?: 490.0;
-            }
             $totalCredited = (float)DB::fetchValue(
                 "SELECT sum(ii.accepted_qty)
                  FROM inwards inw
@@ -818,15 +987,23 @@ class InwardController extends Controller {
                  WHERE inw.outward_id = ?",
                 [$outwardId]
             );
+            $totalDamaged = (float)DB::fetchValue(
+                "SELECT sum(ii.rejected_qty)
+                 FROM inwards inw
+                 JOIN inward_items ii ON inw.id = ii.inward_id
+                 JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
+                 WHERE inw.outward_id = ?",
+                [$outwardId]
+            );
 
-            if ($totalCredited >= $totalDispatched) {
+            if ($totalCredited + $totalDamaged >= $totalDispatched) {
                 DB::query("UPDATE outwards SET status = 'received', received_at = NOW() WHERE id = ?", [$outwardId]);
             } else {
                 DB::query("UPDATE outwards SET status = 'partial' WHERE id = ?", [$outwardId]);
             }
 
             DB::commit();
-            $this->flash('success', "Stock verified and credited successfully! Credited +{$verifiedQtyInput} pcs to inventory under {$grnNumber}.");
+            $this->flash('success', "Inward recorded successfully! Credited +{$verifiedQtyInput} pcs and recorded {$damagedQtyInput} damaged pcs under {$grnNumber}.");
             $this->redirect("/m/inward/scan/{$outwardId}");
             return;
         } catch (\Throwable $e) {

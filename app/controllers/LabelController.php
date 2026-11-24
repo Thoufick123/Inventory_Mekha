@@ -2532,7 +2532,7 @@ class LabelController extends Controller {
                  SELECT lj.qty
                  FROM label_jobs lj
                  WHERE lj.concern_id = ? AND lj.ref_id = ? AND lj.label_type = ?
-                   AND lj.source_module = 'product_adding' AND lj.id > ?
+                   AND lj.id > ?
                  ORDER BY lj.id DESC
                  LIMIT 1
              ), 0)",

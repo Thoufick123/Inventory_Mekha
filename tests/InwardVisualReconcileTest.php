@@ -7,6 +7,7 @@ require_once __DIR__ . '/../app/core/Autoloader.php';
 use App\Core\DB;
 use App\Core\Auth;
 use App\Controllers\InwardController;
+use App\Services\QrService;
 
 echo "======================================================================\n";
 echo "TEST SUITE: Inward Module Revamp (List, Scan, and Piece View Pages)\n";
@@ -101,16 +102,18 @@ assertCondition($shortQty === 487.0, "Pending/Short matches Image 1 (487 pcs)", 
 
 // 3. Test Image 2 Data (Scan / Cross-Check View)
 echo "\n--- 3. Testing Image 2 (Complete Inward Shipment Cross-Check View) ---\n";
-$variant = DB::fetch("SELECT * FROM variants WHERE name LIKE '%KIDS - BABY - DRESS%' OR sku_code = 'GRM-STY-0001-XL' LIMIT 1");
+$variant = DB::fetch(
+    "SELECT v.* FROM outward_items oi JOIN variants v ON v.id = oi.variant_id
+     WHERE oi.outward_id = ? LIMIT 1",
+    [(int)$sampleOutward['id']]
+);
 assertCondition(!empty($variant), "KIDS - BABY - DRESS variant exists", $variant['sku_code'] ?? '');
 
 $matchPct = round(($creditedQty / $totalQty) * 100);
 assertCondition($matchPct === 1.0, "Verification Match percentage matches Image 2 (1%)", "{$matchPct}%");
 
-$cleanName = strtoupper(preg_replace('/[^A-Za-z]/', '', $variant['name']));
-$pPrefix = (str_contains($cleanName, 'KIDS') && str_contains($cleanName, 'BABY')) ? 'KBD' : substr($cleanName, 0, 3);
-$nextTag = $pPrefix . '1126' . (100 + (int)$creditedQty + 1);
-assertCondition($nextTag === 'KBD1126104', "Next sequential tag matches Image 2 (KBD1126104)", $nextTag);
+$expectedTag = QrService::generateFinishedGoodsCode((int)$variant['id']);
+assertCondition(!empty($expectedTag), "Outward variant has a generated QR code", (string)$expectedTag);
 
 // 4. Test Image 3 Data (Individual Piece QR Codes Modal)
 echo "\n--- 4. Testing Image 3 (Product Specifications & Individual Piece QR Codes Modal) ---\n";
@@ -126,17 +129,24 @@ assertCondition($data['total_pieces'] === 490, "Total pieces in modal matches Im
 assertCondition($data['credited_count'] === 3, "Verified pieces in modal matches Image 3 (3)", (string)$data['credited_count']);
 assertCondition($data['pending_count'] === 487, "Mismatched pieces in modal matches Image 3 (487)", (string)$data['pending_count']);
 assertCondition(count($data['pieces']) === 490, "All 490 piece records generated");
+assertCondition((int)$data['variant_id'] === (int)$variant['id'], "Piece response is tied to the exact outward variant ID");
 
-// Verify piece 4 tag code is KBD1126104
+// Every piece uses the same valid variant QR code; outward_items stores variant quantities, not serial IDs.
 $piece4 = $data['pieces'][3];
-assertCondition($piece4['tag_code'] === 'KBD1126104', "Piece #4 tag code verified (KBD1126104)", $piece4['tag_code']);
+assertCondition($piece4['tag_code'] === $expectedTag, "Piece QR code matches the outward variant ID", $piece4['tag_code']);
 assertCondition($piece4['status'] === 'unverified', "Piece #4 status is unverified (pending)", $piece4['status']);
 
-// Verify piece 17 tag code is KBD1126117
 $piece17 = $data['pieces'][16];
-assertCondition($piece17['tag_code'] === 'KBD1126117', "Piece #17 tag code matches Image 3 (KBD1126117)", $piece17['tag_code']);
+assertCondition($piece17['tag_code'] === $expectedTag, "All piece QR codes resolve to the same exact variant", $piece17['tag_code']);
 assertCondition($piece17['discount_price'] == 700.00, "Piece #17 price matches Image 3 (₹700.00)", (string)$piece17['discount_price']);
 assertCondition($piece17['mrp'] == 1000.00, "Piece #17 MRP matches Image 3 (₹1000.00)", (string)$piece17['mrp']);
+
+$_GET['variant_id'] = (int)DB::fetchValue("SELECT COALESCE(MAX(id), 0) + 1 FROM variants");
+ob_start();
+$controller->piecesJson((int)$sampleOutward['id']);
+$invalidJsonOutput = ob_get_clean();
+$invalidData = json_decode($invalidJsonOutput, true);
+assertCondition(empty($invalidData['success']), "A variant not dispatched in this outward is rejected");
 
 echo "\n======================================================================\n";
 echo "SUMMARY: {$passed} Passed, {$failed} Failed\n";

@@ -16,16 +16,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                 Inter-concern and warehouse-to-store requisitions. Track outgoing indents and receive incoming dispatches.
             </p>
         </div>
-        <div class="d-flex gap-2">
-            <?php if (\App\Core\Auth::can('request', 'add')): ?>
-            <button type="button" class="btn btn-primary shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#modalIndentStock">
-                <i class="bi bi-send me-1"></i> Indent Stock
-            </button>
-            <a href="<?= \App\Core\Controller::url('/production/stock-requests/create') ?>" class="btn btn-outline-secondary shadow-sm">
-                <i class="bi bi-sliders me-1"></i> Advanced Form
-            </a>
-            <?php endif; ?>
-        </div>
     </div>
 
     <!-- Navigation Pills: Send and Receive Methods -->
@@ -107,7 +97,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                     <thead class="table-light">
                         <tr class="text-uppercase small text-secondary">
                             <th style="min-width: 140px;">REQUEST #</th>
-                            <th style="min-width: 180px;">DESTINATION RETAIL STORE</th>
                             <th style="min-width: 180px;">SOURCE WAREHOUSE</th>
                             <th style="min-width: 120px;" class="text-center">REQUESTED QTY</th>
                             <th style="min-width: 120px;" class="text-center">DISPATCHED QTY</th>
@@ -119,7 +108,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                     <tbody>
                         <?php if (empty($receivedRequests)): ?>
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="7" class="text-center py-5">
                                     <div class="my-4">
                                         <i class="bi bi-shop text-muted" style="font-size: 3.5rem; opacity: 0.4;"></i>
                                         <h5 class="fw-bold text-secondary mt-3 mb-1">No Shop Requests Found</h5>
@@ -145,10 +134,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                                             <?= htmlspecialchars($req['request_no']) ?>
                                         </a>
                                         <small class="d-block text-muted"><?= htmlspecialchars($req['priority'] ?? 'NORMAL') ?></small>
-                                    </td>
-                                    <td>
-                                        <div class="fw-semibold text-dark"><?= htmlspecialchars($req['destination_concern_name'] ?? 'Main Retail Store') ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($req['to_location_type'] ?? 'SHOP') ?></small>
                                     </td>
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['source_concern_name'] ?? 'Central Warehouse') ?></div>
@@ -218,7 +203,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                         <tr class="text-uppercase small text-secondary">
                             <th style="min-width: 140px;">REQUEST #</th>
                             <th style="min-width: 180px;">DESTINATION CONCERN</th>
-                            <th style="min-width: 180px;">SOURCE CONCERN</th>
                             <th style="min-width: 120px;" class="text-center">REQUESTED QTY</th>
                             <th style="min-width: 120px;" class="text-center">DISPATCHED QTY</th>
                             <th style="min-width: 140px;">REQUESTED BY</th>
@@ -229,7 +213,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                     <tbody>
                         <?php if (empty($sentRequests)): ?>
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="7" class="text-center py-5">
                                     <div class="my-4">
                                         <i class="bi bi-send text-muted" style="font-size: 3.5rem; opacity: 0.4;"></i>
                                         <h5 class="fw-bold text-secondary mt-3 mb-1">No Sent Requisitions Found</h5>
@@ -264,10 +248,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['destination_concern_name'] ?? 'Main Retail Store') ?></div>
                                         <small class="text-muted"><?= htmlspecialchars($req['to_location_type'] ?? 'SHOP') ?></small>
-                                    </td>
-                                    <td>
-                                        <div class="fw-semibold text-dark"><?= htmlspecialchars($req['source_concern_name'] ?? 'Central Warehouse') ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($req['from_location_type'] ?? 'WAREHOUSE') ?></small>
                                     </td>
                                     <td class="text-center">
                                         <span class="fw-bold text-dark"><?= number_format((float)$req['requested_qty'], 2) ?></span>

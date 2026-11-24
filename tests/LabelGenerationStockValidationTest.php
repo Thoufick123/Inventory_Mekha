@@ -116,7 +116,11 @@ assertContains($htmlPending, 'fg_add_stock_btn', "fg_add_stock_btn reference mis
 assertContains($htmlPending, 'fg_in_stock_badge', "fg_in_stock_badge reference missing in JS");
 assertContains($htmlPending, 'This finished goods item has already been added to stock.', "Validation alert missing in submitFgToStock");
 $labelControllerSource = file_get_contents(__DIR__ . '/../app/controllers/LabelController.php');
+$productAddingControllerSource = file_get_contents(__DIR__ . '/../app/controllers/ProductAddingController.php');
 $labelGenerationSource = file_get_contents(__DIR__ . '/../app/views/concern/label_generation.php');
+assertContains($labelControllerSource, 'WHERE lj.concern_id = ? AND lj.ref_id = ? AND lj.label_type = ?', "Product Adding stock validation must count labels linked to the exact purchase line");
+assertNotContains($labelControllerSource, "AND lj.source_module = 'product_adding' AND lj.id > ?", "Product Adding stock validation must accept line-linked labels generated through the main label screen");
+assertNotContains($productAddingControllerSource, "AND lj.source_module = 'product_adding'", "Product Adding label status must include line-linked labels from the main label screen");
 assertContains($labelControllerSource, "targetTab === 'finished_goods' ? '/m/stocks'", "Finished Goods inward does not redirect to Live Stocks");
 assertContains($labelControllerSource, 'must be mapped to a catalog variant before adding it to stock', "Unmapped finished goods can be marked complete without stock");
 assertContains($labelGenerationSource, 'Map to catalog first', "Unmapped Finished Goods still show an Add to Stock action");
@@ -138,6 +142,13 @@ echo "\n=== ALL TESTS PASSED SUCCESSFULLY! ===\n";
 function assertContains($haystack, $needle, $msg) {
     if (strpos($haystack, $needle) === false) {
         echo "FAILED: $msg (Needle '$needle' not found in content)\n";
+        exit(1);
+    }
+}
+
+function assertNotContains($haystack, $needle, $msg) {
+    if (strpos($haystack, $needle) !== false) {
+        echo "FAILED: $msg (Unexpected needle '$needle' found in content)\n";
         exit(1);
     }
 }

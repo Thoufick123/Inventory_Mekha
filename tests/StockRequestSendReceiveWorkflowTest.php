@@ -8,6 +8,7 @@ require_once __DIR__ . '/../app/core/Autoloader.php';
 use App\Core\DB;
 use App\Core\Auth;
 use App\Controllers\ProductionStockRequestController;
+use App\Services\DocumentNumberService;
 
 class StockRequestSendReceiveWorkflowTest {
     private int $passed = 0;
@@ -85,7 +86,11 @@ class StockRequestSendReceiveWorkflowTest {
 
         // 4. Test Storing Indent Requisition
         echo "\n4. Testing creation of Stock Indent Requisition (Image 2 submission)...\n";
-        $testReqNo = 'REQ-TEST-' . time();
+        $testReqNo = DocumentNumberService::generate('PRODUCTION_STOCK_REQUEST', 0, 'REQ');
+        $this->assert(
+            !DB::fetchValue("SELECT id FROM production_stock_requests WHERE request_no = ? LIMIT 1", [$testReqNo]),
+            "Generated production requisition number is unique: {$testReqNo}"
+        );
         DB::query(
             "INSERT INTO production_stock_requests (
                 concern_id, source_concern_id, destination_concern_id, request_no, request_type,

@@ -48,8 +48,13 @@ class ProductionStockRequestController extends Controller {
         $fromDate = trim($_GET['from_date'] ?? '');
         $toDate = trim($_GET['to_date'] ?? '');
 
-        // 1. Fetch active concerns
-        $concerns = DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY name ASC");
+        // 1. Fetch active destination concerns, excluding the current source concern.
+        $concerns = DB::fetchAll(
+            "SELECT id, name, code FROM concerns
+             WHERE status = 'active' AND (? IS NULL OR id <> ?)
+             ORDER BY name ASC",
+            [$cid, $cid]
+        );
 
         // 2. Fetch active variants
         $variants = DB::fetchAll("SELECT id, sku_code, name, size, price, concern_id FROM variants WHERE status = 'active' ORDER BY name ASC");
@@ -233,6 +238,11 @@ class ProductionStockRequestController extends Controller {
 
         $destConcernId = !empty($_POST['destination_concern_id']) ? (int)$_POST['destination_concern_id'] : $cid;
         $sourceConcernId = $cid;
+        if ($destConcernId === $sourceConcernId) {
+            $this->flash('error', 'Destination concern must be different from the source concern.');
+            $this->redirect('/production/stock-requests?tab=send');
+            return;
+        }
 
         $fromType = strtoupper(trim($_POST['from_location_type'] ?? 'WAREHOUSE'));
         $fromId = (int)($_POST['from_location_id'] ?? 1);
@@ -280,13 +290,15 @@ class ProductionStockRequestController extends Controller {
             return;
         }
 
+        DocumentNumberService::initTable();
+
         $hasActiveTx = DB::pdo()->inTransaction();
         if (!$hasActiveTx) {
             DB::beginTransaction();
         }
 
         try {
-            $requestNo = DocumentNumberService::generate('STOCK_REQUEST', $cid);
+            $requestNo = DocumentNumberService::generate('PRODUCTION_STOCK_REQUEST', 0, 'REQ');
 
             $totalRequestedQty = 0.00;
             foreach ($items as $item) {

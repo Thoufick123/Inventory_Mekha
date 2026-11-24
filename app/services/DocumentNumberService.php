@@ -39,7 +39,7 @@ class DocumentNumberService {
      *
      * Format: {PREFIX}-{YEAR}-{SEQUENCE:04d} (e.g. RET-2026-0001, REQ-2026-0001, DMG-2026-0001)
      *
-     * @param string $docType e.g. 'RETURN', 'EXCHANGE', 'STOCK_REQUEST', 'DAMAGE_WH', 'DAMAGE_SHOP', 'DAMAGE_CONCERN'
+     * @param string $docType e.g. 'RETURN', 'EXCHANGE', 'STOCK_REQUEST', 'PRODUCTION_STOCK_REQUEST', 'DAMAGE_WH'
      * @param int $concernId
      * @param string|null $customPrefix e.g. 'RET', 'REQ', 'WHD', 'SHD', 'DMG'
      * @param int $padLength Default 4 digits (e.g. 0001)
@@ -132,7 +132,7 @@ class DocumentNumberService {
     private static function getDefaultPrefix(string $docType): string {
         return match ($docType) {
             'RETURN', 'EXCHANGE', 'RMA' => 'RET',
-            'STOCK_REQUEST', 'REQUISITION', 'REQ' => 'REQ',
+            'STOCK_REQUEST', 'PRODUCTION_STOCK_REQUEST', 'REQUISITION', 'REQ' => 'REQ',
             'DAMAGE_WH', 'WAREHOUSE_DAMAGE' => 'WHD',
             'DAMAGE_SHOP', 'SHOP_DAMAGE' => 'SHD',
             'DAMAGE_CONCERN', 'CONCERN_DAMAGE', 'DAMAGE' => 'DMG',
@@ -174,6 +174,17 @@ class DocumentNumberService {
                     if ($v2) {
                         $parts = explode('-', (string)$v2);
                         $maxNum = max($maxNum, (int)end($parts));
+                    }
+                    break;
+
+                case 'PRODUCTION_STOCK_REQUEST':
+                    $existingSequence = DB::fetchValue(
+                        "SELECT MAX(CAST(SUBSTRING_INDEX(request_no, '-', -1) AS UNSIGNED))
+                         FROM production_stock_requests WHERE request_no LIKE ?",
+                        [$pattern]
+                    );
+                    if ($existingSequence !== null) {
+                        $maxNum = max($maxNum, (int)$existingSequence);
                     }
                     break;
 

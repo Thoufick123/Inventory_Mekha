@@ -143,7 +143,7 @@
                 </div>
                 <div class="small mb-3 d-flex justify-content-between">
                     <span class="text-muted">Product / Style:</span>
-                    <span class="fw-bold text-dark text-end"><?= htmlspecialchars($outward['program_name'] ?: 'KIDS - BABY - DRESS') ?></span>
+                    <span class="fw-bold text-dark text-end"><?= htmlspecialchars($outward['program_name']) ?></span>
                 </div>
 
                 <div class="p-2.5 rounded-2" style="background: #fffbeb; border: 1px solid #fef3c7;">
@@ -152,7 +152,7 @@
                         <span class="badge bg-warning bg-opacity-50 text-dark font-monospace"><?= htmlspecialchars($outward['source_unit_code']) ?></span>
                     </div>
                     <div class="small fw-bold text-dark"><?= htmlspecialchars($outward['source_unit_name']) ?></div>
-                    <div class="small text-muted"><?= htmlspecialchars($outward['manager_name'] ?: 'Vanaja (9943557998)') ?></div>
+                    <div class="small text-muted"><?= htmlspecialchars($outward['manager_name']) ?></div>
                 </div>
             </div>
         </div>
@@ -197,7 +197,7 @@
                             <tr>
                                 <th style="width: 40px;" class="text-center">NO</th>
                                 <th>PRODUCT & SKU</th>
-                                <th>QR RANGE & NEXT TAG</th>
+                                <th>OUTWARD QR / CODE</th>
                                 <th>SIZE & COLOR</th>
                                 <th>OUTWARD EXP</th>
                                 <th style="width: 170px;">VERIFIED & DAMAGED</th>
@@ -208,7 +208,13 @@
                         </thead>
                         <tbody>
                             <?php foreach ($items as $idx => $it): ?>
-                            <tr id="rowVariant-<?= $it['variant_id'] ?>" data-variant-id="<?= $it['variant_id'] ?>">
+                            <tr id="rowVariant-<?= (int)$it['variant_id'] ?>"
+                                data-variant-id="<?= (int)$it['variant_id'] ?>"
+                                data-sku-code="<?= htmlspecialchars((string)$it['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                data-tag-code="<?= htmlspecialchars((string)$it['tag_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                data-product-name="<?= htmlspecialchars((string)$it['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                data-credited-qty="<?= (int)$it['credited_qty'] ?>"
+                                data-damaged-qty="<?= (int)$it['damaged_qty'] ?>">
                                 <td class="text-center fw-bold text-muted"><?= $idx + 1 ?></td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
@@ -218,17 +224,17 @@
                                         <div>
                                             <div class="fw-bold text-dark"><?= htmlspecialchars($it['variant_name']) ?></div>
                                             <div class="font-monospace small text-muted"><?= htmlspecialchars($it['sku_code']) ?></div>
-                                            <span class="badge bg-light text-muted border" style="font-size: 0.68rem;"><?= htmlspecialchars($it['category_name'] ?: 'KIDS') ?></span>
+                                            <span class="badge bg-light text-muted border" style="font-size: 0.68rem;"><?= htmlspecialchars($it['category_name'] ?: '—') ?></span>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="font-monospace small text-dark fw-semibold"><?= htmlspecialchars($it['tag_start']) ?>, <?= substr($it['tag_end'], 0, 8) ?>...</div>
-                                    <div class="small text-danger fw-bold font-monospace" style="font-size: 0.75rem;">next: <span class="next-tag-val"><?= htmlspecialchars($it['next_tag']) ?></span></div>
+                                    <div class="font-monospace small text-dark fw-semibold"><?= htmlspecialchars((string)$it['tag_code']) ?: 'QR unavailable' ?></div>
+                                    <div class="small text-muted fw-semibold font-monospace" style="font-size: 0.75rem;">SKU: <?= htmlspecialchars((string)$it['sku_code']) ?></div>
                                 </td>
                                 <td>
-                                    <div><span class="badge bg-light text-dark border"><?= htmlspecialchars($it['size']) ?></span></div>
-                                    <div class="mt-1"><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25"><?= htmlspecialchars($it['color']) ?></span></div>
+                                    <div><span class="badge bg-light text-dark border"><?= htmlspecialchars((string)($it['size'] ?? '') ?: '—') ?></span></div>
+                                    <div class="mt-1"><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25"><?= htmlspecialchars((string)($it['color'] ?? '') ?: '—') ?></span></div>
                                 </td>
                                 <td>
                                     <div class="fw-bold text-dark fs-6"><?= number_format($it['dispatched_qty']) ?> pcs</div>
@@ -281,9 +287,9 @@
             <form action="<?= \App\Core\Controller::url('/m/inward/credit') ?>" method="POST" id="formCreditStock" onsubmit="return validateCreditSubmission(event)">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
                 <input type="hidden" name="outward_id" value="<?= (int)$outward['id'] ?>">
-                <input type="hidden" name="variant_id" id="submitVariantId" value="<?= (int)($items[0]['variant_id'] ?? 0) ?>">
                 <input type="hidden" name="verified_qty" id="submitVerifiedQty" value="0">
                 <input type="hidden" name="damaged_qty" id="submitDamagedQty" value="0">
+                <input type="hidden" name="items_json" id="submitItemsJson" value="[]">
                 <input type="hidden" name="damage_reason" id="submitDamageReason" value="Transit handling defects">
 
                 <button type="submit" class="btn btn-success btn-lg w-100 fw-bold shadow py-3 d-flex align-items-center justify-content-center gap-2 text-uppercase" id="btnSubmitStock" style="letter-spacing: 0.03em;">
@@ -327,7 +333,7 @@
                         <div class="d-inline-block p-2 border rounded-2 bg-light shadow-sm">
                             <div id="modalPieceQrCanvas" class="d-flex align-items-center justify-content-center" style="width: 140px; height: 140px;"></div>
                         </div>
-                        <div class="fw-bold font-monospace fs-5 text-primary mt-1" id="modalCurrentPieceTag">KBD1126104</div>
+                        <div class="fw-bold font-monospace fs-5 text-primary mt-1" id="modalCurrentPieceTag">—</div>
                     </div>
 
                     <!-- Top Right: Mode Switcher & CTA -->
@@ -353,18 +359,18 @@
                 <!-- Sub-Section Header & Filter Tabs -->
                 <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 px-1">
                     <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-1">
-                        <i class="bi bi-grid-3x3-gap text-secondary"></i> All Individual Pieces (<span id="modalTotalPiecesText">490</span> total)
+                        <i class="bi bi-grid-3x3-gap text-secondary"></i>                         All Dispatched Pieces (<span id="modalTotalPiecesText">0</span> total)
                     </h6>
                     <!-- Filter Tabs -->
                     <div class="d-flex gap-1.5 flex-wrap">
                         <button type="button" class="btn btn-sm btn-outline-danger fw-semibold rounded-pill px-2.5 py-1 piece-tab-btn" id="tabMismatched" onclick="filterModalPieces('mismatched')">
-                            Only Mismatched (<span id="modalCountMismatched">487</span>)
+                            Only Mismatched (<span id="modalCountMismatched">0</span>)
                         </button>
                         <button type="button" class="btn btn-sm btn-dark fw-bold rounded-pill px-2.5 py-1 piece-tab-btn active" id="tabAll" onclick="filterModalPieces('all')">
-                            All Pieces (<span id="modalCountAll">490</span>)
+                            All Pieces (<span id="modalCountAll">0</span>)
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-success fw-semibold rounded-pill px-2.5 py-1 piece-tab-btn" id="tabVerified" onclick="filterModalPieces('verified')">
-                            Verified (<span id="modalCountVerified">3</span>)
+                            Verified (<span id="modalCountVerified">0</span>)
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-danger fw-semibold rounded-pill px-2.5 py-1 piece-tab-btn" id="tabDamaged" onclick="filterModalPieces('damaged')">
                             Damaged (<span id="modalCountDamaged">0</span>)
@@ -396,6 +402,7 @@ let pieceData = [];
 let scanMode = 'good'; // 'good' or 'damaged'
 let totalDispatchedConst = <?= (int)$totalDispatched ?>;
 let totalCreditedConst = <?= (int)$totalCredited ?>;
+let totalDamagedConst = <?= (int)$totalDamaged ?>;
 let activeModalOutwardId = <?= (int)$outward['id'] ?>;
 let activeModalVariantId = <?= (int)($items[0]['variant_id'] ?? 0) ?>;
 
@@ -429,93 +436,35 @@ function playSound(type) {
     }
 }
 
-// Generate QR Code (Supports both container div with qrcode.js and canvas fallback)
+// Render only a real QR code; never substitute a decorative pattern.
 function renderQrToCanvas(targetId, text, width, height) {
     const el = document.getElementById(targetId);
     if (!el) return;
 
-    const w = width || (el.width ? el.width : 140);
-    const h = height || (el.height ? el.height : 140);
-
-    // If it's a div/container element (preferred for qrcode.js)
-    if (el.tagName.toLowerCase() !== 'canvas') {
-        el.innerHTML = '';
-        if (typeof QRCode !== 'undefined') {
-            try {
-                new QRCode(el, {
-                    text: text,
-                    width: w,
-                    height: h,
-                    colorDark: "#0f172a",
-                    colorLight: "#ffffff",
-                    correctLevel: (QRCode.CorrectLevel && QRCode.CorrectLevel.M) ? QRCode.CorrectLevel.M : 0
-                });
-                return;
-            } catch (e) {
-                console.warn("QRCode constructor error:", e);
-            }
-        }
-        // Fallback canvas inside div
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        el.appendChild(canvas);
-        const ctx = canvas.getContext('2d');
-        renderFallbackQr(ctx, w, h, text);
+    el.innerHTML = '';
+    if (!text || typeof QRCode === 'undefined') {
+        el.textContent = 'QR unavailable';
         return;
     }
 
-    // If element is a canvas:
-    if (typeof QRCode !== 'undefined' && typeof QRCode.toCanvas === 'function') {
-        try {
-            QRCode.toCanvas(el, text, { width: w, margin: 1 }, function (error) {
-                if (error) renderFallbackQr(el.getContext('2d'), w, h, text);
-            });
-            return;
-        } catch (e) {
-            console.warn("QRCode.toCanvas error:", e);
-        }
-    }
-
-    const ctx = el.getContext('2d');
-    ctx.clearRect(0, 0, w, h);
-    renderFallbackQr(ctx, w, h, text);
-}
-
-function renderFallbackQr(ctx, w, h, text) {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "#0f172a";
-    // Draw QR-like pattern
-    const s = 14;
-    // Corners
-    ctx.fillRect(10, 10, 40, 40);
-    ctx.clearRect(18, 18, 24, 24);
-    ctx.fillRect(24, 24, 12, 12);
-
-    ctx.fillRect(w - 50, 10, 40, 40);
-    ctx.clearRect(w - 42, 18, 24, 24);
-    ctx.fillRect(w - 36, 24, 12, 12);
-
-    ctx.fillRect(10, h - 50, 40, 40);
-    ctx.clearRect(18, h - 42, 24, 24);
-    ctx.fillRect(24, h - 36, 12, 12);
-
-    // Random noise based on text
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) hash = ((hash << 5) - hash) + text.charCodeAt(i);
-    for (let x = 60; x < w - 60; x += 10) {
-        for (let y = 10; y < h - 10; y += 10) {
-            if ((hash ^ (x * y)) % 2 === 0) ctx.fillRect(x, y, 7, 7);
-        }
+    try {
+        new QRCode(el, {
+            text: text,
+            width: width || 140,
+            height: height || 140,
+            colorDark: "#0f172a",
+            colorLight: "#ffffff",
+            correctLevel: (QRCode.CorrectLevel && QRCode.CorrectLevel.M) ? QRCode.CorrectLevel.M : 0
+        });
+    } catch (error) {
+        console.error('Could not render the outward item QR code:', error);
+        el.textContent = 'QR unavailable';
     }
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function () {
     renderQrToCanvas('batchQrCanvas', '<?= htmlspecialchars($outward['batch_no']) ?>');
-    renderQrToCanvas('modalPieceQrCanvas', 'KBD1126104');
-
     // Enter key handling for inputQrScanner
     const scannerInput = document.getElementById('inputQrScanner');
     if (scannerInput) {
@@ -541,27 +490,33 @@ function processManualScan() {
     }
 
     // Match in reconcile table
-    const verifiedInput = document.querySelector('.input-verified');
-    if (verifiedInput) {
-        let cur = parseInt(verifiedInput.value) || 0;
-        let max = parseInt(verifiedInput.getAttribute('max')) || 487;
-
-        if (cur >= max) {
-            feedback.innerHTML = '<span class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i> All missing pieces in this batch have already been verified!</span>';
-            playSound('error');
-            input.value = '';
-            return;
-        }
-
-        cur++;
-        verifiedInput.value = cur;
-        recalculateTotals();
-
-        feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned piece '${val}' accepted! Total incremental verified: +${cur} pcs.</span>`;
-        playSound('success');
-        input.value = '';
-        input.focus();
+    const scanCode = val.toUpperCase();
+    const matchedRow = Array.from(document.querySelectorAll('#tableReconcile tbody tr')).find(row => {
+        return [row.dataset.tagCode, row.dataset.skuCode, row.dataset.variantId]
+            .some(code => code && code.toUpperCase() === scanCode);
+    });
+    if (!matchedRow) {
+        feedback.innerHTML = `<span class="text-danger fw-semibold"><i class="bi bi-x-circle me-1"></i> '${escapeHtml(val)}' is not an item in this outward consignment.</span>`;
+        playSound('error');
+        return;
     }
+
+    const verifiedInput = matchedRow.querySelector('.input-verified');
+    const cur = parseInt(verifiedInput.value, 10) || 0;
+    const max = parseInt(verifiedInput.getAttribute('max'), 10) || 0;
+    if (cur >= max) {
+        feedback.innerHTML = `<span class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i> All dispatched pieces for ${escapeHtml(matchedRow.dataset.productName)} have already been verified.</span>`;
+        playSound('error');
+        input.value = '';
+        return;
+    }
+
+    verifiedInput.value = cur + 1;
+    recalculateTotals();
+    feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned ${escapeHtml(matchedRow.dataset.productName)} (${escapeHtml(matchedRow.dataset.skuCode)}). +1 verified.</span>`;
+    playSound('success');
+    input.value = '';
+    input.focus();
 }
 
 // Recalculate Table and KPI metrics
@@ -577,13 +532,14 @@ function recalculateTotals() {
 
         const vVal = parseInt(vInput.value) || 0;
         const dVal = parseInt(dInput.value) || 0;
-        const maxVal = parseInt(vInput.getAttribute('max')) || 487;
+        const maxVal = parseInt(vInput.getAttribute('max'), 10) || 0;
 
         // Validation clamps
         if (vVal < 0) vInput.value = 0;
         if (dVal < 0) dInput.value = 0;
+        if (dVal > maxVal) dInput.value = maxVal;
         if (vVal + dVal > maxVal) {
-            vInput.value = maxVal - dVal;
+            vInput.value = Math.max(0, maxVal - dVal);
         }
 
         const effectiveV = parseInt(vInput.value) || 0;
@@ -592,7 +548,7 @@ function recalculateTotals() {
         incVerified += effectiveV;
         incDamaged += effectiveD;
 
-        const diff = maxVal - effectiveV;
+        const diff = maxVal - effectiveV - effectiveD;
         if (diff <= 0) {
             diffBadge.textContent = '0 pcs';
             diffBadge.className = 'badge bg-success text-white px-2 py-1.5 font-monospace diff-badge';
@@ -608,7 +564,7 @@ function recalculateTotals() {
 
     // Update Top KPIs
     const newVerifiedTotal = totalCreditedConst + incVerified;
-    const newDamagedTotal = incDamaged;
+    const newDamagedTotal = totalDamagedConst + incDamaged;
     const newPendingTotal = Math.max(0, totalDispatchedConst - newVerifiedTotal - newDamagedTotal);
     const newMatch = totalDispatchedConst > 0 ? Math.round((newVerifiedTotal / totalDispatchedConst) * 100) : 0;
 
@@ -622,6 +578,16 @@ function recalculateTotals() {
     document.getElementById('btnIncrementalQty').textContent = incVerified;
     document.getElementById('submitVerifiedQty').value = incVerified;
     document.getElementById('submitDamagedQty').value = incDamaged;
+    const inwardItems = Array.from(document.querySelectorAll('#tableReconcile tbody tr')).map(row => {
+        const verified = parseInt(row.querySelector('.input-verified').value, 10) || 0;
+        const damaged = parseInt(row.querySelector('.input-damaged').value, 10) || 0;
+        return {
+            variant_id: parseInt(row.dataset.variantId, 10),
+            verified_qty: verified,
+            damaged_qty: damaged
+        };
+    }).filter(item => item.verified_qty > 0 || item.damaged_qty > 0);
+    document.getElementById('submitItemsJson').value = JSON.stringify(inwardItems);
 
     document.getElementById('bannerCreditedText').textContent = newVerifiedTotal;
     document.getElementById('bannerPendingText').textContent = newPendingTotal;
@@ -662,30 +628,24 @@ function openPieceModal(outwardId, variantId) {
     grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div><div class="small text-muted mt-2">Loading individual piece barcodes...</div></div>';
 
     fetch(`<?= \App\Core\Controller::url('/m/inward/pieces/') ?>${outwardId}?variant_id=${variantId}`)
-        .then(res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-            return res.json();
-        })
+        .then(res => res.json().then(data => {
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
+            }
+            return data;
+        }))
         .then(data => {
-            if (data.success) {
-                pieceData = Array.isArray(data.pieces) ? data.pieces : [];
-                const totEl = document.getElementById('modalTotalPiecesText');
-                if (totEl) totEl.textContent = data.total_pieces;
+            pieceData = Array.isArray(data.pieces) ? data.pieces : [];
+            const totEl = document.getElementById('modalTotalPiecesText');
+            if (totEl) totEl.textContent = data.total_pieces;
 
-                renderPieceCards('all');
-                updateModalCounters();
+            renderPieceCards('all');
+            updateModalCounters();
 
-                if (data.next_tag) {
-                    const tagEl = document.getElementById('modalCurrentPieceTag');
-                    if (tagEl) tagEl.textContent = data.next_tag;
-                    try {
-                        renderQrToCanvas('modalPieceQrCanvas', data.next_tag, 140, 140);
-                    } catch (e) {
-                        console.warn("QR render notice:", e);
-                    }
-                }
-            } else {
-                grid.innerHTML = `<div class="col-12 text-danger text-center py-4">${data.error || 'Failed to load pieces'}</div>`;
+            if (data.next_tag) {
+                const tagEl = document.getElementById('modalCurrentPieceTag');
+                if (tagEl) tagEl.textContent = data.next_tag;
+                renderQrToCanvas('modalPieceQrCanvas', data.next_tag, 140, 140);
             }
         })
         .catch(err => {
@@ -735,7 +695,7 @@ function renderPieceCards(filter) {
         col.innerHTML = `
             <div class="card border rounded-3 p-2 bg-white shadow-sm h-100">
                 <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
-                    <span class="badge bg-dark font-monospace" style="font-size: 0.72rem;">${p.tag_code}</span>
+                    <span class="badge bg-dark font-monospace" style="font-size: 0.72rem;">${escapeHtml(p.tag_code)}</span>
                     <span class="small fw-bold text-muted font-monospace">Disc: ₹${parseFloat(p.discount_price || 0).toFixed(2)}</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -743,8 +703,9 @@ function renderPieceCards(filter) {
                         <i class="bi bi-qr-code text-primary fs-3"></i>
                     </div>
                     <div class="flex-grow-1" style="line-height: 1.2;">
-                        <div class="fw-bold text-dark small text-truncate" style="max-width: 170px;">${p.product_name}</div>
-                        <div class="small text-muted font-monospace" style="font-size: 0.72rem;">${p.size}-${p.color}</div>
+                        <div class="fw-bold text-dark small text-truncate" style="max-width: 170px;">${escapeHtml(p.product_name)}</div>
+                        <div class="small text-muted font-monospace" style="font-size: 0.68rem;">ID: ${Number(p.variant_id)} · SKU: ${escapeHtml(p.sku_code)}</div>
+                        <div class="small text-muted font-monospace" style="font-size: 0.72rem;">${escapeHtml(p.size || '—')}-${escapeHtml(p.color || '—')}</div>
                         <div class="small text-muted" style="font-size: 0.7rem;">MRP: ₹${parseFloat(p.mrp || 0).toFixed(2)}</div>
                         <div class="small text-dark fw-bold font-monospace" style="font-size: 0.72rem;">Disc: ₹${parseFloat(p.discount_price || 0).toFixed(2)}</div>
                     </div>
@@ -763,6 +724,12 @@ function renderPieceCards(filter) {
     });
 
     grid.appendChild(fragment);
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, function (character) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character];
+    });
 }
 
 function filterModalPieces(tab) {
@@ -825,7 +792,7 @@ function updateModalCounters() {
     const total = pieceData.length;
     const verified = pieceData.filter(p => p.status === 'verified').length;
     const damaged = pieceData.filter(p => p.status === 'damaged').length;
-    const mismatched = total - verified;
+    const mismatched = total - verified - damaged;
 
     const elAll = document.getElementById('modalCountAll');
     const elVer = document.getElementById('modalCountVerified');
@@ -842,12 +809,10 @@ function syncModalToReconcileTable() {
     const currentModalVerified = pieceData.filter(p => p.status === 'verified').length;
     const currentModalDamaged = pieceData.filter(p => p.status === 'damaged').length;
 
-    // Incremental beyond the baseline already credited
-    const incrementalVerified = Math.max(0, currentModalVerified - totalCreditedConst);
-    const incrementalDamaged = currentModalDamaged;
-
     const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
     if (row) {
+        const incrementalVerified = Math.max(0, currentModalVerified - (parseInt(row.dataset.creditedQty, 10) || 0));
+        const incrementalDamaged = Math.max(0, currentModalDamaged - (parseInt(row.dataset.damagedQty, 10) || 0));
         const vInput = row.querySelector('.input-verified');
         const dInput = row.querySelector('.input-damaged');
         if (vInput) vInput.value = incrementalVerified;
