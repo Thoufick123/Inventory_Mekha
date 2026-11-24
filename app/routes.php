@@ -99,8 +99,8 @@ $router->get('/m/label_generation', [LabelController::class, 'index'], 'label_ge
 $router->get('/m/label_generation/export', [LabelController::class, 'exportJobs'], 'label_generation', 'export');
 $router->post('/m/label_generation/generate', [LabelController::class, 'generate'], 'label_generation', 'add');
 $router->post('/m/label_generation/map_variant', [LabelController::class, 'mapVariant'], 'label_generation', 'edit');
-$router->post('/m/label/add_to_stock', [LabelController::class, 'addToStock'], 'label_generation', 'edit');
-$router->post('/m/label_generation/add_to_stock', [LabelController::class, 'addToStock'], 'label_generation', 'edit');
+$router->post('/m/label/add_to_stock', [LabelController::class, 'addToStock'], 'label_generation', 'add');
+$router->post('/m/label_generation/add_to_stock', [LabelController::class, 'addToStock'], 'label_generation', 'add');
 $router->get('/scan', [LabelController::class, 'scanPage'], 'stocks', 'view');
 $router->get('/api/qr/lookup', [LabelController::class, 'lookup'], 'stocks', 'view');
 $router->post('/api/qr/lookup', [LabelController::class, 'lookup'], 'stocks', 'view');
