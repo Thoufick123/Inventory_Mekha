@@ -76,17 +76,19 @@ $locations = ['1', 'Main Store', 'WAREHOUSE:1:AVAILABLE'];
 ob_start();
 include __DIR__ . '/../app/views/concern/concern_damage_entry.php';
 $entryHtml = ob_get_clean();
-$checks['Damage entry provides location-scoped QR scanning and a queue'] =
+$checks['Damage entry provides concern-scoped QR scanning and a queue without a location selector'] =
     strpos($entryHtml, 'Live Concern QR Scanner') !== false
-    && strpos($entryHtml, 'Source Warehouse / Location') !== false
+    && strpos($entryHtml, 'Source Warehouse / Location') === false
+    && strpos($entryHtml, 'damageSourceLocation') === false
+    && strpos($entryHtml, 'locationSelect') === false
+    && strpos($entryHtml, 'name="location"') === false
     && strpos($entryHtml, 'data-scan-url=') !== false
     && strpos($entryHtml, 'Damaged / Rework Items Queue') !== false
     && strpos($entryHtml, 'GRMAPSHRL01') !== false
     && strpos($entryHtml, 'Damage Reason *') !== false
     && strpos($entryHtml, 'Available') !== false
     && strpos($entryHtml, 'scanned_items') !== false
-    && strpos($entryHtml, 'value="Main Store" selected') !== false
-    && strpos($entryHtml, 'value="1" selected') === false;
+    && strpos($entryHtml, 'Products and available stock are checked within the selected concern.') !== false;
 $checks['Concern users see their fixed concern name instead of a concern selector'] =
     strpos($entryHtml, 'GRM Garments') !== false
     && strpos($entryHtml, 'id="entryConcernId"') === false;
@@ -117,7 +119,16 @@ $damageController = file_get_contents(__DIR__ . '/../app/controllers/DamageContr
 $checks['Finished-goods damage labels resolve by embedded variant ID within the selected concern'] =
     strpos($damageController, 'QrService::parseFinishedGoodsCode($tagCode)') !== false
     && strpos($damageController, '$finishedGoodsCode[\'variant_id\']') !== false
-    && strpos($damageController, 'WHERE v.id = ? AND v.concern_id = ? AND v.status = \'active\'') !== false;
+    && strpos($damageController, 'WHERE v.id = ? AND v.concern_id = ?') !== false;
+$checks['Damage scanning accepts stocked inactive variants and checks all usable concern locations'] =
+    strpos($damageController, 'private function getVariantAvailableStockRows') !== false
+    && strpos($damageController, 'AND location NOT LIKE \'%:DAMAGED\'') !== false
+    && strpos($damageController, '$availableStockRows = $this->getVariantAvailableStockRows') !== false
+    && strpos($damageController, '$this->getVariantAvailableStockRows($cid, $item[\'variant_id\'], true)') !== false
+    && strpos($damageController, '$damageQty = min($remainingQty, (float)$stock[\'qty\'])') !== false
+    && strpos($damageController, 'DamageService::log(') !== false
+    && strpos($damageController, 'WHERE id = ? AND concern_id = ?') !== false
+    && strpos($damageController, 'StockService::getQty($concernId') === false;
 
 $failed = false;
 foreach ($checks as $description => $passed) {

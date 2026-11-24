@@ -152,40 +152,21 @@ class DamageController extends Controller {
         $this->validateCsrf();
         $concernId = $this->requestConcernId();
         $rawTagCode = $_POST['tag_code'] ?? '';
-        $rawLocation = $_POST['location'] ?? '';
         $tagCode = is_scalar($rawTagCode) ? strtoupper(trim((string)$rawTagCode)) : '';
-        $location = is_scalar($rawLocation) ? trim((string)$rawLocation) : '';
-        if (!$concernId || $tagCode === '' || strlen($tagCode) > 100 || !$this->isAvailableLocation($concernId, $location)) {
-            $this->renderJson(['success' => false, 'message' => 'Select a valid stock location and scan a product label.'], 422);
+        if (!$concernId || $tagCode === '' || strlen($tagCode) > 100) {
+            $this->renderJson(['success' => false, 'message' => 'Select a concern and scan a product label.'], 422);
             return;
         }
 
         try {
             $variant = $this->resolveConcernDamageTag($concernId, $tagCode);
-            $availableQty = StockService::getQty($concernId, (int)$variant['id'], $location);
+            $availableStockRows = $this->getVariantAvailableStockRows($concernId, (int)$variant['id']);
+            $availableQty = array_sum(array_map(
+                static fn(array $stock): float => (float)$stock['qty'],
+                $availableStockRows
+            ));
             if ($availableQty <= 0) {
-                $otherLocations = DB::fetchAll(
-                    "SELECT location, qty FROM stocks
-                     WHERE concern_id = ? AND variant_id = ? AND qty > 0
-                       AND location NOT LIKE '%:DAMAGED'
-                       AND location NOT LIKE '%:RESERVED'
-                       AND location NOT LIKE '%:IN_TRANSIT'
-                     ORDER BY location ASC",
-                    [$concernId, (int)$variant['id']]
-                );
-                if ($otherLocations) {
-                    $availableAt = array_map(
-                        static function (array $stock): string {
-                            $qty = rtrim(rtrim(number_format((float)$stock['qty'], 2, '.', ''), '0'), '.');
-                            return $stock['location'] . ' (' . $qty . ' pcs)';
-                        },
-                        $otherLocations
-                    );
-                    throw new \RuntimeException(
-                        "No stock at '{$location}'. Available at: " . implode(', ', $availableAt) . '.'
-                    );
-                }
-                throw new \RuntimeException('No available stock for this label at the selected location.');
+                throw new \RuntimeException('No available stock for this label in the selected concern.');
             }
             $this->renderJson([
                 'success' => true,
@@ -209,12 +190,10 @@ class DamageController extends Controller {
         ModuleGuard::enforce('concern_damage', 'add');
         $this->validateCsrf();
         $cid = $this->requestConcernId();
-        $rawLocation = $_POST['location'] ?? '';
-        $location = is_scalar($rawLocation) ? trim((string)$rawLocation) : '';
         $rawItems = $_POST['scanned_items'] ?? '';
         $items = is_string($rawItems) ? json_decode($rawItems, true) : null;
-        if (!$cid || !$this->isAvailableLocation($cid, $location) || !is_array($items) || !$items || count($items) > 500) {
-            $this->flash('error', 'Select a valid stock location and scan at least one product label.');
+        if (!$cid || !$this->getAvailableLocations($cid) || !is_array($items) || !$items || count($items) > 500) {
+            $this->flash('error', 'Select a concern with available stock and scan at least one product label.');
             $this->redirect('/m/concern_damage/new' . (Auth::isSuperAdmin() && $cid ? '?concern_id=' . $cid : ''));
             return;
         }
@@ -223,47 +202,37 @@ class DamageController extends Controller {
             $validatedItems = $this->validateScannedDamageItems($cid, $items);
             DB::beginTransaction();
             foreach ($validatedItems as $item) {
-                $locs = [$location];
-                if ($location === 'Main Store') $locs[] = 'Main Store (WH-01)';
-                elseif ($location === 'Main Store (WH-01)') $locs[] = 'Main Store';
-
-                $stock = null;
-                $activeLoc = $location;
-                foreach ($locs as $l) {
-                    $st = DB::fetch(
-                        "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE",
-                        [$cid, $item['variant_id'], $l]
-                    );
-                    if ($st && (float)$st['qty'] >= (float)$item['qty']) {
-                        $stock = $st;
-                        $activeLoc = $l;
+                $remainingQty = (float)$item['qty'];
+                $stockRows = $this->getVariantAvailableStockRows($cid, $item['variant_id'], true);
+                foreach ($stockRows as $stock) {
+                    if ($remainingQty <= 0.00001) {
                         break;
                     }
+                    $damageQty = min($remainingQty, (float)$stock['qty']);
+                    if ($damageQty <= 0) {
+                        continue;
+                    }
+                    DamageService::log(
+                        $cid,
+                        $item['variant_id'],
+                        'EXACT',
+                        (string)$stock['location'],
+                        $damageQty,
+                        $item['reason'],
+                        null,
+                        Auth::id(),
+                        null,
+                        'MODERATE',
+                        'CONCERN',
+                        true
+                    );
+                    $remainingQty -= $damageQty;
                 }
-                if (!$stock) {
-                    $stock = DB::fetch(
-                        "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE",
-                        [$cid, $item['variant_id'], $location]
+                if ($remainingQty > 0.00001) {
+                    throw new \RuntimeException(
+                        "Only " . ((float)$item['qty'] - $remainingQty) . " piece(s) remain for {$item['variant_name']} in this concern."
                     );
                 }
-                $availableQty = $stock ? (float)$stock['qty'] : 0.0;
-                if ($item['qty'] - $availableQty > 0.00001) {
-                    throw new \RuntimeException("Only {$availableQty} piece(s) remain for {$item['variant_name']} at this location.");
-                }
-                DamageService::log(
-                    $cid,
-                    $item['variant_id'],
-                    'EXACT',
-                    $activeLoc,
-                    $item['qty'],
-                    $item['reason'],
-                    null,
-                    Auth::id(),
-                    null,
-                    'MODERATE',
-                    'CONCERN',
-                    true
-                );
             }
             DB::commit();
             $this->flash('success', count($validatedItems) . ' damage case(s) logged; stock moved to quarantine.');
@@ -311,31 +280,30 @@ class DamageController extends Controller {
         )));
     }
 
-    private function isAvailableLocation(int $concernId, string $location): bool {
-        if ($location === '' || strlen($location) > 50 || preg_match('/:(DAMAGED|RESERVED|IN_TRANSIT)$/i', $location)) {
-            return false;
+    private function getVariantAvailableStockRows(int $concernId, int $variantId, bool $forUpdate = false): array {
+        $sql = "SELECT location, qty
+                FROM stocks
+                WHERE concern_id = ? AND variant_id = ? AND qty > 0
+                  AND location NOT LIKE '%:DAMAGED'
+                  AND location NOT LIKE '%:RESERVED'
+                  AND location NOT LIKE '%:IN_TRANSIT'
+                ORDER BY CASE
+                    WHEN location = 'Main Store' THEN 0
+                    WHEN location = 'Main Store (WH-01)' THEN 1
+                    ELSE 2
+                END, qty DESC, location ASC";
+        if ($forUpdate) {
+            $sql .= ' FOR UPDATE';
         }
 
-        $locations = [$location];
-        if ($location === 'Main Store') {
-            $locations[] = 'Main Store (WH-01)';
-        } elseif ($location === 'Main Store (WH-01)') {
-            $locations[] = 'Main Store';
-        }
-        $inClause = implode(',', array_fill(0, count($locations), '?'));
-
-        return (int)DB::fetchValue(
-            "SELECT COUNT(*) FROM stocks
-             WHERE concern_id = ? AND location IN ($inClause) AND qty > 0",
-            array_merge([$concernId], $locations)
-        ) > 0;
+        return DB::fetchAll($sql, [$concernId, $variantId]);
     }
 
     private function resolveConcernDamageTag(int $concernId, string $tagCode): array {
         $finishedGoodsCode = QrService::parseFinishedGoodsCode($tagCode);
         if ($finishedGoodsCode) {
             $variant = QrService::lookupVariant($tagCode, $concernId);
-            if ($variant && ($variant['status'] ?? '') === 'active') {
+            if ($variant) {
                 return $variant;
             }
 
@@ -343,7 +311,7 @@ class DamageController extends Controller {
                 "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name
                  FROM variants v
                  LEFT JOIN categories c ON c.id = v.category_id
-                 WHERE v.id = ? AND v.concern_id = ? AND v.status = 'active'",
+                 WHERE v.id = ? AND v.concern_id = ?",
                 [(int)$finishedGoodsCode['variant_id'], $concernId]
             );
             if ($variant) {
@@ -357,7 +325,7 @@ class DamageController extends Controller {
                 "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name
                  FROM variants v
                  LEFT JOIN categories c ON c.id = v.category_id
-                 WHERE v.id = ? AND v.concern_id = ? AND v.status = 'active'",
+                 WHERE v.id = ? AND v.concern_id = ?",
                 [$variantId, $concernId]
             );
             if ($variant) {
@@ -371,7 +339,7 @@ class DamageController extends Controller {
                 "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name
                  FROM variants v
                  LEFT JOIN categories c ON c.id = v.category_id
-                 WHERE v.id = ? AND v.concern_id = ? AND v.category_id = ? AND v.subcategory_id = ? AND v.status = 'active'",
+                 WHERE v.id = ? AND v.concern_id = ? AND v.category_id = ? AND v.subcategory_id = ?",
                 [$parsed['variant_id'], $concernId, $parsed['category_id'], $parsed['subcategory_id']]
             );
             if ($variant) {
@@ -393,7 +361,7 @@ class DamageController extends Controller {
              FROM variants v
              LEFT JOIN categories c ON c.id = v.category_id
              LEFT JOIN subcategories sc ON sc.id = v.subcategory_id
-             WHERE v.concern_id = ? AND v.status = 'active'",
+             WHERE v.concern_id = ?",
             [$concernId]
         );
         $matches = [];
@@ -428,7 +396,7 @@ class DamageController extends Controller {
         }
 
         if (!$matches) {
-            throw new \RuntimeException('This QR tag does not match an active product in this concern.');
+            throw new \RuntimeException('This QR tag does not match a product in this concern.');
         }
         if (count($matches) !== 1) {
             throw new \RuntimeException('This QR tag matches multiple variants. Scan a unique product label.');
@@ -463,11 +431,11 @@ class DamageController extends Controller {
             }
 
             $variant = DB::fetch(
-                "SELECT id, name FROM variants WHERE id = ? AND concern_id = ? AND status = 'active'",
+                "SELECT id, name FROM variants WHERE id = ? AND concern_id = ?",
                 [$variantId, $concernId]
             );
             if (!$variant) {
-                throw new \RuntimeException('A queued variant is inactive or does not belong to this concern.');
+                throw new \RuntimeException('A queued variant does not belong to this concern.');
             }
 
             $validated[] = [

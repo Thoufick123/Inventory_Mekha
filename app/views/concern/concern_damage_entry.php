@@ -34,17 +34,6 @@
         </div>
     <?php endif; ?>
 
-    <?php
-    $defaultDamageLocation = $locations[0] ?? '';
-    foreach ($locations as $locationOption) {
-        $baseLocation = preg_replace('/:(AVAILABLE|DAMAGED)$/i', '', (string)$locationOption);
-        if (strcasecmp(trim($baseLocation), 'Main Store') === 0) {
-            $defaultDamageLocation = $locationOption;
-            break;
-        }
-    }
-    ?>
-
     <?php if (empty($selectedCid)): ?>
         <div class="alert alert-info border-0 shadow-sm">Select a concern before scanning stock labels.</div>
     <?php elseif (empty($locations)): ?>
@@ -61,21 +50,6 @@
                 <input type="hidden" name="concern_id" value="<?= (int)$selectedCid ?>">
             <?php endif; ?>
             <input type="hidden" name="scanned_items" id="scannedDamageItems">
-
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-body py-3">
-                    <label class="form-label small fw-semibold mb-1" for="damageSourceLocation">
-                        <i class="bi bi-geo-alt-fill text-danger me-1"></i> Source Warehouse / Location <span class="text-danger">*</span>
-                    </label>
-                    <select class="form-select" id="damageSourceLocation" name="location" required>
-                        <?php foreach ($locations as $stockLocation): ?>
-                            <option value="<?= htmlspecialchars($stockLocation, ENT_QUOTES, 'UTF-8') ?>" <?= $stockLocation === $defaultDamageLocation ? 'selected' : '' ?>>
-                                <?= htmlspecialchars(preg_replace('/:(AVAILABLE|DAMAGED)$/i', '', $stockLocation)) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
 
             <div class="card border-0 shadow-sm damage-scanner-card mb-3">
                 <div class="card-body p-3">
@@ -105,7 +79,7 @@
                             <i class="bi bi-x-lg"></i>
                         </button>
                     </div>
-                    <div class="small text-muted mt-2">Each accepted scan adds one piece. The product must belong to this concern and have available stock at the selected location.</div>
+                    <div class="small text-muted mt-2">Each accepted scan adds one piece. Products and available stock are checked within the selected concern.</div>
                     <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="damageScanError" role="alert" aria-live="polite"></div>
                 </div>
             </div>
@@ -172,7 +146,6 @@
     const form = document.getElementById('concernDamageForm');
     if (!form) return;
 
-    const locationSelect = document.getElementById('damageSourceLocation');
     const tagInput = document.getElementById('damageTagInput');
     const scanButton = document.getElementById('scanDamageTagButton');
     const errorBox = document.getElementById('damageScanError');
@@ -292,7 +265,6 @@
             const body = new URLSearchParams({
                 csrf_token: form.dataset.csrfToken,
                 concern_id: form.dataset.concernId,
-                location: locationSelect.value,
                 tag_code: tagCode,
             });
             const response = await fetch(form.dataset.scanUrl, {
@@ -335,12 +307,6 @@
     });
     document.getElementById('clearDamageTagButton').addEventListener('click', () => {
         tagInput.value = '';
-        showError('');
-        tagInput.focus();
-    });
-    locationSelect.addEventListener('change', () => {
-        queuedItems.clear();
-        renderQueue();
         showError('');
         tagInput.focus();
     });
