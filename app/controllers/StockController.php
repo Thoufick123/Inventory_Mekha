@@ -37,7 +37,7 @@ class StockController extends Controller {
         return in_array($column, self::$columnCache[$table], true);
     }
 
-    private static function resolveStockLabelColor(array $variantAttributes, int $variantId, string $variantName): string {
+    private static function resolveStockLabelColor(array $variantAttributes, int $variantId, string $variantName, array $variant = []): string {
         $color = trim((string)($variantAttributes['color'] ?? ''));
         if ($color !== '') {
             return $color;
@@ -62,6 +62,12 @@ class StockController extends Controller {
                 [$variantId]
             ];
         }
+        if (self::hasTableColumn('cutting_items', 'color')) {
+            $colorQueries[] = [
+                "SELECT color FROM cutting_items WHERE (variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
+                [$variantId, (int)($variant['catalog_id'] ?? 0)]
+            ];
+        }
 
         foreach ($colorQueries as [$sql, $params]) {
             $sourceColor = DB::fetchValue($sql, $params);
@@ -70,8 +76,11 @@ class StockController extends Controller {
             }
         }
 
-        if (preg_match('/\(([^)]+)\)/', $variantName, $matches)) {
-            return trim($matches[1]);
+        if (preg_match('/\(([^)]+)\)/', $variant['name'], $m)) {
+            return trim($m[1]);
+        }
+        if (preg_match('/\(([^)]+)\)/', $variantName, $m)) {
+            return trim($m[1]);
         }
 
         return '';
@@ -132,10 +141,14 @@ class StockController extends Controller {
                        con.name AS concern_name, con.code AS concern_code,
                        (SELECT pbi.id
                         FROM purchase_bill_items pbi
-                        WHERE pbi.concern_id = s.concern_id
-                          AND pbi.section_type = 'finished_goods'
+                        WHERE pbi.section_type = 'finished_goods'
                           AND COALESCE(pbi.inward_status, 'pending') = 'completed'
-                          AND (pbi.variant_id = v.id OR (v.catalog_id IS NOT NULL AND pbi.catalog_id = v.catalog_id))
+                          AND (
+                              (pbi.concern_id = s.concern_id AND pbi.variant_id = v.id)
+                              OR (v.catalog_id IS NOT NULL AND pbi.catalog_id = v.catalog_id)
+                              OR pbi.item_code = v.sku_code
+                              OR (cat.style_code IS NOT NULL AND pbi.item_code = cat.style_code)
+                          )
                           AND (latest_purchase.ref_module IS NULL OR latest_purchase.ref_module <> 'Purchase Inward Item' OR pbi.id = latest_purchase.ref_id)
                           AND (latest_purchase.ref_module IS NULL OR latest_purchase.ref_module <> 'Purchase Inward' OR pbi.purchase_bill_id = latest_purchase.ref_id)
                         ORDER BY CASE
@@ -145,40 +158,59 @@ class StockController extends Controller {
                                  END,
                                  pbi.id DESC
                         LIMIT 1) AS purchase_item_id,
-                       CASE COALESCE(latest_inbound.ref_module, latest_variant_source.ref_module)
-                           WHEN 'Production Inward' THEN 'own'
-                           WHEN 'Production Stock Adjustment' THEN 'own'
-                           WHEN 'Production QC' THEN 'own'
-                           WHEN 'Purchase Inward' THEN 'purchase'
-                           WHEN 'Purchase Inward Item' THEN 'purchase'
-                           WHEN 'Purchase Stock Adjustment' THEN 'purchase'
-                           ELSE CASE
-                               WHEN EXISTS (
-                                   SELECT 1 FROM stock_ledger sl_prod 
-                                   WHERE sl_prod.concern_id = s.concern_id 
-                                     AND sl_prod.variant_id = s.variant_id 
-                                     AND sl_prod.ref_module IN ('Production QC', 'Production Inward', 'Production Stock Adjustment')
-                               ) THEN 'own'
-                               WHEN EXISTS (
-                                   SELECT 1 FROM qc_inspection_items qii_chk 
-                                   WHERE qii_chk.variant_id = s.variant_id
-                               ) THEN 'own'
-                               WHEN EXISTS (
-                                   SELECT 1 FROM stitching_items sti_chk 
-                                   WHERE sti_chk.variant_id = s.variant_id
-                               ) THEN 'own'
-                               WHEN EXISTS (
-                                   SELECT 1 FROM batches b_chk 
-                                   WHERE b_chk.variant_id = s.variant_id
-                               ) THEN 'own'
-                               WHEN EXISTS (
-                                   SELECT 1 FROM purchase_bill_items pbi_chk
-                                   WHERE pbi_chk.concern_id = s.concern_id
-                                     AND (pbi_chk.variant_id = v.id OR (v.catalog_id IS NOT NULL AND pbi_chk.catalog_id = v.catalog_id))
-                               ) THEN 'purchase'
-                               ELSE 'other'
-                           END
-                       END AS stock_source
+                       CASE
+                           WHEN v.sku_code LIKE 'FG-%'
+                             OR cat.style_code LIKE 'FG-%'
+                             OR cat.code LIKE 'FG-%'
+                             OR cat.source_module = 'product_adding'
+                             OR EXISTS (
+                                 SELECT 1 FROM purchase_bill_items pbi_fg
+                                 WHERE ((pbi_fg.concern_id = s.concern_id AND pbi_fg.variant_id = v.id)
+                                        OR (v.catalog_id IS NOT NULL AND pbi_fg.catalog_id = v.catalog_id)
+                                        OR pbi_fg.item_code = v.sku_code
+                                        OR (cat.style_code IS NOT NULL AND pbi_fg.item_code = cat.style_code))
+                                   AND pbi_fg.section_type = 'finished_goods'
+                             )
+                             OR EXISTS (
+                                 SELECT 1 FROM inward_items inwi
+                                 JOIN inwards inw ON inwi.inward_id = inw.id
+                                 WHERE inwi.variant_id = v.id AND inw.inward_type = 'purchase'
+                             )
+                           THEN 'purchase'
+                           ELSE CASE COALESCE(latest_inbound.ref_module, latest_variant_source.ref_module)
+                                WHEN 'Production Inward' THEN 'own'
+                                WHEN 'Production Stock Adjustment' THEN 'own'
+                                WHEN 'Production QC' THEN 'own'
+                                WHEN 'Purchase Inward' THEN 'purchase'
+                                WHEN 'Purchase Inward Item' THEN 'purchase'
+                                WHEN 'Purchase Stock Adjustment' THEN 'purchase'
+                                ELSE CASE
+                           WHEN EXISTS (
+                               SELECT 1 FROM purchase_bill_items pbi_chk
+                               WHERE (pbi_chk.variant_id = v.id OR (v.catalog_id IS NOT NULL AND pbi_chk.catalog_id = v.catalog_id) OR pbi_chk.item_code = v.sku_code)
+                           ) THEN 'purchase'
+                           WHEN EXISTS (
+                               SELECT 1 FROM stock_ledger sl_prod 
+                               WHERE sl_prod.concern_id = s.concern_id 
+                                 AND sl_prod.variant_id = s.variant_id 
+                                 AND sl_prod.ref_module IN ('Production QC', 'Production Inward', 'Production Stock Adjustment')
+                           ) THEN 'own'
+                           WHEN EXISTS (
+                               SELECT 1 FROM qc_inspection_items qii_chk 
+                               WHERE qii_chk.variant_id = s.variant_id
+                           ) THEN 'own'
+                           WHEN EXISTS (
+                               SELECT 1 FROM stitching_items sti_chk 
+                               WHERE sti_chk.variant_id = s.variant_id
+                           ) THEN 'own'
+                           WHEN EXISTS (
+                               SELECT 1 FROM batches b_chk 
+                               WHERE b_chk.variant_id = s.variant_id
+                           ) THEN 'own'
+                           ELSE 'other'
+                                END
+                            END
+                        END AS stock_source
                 FROM stocks s
                 JOIN variants v ON s.variant_id = v.id
                 LEFT JOIN catalogs cat ON v.catalog_id = cat.id

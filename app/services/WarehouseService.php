@@ -147,17 +147,24 @@ class WarehouseService {
         }
 
         // 4. Create Inward & GRN record
+        $isProductionBatch = (bool)DB::fetchValue(
+            "SELECT 1 FROM production_outward_batches WHERE outward_id = ? LIMIT 1",
+            [$outwardId]
+        );
+        $inwardType = $isProductionBatch ? 'production' : 'purchase';
+
         $grnNumber = Inward::generateGrnNumber($destConcernId);
         $inwardNo = 'INW-' . date('Ymd') . '-' . str_pad((string)rand(100, 999), 4, '0', STR_PAD_LEFT);
 
         DB::query("
-            INSERT INTO inwards (concern_id, outward_id, inward_no, grn_number, production_unit_id, from_concern_id, inward_date, vehicle_number, location, status, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'Main Store', 'VERIFIED', ?)
+            INSERT INTO inwards (concern_id, outward_id, inward_no, grn_number, inward_type, production_unit_id, from_concern_id, inward_date, vehicle_number, location, status, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'Main Store', 'VERIFIED', ?)
         ", [
             $destConcernId,
             $outwardId,
             $inwardNo,
             $grnNumber,
+            $inwardType,
             $outward['production_unit_id'],
             $outward['concern_id'],
             $outward['vehicle_number'],
@@ -175,6 +182,10 @@ class WarehouseService {
             if ($vQty <= 0 && $dQty <= 0) {
                 continue;
             }
+
+            $skuCode = (string)($item['sku_code'] ?? DB::fetchValue("SELECT sku_code FROM variants WHERE id = ?", [$targetVarId]));
+            $isFgItem = str_starts_with($skuCode, 'FG-') || !$isProductionBatch;
+            $inboundRefModule = $isFgItem ? 'Purchase Inward' : 'Production Inward';
 
             DB::query("
                 INSERT INTO inward_items (concern_id, inward_id, variant_id, qty, accepted_qty, rejected_qty, rejection_reason)
@@ -197,7 +208,7 @@ class WarehouseService {
                     'Main Store',
                     $vQty,
                     0.00,
-                    'Production Inward',
+                    $inboundRefModule,
                     $inwardId,
                     "GRN #{$grnNumber} Inward acceptance from Outward #{$outward['outward_no']}"
                 );

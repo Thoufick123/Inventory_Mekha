@@ -312,7 +312,7 @@
                                                         data-mrp="<?= number_format((float)$s['mrp'], 2) ?>"
                                                         data-concern-name="<?= htmlspecialchars((string)($s['concern_name'] ?? 'GRM Inventory'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-print-url="<?= \App\Core\Controller::url('/m/label_generation?variant_id=' . $s['variant_id']) ?>"
-                                                        title="Quick View QR Code">
+                                                        title="Quick QR Code">
                                                     <i class="bi bi-qr-code"></i> QR
                                                 </button>
                                                 <?php if (($s['stock_source'] ?? '') === 'other'): ?>
