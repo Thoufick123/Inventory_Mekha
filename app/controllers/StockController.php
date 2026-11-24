@@ -11,6 +11,7 @@ use App\Services\StockService;
 
 class StockController extends Controller {
     private static bool $schemaEnsured = false;
+    private static array $columnCache = [];
 
     private static function ensureVariantSchema(): void {
         if (self::$schemaEnsured) return;
@@ -28,30 +29,39 @@ class StockController extends Controller {
         self::$schemaEnsured = true;
     }
 
-    private static function resolveStockLabelColor(array $variantAttributes, int $variantId, int $catalogId, string $variantName): string {
+    private static function hasTableColumn(string $table, string $column): bool {
+        if (!array_key_exists($table, self::$columnCache)) {
+            self::$columnCache[$table] = array_column(DB::fetchAll("SHOW COLUMNS FROM `{$table}`"), 'Field');
+        }
+
+        return in_array($column, self::$columnCache[$table], true);
+    }
+
+    private static function resolveStockLabelColor(array $variantAttributes, int $variantId, string $variantName): string {
         $color = trim((string)($variantAttributes['color'] ?? ''));
         if ($color !== '') {
             return $color;
         }
 
-        $colorQueries = [
-            [
+        $colorQueries = [];
+        if (self::hasTableColumn('qc_inspection_items', 'color')) {
+            $colorQueries[] = [
                 "SELECT color FROM qc_inspection_items WHERE variant_id = ? AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
                 [$variantId]
-            ],
-            [
+            ];
+        }
+        if (self::hasTableColumn('qc_piece_items', 'color')) {
+            $colorQueries[] = [
+                "SELECT color FROM qc_piece_items WHERE variant_id = ? AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
+                [$variantId]
+            ];
+        }
+        if (self::hasTableColumn('stitching_items', 'color')) {
+            $colorQueries[] = [
                 "SELECT color FROM stitching_items WHERE variant_id = ? AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
                 [$variantId]
-            ],
-            [
-                "SELECT color FROM cutting_items WHERE (variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
-                [$variantId, $catalogId]
-            ],
-            [
-                "SELECT color FROM production_programs WHERE (target_variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?)) AND color IS NOT NULL AND TRIM(color) != '' ORDER BY id DESC LIMIT 1",
-                [$variantId, $catalogId]
-            ],
-        ];
+            ];
+        }
 
         foreach ($colorQueries as [$sql, $params]) {
             $sourceColor = DB::fetchValue($sql, $params);
@@ -222,7 +232,6 @@ class StockController extends Controller {
             $stock['resolved_color'] = self::resolveStockLabelColor(
                 $variantAttributes,
                 (int)$stock['variant_id'],
-                (int)($stock['catalog_id'] ?? 0),
                 (string)$stock['variant_name']
             );
             $stock['product_name'] = trim((string)($stock['catalog_name'] ?? '')) ?: (string)$stock['variant_name'];
@@ -402,7 +411,7 @@ class StockController extends Controller {
             $variantAttributes = json_decode((string)($variant['attributes'] ?? ''), true);
             $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
 
-            $color = self::resolveStockLabelColor($variantAttributes, $variantId, $catId, (string)$variant['name']);
+            $color = self::resolveStockLabelColor($variantAttributes, $variantId, (string)$variant['name']);
 
             // Resolve HSN Code
             $hsn = trim((string)($variantAttributes['hsn'] ?? ''));

@@ -9,11 +9,12 @@ $checks = [
     'Stock rows include the catalog product name instead of reusing the category label' =>
         str_contains($controller, 'cat.name AS catalog_name')
         && str_contains($controller, '$stock[\'product_name\'] = trim((string)($stock[\'catalog_name\'] ?? \'\'))'),
-    'Production colors fall back to QC, stitching, cutting, and program records' =>
-        str_contains($controller, 'FROM qc_inspection_items')
-        && str_contains($controller, 'FROM stitching_items')
-        && str_contains($controller, 'FROM cutting_items')
-        && str_contains($controller, 'FROM production_programs')
+    'Production color lookup is guarded against tables without a color column' =>
+        str_contains($controller, "hasTableColumn('qc_inspection_items', 'color')")
+        && str_contains($controller, "hasTableColumn('qc_piece_items', 'color')")
+        && str_contains($controller, "hasTableColumn('stitching_items', 'color')")
+        && !str_contains($controller, 'SELECT color FROM cutting_items')
+        && !str_contains($controller, 'SELECT color FROM production_programs')
         && str_contains($controller, "'resolved_color'"),
     'Stock QR preview displays product name, design, and the resolved color' =>
         str_contains($view, 'Product Name:')
