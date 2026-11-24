@@ -342,7 +342,7 @@ class LabelController extends Controller {
                     LEFT JOIN production_programs pp ON sl.program_id = pp.id
                     LEFT JOIN cutting_items ci ON si.cutting_item_id = ci.id
                     LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
-                    LEFT JOIN catalogs cat ON (si.catalog_id = cat.id OR pp.catalog_id = cat.id OR pr.catalog_id = cat.id)
+                    LEFT JOIN catalogs cat ON cat.id = COALESCE(si.catalog_id, pr.catalog_id, pp.catalog_id)
                     LEFT JOIN categories c ON cat.category_id = c.id
                     LEFT JOIN subcategories sc ON cat.subcategory_id = sc.id
                     LEFT JOIN variants v ON si.variant_id = v.id
@@ -1319,7 +1319,7 @@ class LabelController extends Controller {
                      LEFT JOIN production_programs pp ON sl.program_id = pp.id
                      LEFT JOIN cutting_items ci ON si.cutting_item_id = ci.id
                      LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
-                     LEFT JOIN catalogs cat ON (si.catalog_id = cat.id OR pp.catalog_id = cat.id OR pr.catalog_id = cat.id)
+                     LEFT JOIN catalogs cat ON cat.id = COALESCE(si.catalog_id, pr.catalog_id, pp.catalog_id)
                      LEFT JOIN categories c ON cat.category_id = c.id
                      LEFT JOIN subcategories sc ON cat.subcategory_id = sc.id
                      LEFT JOIN variants v ON si.variant_id = v.id
@@ -1541,7 +1541,7 @@ class LabelController extends Controller {
                  LEFT JOIN production_programs pp ON sl.program_id = pp.id
                  LEFT JOIN cutting_items ci ON si.cutting_item_id = ci.id
                  LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
-                 LEFT JOIN catalogs cat ON (si.catalog_id = cat.id OR pp.catalog_id = cat.id OR pr.catalog_id = cat.id)
+                 LEFT JOIN catalogs cat ON cat.id = COALESCE(si.catalog_id, pr.catalog_id, pp.catalog_id)
                  LEFT JOIN categories c ON cat.category_id = c.id
                  LEFT JOIN subcategories sc ON cat.subcategory_id = sc.id
                  LEFT JOIN variants v ON si.variant_id = v.id
@@ -2784,7 +2784,7 @@ class LabelController extends Controller {
                         LEFT JOIN production_programs pp ON sl.program_id = pp.id
                         LEFT JOIN cutting_items ci ON si.cutting_item_id = ci.id
                         LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
-                        LEFT JOIN catalogs cat ON (si.catalog_id = cat.id OR pp.catalog_id = cat.id OR pr.catalog_id = cat.id)
+                        LEFT JOIN catalogs cat ON cat.id = COALESCE(si.catalog_id, pr.catalog_id, pp.catalog_id)
                         WHERE si.id = ?";
                 $params = [$itemId];
                 if ($cid) {
@@ -2808,7 +2808,7 @@ class LabelController extends Controller {
                         LEFT JOIN production_programs pp ON sl.program_id = pp.id
                         LEFT JOIN cutting_items ci ON si.cutting_item_id = ci.id
                         LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
-                        LEFT JOIN catalogs cat ON (si.catalog_id = cat.id OR pp.catalog_id = cat.id OR pr.catalog_id = cat.id)
+                        LEFT JOIN catalogs cat ON cat.id = COALESCE(si.catalog_id, pr.catalog_id, pp.catalog_id)
                         WHERE si.stitching_id = ? AND (si.inward_status IS NULL OR si.inward_status != 'completed')";
                 $params = [$stitchingId];
                 if ($cid) {
