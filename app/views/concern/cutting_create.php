@@ -718,6 +718,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('name', name);
         formData.append('phone', phone);
         formData.append('employee_code', code);
+        formData.append('program_id', document.getElementById('programSelect').value);
 
         fetch('<?= \App\Core\Controller::url('/api/cutting/quick-master') ?>', {
             method: 'POST',

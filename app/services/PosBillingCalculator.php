@@ -58,8 +58,12 @@ final class PosBillingCalculator {
         float $quantity,
         float $discount,
         float $gstRate,
-        string $priceMode
+        string $priceMode,
+        bool $isComplementary = false
     ): array {
+        if ($isComplementary) {
+            $unitPrice = 0.0;
+        }
         if (!is_finite($unitPrice) || $unitPrice < 0) {
             throw new InvalidArgumentException('Unit price must be a non-negative number.');
         }

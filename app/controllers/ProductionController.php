@@ -328,6 +328,10 @@ class ProductionController extends Controller {
             'hsnList'        => $hsnList,
             'attributeSizes' => $attributeSizes,
             'selectedCid'    => $cid,
+            'allConcerns'    => Auth::isSuperAdmin()
+                ? DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY name ASC")
+                : [],
+            'isSuperAdmin'   => Auth::isSuperAdmin(),
             'isEdit'         => false,
             'style'          => null,
         ]);
@@ -382,6 +386,10 @@ class ProductionController extends Controller {
             'hsnList'          => $hsnList,
             'attributeSizes'   => $attributeSizes,
             'selectedCid'      => $cid,
+            'allConcerns'      => Auth::isSuperAdmin()
+                ? DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY name ASC")
+                : [],
+            'isSuperAdmin'     => Auth::isSuperAdmin(),
             'isEdit'           => true,
             'style'            => $style,
         ]);
@@ -394,7 +402,7 @@ class ProductionController extends Controller {
         ModuleGuard::enforce('catalog_program', 'add');
         $this->ensureCatalogSchema();
         $this->validateCsrf();
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 1);
+        $cid = Auth::concernId();
 
         // 1. Validate Category Hierarchy
         $categoryId = (int)($_POST['category_id'] ?? 0);
@@ -403,14 +411,65 @@ class ProductionController extends Controller {
             $this->redirect('/production/catalog/create');
         }
 
-        $cat = DB::fetch("SELECT * FROM categories WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""), $cid ? [$categoryId, $cid] : [$categoryId]);
+        $categorySql = "SELECT * FROM categories WHERE id = ? AND status = 'active'";
+        $categoryParams = [$categoryId];
+        if ($cid) {
+            $categorySql .= " AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)";
+            $categoryParams[] = $cid;
+        }
+        $cat = DB::fetch($categorySql, $categoryParams);
         if (!$cat) {
             $this->flash('error', 'Selected Main Category does not exist or does not belong to your concern.');
+            $this->redirect('/production/catalog/create');
+        }
+        if (!$cid) {
+            $cid = (int)($_POST['concern_id'] ?? 0);
+            if ($cid <= 0) {
+                $cid = (int)($cat['concern_id'] ?? 0);
+            }
+        }
+        if ($cid <= 0 || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            $this->flash('error', 'Select a valid concern before saving this product style.');
+            $this->redirect('/production/catalog/create');
+        }
+        $categoryConcernId = (int)($cat['concern_id'] ?? 0);
+        if ($categoryConcernId > 1 && $categoryConcernId !== $cid) {
+            $this->flash('error', 'Selected Main Category does not belong to the selected concern.');
             $this->redirect('/production/catalog/create');
         }
 
         $subcategoryId = !empty($_POST['subcategory_id']) ? (int)$_POST['subcategory_id'] : null;
         $subSubcategoryId = !empty($_POST['sub_sub_category_id']) ? (int)$_POST['sub_sub_category_id'] : null;
+        if ($subcategoryId) {
+            $subcategory = DB::fetch(
+                "SELECT id, category_id, concern_id, name
+                 FROM subcategories
+                 WHERE id = ? AND category_id = ? AND status = 'active'
+                   AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                [$subcategoryId, $categoryId, $cid]
+            );
+            if (!$subcategory) {
+                $this->flash('error', 'Selected Sub Category does not belong to the chosen Main Category.');
+                $this->redirect('/production/catalog/create');
+            }
+        }
+        if ($subSubcategoryId) {
+            if (!$subcategoryId) {
+                $this->flash('error', 'Choose a Sub Category before selecting a Sub Sub Category.');
+                $this->redirect('/production/catalog/create');
+            }
+            $subSubcategory = DB::fetch(
+                "SELECT id
+                 FROM sub_subcategories
+                 WHERE id = ? AND subcategory_id = ? AND status = 'active'
+                   AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                [$subSubcategoryId, $subcategoryId, $cid]
+            );
+            if (!$subSubcategory) {
+                $this->flash('error', 'Selected Sub Sub Category does not belong to the chosen Sub Category.');
+                $this->redirect('/production/catalog/create');
+            }
+        }
 
         // Category Codes Validation
         $mainCatCode = strtoupper(trim($_POST['main_category_code'] ?? ''));
@@ -833,13 +892,17 @@ class ProductionController extends Controller {
 
     public function quickAddCategoryAjax(): void {
         header('Content-Type: application/json');
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
         $name = trim($_POST['name'] ?? '');
         $code = strtoupper(trim($_POST['code'] ?? ''));
         $hsn  = trim($_POST['default_hsn'] ?? '');
         $gstInput = trim((string)($_POST['default_gst_rate'] ?? ''));
         $gst = $gstInput === '' ? null : (is_numeric($gstInput) ? (float)$gstInput : -1.0);
 
+        if ($cid <= 0 || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            echo json_encode(['success' => false, 'message' => 'Select a valid concern before creating a category.']);
+            exit;
+        }
         if (empty($name)) {
             echo json_encode(['success' => false, 'message' => 'Category name is required.']);
             exit;
@@ -898,6 +961,7 @@ class ProductionController extends Controller {
             echo json_encode([
                 'success' => true, 
                 'id' => $id, 
+                'concern_id' => $cid,
                 'name' => $name, 
                 'code' => $code, 
                 'default_hsn' => $hsn,
@@ -911,13 +975,28 @@ class ProductionController extends Controller {
 
     public function quickAddSubcategoryAjax(): void {
         header('Content-Type: application/json');
-        $cid = Auth::concernId() ?: 1;
         $catId = (int)($_POST['category_id'] ?? 0);
         $name = trim($_POST['name'] ?? '');
         $code = strtoupper(trim($_POST['code'] ?? ''));
 
         if (!$catId || empty($name)) {
             echo json_encode(['success' => false, 'message' => 'Parent Category and Subcategory name are required.']);
+            exit;
+        }
+        $parentCategory = DB::fetch("SELECT concern_id FROM categories WHERE id = ? AND status = 'active'", [$catId]);
+        $authCid = Auth::concernId();
+        $parentCid = (int)($parentCategory['concern_id'] ?? 0);
+        $cid = $authCid ?: (int)($_POST['concern_id'] ?? 0);
+        if (!$cid && $parentCid > 1) {
+            $cid = $parentCid;
+        }
+        if (!$parentCategory || !$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            echo json_encode(['success' => false, 'message' => 'Select a valid parent category and concern before creating a subcategory.']);
+            exit;
+        }
+        if (($authCid && $parentCid !== $authCid && $parentCid !== 1)
+            || ($parentCid > 1 && $parentCid !== $cid)) {
+            echo json_encode(['success' => false, 'message' => 'The selected parent category belongs to a different concern.']);
             exit;
         }
 
@@ -957,7 +1036,7 @@ class ProductionController extends Controller {
                 [$cid, $catId, $name, $code]
             );
             $id = (int)DB::lastInsertId();
-            echo json_encode(['success' => true, 'id' => $id, 'name' => $name, 'code' => $code]);
+            echo json_encode(['success' => true, 'id' => $id, 'concern_id' => $cid, 'name' => $name, 'code' => $code]);
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -966,13 +1045,28 @@ class ProductionController extends Controller {
 
     public function quickAddSubSubcategoryAjax(): void {
         header('Content-Type: application/json');
-        $cid = Auth::concernId() ?: 1;
         $subcatId = (int)($_POST['subcategory_id'] ?? 0);
         $name = trim($_POST['name'] ?? '');
         $code = strtoupper(trim($_POST['code'] ?? ''));
 
         if (!$subcatId || empty($name)) {
             echo json_encode(['success' => false, 'message' => 'Parent Subcategory and Sub-Subcategory name are required.']);
+            exit;
+        }
+        $parentSubcategory = DB::fetch("SELECT concern_id FROM subcategories WHERE id = ? AND status = 'active'", [$subcatId]);
+        $authCid = Auth::concernId();
+        $cid = $authCid ?: (int)($_POST['concern_id'] ?? 0);
+        $parentCid = (int)($parentSubcategory['concern_id'] ?? 0);
+        if (!$cid && $parentCid > 1) {
+            $cid = $parentCid;
+        }
+        if (!$parentSubcategory || !$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            echo json_encode(['success' => false, 'message' => 'Select a valid parent subcategory and concern before creating a sub-subcategory.']);
+            exit;
+        }
+        if (($authCid && $parentCid !== $authCid && $parentCid !== 1)
+            || ($parentCid > 1 && $parentCid !== $cid)) {
+            echo json_encode(['success' => false, 'message' => 'The selected parent subcategory belongs to a different concern.']);
             exit;
         }
 
@@ -1012,7 +1106,7 @@ class ProductionController extends Controller {
                 [$cid, $subcatId, $name, $code]
             );
             $id = (int)DB::lastInsertId();
-            echo json_encode(['success' => true, 'id' => $id, 'name' => $name, 'code' => $code]);
+            echo json_encode(['success' => true, 'id' => $id, 'concern_id' => $cid, 'name' => $name, 'code' => $code]);
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -3688,7 +3782,30 @@ class ProductionController extends Controller {
     public function apiQuickAddCuttingMaster(): void {
         header('Content-Type: application/json');
         $this->ensureCuttingSchema();
-        $cid = Auth::concernId() ?: 1;
+        $cid = Auth::concernId();
+        $programId = (int)($_POST['program_id'] ?? 0);
+
+        if ($programId > 0) {
+            $programSql = "SELECT concern_id FROM production_programs WHERE id = ? AND status != 'cancelled'";
+            $programParams = [$programId];
+            if ($cid) {
+                $programSql .= " AND concern_id = ?";
+                $programParams[] = $cid;
+            }
+            $program = DB::fetch($programSql, $programParams);
+            if (!$program) {
+                echo json_encode(['success' => false, 'message' => 'Select a valid production program before adding a cutting master.']);
+                exit;
+            }
+            if (!$cid) {
+                $cid = (int)$program['concern_id'];
+            }
+        }
+
+        if (!$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
+            echo json_encode(['success' => false, 'message' => 'Select a concern or production program before adding a cutting master.']);
+            exit;
+        }
 
         $name = trim($_POST['name'] ?? '');
         $phone = trim($_POST['phone'] ?? '');

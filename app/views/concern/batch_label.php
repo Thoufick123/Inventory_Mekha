@@ -114,8 +114,8 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=0&data
         <a href="<?= \App\Core\Controller::url('/production/batches/challan/' . $batch['id']) ?>" target="_blank" class="btn btn-success fw-bold px-3 shadow-sm">
             <i class="bi bi-receipt me-1"></i> Delivery Challan & Invoice
         </a>
-        <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-secondary px-3 fw-semibold bg-white shadow-sm">
-            <i class="bi bi-arrow-left me-1"></i> Batches
+        <a href="<?= \App\Core\Controller::url('/production/outward?tab=batch') ?>" class="btn btn-outline-secondary px-3 fw-semibold bg-white shadow-sm">
+            <i class="bi bi-arrow-left me-1"></i> Outward
         </a>
     </div>
 

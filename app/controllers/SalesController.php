@@ -866,7 +866,7 @@ class SalesController extends Controller {
 
         if ($cid) {
             $variants  = DB::fetchAll(
-                "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, COALESCE(s.qty, 0) as available_qty
+                "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, COALESCE(s.qty, 0) as available_qty
                  FROM variants v
                  LEFT JOIN stocks s ON v.id = s.variant_id AND s.concern_id = ? AND s.location = 'Main Store'
                  WHERE v.concern_id = ? AND v.status = 'active'
@@ -875,7 +875,7 @@ class SalesController extends Controller {
             );
         } else {
             $variants  = DB::fetchAll(
-                "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, COALESCE(s.qty, 0) as available_qty
+                "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, COALESCE(s.qty, 0) as available_qty
                  FROM variants v
                  LEFT JOIN (SELECT variant_id, SUM(qty) as qty FROM stocks WHERE location = 'Main Store' GROUP BY variant_id) s ON v.id = s.variant_id
                  WHERE v.status = 'active'
@@ -954,7 +954,7 @@ class SalesController extends Controller {
             $variantId = (int)$matches[1];
         }
 
-        $sql = "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, COALESCE(s.qty, 0) AS available_qty
+        $sql = "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, COALESCE(s.qty, 0) AS available_qty
                 FROM variants v
                 LEFT JOIN (
                     SELECT variant_id, concern_id, SUM(qty) AS qty
@@ -1005,8 +1005,9 @@ class SalesController extends Controller {
                 'sku_code'      => $variant['sku_code'],
                 'name'          => $variant['name'],
                 'size'          => $variant['size'] ?: '-',
-                'price'         => (float)$variant['price'],
+                'price'         => (int)$variant['is_complementary'] === 1 ? 0.0 : (float)$variant['price'],
                 'mrp'           => (float)($variant['mrp'] > 0 ? $variant['mrp'] : $variant['price']),
+                'is_complementary' => (int)$variant['is_complementary'] === 1,
                 'available_qty' => (float)$variant['available_qty'],
                 'hsn_code'      => $hsnCode,
                 'gst_pct'       => $gstRate,
@@ -1078,7 +1079,7 @@ class SalesController extends Controller {
         }
 
         $batches = DB::fetchAll(
-            "SELECT b.id, b.batch_no, b.batch_qty, b.variant_id, v.attributes,
+            "SELECT b.id, b.batch_no, b.batch_qty, b.variant_id, v.attributes, v.is_complementary,
                     v.name AS product_name, v.sku_code, v.size, v.price, v.mrp,
                     COALESCE(c.gst_rate, cat.default_gst_rate) AS gst_pct,
                     COALESCE(c.hsn_code, '') AS hsn_code,
@@ -1107,7 +1108,8 @@ class SalesController extends Controller {
             $batch['batch_qty'] = (float)$batch['batch_qty'];
             $batch['available_qty'] = (float)$batch['available_qty'];
             $batch['batch_remaining_qty'] = (float)$batch['batch_remaining_qty'];
-            $batch['price'] = (float)$batch['price'];
+            $batch['is_complementary'] = (int)$batch['is_complementary'] === 1;
+            $batch['price'] = $batch['is_complementary'] ? 0.0 : (float)$batch['price'];
             $batch['mrp'] = (float)$batch['mrp'];
             $batch['gst_pct'] = $batch['gst_pct'] === null ? null : (float)$batch['gst_pct'];
             $batch['hsn_code'] = !empty($attributes['hsn']) ? $attributes['hsn'] : $batch['hsn_code'];
@@ -1352,8 +1354,19 @@ class SalesController extends Controller {
                 }
 
                 $qty = (float)$qtyInput;
-                $unitPrice = (float)$priceInput;
                 $itemDiscount = (float)$discountInput;
+                $variant = DB::fetch(
+                    "SELECT price, is_complementary
+                     FROM variants
+                     WHERE id = ? AND concern_id = ? AND status = 'active'
+                     LIMIT 1 FOR UPDATE",
+                    [$variantId, $cid]
+                );
+                if (!$variant) {
+                    throw new \RuntimeException('A selected product is no longer available in this concern.');
+                }
+                $isComplementary = (int)$variant['is_complementary'] === 1;
+                $unitPrice = (float)$variant['price'];
                 $productionBatchId = (int)($item['batch_id'] ?? 0);
                 if ($productionBatchId > 0) {
                     $batch = DB::fetch(
@@ -1378,7 +1391,8 @@ class SalesController extends Controller {
                     $qty,
                     $itemDiscount,
                     $gstPct,
-                    $gstPriceMode
+                    $gstPriceMode,
+                    $isComplementary
                 );
 
                 $taxableSubtotal += $line['taxable_amount'];

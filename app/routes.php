@@ -20,7 +20,6 @@ use App\Controllers\DamageController;
 use App\Controllers\StaffController;
 use App\Controllers\ProductionReturnController;
 use App\Controllers\ProductionStockRequestController;
-use App\Controllers\BatchController;
 use App\Controllers\OutwardController;
 use App\Controllers\ProductAddingController;
 
@@ -209,28 +208,10 @@ $router->get('/m/request/export', [SalesController::class, 'exportRequests'], 'r
 $router->post('/m/request/store', [ProductionStockRequestController::class, 'store'], 'request', 'add');
 $router->post('/m/request/update', [SalesController::class, 'updateRequest'], 'request', 'edit');
 $router->post('/m/request/delete', [SalesController::class, 'deleteRequest'], 'request', 'delete');
-// Finished Production Batches & Carton Packaging (Image 1, 2, 3)
-$router->get('/m/batch', [BatchController::class, 'index'], 'batch', 'view');
-$router->get('/production/batches', [BatchController::class, 'index'], 'batch', 'view');
-$router->get('/m/batch/create', [BatchController::class, 'create'], 'batch', 'add');
-$router->get('/production/batches/create', [BatchController::class, 'create'], 'batch', 'add');
-$router->post('/m/batch/store', [BatchController::class, 'store'], 'batch', 'add');
-$router->post('/production/batches/store', [BatchController::class, 'store'], 'batch', 'add');
-$router->get('/m/batch/label/{id}', [BatchController::class, 'label'], 'batch', 'view');
-$router->get('/production/batches/label/{id}', [BatchController::class, 'label'], 'batch', 'view');
-$router->get('/m/batch/challan/{id}', [BatchController::class, 'challan'], 'batch', 'view');
-$router->get('/production/batches/challan/{id}', [BatchController::class, 'challan'], 'batch', 'view');
-$router->post('/m/batch/outward', [BatchController::class, 'directOutward'], 'batch', 'edit');
-$router->post('/production/batches/outward', [BatchController::class, 'directOutward'], 'batch', 'edit');
-$router->get('/m/batch/pieces/{id}', [BatchController::class, 'pieces'], 'batch', 'view');
-$router->get('/production/batches/pieces/{id}', [BatchController::class, 'pieces'], 'batch', 'view');
-$router->post('/m/batch/approve', [BatchController::class, 'approve'], 'batch', 'edit');
-$router->post('/production/batches/approve', [BatchController::class, 'approve'], 'batch', 'edit');
-$router->post('/m/batch/update', [BatchController::class, 'update'], 'batch', 'edit');
-$router->post('/production/batches/update', [BatchController::class, 'update'], 'batch', 'edit');
-$router->post('/m/batch/delete', [BatchController::class, 'delete'], 'batch', 'delete');
-$router->post('/production/batches/delete', [BatchController::class, 'delete'], 'batch', 'delete');
-$router->get('/m/batch/export', [SalesController::class, 'exportBatches'], 'batch', 'export');
+// Read-only production batch documents remain available to Label Generation and Outward.
+$router->get('/production/batches/label/{id}', [\App\Controllers\BatchController::class, 'label'], 'label_generation', 'view');
+$router->get('/production/batches/challan/{id}', [\App\Controllers\BatchController::class, 'challan'], 'outward', 'view');
+$router->get('/production/batches/pieces/{id}', [\App\Controllers\BatchController::class, 'pieces'], 'label_generation', 'view');
 $router->get('/m/billing', [SalesController::class, 'billingOverview'], 'billing', 'view');
 $router->get('/m/billing/create', [SalesController::class, 'billing'], 'billing', 'add');
 $router->get('/m/billing/export', [SalesController::class, 'exportBilling'], 'billing', 'export');

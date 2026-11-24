@@ -8,9 +8,11 @@ $excluded = PosBillingCalculator::calculateLine(100, 2, 10, 5, 'exclude');
 $included = PosBillingCalculator::calculateLine(105, 2, 10, 5, 'include');
 $includedNoDiscount = PosBillingCalculator::calculateLine(105, 1, 0, 5, 'include');
 $exempt = PosBillingCalculator::calculateLine(100, 2, 5, 0, 'include');
+$complementary = PosBillingCalculator::calculateLine(100, 2, 0, 18, 'exclude', true);
 $paidCheckout = PosBillingCalculator::calculateCheckoutPayment(190, 10, 'paid', 0);
 $partialCheckout = PosBillingCalculator::calculateCheckoutPayment(190, 10, 'partial', 50);
 $unpaidCheckout = PosBillingCalculator::calculateCheckoutPayment(190, 10, 'unpaid', 0);
+$salesController = file_get_contents(__DIR__ . '/../app/controllers/SalesController.php');
 $billingView = file_get_contents(__DIR__ . '/../app/views/concern/billing.php');
 
 $checks = [
@@ -30,6 +32,16 @@ $checks = [
         $exempt['taxable_amount'] === 195.0
         && $exempt['gst_amount'] === 0.0
         && $exempt['billed_amount'] === 195.0,
+    'Complementary products are free regardless of their stored selling price' =>
+        $complementary['base_unit_price'] === 0.0
+        && $complementary['taxable_amount'] === 0.0
+        && $complementary['gst_amount'] === 0.0
+        && $complementary['billed_amount'] === 0.0,
+    'POS applies the complementary flag in the product lookup and checkout' =>
+        str_contains($salesController, 'v.is_complementary')
+        && str_contains($salesController, 'SELECT price, is_complementary')
+        && str_contains($salesController, '$isComplementary')
+        && str_contains($billingView, 'price: isComplementary ? 0 : Number(v.price)'),
     'Shipping is added to paid, partial, and unpaid invoice totals' =>
         $paidCheckout === ['net_amount' => 200.0, 'paid_amount' => 200.0, 'balance_due' => 0.0]
         && $partialCheckout === ['net_amount' => 200.0, 'paid_amount' => 50.0, 'balance_due' => 150.0]

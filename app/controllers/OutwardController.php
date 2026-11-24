@@ -25,6 +25,34 @@ class OutwardController extends Controller {
         return !$scopeConcernId || (int)$outward['concern_id'] === $scopeConcernId;
     }
 
+    private function deductMainStoreStock(int $concernId, int $variantId, float $qty, int $outwardId, string $outwardNo): void {
+        $remaining = $qty;
+        foreach (['Main Store', 'Main Store (WH-01)'] as $location) {
+            $available = (float)DB::fetchValue(
+                "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE",
+                [$concernId, $variantId, $location]
+            );
+            $deductQty = min($available, $remaining);
+            if ($deductQty > 0) {
+                StockService::move(
+                    $concernId,
+                    $variantId,
+                    $location,
+                    0.00,
+                    $deductQty,
+                    'Outward',
+                    $outwardId,
+                    "Batch outward dispatch {$outwardNo}"
+                );
+                $remaining -= $deductQty;
+            }
+        }
+
+        if ($remaining > 0.0001) {
+            throw new Exception("Insufficient Main Store stock for variant #{$variantId}.");
+        }
+    }
+
     public function __construct() {
         parent::__construct();
         $this->ensureOutwardSchema();
@@ -40,6 +68,28 @@ class OutwardController extends Controller {
 
         try {
             self::ensureBaseTables();
+
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `batch_items` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `concern_id` INT NOT NULL,
+                    `batch_id` INT NOT NULL,
+                    `variant_id` INT NOT NULL,
+                    `size` VARCHAR(50) NULL,
+                    `color` VARCHAR(50) NULL,
+                    `sku_code` VARCHAR(100) NULL,
+                    `qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `unit_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `taxable_value` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `gst_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `total_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `qr_codes` LONGTEXT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`batch_id`),
+                    INDEX (`variant_id`),
+                    INDEX (`concern_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
 
             $outCols = array_column(DB::fetchAll("DESCRIBE `outwards`"), 'Field');
             if (!in_array('sales_invoice_id', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `sales_invoice_id` INT NULL AFTER `outward_no`");
@@ -209,18 +259,76 @@ class OutwardController extends Controller {
 
         // All created concerns for multi-concern transfers, dispatching & filtering
         $allConcerns = DB::fetchAll("SELECT id, name, code, address, status FROM concerns ORDER BY id ASC");
+        $currentConcernId = Auth::concernId() ?: ($selectedConcernId ?: 1);
 
-        // Available finished production batches ready to be dispatched
+        // Only show approved production batches whose complete quantity is still stocked.
         $availableBatches = DB::fetchAll("
-            SELECT b.*, 
-                   COALESCE(p.program_name, v.name, 'Finished Production Batch') AS product_name,
-                   v.sku_code, v.size, p.program_no
+            SELECT b.*,
+                   COALESCE(v.name, p.program_name, 'Finished Production Batch') AS product_name,
+                   v.sku_code, v.size, p.program_no,
+                   COALESCE(
+                       (SELECT SUM(bi.qty) FROM batch_items bi WHERE bi.batch_id = b.id),
+                       b.batch_qty
+                   ) AS dispatch_qty
             FROM batches b
             LEFT JOIN variants v ON b.variant_id = v.id
             LEFT JOIN production_programs p ON b.program_id = p.id
-            WHERE UPPER(b.status) IN ('PREPARING', 'APPROVED')
+            WHERE b.concern_id = ?
+              AND UPPER(b.status) = 'APPROVED'
+              AND (b.batch_qty > 0 OR EXISTS (SELECT 1 FROM batch_items bi WHERE bi.batch_id = b.id))
+              AND (
+                  (
+                      EXISTS (SELECT 1 FROM batch_items bi WHERE bi.batch_id = b.id)
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM batch_items bi
+                          WHERE bi.batch_id = b.id
+                            AND (
+                                bi.qty <= 0
+                                OR bi.concern_id <> b.concern_id
+                                OR NOT EXISTS (
+                                    SELECT 1
+                                    FROM variants bv
+                                    WHERE bv.id = bi.variant_id
+                                      AND bv.concern_id = b.concern_id
+                                      AND bv.status = 'active'
+                                )
+                                OR COALESCE((
+                                    SELECT SUM(s.qty)
+                                    FROM stocks s
+                                    WHERE s.concern_id = b.concern_id
+                                      AND s.variant_id = bi.variant_id
+                                      AND s.location IN ('Main Store', 'Main Store (WH-01)')
+                                ), 0) < (
+                                    SELECT SUM(bi2.qty)
+                                    FROM batch_items bi2
+                                    WHERE bi2.batch_id = b.id
+                                      AND bi2.variant_id = bi.variant_id
+                                )
+                            )
+                      )
+                  )
+                  OR (
+                      NOT EXISTS (SELECT 1 FROM batch_items bi WHERE bi.batch_id = b.id)
+                      AND b.variant_id IS NOT NULL
+                      AND EXISTS (
+                          SELECT 1
+                          FROM variants bv
+                          WHERE bv.id = b.variant_id
+                            AND bv.concern_id = b.concern_id
+                            AND bv.status = 'active'
+                      )
+                      AND COALESCE((
+                          SELECT SUM(s.qty)
+                          FROM stocks s
+                          WHERE s.concern_id = b.concern_id
+                            AND s.variant_id = b.variant_id
+                            AND s.location IN ('Main Store', 'Main Store (WH-01)')
+                      ), 0) >= b.batch_qty
+                  )
+              )
             ORDER BY b.id DESC
-        ");
+        ", [$currentConcernId]);
 
         // Outward dispatch consumes Main Store stock for the variant's concern.
         $stockVariants = DB::fetchAll("
@@ -230,7 +338,7 @@ class OutwardController extends Controller {
                        FROM stocks s
                        WHERE s.concern_id = v.concern_id
                          AND s.variant_id = v.id
-                         AND s.location = 'Main Store'
+                         AND s.location IN ('Main Store', 'Main Store (WH-01)')
                    ), 0) AS stock_qty
             FROM variants v
             WHERE v.status = 'active'
@@ -240,8 +348,6 @@ class OutwardController extends Controller {
 
         // Customers list
         $customers = DB::fetchAll("SELECT id, name FROM customers WHERE status = 'active' ORDER BY name ASC");
-
-        $currentConcernId = Auth::concernId() ?: ($selectedConcernId ?: 1);
 
         $this->render('concern/outward', [
             'pageTitle'         => 'Production Outward & Dispatch',
@@ -326,14 +432,40 @@ class OutwardController extends Controller {
                     throw new Exception('Please select a production batch to dispatch.');
                 }
 
-                $batch = DB::fetch("SELECT * FROM batches WHERE id = ?", [$batchId]);
+                $batch = DB::fetch(
+                    "SELECT * FROM batches
+                     WHERE id = ? AND concern_id = ? AND UPPER(status) = 'APPROVED'
+                     LIMIT 1 FOR UPDATE",
+                    [$batchId, $cid]
+                );
                 if (!$batch) {
-                    throw new Exception('Batch not found.');
+                    throw new Exception('The selected production batch is no longer available for this concern.');
                 }
 
                 $puId = (int)($batch['production_unit_id'] ?: 1);
-                $qty = (float)$batch['batch_qty'];
                 $boxes = max(1, (int)($batch['total_boxes'] ?: 1));
+                $batchVariants = DB::fetchAll(
+                    "SELECT * FROM batch_items WHERE batch_id = ? ORDER BY id ASC FOR UPDATE",
+                    [$batchId]
+                );
+                if (!empty($batchVariants)) {
+                    $qty = 0.0;
+                    foreach ($batchVariants as $batchVariant) {
+                        if (
+                            (int)$batchVariant['concern_id'] !== $cid
+                            || (int)$batchVariant['variant_id'] <= 0
+                            || (float)$batchVariant['qty'] <= 0
+                        ) {
+                            throw new Exception('The selected production batch contains an invalid stock line.');
+                        }
+                        $qty += (float)$batchVariant['qty'];
+                    }
+                } else {
+                    $qty = (float)$batch['batch_qty'];
+                    if ((int)($batch['variant_id'] ?? 0) <= 0 || $qty <= 0) {
+                        throw new Exception('The selected production batch has no dispatchable stock lines.');
+                    }
+                }
 
                 DB::query("
                     INSERT INTO outwards (
@@ -362,7 +494,6 @@ class OutwardController extends Controller {
                 ", [$cid, $outwardId, $batchId, $boxes, $qty]);
 
                 // Link items and deduct stock from Main Store for all variants in the batch
-                $batchVariants = DB::fetchAll("SELECT * FROM batch_items WHERE batch_id = ?", [$batchId]);
                 if (!empty($batchVariants)) {
                     foreach ($batchVariants as $bv) {
                         DB::query("
@@ -370,7 +501,7 @@ class OutwardController extends Controller {
                             VALUES (?, ?, ?, ?)
                         ", [$cid, $outwardId, $bv['variant_id'], $bv['qty']]);
 
-                        StockService::move($cid, (int)$bv['variant_id'], 'Main Store', 0.00, (float)$bv['qty'], 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
+                        $this->deductMainStoreStock($cid, (int)$bv['variant_id'], (float)$bv['qty'], $outwardId, $outwardNo);
                     }
                 } else {
                     DB::query("
@@ -378,9 +509,7 @@ class OutwardController extends Controller {
                         VALUES (?, ?, ?, ?)
                     ", [$cid, $outwardId, $batch['variant_id'], $qty]);
 
-                    if (!empty($batch['variant_id'])) {
-                        StockService::move($cid, (int)$batch['variant_id'], 'Main Store', 0.00, $qty, 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
-                    }
+                    $this->deductMainStoreStock($cid, (int)$batch['variant_id'], $qty, $outwardId, $outwardNo);
                 }
 
                 // Update batch status to DISPATCHED

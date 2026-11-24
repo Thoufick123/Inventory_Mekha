@@ -614,7 +614,7 @@ class BatchController extends Controller {
 
         if (!$batch) {
             $this->flash('error', 'Batch not found.');
-            $this->redirect('/production/batches');
+            $this->redirect('/production/outward?tab=batch');
             return;
         }
 
@@ -654,7 +654,7 @@ class BatchController extends Controller {
 
         if (!$batch) {
             $this->flash('error', 'Batch not found.');
-            $this->redirect('/production/batches');
+            $this->redirect('/production/outward?tab=batch');
             return;
         }
 

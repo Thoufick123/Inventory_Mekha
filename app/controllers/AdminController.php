@@ -38,6 +38,15 @@ class AdminController extends Controller {
             );
         }
 
+        $batchModule = DB::fetch("SELECT id FROM modules WHERE code = 'batch'");
+        if ($batchModule) {
+            $batchModuleId = (int)$batchModule['id'];
+            DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$batchModuleId]);
+            DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$batchModuleId]);
+            DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$batchModuleId]);
+            DB::query("DELETE FROM modules WHERE id = ?", [$batchModuleId]);
+        }
+
         return DB::fetchAll(
             "SELECT * FROM modules
              WHERE is_super_admin_only = 0

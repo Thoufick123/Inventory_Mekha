@@ -32,7 +32,6 @@ class ModuleRegistry
             ['code' => 'customers', 'name' => 'Customer Details', 'icon' => 'bi-people', 'sort_order' => 50, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
             ['code' => 'billing', 'name' => 'POS Billing', 'icon' => 'bi-calculator', 'sort_order' => 51, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
             ['code' => 'request', 'name' => 'Request', 'icon' => 'bi-file-earmark-text', 'sort_order' => 52, 'group_name' => 'Sales', 'is_super_admin_only' => 0],
-            ['code' => 'batch', 'name' => 'Batch', 'icon' => 'bi-collection', 'sort_order' => 53, 'group_name' => 'Sales', 'is_super_admin_only' => 0],
             ['code' => 'outward', 'name' => 'Outward', 'icon' => 'bi-box-arrow-up-right', 'sort_order' => 54, 'group_name' => 'Sales', 'is_super_admin_only' => 0],
             ['code' => 'expense', 'name' => 'Expense', 'icon' => 'bi-wallet2', 'sort_order' => 60, 'group_name' => 'Finance', 'is_super_admin_only' => 0],
             ['code' => 'cash', 'name' => 'Cash', 'icon' => 'bi-cash-coin', 'sort_order' => 61, 'group_name' => 'Finance', 'is_super_admin_only' => 0],
@@ -56,7 +55,10 @@ class ModuleRegistry
     {
         $merged = [];
         foreach ($databaseModules as $module) {
-            $merged[(string)$module['code']] = $module;
+            $code = (string)$module['code'];
+            if ($code !== 'batch') {
+                $merged[$code] = $module;
+            }
         }
 
         foreach (self::masterModules() as $module) {

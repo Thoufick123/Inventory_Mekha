@@ -96,7 +96,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="<?= \App\Core\Auth::can('billing', 'create') ? 'Point QR scanner or type SKU / name' : 'View only access - billing terminal disabled' ?>" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" <?= \App\Core\Auth::can('billing', 'create') ? 'autofocus' : 'disabled' ?>>
                         <datalist id="pos_catalog_list">
                             <?php foreach ($variants as $v): ?>
-                                <option value="<?= htmlspecialchars($v['sku_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format($v['price'], 0) ?>)</option>
+                                <option value="<?= htmlspecialchars($v['sku_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format(!empty($v['is_complementary']) ? 0 : $v['price'], 0) ?><?= !empty($v['is_complementary']) ? ' · Complimentary' : '' ?>)</option>
                             <?php endforeach; ?>
                         </datalist>
                         <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;" <?= !\App\Core\Auth::can('billing', 'create') ? 'disabled' : '' ?>>
@@ -165,7 +165,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                                 data-sku="<?= htmlspecialchars($var['sku_code']) ?>"
                                                 style="font-size: 0.78rem; border-radius: 8px; flex: 1 1 calc(50% - 4px);">
                                             <span class="text-truncate fw-semibold text-dark me-1"><?= htmlspecialchars($var['sku_code']) ?></span>
-                                            <span class="text-primary fw-bold font-monospace">₹<?= number_format($var['price'], 0) ?></span>
+                                            <span class="text-primary fw-bold font-monospace">₹<?= number_format(!empty($var['is_complementary']) ? 0 : $var['price'], 0) ?></span>
                                         </button>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -1787,6 +1787,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     const currentQty = getVariantCartQuantity(v.id);
+                    const isComplementary = Boolean(v.is_complementary);
                     if (currentQty + qtyToAdd > availableQty) {
                         const remainingQty = Math.max(0, availableQty - currentQty);
                         playPosBeep('error');
@@ -1810,7 +1811,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             sku_code: v.sku_code,
                             size: v.size,
                             hsn_code: v.hsn_code || '',
-                            price: v.price,
+                            price: isComplementary ? 0 : Number(v.price),
+                            is_complementary: isComplementary,
                             mrp: v.mrp,
                             gst_pct: Number(v.gst_pct),
                             discount: 0.00,
@@ -1958,7 +1960,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td class="text-muted fw-bold">${index + 1}</td>
                     <td>
                         <strong class="text-dark d-block">${escapeHtml(item.name)}</strong>
-                        <small class="text-muted font-monospace">${escapeHtml(item.sku_code)} &bull; Size: ${escapeHtml(item.size)}${item.batch_no ? ' &bull; Batch: ' + escapeHtml(item.batch_no) : ''}</small>
+                        <small class="text-muted font-monospace">${escapeHtml(item.sku_code)} &bull; Size: ${escapeHtml(item.size)}${item.is_complementary ? ' &bull; Complimentary' : ''}${item.batch_no ? ' &bull; Batch: ' + escapeHtml(item.batch_no) : ''}</small>
                     </td>
                     <td><span class="badge bg-light text-dark border font-monospace">${escapeHtml(item.hsn_code)}</span></td>
                     <td>

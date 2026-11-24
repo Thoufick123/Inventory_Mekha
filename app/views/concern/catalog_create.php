@@ -10,6 +10,18 @@ if (!$isEdit) {
     // Unclicked / unselected by default on create as requested
     $selectedSizes = [];
 }
+$styleConcernId = (int)($selectedCid ?? 0);
+if (!$styleConcernId && $isEdit) {
+    $styleConcernId = (int)($style['concern_id'] ?? 0);
+    if (!$styleConcernId) {
+        foreach (($categories ?? []) as $category) {
+            if ((int)$category['id'] === (int)($style['category_id'] ?? 0)) {
+                $styleConcernId = (int)($category['concern_id'] ?? 0);
+                break;
+            }
+        }
+    }
+}
 ?>
 <div class="container-fluid px-0">
     <!-- Breadcrumbs -->
@@ -42,6 +54,23 @@ if (!$isEdit) {
     <!-- Main Form Card -->
     <form action="<?= \App\Core\Controller::url($isEdit ? '/production/catalog/update' : '/production/catalog/store') ?>" method="POST" id="formProductStyle" novalidate>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+        <?php if (!empty($isSuperAdmin) && empty($selectedCid)): ?>
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-body">
+                    <label for="catalogStyleConcernId" class="form-label small fw-semibold">Concern *</label>
+                    <select name="concern_id" id="catalogStyleConcernId" class="form-select" required>
+                        <option value="">-- Select Concern --</option>
+                        <?php foreach (($allConcerns ?? []) as $concern): ?>
+                            <option value="<?= (int)$concern['id'] ?>" <?= $styleConcernId === (int)$concern['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($concern['name']) ?> (<?= htmlspecialchars($concern['code']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+        <?php else: ?>
+            <input type="hidden" name="concern_id" id="catalogStyleConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
+        <?php endif; ?>
         <?php if ($isEdit): ?>
             <input type="hidden" name="id" value="<?= (int)$style['id'] ?>">
         <?php endif; ?>
@@ -73,6 +102,7 @@ if (!$isEdit) {
                                 <option value="<?= $cat['id'] ?>" 
                                         data-name="<?= htmlspecialchars($cat['name']) ?>"
                                         data-code="<?= htmlspecialchars($cat['code'] ?? '') ?>"
+                                        data-concern="<?= (int)($cat['concern_id'] ?? 0) ?>"
                                         data-hsn="<?= htmlspecialchars($cat['default_hsn'] ?? '') ?>"
                                         data-gst="<?= htmlspecialchars((string)($cat['default_gst_rate'] ?? '')) ?>"
                                         <?= $isSel ? 'selected' : '' ?>>
@@ -308,6 +338,21 @@ if (!$isEdit) {
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-3">
+                <?php if (!empty($isSuperAdmin) && empty($selectedCid)): ?>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Concern *</label>
+                        <select name="concern_id" class="form-select" required>
+                            <option value="">-- Select Concern --</option>
+                            <?php foreach (($allConcerns ?? []) as $concern): ?>
+                                <option value="<?= (int)$concern['id'] ?>">
+                                    <?= htmlspecialchars($concern['name']) ?> (<?= htmlspecialchars($concern['code']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php else: ?>
+                    <input type="hidden" name="concern_id" value="<?= (int)($selectedCid ?? 0) ?>">
+                <?php endif; ?>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Category Name *</label>
                     <input type="text" name="name" class="form-control" placeholder="e.g. MEN, WOMEN, KIDS" required>
@@ -345,6 +390,19 @@ if (!$isEdit) {
             </div>
             <div class="modal-body p-3">
                 <input type="hidden" name="category_id" id="quickAddSubcatParentId" value="">
+                <?php if (!empty($isSuperAdmin) && empty($selectedCid)): ?>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Concern *</label>
+                        <select name="concern_id" class="form-select quickAddConcernId" required>
+                            <option value="">-- Select Concern --</option>
+                            <?php foreach (($allConcerns ?? []) as $concern): ?>
+                                <option value="<?= (int)$concern['id'] ?>"><?= htmlspecialchars($concern['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php else: ?>
+                    <input type="hidden" name="concern_id" class="quickAddConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
+                <?php endif; ?>
                 <div class="mb-2">
                     <span class="small text-muted">Parent Category:</span>
                     <strong class="text-dark d-block" id="quickAddSubcatParentName">-</strong>
@@ -376,6 +434,19 @@ if (!$isEdit) {
             </div>
             <div class="modal-body p-3">
                 <input type="hidden" name="subcategory_id" id="quickAddSubSubcatParentId" value="">
+                <?php if (!empty($isSuperAdmin) && empty($selectedCid)): ?>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Concern *</label>
+                        <select name="concern_id" class="form-select quickAddConcernId" required>
+                            <option value="">-- Select Concern --</option>
+                            <?php foreach (($allConcerns ?? []) as $concern): ?>
+                                <option value="<?= (int)$concern['id'] ?>"><?= htmlspecialchars($concern['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php else: ?>
+                    <input type="hidden" name="concern_id" class="quickAddConcernId" value="<?= (int)($selectedCid ?? 0) ?>">
+                <?php endif; ?>
                 <div class="mb-2">
                     <span class="small text-muted">Parent Subcategory:</span>
                     <strong class="text-dark d-block" id="quickAddSubSubcatParentName">-</strong>
@@ -1085,6 +1156,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        const styleConcernId = document.getElementById('catalogStyleConcernId');
+        if (styleConcernId && !styleConcernId.value && Number(opt.getAttribute('data-concern')) > 0) {
+            styleConcernId.value = opt.getAttribute('data-concern');
+        }
         const code = opt.getAttribute('data-code') || opt.text.trim().substring(0, 1);
         mainCodeInput.value = code.toUpperCase();
 
@@ -1381,6 +1456,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         document.getElementById('quickAddSubcatParentId').value = catId;
         document.getElementById('quickAddSubcatParentName').textContent = mainCatSelect.selectedOptions[0].text;
+        const concernId = document.getElementById('catalogStyleConcernId').value
+            || mainCatSelect.selectedOptions[0].getAttribute('data-concern')
+            || '';
+        document.querySelectorAll('#formQuickAddSubcategory .quickAddConcernId').forEach(input => input.value = concernId);
         new bootstrap.Modal(document.getElementById('modalAddSubcategory')).show();
     });
 
@@ -1395,6 +1474,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         document.getElementById('quickAddSubSubcatParentId').value = subId;
         document.getElementById('quickAddSubSubcatParentName').textContent = subCatSelect.selectedOptions[0].text;
+        const concernId = document.getElementById('catalogStyleConcernId').value
+            || mainCatSelect.selectedOptions[0]?.getAttribute('data-concern')
+            || '';
+        document.querySelectorAll('#formQuickAddSubSubcategory .quickAddConcernId').forEach(input => input.value = concernId);
         new bootstrap.Modal(document.getElementById('modalAddSubSubcategory')).show();
     });
 
@@ -1409,8 +1492,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     const opt = new Option(res.name, res.id, true, true);
                     opt.setAttribute('data-name', res.name);
                     opt.setAttribute('data-code', res.code);
+                    opt.setAttribute('data-concern', res.concern_id);
                     opt.setAttribute('data-hsn', res.default_hsn);
                     opt.setAttribute('data-gst', res.default_gst_rate);
+                    document.getElementById('catalogStyleConcernId').value = res.concern_id;
                     mainCatSelect.add(opt);
                     mainCatSelect.dispatchEvent(new Event('change'));
                     refreshCustomDropdown('selectMainCategory');
@@ -1433,6 +1518,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const opt = new Option(res.name, res.id, true, true);
                     opt.setAttribute('data-name', res.name);
                     opt.setAttribute('data-code', res.code);
+                    document.getElementById('catalogStyleConcernId').value = res.concern_id || document.getElementById('catalogStyleConcernId').value;
                     subCatSelect.add(opt);
                     subCatSelect.dispatchEvent(new Event('change'));
                     refreshCustomDropdown('selectSubCategory');
@@ -1455,6 +1541,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const opt = new Option(res.name, res.id, true, true);
                     opt.setAttribute('data-name', res.name);
                     opt.setAttribute('data-code', res.code);
+                    document.getElementById('catalogStyleConcernId').value = res.concern_id || document.getElementById('catalogStyleConcernId').value;
                     subSubCatSelect.add(opt);
                     subSubCatSelect.dispatchEvent(new Event('change'));
                     refreshCustomDropdown('selectSubSubCategory');

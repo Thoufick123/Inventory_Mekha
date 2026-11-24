@@ -1066,10 +1066,10 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                        id="prod_batch_qc_btn" title="Send this batch to Quality Control (QC)">
                                         <i class="bi bi-shield-check me-1"></i> Move to Quality Control (QC)
                                     </a>
-                                    <a href="<?= \App\Core\Controller::url('/production/batches') ?>"
+                                    <a href="<?= \App\Core\Controller::url('/production/outward?tab=batch') ?>"
                                        class="btn btn-outline-success py-2 px-3 fw-semibold shadow-sm text-nowrap d-none"
-                                       id="prod_batch_in_stock_btn" title="All variants inspected and in stock - Click to view in Finished Goods">
-                                        <i class="bi bi-check-circle-fill me-1"></i> In Stock &bull; View Batches
+                                       id="prod_batch_in_stock_btn" title="All variants inspected and in stock - Click to dispatch from Outward">
+                                        <i class="bi bi-check-circle-fill me-1"></i> In Stock &bull; Outward
                                     </a>
                                 </div>
                                 <small class="text-muted mt-2 d-block" id="prod_batch_stock_note"></small>
@@ -1174,8 +1174,8 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                         <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>" class="btn btn-primary py-2 px-3 fw-semibold shadow-sm text-nowrap" id="prod_add_stock_btn" title="Inspect production garments in Quality Control (QC)">
                                             <i class="bi bi-shield-check me-1"></i> Move to QC
                                         </a>
-                                        <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="prod_in_stock_badge">
-                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock &bull; Batches
+                                        <a href="<?= \App\Core\Controller::url('/production/outward?tab=batch') ?>" class="btn btn-outline-success py-2 fw-semibold shadow-sm px-3 d-none text-nowrap" id="prod_in_stock_badge">
+                                            <i class="bi bi-check-circle-fill text-success me-1"></i> In Stock &bull; Outward
                                         </a>
                                     </div>
                                 </form>
@@ -1274,8 +1274,8 @@ $concernName = $concern['name'] ?? 'GRM Inventory';
                                                     <i class="bi bi-shield-check me-1"></i>QC
                                                 </a>
                                                 <?php else: ?>
-                                                <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" onclick="event.stopPropagation()">
-                                                    <i class="bi bi-eye me-1"></i>Batches
+                                                <a href="<?= \App\Core\Controller::url('/production/outward?tab=batch') ?>" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" onclick="event.stopPropagation()">
+                                                    <i class="bi bi-box-arrow-up-right me-1"></i>Outward
                                                 </a>
                                                 <?php endif; ?>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2"

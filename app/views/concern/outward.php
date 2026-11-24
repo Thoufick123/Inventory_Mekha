@@ -370,8 +370,8 @@
                         <select name="batch_id" id="dispatchBatchSelect" class="form-select form-select-sm" required>
                             <option value="">-- Select Finished Production Batch --</option>
                             <?php foreach ($availableBatches as $b): ?>
-                                <option value="<?= $b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 1) ?>">
-                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['product_name'] ?? ($b['program_name'] ?? ($b['variant_name'] ?? 'Production Batch'))) ?> (<?= (int)$b['batch_qty'] ?> pcs, <?= (int)$b['total_boxes'] ?> box)
+                                <option value="<?= (int)$b['id'] ?>" data-concern="<?= (int)($b['concern_id'] ?? 0) ?>">
+                                    <?= htmlspecialchars($b['batch_no']) ?> &mdash; <?= htmlspecialchars($b['product_name'] ?? ($b['program_name'] ?? ($b['variant_name'] ?? 'Production Batch'))) ?> (<?= (int)$b['dispatch_qty'] ?> pcs available, <?= (int)$b['total_boxes'] ?> box)
                                 </option>
                             <?php endforeach; ?>
                         </select>

@@ -289,7 +289,6 @@
                     if ($m['code'] === 'qc_stocks') $href = \App\Core\Controller::url('/production/qc');
                     if ($m['code'] === 'return_exchange') $href = \App\Core\Controller::url('/production/returns');
                     if ($m['code'] === 'request') $href = \App\Core\Controller::url('/production/stock-requests');
-                    if ($m['code'] === 'batch') $href = \App\Core\Controller::url('/production/batches');
                     if ($m['code'] === 'outward') $href = \App\Core\Controller::url('/production/outward');
 
                     if ($m['code'] === 'cash_flow') {
