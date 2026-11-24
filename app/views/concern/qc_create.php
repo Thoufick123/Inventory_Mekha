@@ -1,6 +1,15 @@
 <?php
 // app/views/concern/qc_create.php
 // Initialize QC Inspection Batch (Matches Screenshot 3)
+$savedQc = $savedQc ?? null;
+$qcPassedTotal = 0;
+$qcRejectedTotal = 0;
+$qcReworkTotal = 0;
+foreach ($batchItems as $qcBatchItem) {
+    $qcPassedTotal += (int)($qcBatchItem['qc_passed_qty'] ?? 0);
+    $qcRejectedTotal += (int)($qcBatchItem['qc_rejected_qty'] ?? 0);
+    $qcReworkTotal += (int)($qcBatchItem['qc_rework_qty'] ?? 0);
+}
 ?>
 <div class="container-fluid px-3 py-2">
     <!-- Breadcrumb -->
@@ -9,7 +18,7 @@
             <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="text-decoration-none text-muted">Home</a></li>
             <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog') ?>" class="text-decoration-none text-muted">Production</a></li>
             <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="text-decoration-none text-muted">QC Inspections</a></li>
-            <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page">New QC Inspection Batch</li>
+            <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page"><?= $savedQc ? 'QC Inspection Review' : 'New QC Inspection Batch' ?></li>
         </ol>
     </nav>
 
@@ -20,23 +29,28 @@
                 <span class="d-inline-flex align-items-center justify-content-center text-danger" style="width: 28px; height: 28px; border: 2px solid #ef4444; border-radius: 50%; font-size: 0.95rem;">
                     <i class="bi bi-patch-check"></i>
                 </span>
-                Initialize QC Inspection Batch
+                <?= $savedQc ? 'QC Inspection Review' : 'Initialize QC Inspection Batch' ?>
             </h4>
-            <p class="text-secondary small mb-0">Select a completed stitching batch to begin quality control inspection</p>
+            <p class="text-secondary small mb-0"><?= $savedQc ? 'Review the scanner verdicts before adding passed pieces to stock' : 'Select a completed stitching batch to begin quality control inspection' ?></p>
         </div>
         <div class="d-flex align-items-center gap-2">
             <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary px-3 py-2 rounded-3 text-decoration-none">
                 <i class="bi bi-arrow-left me-1"></i> Back to QC List
             </a>
-            <button type="button" class="btn btn-primary fw-bold shadow-sm px-3 py-2 rounded-3 d-inline-flex align-items-center gap-2" onclick="submitQc('save_and_inspect')" title="Initialize QC and open 2D QR piece-by-piece scanner">
-                <i class="bi bi-play-circle-fill"></i> Start QC
-            </button>
+            <?php if (!$savedQc): ?>
+                <button type="button" class="btn btn-primary fw-bold shadow-sm px-3 py-2 rounded-3 d-inline-flex align-items-center gap-2" onclick="submitQc('save_and_inspect')" title="Initialize QC and open 2D QR piece-by-piece scanner">
+                    <i class="bi bi-play-circle-fill"></i> Start QC
+                </button>
+            <?php endif; ?>
         </div>
     </div>
 
     <form action="<?= \App\Core\Controller::url('/production/qc/store') ?>" method="POST" id="formQcCreate">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-        <input type="hidden" name="submit_action" id="submitActionInput" value="direct_inward">
+        <input type="hidden" name="submit_action" id="submitActionInput" value="save_and_inspect">
+        <?php if ($savedQc): ?>
+            <input type="hidden" name="qc_id" id="savedQcId" value="<?= (int)$savedQc['id'] ?>">
+        <?php endif; ?>
 
         <div class="row g-4">
             <!-- ========================================== -->
@@ -54,7 +68,7 @@
                             <label class="form-label small fw-semibold text-secondary">
                                 Select Source Batch <span class="text-danger">*</span>
                             </label>
-                            <select name="stitching_batch_id" id="selectStitchingBatch" class="form-select border-light-subtle shadow-sm" required onchange="onStitchingBatchChange(this.value)">
+                            <select name="stitching_batch_id" id="selectStitchingBatch" class="form-select border-light-subtle shadow-sm" required onchange="onStitchingBatchChange(this.value)" <?= $savedQc ? 'disabled' : '' ?>>
                                 <option value="">-- Choose Stitching Batch --</option>
                                 <?php foreach ($stitchingBatches as $sb): ?>
                                     <option value="<?= $sb['id'] ?>"
@@ -79,7 +93,7 @@
                                 </label>
                                 <span class="badge bg-light text-primary border px-2 py-0.5" style="font-size:0.75rem;">Verified Staff</span>
                             </div>
-                            <select name="inspector_id" id="selectInspector" class="form-select border-light-subtle shadow-sm" required>
+                            <select name="inspector_id" id="selectInspector" class="form-select border-light-subtle shadow-sm" required <?= $savedQc ? 'disabled' : '' ?>>
                                 <?php foreach ($inspectors as $u): ?>
                                     <option value="<?= $u['id'] ?>" <?= ($u['id'] == \App\Core\Auth::id()) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($u['name'] . ($u['role'] ? ' (' . ucfirst($u['role']) . ')' : '')) ?>
@@ -92,7 +106,7 @@
                         <div class="mb-3">
                             <label class="form-label small fw-semibold text-secondary">General Inspection Notes</label>
                             <textarea name="notes" class="form-control border-light-subtle shadow-sm" rows="3" 
-                                      placeholder="Fabric, seam standards, trims, or inspection batch notes..."></textarea>
+                                      placeholder="Fabric, seam standards, trims, or inspection batch notes..." <?= $savedQc ? 'readonly' : '' ?>><?= htmlspecialchars($savedQc['defect_notes'] ?? '') ?></textarea>
                         </div>
 
                         <!-- Program / Batch Summary Card -->
@@ -109,7 +123,9 @@
                                 <?= htmlspecialchars(($selectedBatch['program_no'] ?? 'PRG') . ' — ' . ($selectedBatch['program_name'] ?? 'Production Program')) ?>
                             </div>
                             <div class="text-muted small">
-                                All passed pieces will be credited directly to Live Stock upon approval.
+                                <?= $savedQc
+                                    ? 'QC ' . htmlspecialchars($savedQc['qc_no']) . ' is saved. Add approved pieces to stock only after reviewing the verdict totals.'
+                                    : 'Scan and mark every garment first. Passed pieces are added to stock only after inspection is saved.' ?>
                             </div>
                         </div>
 
@@ -125,7 +141,7 @@
                     <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-grid-3x3-gap text-primary"></i>
-                            <h6 class="mb-0 fw-bold text-dark">Items Ready for Inspection</h6>
+                            <h6 class="mb-0 fw-bold text-dark"><?= $savedQc ? 'Saved Inspection Verdicts' : 'Items Ready for Inspection' ?></h6>
                         </div>
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="badgeCatalogCount">
                             <?= count(array_unique(array_filter(array_column($batchItems, 'catalog_name')))) ?: 1 ?> Catalog(s)
@@ -152,8 +168,11 @@
                                         <?php foreach ($batchItems as $idx => $it): ?>
                                             <?php 
                                                 $q = (int)($it['stitching_qty'] ?: ($it['cut_qty'] ?: 0)); 
+                                                $passedQty = (int)($it['qc_passed_qty'] ?? 0);
+                                                $rejectedQty = (int)($it['qc_rejected_qty'] ?? 0);
+                                                $reworkQty = (int)($it['qc_rework_qty'] ?? 0);
                                             ?>
-                                            <tr data-idx="<?= $idx ?>">
+                                            <tr data-idx="<?= $idx ?>" data-passed="<?= $passedQty ?>" data-rejected="<?= $rejectedQty ?>" data-rework="<?= $reworkQty ?>">
                                                 <td class="ps-3 py-2.5">
                                                     <input type="hidden" name="items[<?= $idx ?>][stitching_item_id]" value="<?= (int)$it['id'] ?>">
                                                     <input type="hidden" name="items[<?= $idx ?>][catalog_id]" value="<?= (int)($it['catalog_id'] ?? 0) ?>">
@@ -181,23 +200,22 @@
                                                     </span>
                                                 </td>
                                                 <td class="text-center py-2.5">
-                                                    <input type="number" name="items[<?= $idx ?>][passed_qty]" 
-                                                           class="form-control form-control-sm text-center fw-bold text-success border-success-subtle input-passed" 
-                                                           value="<?= $q ?>" min="0" max="<?= $q ?>" required oninput="recalcRow(this)">
+                                                    <?= $savedQc
+                                                        ? '<span class="fw-bold text-success">' . $passedQty . '</span>'
+                                                        : '<span class="text-muted small">Pending scan</span>' ?>
                                                 </td>
                                                 <td class="text-center py-2.5">
-                                                    <input type="number" name="items[<?= $idx ?>][rejected_qty]" 
-                                                           class="form-control form-control-sm text-center fw-bold text-danger border-danger-subtle input-rejected" 
-                                                           value="0" min="0" max="<?= $q ?>" oninput="recalcRow(this)">
+                                                    <?= $savedQc
+                                                        ? '<span class="fw-bold text-danger">' . $rejectedQty . '</span>'
+                                                        : '<span class="text-muted small">Pending scan</span>' ?>
                                                 </td>
                                                 <td class="text-center py-2.5">
-                                                    <input type="number" name="items[<?= $idx ?>][rework_qty]" 
-                                                           class="form-control form-control-sm text-center fw-bold text-warning-emphasis border-warning-subtle input-rework" 
-                                                           value="0" min="0" max="<?= $q ?>" oninput="recalcRow(this)">
+                                                    <?= $savedQc
+                                                        ? '<span class="fw-bold text-warning-emphasis">' . $reworkQty . '</span>'
+                                                        : '<span class="text-muted small">Pending scan</span>' ?>
                                                 </td>
                                                 <td class="text-center pe-3 py-2.5">
-                                                    <input type="text" name="items[<?= $idx ?>][defect_notes]" 
-                                                           class="form-control form-control-sm" placeholder="Defect/rework details...">
+                                                    <span class="small text-muted"><?= $savedQc ? htmlspecialchars($it['qc_defect_notes'] ?? '—') : 'Recorded during scan' ?></span>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -213,13 +231,13 @@
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fs-6" id="badgeSumPassed">
-                                Passed: <?= array_sum(array_column($batchItems, 'stitching_qty')) ?: 0 ?> pcs
+                                Passed: <?= $qcPassedTotal ?> pcs
                             </span>
                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-2 fs-6" id="badgeSumRejected">
-                                Rejected: 0 pcs
+                                Rejected: <?= $qcRejectedTotal ?> pcs
                             </span>
                             <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-2 fs-6" id="badgeSumRework">
-                                Rework: 0 pcs
+                                Rework: <?= $qcReworkTotal ?> pcs
                             </span>
                         </div>
                         
@@ -227,12 +245,15 @@
                             <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary px-3 fw-semibold">
                                 Cancel
                             </a>
-                            <button type="button" class="btn btn-primary fw-bold shadow-sm px-4 py-2 d-inline-flex align-items-center gap-2" id="btnStartQc" onclick="submitQc('save_and_inspect')" title="Initialize QC and open 2D QR Scanner to inspect garment piece-by-piece">
-                                <i class="bi bi-play-circle-fill fs-5"></i> Start QC
-                            </button>
-                            <button type="button" class="btn btn-success fw-semibold shadow-sm px-3 py-2 d-inline-flex align-items-center gap-1.5" onclick="submitQc('direct_inward')" title="Directly pass and inward to stock">
-                                <i class="bi bi-check2-circle fs-5"></i> Pass & Inward to Stock
-                            </button>
+                            <?php if ($savedQc): ?>
+                                <button type="button" class="btn btn-success fw-semibold shadow-sm px-3 py-2 d-inline-flex align-items-center gap-1.5" id="btnAddToStock" onclick="submitQc('add_to_stock')" title="Add passed pieces to stock">
+                                    <i class="bi bi-box-arrow-in-down fs-5"></i> Add to Stock
+                                </button>
+                            <?php else: ?>
+                                <button type="button" class="btn btn-primary fw-bold shadow-sm px-4 py-2 d-inline-flex align-items-center gap-2" id="btnStartQc" onclick="submitQc('save_and_inspect')" title="Initialize QC and open 2D QR Scanner to inspect garment piece-by-piece">
+                                    <i class="bi bi-play-circle-fill fs-5"></i> Start QC
+                                </button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -287,6 +308,9 @@ function renderQcVariants(batch, items) {
 
         const tr = document.createElement('tr');
         tr.dataset.idx = idx;
+        tr.dataset.passed = '0';
+        tr.dataset.rejected = '0';
+        tr.dataset.rework = '0';
         tr.innerHTML = `
             <td class="ps-3 py-2.5">
                 <input type="hidden" name="items[${idx}][stitching_item_id]" value="${it.id}">
@@ -315,23 +339,16 @@ function renderQcVariants(batch, items) {
                 </span>
             </td>
             <td class="text-center py-2.5">
-                <input type="number" name="items[${idx}][passed_qty]" 
-                       class="form-control form-control-sm text-center fw-bold text-success border-success-subtle input-passed" 
-                       value="${q}" min="0" max="${q}" required oninput="recalcRow(this)">
+                <span class="text-muted small">Pending scan</span>
             </td>
             <td class="text-center py-2.5">
-                <input type="number" name="items[${idx}][rejected_qty]" 
-                       class="form-control form-control-sm text-center fw-bold text-danger border-danger-subtle input-rejected" 
-                       value="0" min="0" max="${q}" oninput="recalcRow(this)">
+                <span class="text-muted small">Pending scan</span>
             </td>
             <td class="text-center py-2.5">
-                <input type="number" name="items[${idx}][rework_qty]" 
-                       class="form-control form-control-sm text-center fw-bold text-warning-emphasis border-warning-subtle input-rework" 
-                       value="0" min="0" max="${q}" oninput="recalcRow(this)">
+                <span class="text-muted small">Pending scan</span>
             </td>
             <td class="text-center pe-3 py-2.5">
-                <input type="text" name="items[${idx}][defect_notes]" 
-                       class="form-control form-control-sm" placeholder="Defect/rework details...">
+                <span class="small text-muted">Recorded during scan</span>
             </td>
         `;
         tbody.appendChild(tr);
@@ -341,31 +358,12 @@ function renderQcVariants(batch, items) {
     updateTotals();
 }
 
-function recalcRow(inputElem) {
-    const tr = inputElem.closest('tr');
-    const tot = parseInt(tr.querySelector('.input-total-qty').value) || 0;
-    const passedInput = tr.querySelector('.input-passed');
-    const rejInput = tr.querySelector('.input-rejected');
-    const rewInput = tr.querySelector('.input-rework');
-
-    let rej = parseInt(rejInput.value) || 0;
-    let rew = parseInt(rewInput.value) || 0;
-
-    if (inputElem === rejInput || inputElem === rewInput) {
-        // Auto adjust passed if rej or rew changed
-        const currentPassed = Math.max(0, tot - (rej + rew));
-        passedInput.value = currentPassed;
-    }
-
-    updateTotals();
-}
-
 function updateTotals() {
     let totP = 0, totR = 0, totW = 0;
     document.querySelectorAll('#tbodyQcItems tr').forEach(tr => {
-        totP += parseInt(tr.querySelector('.input-passed')?.value || 0);
-        totR += parseInt(tr.querySelector('.input-rejected')?.value || 0);
-        totW += parseInt(tr.querySelector('.input-rework')?.value || 0);
+        totP += parseInt(tr.dataset.passed || 0);
+        totR += parseInt(tr.dataset.rejected || 0);
+        totW += parseInt(tr.dataset.rework || 0);
     });
 
     document.getElementById('badgeSumPassed').textContent = `Passed: ${totP} pcs`;
@@ -374,9 +372,25 @@ function updateTotals() {
 }
 
 function submitQc(actionType) {
-    document.getElementById('submitActionInput').value = actionType;
     const form = document.getElementById('formQcCreate');
 
+    if (actionType === 'add_to_stock') {
+        const savedQcId = parseInt(document.getElementById('savedQcId')?.value || 0);
+        if (!savedQcId) {
+            alert('Save the QC inspection before adding pieces to stock.');
+            return;
+        }
+        form.action = '<?= \App\Core\Controller::url('/production/qc/complete-inspection') ?>';
+        const btn = document.getElementById('btnAddToStock');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Adding to Stock...';
+        }
+        form.submit();
+        return;
+    }
+
+    document.getElementById('submitActionInput').value = 'save_and_inspect';
     // Validation
     const selectBatch = document.getElementById('selectStitchingBatch');
     if (!selectBatch.value) {
@@ -389,21 +403,6 @@ function submitQc(actionType) {
     if (rows.length === 0 || document.getElementById('rowNoItems')) {
         alert('No variant items to inspect in this batch.');
         return;
-    }
-
-    if (actionType === 'direct_inward') {
-        let hasError = false;
-        rows.forEach(tr => {
-            const tot = parseInt(tr.querySelector('.input-total-qty')?.value || 0);
-            const p = parseInt(tr.querySelector('.input-passed')?.value || 0);
-            const r = parseInt(tr.querySelector('.input-rejected')?.value || 0);
-            const w = parseInt(tr.querySelector('.input-rework')?.value || 0);
-            if (p + r + w > tot) {
-                alert(`Row sum (${p + r + w}) exceeds total stitched pieces (${tot}). Please correct.`);
-                hasError = true;
-            }
-        });
-        if (hasError) return;
     }
 
     // Disable button to prevent double submit

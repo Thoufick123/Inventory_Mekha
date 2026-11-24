@@ -399,6 +399,7 @@ $router->get('/production/qc/inspect', [ProductionController::class, 'inspectQc'
 $router->get('/production/qc/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'export');
 $router->post('/production/qc/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
 $router->post('/production/qc/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
+$router->post('/production/qc/save-inspection', [ProductionController::class, 'saveQcInspection'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/update-piece', [ProductionController::class, 'updateQcPiece'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/pass-all', [ProductionController::class, 'passAllQcPieces'], 'qc_stocks', 'edit|add');
@@ -414,6 +415,7 @@ $router->get('/m/qc_stocks/inspect', [ProductionController::class, 'inspectQc'],
 $router->get('/m/qc_stocks/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'export');
 $router->post('/m/qc_stocks/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
 $router->post('/m/qc_stocks/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
+$router->post('/m/qc_stocks/save-inspection', [ProductionController::class, 'saveQcInspection'], 'qc_stocks', 'edit|add');
 $router->post('/m/qc_stocks/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit|add');
 $router->post('/m/qc_stocks/update-piece', [ProductionController::class, 'updateQcPiece'], 'qc_stocks', 'edit|add');
 $router->post('/m/qc_stocks/pass-all', [ProductionController::class, 'passAllQcPieces'], 'qc_stocks', 'edit|add');

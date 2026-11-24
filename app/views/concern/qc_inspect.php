@@ -205,11 +205,11 @@
                 Cancel
             </a>
 
-            <form action="<?= \App\Core\Controller::url('/production/qc/complete-inspection') ?>" method="POST" id="formCompleteInspection" class="d-inline">
+            <form action="<?= \App\Core\Controller::url('/production/qc/save-inspection') ?>" method="POST" id="formCompleteInspection" class="d-inline">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="qc_id" value="<?= (int)$qc['id'] ?>">
                 <button type="submit" class="btn btn-success px-4 py-2 fw-semibold shadow-sm fs-6">
-                    <i class="bi bi-box-arrow-in-down me-1"></i> Complete QC &amp; Inward Passed Stock
+                    <i class="bi bi-save me-1"></i> Save Inspection
                 </button>
             </form>
         </div>

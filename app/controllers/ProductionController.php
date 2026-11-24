@@ -6974,6 +6974,64 @@ class ProductionController extends Controller {
             $batchItems = DB::fetchAll($itemsSql, $itemsParams);
         }
 
+        $savedQc = null;
+        $savedQcId = (int)($_GET['qc_id'] ?? 0);
+        if ($savedQcId > 0 && $selectedStitchingId > 0) {
+            $savedQcSql = "
+                SELECT id, qc_no, status, concern_id, stitching_batch_id, defect_notes
+                FROM qc_inspections
+                WHERE id = ? AND stitching_batch_id = ? AND status = 'PENDING'";
+            $savedQcParams = [$savedQcId, $selectedStitchingId];
+            if ($cid) {
+                $savedQcSql .= " AND (concern_id = ? OR concern_id IS NULL)";
+                $savedQcParams[] = $cid;
+            }
+            $savedQc = DB::fetch($savedQcSql, $savedQcParams);
+
+            if ($savedQc) {
+                $pieceStats = DB::fetch(
+                    "SELECT COUNT(*) AS total,
+                            SUM(CASE WHEN verdict = 'PENDING' THEN 1 ELSE 0 END) AS pending
+                     FROM qc_piece_items
+                     WHERE qc_id = ?",
+                    [$savedQcId]
+                );
+                if ((int)($pieceStats['total'] ?? 0) <= 0 || (int)($pieceStats['pending'] ?? 0) > 0) {
+                    $this->flash('info', 'Continue the QC scan and mark every piece before adding passed pieces to stock.');
+                    $this->redirect('/production/qc/inspect?id=' . $savedQcId);
+                    return;
+                }
+
+                $savedQcItems = DB::fetchAll(
+                    "SELECT qii.*,
+                            (SELECT SUM(CASE WHEN qp.verdict = 'PASSED' THEN 1 ELSE 0 END)
+                             FROM qc_piece_items qp WHERE qp.qc_item_id = qii.id) AS scan_passed_qty,
+                            (SELECT SUM(CASE WHEN qp.verdict = 'REJECTED' THEN 1 ELSE 0 END)
+                             FROM qc_piece_items qp WHERE qp.qc_item_id = qii.id) AS scan_rejected_qty,
+                            (SELECT SUM(CASE WHEN qp.verdict = 'REWORK' THEN 1 ELSE 0 END)
+                             FROM qc_piece_items qp WHERE qp.qc_item_id = qii.id) AS scan_rework_qty,
+                            (SELECT GROUP_CONCAT(DISTINCT NULLIF(qp.defect_reason, '') SEPARATOR '; ')
+                             FROM qc_piece_items qp WHERE qp.qc_item_id = qii.id) AS scan_defect_notes
+                     FROM qc_inspection_items qii
+                     WHERE qii.qc_id = ?
+                     ORDER BY qii.id ASC",
+                    [$savedQcId]
+                );
+                $savedQcItemsByStitchingItem = [];
+                foreach ($savedQcItems as $savedQcItem) {
+                    $savedQcItemsByStitchingItem[(int)$savedQcItem['stitching_item_id']] = $savedQcItem;
+                }
+                foreach ($batchItems as &$batchItem) {
+                    $savedQcItem = $savedQcItemsByStitchingItem[(int)$batchItem['id']] ?? [];
+                    $batchItem['qc_passed_qty'] = (int)($savedQcItem['scan_passed_qty'] ?? 0);
+                    $batchItem['qc_rejected_qty'] = (int)($savedQcItem['scan_rejected_qty'] ?? 0);
+                    $batchItem['qc_rework_qty'] = (int)($savedQcItem['scan_rework_qty'] ?? 0);
+                    $batchItem['qc_defect_notes'] = (string)($savedQcItem['scan_defect_notes'] ?? $savedQcItem['defect_notes'] ?? '');
+                }
+                unset($batchItem);
+            }
+        }
+
         // Inspectors list
         $inspectors = DB::fetchAll("
             SELECT u.id, u.name, r.name AS role, u.email 
@@ -6990,6 +7048,7 @@ class ProductionController extends Controller {
             'selectedBatch'       => $selectedBatch,
             'selectedStitchingId' => $selectedStitchingId,
             'batchItems'          => $batchItems,
+            'savedQc'             => $savedQc,
             'inspectors'          => $inspectors,
             'csrfToken'           => Auth::csrfToken(),
             'selectedCid'         => $cid,
@@ -6997,7 +7056,7 @@ class ProductionController extends Controller {
     }
 
     /**
-     * Store QC Inspection (From Table Mode or Initialize Scanner)
+     * Initialize a QC inspection and create its scanner piece records.
      */
     public function storeQc(): void {
         ModuleGuard::enforce('qc_stocks', 'add');
@@ -7009,7 +7068,13 @@ class ProductionController extends Controller {
         $inspectorId      = (int)($_POST['inspector_id'] ?? Auth::id() ?: 1);
         $location         = 'Main Store';
         $generalNotes     = trim($_POST['notes'] ?? '');
-        $submitAction     = trim($_POST['submit_action'] ?? 'direct_inward');
+        $submitAction     = trim($_POST['submit_action'] ?? '');
+
+        if ($submitAction !== 'save_and_inspect') {
+            $this->flash('error', 'QC must be inspected before passed pieces can be added to stock.');
+            $this->redirect('/production/qc/create?stitching_batch_id=' . $stitchingBatchId);
+            return;
+        }
 
         if (!$stitchingBatchId) {
             $this->flash('error', 'Please select a valid Stitching Production Batch.');
@@ -7058,9 +7123,6 @@ class ProductionController extends Controller {
             return;
         }
 
-        $inspector = DB::fetch("SELECT name FROM users WHERE id = ?", [$inspectorId]);
-        $inspectorName = $inspector['name'] ?? 'System Administrator';
-
         $submittedItems = $_POST['items'] ?? [];
         if (empty($submittedItems) || !is_array($submittedItems)) {
             $this->flash('error', 'No variant items available in this batch for inspection.');
@@ -7078,31 +7140,14 @@ class ProductionController extends Controller {
         $totRework = 0;
 
         foreach ($submittedItems as $it) {
-            $totInspected += (int)($it['total_qty'] ?? 0);
-            $totPassed    += (int)($it['passed_qty'] ?? 0);
-            $totRejected  += (int)($it['rejected_qty'] ?? 0);
-            $totRework    += (int)($it['rework_qty'] ?? 0);
+            $totInspected += max(0, (int)($it['total_qty'] ?? 0));
         }
 
         if ($totInspected <= 0) {
             $totInspected = (int)$batch['stitched_pieces'];
         }
 
-        // Status calculation
-        if ($submitAction === 'save_and_inspect') {
-            $status = 'PENDING';
-            $totPassed = 0;
-            $totRejected = 0;
-            $totRework = 0;
-        } elseif ($totRework > 0) {
-            $status = 'REWORK';
-        } elseif ($totRejected > 0 && $totPassed > 0) {
-            $status = 'PARTIAL';
-        } elseif ($totRejected > 0 && $totPassed == 0) {
-            $status = 'REJECTED';
-        } else {
-            $status = 'PASSED';
-        }
+        $status = 'PENDING';
 
         $firstVariantId = !empty($submittedItems[0]['variant_id']) ? (int)$submittedItems[0]['variant_id'] : null;
 
@@ -7136,9 +7181,9 @@ class ProductionController extends Controller {
                 $sku             = trim($it['sku_code'] ?? '');
                 $variantName     = trim($it['variant_name'] ?? '');
                 $inspectedQ      = max(0, (int)($it['total_qty'] ?? 0));
-                $passedQ         = ($submitAction === 'save_and_inspect') ? 0 : max(0, (int)($it['passed_qty'] ?? 0));
-                $rejectedQ       = ($submitAction === 'save_and_inspect') ? 0 : max(0, (int)($it['rejected_qty'] ?? 0));
-                $reworkQ         = ($submitAction === 'save_and_inspect') ? 0 : max(0, (int)($it['rework_qty'] ?? 0));
+                $passedQ         = 0;
+                $rejectedQ       = 0;
+                $reworkQ         = 0;
                 $defectNote      = trim($it['defect_notes'] ?? '');
                 $reworkNote      = trim($it['rework_notes'] ?? '');
 
@@ -7175,17 +7220,7 @@ class ProductionController extends Controller {
                     // Single code for one variant's products (matching production QR label code)
                     $pieceCode = $baseProductCode;
                     
-                    if ($submitAction === 'save_and_inspect') {
-                        $pVerdict = 'PENDING';
-                    } else {
-                        if ($p <= $passedQ) {
-                            $pVerdict = 'PASSED';
-                        } elseif ($p <= ($passedQ + $rejectedQ)) {
-                            $pVerdict = 'REJECTED';
-                        } else {
-                            $pVerdict = 'REWORK';
-                        }
-                    }
+                    $pVerdict = 'PENDING';
 
                     DB::query("
                         INSERT INTO qc_piece_items (
@@ -7200,39 +7235,13 @@ class ProductionController extends Controller {
                     $tagSeq++;
                 }
 
-                // If Direct Inward: credit passed quantities directly to stocks!
-                if ($submitAction === 'direct_inward' && $passedQ > 0 && $variantId > 0) {
-                    $this->inwardVariantToStock(
-                        $variantId,
-                        (float)$passedQ,
-                        $cid,
-                        $qcId,
-                        $qcNo,
-                        $batch['display_batch_no'],
-                        $location,
-                        (int)$batch['program_id'],
-                        $stitchingBatchId,
-                        $inspectorName
-                    );
-                }
-            }
-
-            // If direct inward and all finished, mark stitching log inwarded
-            if ($submitAction === 'direct_inward') {
-                DB::query("UPDATE stitching_logs SET inward_status = 'completed' WHERE id = ?", [$stitchingBatchId]);
             }
 
             DB::commit();
 
-            if ($submitAction === 'save_and_inspect') {
-                $this->flash('success', "QC Inspection Batch {$qcNo} initialized! Please scan or mark garment pieces.");
-                $this->redirect("/production/qc/inspect?id={$qcId}");
-                return;
-            } else {
-                $this->flash('success', "Quality Control {$qcNo} completed! {$totPassed} pcs passed and credited directly to Live Stock ({$totRejected} rejected, {$totRework} rework).");
-                $this->redirect("/production/qc/details?id={$qcId}");
-                return;
-            }
+            $this->flash('success', "QC Inspection Batch {$qcNo} initialized. Scan each garment and record its verdict.");
+            $this->redirect("/production/qc/inspect?id={$qcId}");
+            return;
         } catch (\Throwable $e) {
             DB::rollBack();
             $this->flash('error', 'Failed to save QC inspection: ' . $e->getMessage());
@@ -7438,13 +7447,105 @@ class ProductionController extends Controller {
     }
 
     /**
-     * Complete QC inspection from 2D scanner and inward passed garments directly to stock
+     * Save scanner verdicts and return to the QC batch page without moving stock.
+     */
+    public function saveQcInspection(): void {
+        ModuleGuard::enforce('qc_stocks', 'edit|add');
+        $this->ensureQcSchema();
+        $this->validateCsrf();
+
+        $authCid = Auth::concernId();
+        if (!$authCid && !Auth::isSuperAdmin()) {
+            $this->flash('error', 'Select a concern before saving QC.');
+            $this->redirect('/production/qc');
+            return;
+        }
+
+        $id = (int)($_POST['qc_id'] ?? 0);
+        $qcSql = "SELECT id, qc_no, stitching_batch_id, status, concern_id FROM qc_inspections WHERE id = ?";
+        $qcParams = [$id];
+        if ($authCid) {
+            $qcSql .= " AND (concern_id = ? OR concern_id IS NULL)";
+            $qcParams[] = $authCid;
+        }
+        $qc = DB::fetch($qcSql, $qcParams);
+        if (!$qc || strtoupper((string)$qc['status']) !== 'PENDING') {
+            $this->flash('error', 'The pending QC inspection could not be found.');
+            $this->redirect('/production/qc');
+            return;
+        }
+
+        $counts = DB::fetch(
+            "SELECT COUNT(*) AS total,
+                    SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                    SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                    SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework,
+                    SUM(CASE WHEN verdict = 'PENDING' THEN 1 ELSE 0 END) AS pending
+             FROM qc_piece_items
+             WHERE qc_id = ?",
+            [$id]
+        );
+        if ((int)($counts['total'] ?? 0) <= 0 || (int)($counts['pending'] ?? 0) > 0) {
+            $this->flash('error', 'Record a verdict for every garment before saving the inspection.');
+            $this->redirect('/production/qc/inspect?id=' . $id);
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            $qcItems = DB::fetchAll("SELECT id FROM qc_inspection_items WHERE qc_id = ?", [$id]);
+            foreach ($qcItems as $qcItem) {
+                $itemCounts = DB::fetch(
+                    "SELECT SUM(CASE WHEN verdict = 'PASSED' THEN 1 ELSE 0 END) AS passed,
+                            SUM(CASE WHEN verdict = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+                            SUM(CASE WHEN verdict = 'REWORK' THEN 1 ELSE 0 END) AS rework
+                     FROM qc_piece_items
+                     WHERE qc_item_id = ?",
+                    [(int)$qcItem['id']]
+                );
+                DB::query(
+                    "UPDATE qc_inspection_items
+                     SET passed_qty = ?, rejected_qty = ?, rework_qty = ?
+                     WHERE id = ?",
+                    [
+                        (int)($itemCounts['passed'] ?? 0),
+                        (int)($itemCounts['rejected'] ?? 0),
+                        (int)($itemCounts['rework'] ?? 0),
+                        (int)$qcItem['id']
+                    ]
+                );
+            }
+
+            DB::query(
+                "UPDATE qc_inspections
+                 SET passed_qty = ?, rejected_qty = ?, rework_qty = ?
+                 WHERE id = ? AND status = 'PENDING'",
+                [
+                    (int)($counts['passed'] ?? 0),
+                    (int)($counts['rejected'] ?? 0),
+                    (int)($counts['rework'] ?? 0),
+                    $id
+                ]
+            );
+            DB::commit();
+
+            $this->flash('success', "QC {$qc['qc_no']} saved. Review the verdicts and add passed pieces to stock from this page.");
+            $this->redirect('/production/qc/create?stitching_batch_id=' . (int)$qc['stitching_batch_id'] . '&qc_id=' . $id);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->flash('error', 'Failed to save QC inspection: ' . $e->getMessage());
+            $this->redirect('/production/qc/inspect?id=' . $id);
+        }
+    }
+
+    /**
+     * Add passed pieces from a saved QC inspection to stock.
      */
     public function completeQcInspection(): void {
         $this->ensureQcSchema();
         $this->validateCsrf();
-        $cid = Auth::concernId();
-        if (!$cid && !Auth::isSuperAdmin()) {
+        $authCid = Auth::concernId();
+        if (!$authCid && !Auth::isSuperAdmin()) {
             $this->flash('error', 'Select a concern before completing QC.');
             $this->redirect('/production/qc');
             return;
@@ -7457,8 +7558,8 @@ class ProductionController extends Controller {
             FROM qc_inspections qi
             LEFT JOIN stitching_logs sl ON qi.stitching_batch_id = sl.id
             LEFT JOIN users u ON qi.inspector_id = u.id
-            WHERE qi.id = ?" . ($cid ? " AND (qi.concern_id = ? OR qi.concern_id IS NULL)" : ""),
-            $cid ? [$id, $cid] : [$id]
+            WHERE qi.id = ?" . ($authCid ? " AND (qi.concern_id = ? OR qi.concern_id IS NULL)" : ""),
+            $authCid ? [$id, $authCid] : [$id]
         );
 
         if (!$qc) {
@@ -7467,14 +7568,25 @@ class ProductionController extends Controller {
             return;
         }
 
+        $cid = $authCid ?: (int)($qc['concern_id'] ?? 0);
+        if ($cid <= 0) {
+            $this->flash('error', 'The QC inspection is not linked to an active concern.');
+            $this->redirect('/production/qc');
+            return;
+        }
         $terminalStatus = strtoupper((string)($qc['status'] ?? ''));
         $pendingPieces = (int)DB::fetchValue(
             "SELECT COUNT(*) FROM qc_piece_items WHERE qc_id = ? AND verdict = 'PENDING'",
             [$id]
         );
-        if ($pendingPieces === 0 && in_array($terminalStatus, ['PASSED', 'PARTIAL', 'REJECTED', 'REWORK', 'COMPLETED'], true)) {
+        if ($pendingPieces === 0 && in_array($terminalStatus, ['PASSED', 'PARTIAL', 'REJECTED', 'REWORK', 'COMPLETED', 'CANCELLED'], true)) {
             $this->flash('warning', "QC {$qc['qc_no']} has already been completed. Stock is not credited again.");
             $this->redirect("/production/qc/details?id={$id}");
+            return;
+        }
+        if ($pendingPieces > 0) {
+            $this->flash('error', 'Every garment must have a saved verdict before passed pieces can be added to stock.');
+            $this->redirect("/production/qc/inspect?id={$id}");
             return;
         }
 
@@ -7485,6 +7597,24 @@ class ProductionController extends Controller {
 
         DB::beginTransaction();
         try {
+            $lockedQc = DB::fetch("SELECT status FROM qc_inspections WHERE id = ? FOR UPDATE", [$id]);
+            if (!$lockedQc || in_array(strtoupper((string)$lockedQc['status']), ['PASSED', 'PARTIAL', 'REJECTED', 'REWORK', 'COMPLETED', 'CANCELLED'], true)) {
+                DB::rollBack();
+                $this->flash('warning', "QC {$qc['qc_no']} has already been completed. Stock is not credited again.");
+                $this->redirect("/production/qc/details?id={$id}");
+                return;
+            }
+            $lockedPendingPieces = (int)DB::fetchValue(
+                "SELECT COUNT(*) FROM qc_piece_items WHERE qc_id = ? AND verdict = 'PENDING'",
+                [$id]
+            );
+            if ($lockedPendingPieces > 0) {
+                DB::rollBack();
+                $this->flash('error', 'Every garment must have a saved verdict before passed pieces can be added to stock.');
+                $this->redirect("/production/qc/inspect?id={$id}");
+                return;
+            }
+
             // Group pieces by variant and verdict
             $items = DB::fetchAll("SELECT * FROM qc_inspection_items WHERE qc_id = ?", [$id]);
             $totalPassed = 0;
