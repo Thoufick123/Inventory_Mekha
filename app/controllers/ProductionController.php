@@ -5698,7 +5698,7 @@ class ProductionController extends Controller {
         $this->validateCsrf();
         $cid = Auth::concernId();
 
-        $stitchingName = trim($_POST['stitching_name'] ?? '');
+        $stitchingName = strtoupper(trim($_POST['stitching_name'] ?? ''));
         $batchNo       = trim($_POST['batch_no'] ?? '');
         $cuttingId     = (int)($_POST['cutting_id'] ?? 0);
         $tailorId      = !empty($_POST['tailor_id']) ? (int)$_POST['tailor_id'] : null;
@@ -6037,7 +6037,7 @@ class ProductionController extends Controller {
             $this->redirect('/production/stitching');
         }
 
-        $stitchingName = trim($_POST['stitching_name'] ?? '');
+        $stitchingName = strtoupper(trim($_POST['stitching_name'] ?? ''));
         $tailorId      = !empty($_POST['tailor_id']) ? (int)$_POST['tailor_id'] : null;
         $status        = in_array($_POST['status'] ?? '', ['in_progress', 'planned', 'completed']) ? $_POST['status'] : $batch['status'];
         $notes         = trim($_POST['notes'] ?? '');

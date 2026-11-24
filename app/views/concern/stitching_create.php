@@ -48,7 +48,8 @@
                             </label>
                             <input type="text" name="stitching_name" id="stitchingName" 
                                    class="form-control text-uppercase fw-semibold" 
-                                   placeholder="E.G. STITCHING - LOT A" required>
+                                   placeholder="E.G. STITCHING - LOT A"
+                                   oninput="this.value = this.value.toUpperCase();" required>
                             <div class="invalid-feedback">Please enter a Stitching Name.</div>
                             <div class="form-text small text-muted">Identifies this stitching production batch.</div>
                         </div>

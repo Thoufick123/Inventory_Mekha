@@ -63,7 +63,8 @@
                             </label>
                             <input type="text" name="stitching_name" id="stitchingName" 
                                    class="form-control text-uppercase fw-semibold" 
-                                   value="<?= htmlspecialchars($batch['stitching_name'] ?? '') ?>" required>
+                                   value="<?= htmlspecialchars(strtoupper($batch['stitching_name'] ?? '')) ?>"
+                                   oninput="this.value = this.value.toUpperCase();" required>
                             <div class="invalid-feedback">Please enter a Stitching Name.</div>
                             <div class="form-text small text-muted">Identifies this stitching production batch.</div>
                         </div>
