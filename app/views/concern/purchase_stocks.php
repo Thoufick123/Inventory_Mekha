@@ -1198,7 +1198,39 @@ function editConsolidatedRoll(button) {
     document.getElementById('edit_roll_rate').value = button.dataset.rate || '0';
     document.getElementById('edit_roll_total').value = button.dataset.total || '0';
 
+    bindRollAutoCalc();
+
     bootstrap.Modal.getOrCreateInstance(modalElement).show();
+}
+
+let rollCalcBound = false;
+function bindRollAutoCalc() {
+    if (rollCalcBound) return;
+    rollCalcBound = true;
+
+    const qtyInput = document.getElementById('edit_roll_qty');
+    const rateInput = document.getElementById('edit_roll_rate');
+    const totalInput = document.getElementById('edit_roll_total');
+
+    if (!qtyInput || !rateInput || !totalInput) return;
+
+    function recalcTotalFromRate() {
+        const qty = parseFloat(qtyInput.value) || 0;
+        const rate = parseFloat(rateInput.value) || 0;
+        totalInput.value = (qty * rate).toFixed(2);
+    }
+
+    function recalcRateFromTotal() {
+        const qty = parseFloat(qtyInput.value) || 0;
+        const total = parseFloat(totalInput.value) || 0;
+        if (qty > 0) {
+            rateInput.value = (total / qty).toFixed(2);
+        }
+    }
+
+    qtyInput.addEventListener('input', recalcTotalFromRate);
+    rateInput.addEventListener('input', recalcTotalFromRate);
+    totalInput.addEventListener('input', recalcRateFromTotal);
 }
 
 function editPurchaseStockItem(button) {
@@ -1222,7 +1254,39 @@ function editPurchaseStockItem(button) {
     document.getElementById('editPurchaseStockItemModalLabel').textContent =
         type === 'finished_goods' ? 'Edit Finished Goods Stock' : 'Edit Garment Supply / Trim';
 
+    bindItemAutoCalc();
+
     bootstrap.Modal.getOrCreateInstance(modalElement).show();
+}
+
+let itemCalcBound = false;
+function bindItemAutoCalc() {
+    if (itemCalcBound) return;
+    itemCalcBound = true;
+
+    const qtyInput = document.getElementById('edit_stock_qty');
+    const priceInput = document.getElementById('edit_stock_unit_price');
+    const totalInput = document.getElementById('edit_stock_total_value');
+
+    if (!qtyInput || !priceInput || !totalInput) return;
+
+    function recalcTotalFromPrice() {
+        const qty = parseFloat(qtyInput.value) || 0;
+        const price = parseFloat(priceInput.value) || 0;
+        totalInput.value = (qty * price).toFixed(2);
+    }
+
+    function recalcPriceFromTotal() {
+        const qty = parseFloat(qtyInput.value) || 0;
+        const total = parseFloat(totalInput.value) || 0;
+        if (qty > 0) {
+            priceInput.value = (total / qty).toFixed(2);
+        }
+    }
+
+    qtyInput.addEventListener('input', recalcTotalFromPrice);
+    priceInput.addEventListener('input', recalcTotalFromPrice);
+    totalInput.addEventListener('input', recalcPriceFromTotal);
 }
 
 function switchRollView(mode) {
