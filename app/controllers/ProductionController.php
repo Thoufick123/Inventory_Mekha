@@ -6518,22 +6518,7 @@ class ProductionController extends Controller {
             DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
 
             // Consolidate legacy 'Main Store (WH-01)' to unified 'Main Store'
-            $whStocks = DB::fetchAll("SELECT * FROM stocks WHERE location = 'Main Store (WH-01)'");
-            foreach ($whStocks as $ws) {
-                $mainStock = DB::fetch(
-                    "SELECT id, qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'",
-                    [$ws['concern_id'], $ws['variant_id']]
-                );
-                if ($mainStock) {
-                    DB::query("UPDATE stocks SET qty = qty + ?, updated_at = NOW() WHERE id = ?", [$ws['qty'], $mainStock['id']]);
-                    DB::query("DELETE FROM stocks WHERE id = ?", [$ws['id']]);
-                } else {
-                    DB::query("UPDATE stocks SET location = 'Main Store', updated_at = NOW() WHERE id = ?", [$ws['id']]);
-                }
-            }
-            DB::query("UPDATE stock_ledger SET location = 'Main Store' WHERE location = 'Main Store (WH-01)'");
-            DB::query("UPDATE qc_inspections SET location = 'Main Store' WHERE location = 'Main Store (WH-01)'");
-            DB::query("UPDATE batches SET warehouse_name = 'Main Store' WHERE warehouse_name = 'Main Store (WH-01)'");
+            \App\Services\StockService::consolidateLegacyLocations();
         } catch (\Throwable $e) {}
     }
 

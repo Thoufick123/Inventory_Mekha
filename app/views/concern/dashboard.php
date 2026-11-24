@@ -140,7 +140,9 @@
                 <?php if (\App\Core\Auth::can('outward', 'add')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/outward') ?>" class="btn btn-sm btn-outline-danger"><i class="bi bi-box-arrow-up-right"></i> Outward Consignment</a>
                 <?php endif; ?>
+                <?php if (\App\Core\Auth::can('stocks', 'add') || \App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('inward', 'add')): ?>
                 <a href="<?= \App\Core\Controller::url('/scan') ?>" class="btn btn-sm btn-primary"><i class="bi bi-qr-code-scan"></i> Scan Barcode</a>
+                <?php endif; ?>
             </div>
         </div>
     </div>

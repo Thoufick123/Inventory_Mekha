@@ -829,6 +829,7 @@ class SalesController extends Controller {
     // POS billing terminal (Shop module).
     public function billing(): void {
         ModuleGuard::enforce('billing', 'view');
+        \App\Services\StockService::consolidateLegacyLocations();
         $cid = Auth::concernId();
         if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
             $cid = null;
@@ -1130,6 +1131,7 @@ class SalesController extends Controller {
     public function completePosSale(): void {
         ModuleGuard::enforce('billing', 'add');
         $this->validateCsrf();
+        \App\Services\StockService::consolidateLegacyLocations();
         $cid = Auth::concernId();
         if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
             $cid = null;
@@ -1462,19 +1464,23 @@ class SalesController extends Controller {
                 );
 
                 // Deduct stock via StockService::move
+                $qtyToDeduct = (float)$item['qty'];
                 $msQty = (float)DB::fetchValue("SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'", [$cid, $item['variant_id']]);
-                $moveLocation = ($msQty >= $item['qty']) ? 'Main Store' : (DB::fetchValue("SELECT location FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store (WH-01)'", [$cid, $item['variant_id']]) ? 'Main Store (WH-01)' : 'Main Store');
-                StockService::move(
-                    $cid,
-                    $item['variant_id'],
-                    $moveLocation,
-                    0.00,
-                    $item['qty'],
-                    'Billing',
-                    $invoiceId,
-                    "POS Sale #{$invoiceNo}",
-                    Auth::id()
-                );
+                if ($msQty >= $qtyToDeduct) {
+                    StockService::move($cid, $item['variant_id'], 'Main Store', 0.00, $qtyToDeduct, 'Billing', $invoiceId, "POS Sale #{$invoiceNo}", Auth::id());
+                } else {
+                    if ($msQty > 0) {
+                        StockService::move($cid, $item['variant_id'], 'Main Store', 0.00, $msQty, 'Billing', $invoiceId, "POS Sale #{$invoiceNo}", Auth::id());
+                        $qtyToDeduct -= $msQty;
+                    }
+                    if ($qtyToDeduct > 0) {
+                        $otherLoc = DB::fetchValue(
+                            "SELECT location FROM stocks WHERE concern_id = ? AND variant_id = ? AND qty >= ? AND location NOT LIKE '%:DAMAGED%' AND location NOT LIKE '%:QUARANTINE%' ORDER BY qty DESC LIMIT 1",
+                            [$cid, $item['variant_id'], $qtyToDeduct]
+                        ) ?: 'Main Store';
+                        StockService::move($cid, $item['variant_id'], $otherLoc, 0.00, $qtyToDeduct, 'Billing', $invoiceId, "POS Sale #{$invoiceNo}", Auth::id());
+                    }
+                }
             }
 
             // 5. Post to Cash Accounts / Cash Flow Ledger

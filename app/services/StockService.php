@@ -11,6 +11,69 @@ use Exception;
 
 class StockService {
     /**
+     * Consolidate legacy 'Main Store (WH-01)' rows to unified 'Main Store'
+     */
+    public static function consolidateLegacyLocations(): void {
+        static $done = false;
+        if ($done) return;
+        $done = true;
+
+        try {
+            $whStocks = DB::fetchAll("SELECT * FROM stocks WHERE location = 'Main Store (WH-01)'");
+            foreach ($whStocks as $ws) {
+                $mainStock = DB::fetch(
+                    "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'",
+                    [$ws['concern_id'], $ws['variant_id']]
+                );
+                if ($mainStock) {
+                    DB::query(
+                        "UPDATE stocks SET qty = qty + ?, updated_at = NOW() WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store'",
+                        [$ws['qty'], $ws['concern_id'], $ws['variant_id']]
+                    );
+                    DB::query(
+                        "DELETE FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store (WH-01)'",
+                        [$ws['concern_id'], $ws['variant_id']]
+                    );
+                } else {
+                    DB::query(
+                        "UPDATE stocks SET location = 'Main Store', updated_at = NOW() WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store (WH-01)'",
+                        [$ws['concern_id'], $ws['variant_id']]
+                    );
+                }
+            }
+
+            $whDamaged = DB::fetchAll("SELECT * FROM stocks WHERE location = 'Main Store (WH-01):DAMAGED'");
+            foreach ($whDamaged as $wd) {
+                $mainDamaged = DB::fetch(
+                    "SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store:DAMAGED'",
+                    [$wd['concern_id'], $wd['variant_id']]
+                );
+                if ($mainDamaged) {
+                    DB::query(
+                        "UPDATE stocks SET qty = qty + ?, updated_at = NOW() WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store:DAMAGED'",
+                        [$wd['qty'], $wd['concern_id'], $wd['variant_id']]
+                    );
+                    DB::query(
+                        "DELETE FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store (WH-01):DAMAGED'",
+                        [$wd['concern_id'], $wd['variant_id']]
+                    );
+                } else {
+                    DB::query(
+                        "UPDATE stocks SET location = 'Main Store:DAMAGED', updated_at = NOW() WHERE concern_id = ? AND variant_id = ? AND location = 'Main Store (WH-01):DAMAGED'",
+                        [$wd['concern_id'], $wd['variant_id']]
+                    );
+                }
+            }
+
+            DB::query("UPDATE stock_ledger SET location = 'Main Store' WHERE location = 'Main Store (WH-01)'");
+            DB::query("UPDATE stock_ledger SET location = 'Main Store:DAMAGED' WHERE location = 'Main Store (WH-01):DAMAGED'");
+            DB::query("UPDATE qc_inspections SET location = 'Main Store' WHERE location = 'Main Store (WH-01)'");
+            DB::query("UPDATE batches SET warehouse_name = 'Main Store' WHERE warehouse_name = 'Main Store (WH-01)'");
+            DB::query("UPDATE concern_damages SET location = 'Main Store' WHERE location = 'Main Store (WH-01)'");
+        } catch (\Throwable $e) {}
+    }
+
+    /**
      * Atomically move stock and record ledger entry.
      * Guaranteed single point of stock mutations.
      *
