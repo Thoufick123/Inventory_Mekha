@@ -9,6 +9,7 @@ use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
 use App\Models\Batch;
+use App\Services\StockService;
 use Exception;
 
 class BatchController extends Controller {
@@ -31,6 +32,28 @@ class BatchController extends Controller {
             // Ensure schema tables
             self::ensureBaseTables();
 
+            DB::query("
+                CREATE TABLE IF NOT EXISTS `batch_items` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `concern_id` INT NOT NULL,
+                    `batch_id` INT NOT NULL,
+                    `variant_id` INT NOT NULL,
+                    `size` VARCHAR(50) NULL,
+                    `color` VARCHAR(50) NULL,
+                    `sku_code` VARCHAR(100) NULL,
+                    `qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `unit_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `taxable_value` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `gst_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `total_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    `qr_codes` LONGTEXT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`batch_id`),
+                    INDEX (`variant_id`),
+                    INDEX (`concern_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+
             $batchCols = array_column(DB::fetchAll("DESCRIBE `batches`"), 'Field');
             if (!in_array('warehouse_id', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `warehouse_id` INT NULL AFTER `total_boxes`");
             if (!in_array('warehouse_name', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `warehouse_name` VARCHAR(150) NULL AFTER `warehouse_id`");
@@ -41,11 +64,30 @@ class BatchController extends Controller {
             if (!in_array('gst_amount', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `gst_amount` DECIMAL(12,2) DEFAULT 0.00 AFTER `taxable_value`");
             if (!in_array('total_amount', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `total_amount` DECIMAL(12,2) DEFAULT 0.00 AFTER `gst_amount`");
             if (!in_array('bill_no', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `bill_no` VARCHAR(100) NULL AFTER `total_amount`");
-            if (!in_array('fabric_details', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `fabric_details` VARCHAR(255) DEFAULT 'GREEN / BIRDS' AFTER `bill_no`");
+            if (!in_array('outward_id', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `outward_id` INT NULL AFTER `bill_no`");
+            if (!in_array('fabric_details', $batchCols)) DB::query("ALTER TABLE `batches` ADD COLUMN `fabric_details` VARCHAR(255) DEFAULT 'GREEN / BIRDS' AFTER `outward_id`");
+
+            DB::query("ALTER TABLE `batches` MODIFY COLUMN `variant_id` INT NULL");
+
+            // Backfill batch_items for any batches created previously without line items
+            $unfilledBatches = DB::fetchAll("SELECT b.id, b.concern_id, b.variant_id, b.batch_qty, b.taxable_value, b.gst_amount, b.total_amount, b.qr_codes, b.created_at FROM batches b WHERE b.id NOT IN (SELECT DISTINCT batch_id FROM batch_items)");
+            foreach ($unfilledBatches as $ub) {
+                if (!empty($ub['variant_id'])) {
+                    $vRow = DB::fetch("SELECT size, sku_code, price FROM variants WHERE id = ?", [$ub['variant_id']]);
+                    if ($vRow) {
+                        DB::query("
+                            INSERT INTO batch_items (concern_id, batch_id, variant_id, size, sku_code, qty, unit_price, taxable_value, gst_amount, total_amount, qr_codes, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ", [
+                            $ub['concern_id'], $ub['id'], $ub['variant_id'], $vRow['size'], $vRow['sku_code'],
+                            $ub['batch_qty'], $vRow['price'] ?: 700, $ub['taxable_value'], $ub['gst_amount'], $ub['total_amount'], $ub['qr_codes'], $ub['created_at']
+                        ]);
+                    }
+                }
+            }
 
             self::$dataEnsured = true;
         } catch (\Throwable $e) {
-            // Log but don't break
             error_log("BatchController ensureBatchData error: " . $e->getMessage());
         }
     }
@@ -67,12 +109,15 @@ class BatchController extends Controller {
                        v.name AS variant_name, v.sku_code, v.size, v.weight_unit, v.price, v.mrp,
                        p.program_no, p.program_name,
                        pu.name AS production_unit_name, pu.code AS production_unit_code,
-                       u.name AS approver_name
+                       u.name AS approver_name,
+                       o.outward_no, o.gate_pass_no, dest_con.name AS dest_concern_name
                 FROM batches b
                 LEFT JOIN variants v ON b.variant_id = v.id
                 LEFT JOIN production_programs p ON b.program_id = p.id
                 LEFT JOIN production_units pu ON b.production_unit_id = pu.id
                 LEFT JOIN users u ON b.approved_by = u.id
+                LEFT JOIN outwards o ON (b.outward_id = o.id OR (SELECT pob.outward_id FROM production_outward_batches pob WHERE pob.batch_id = b.id LIMIT 1) = o.id)
+                LEFT JOIN concerns dest_con ON o.destination_concern_id = dest_con.id
                 WHERE 1=1";
         $params = [];
 
@@ -93,8 +138,9 @@ class BatchController extends Controller {
         }
 
         if ($search !== '') {
-            $sql .= " AND (b.batch_no LIKE ? OR p.program_no LIKE ? OR v.name LIKE ? OR b.warehouse_name LIKE ?)";
+            $sql .= " AND (b.batch_no LIKE ? OR p.program_no LIKE ? OR v.name LIKE ? OR b.warehouse_name LIKE ? OR o.outward_no LIKE ?)";
             $term = "%{$search}%";
+            $params[] = $term;
             $params[] = $term;
             $params[] = $term;
             $params[] = $term;
@@ -117,6 +163,7 @@ class BatchController extends Controller {
 
         $variants = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE status = 'active' LIMIT 100");
         $programs = DB::fetchAll("SELECT id, program_no, program_name FROM production_programs ORDER BY id DESC LIMIT 50");
+        $allConcerns = DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY id ASC");
 
         $this->render('concern/batch', [
             'pageTitle'       => 'Finished Production Batches',
@@ -132,40 +179,36 @@ class BatchController extends Controller {
             'warehouses'      => $warehouses,
             'variants'        => $variants,
             'programs'        => $programs,
+            'allConcerns'     => $allConcerns,
         ]);
     }
 
     /**
-     * 2. Pack Finished Production Batch Form View (Image 2)
+     * 2. Pack Finished Production Batch Form View (Single QC Inspection dropdown, all variants listed)
      */
     public function create(): void {
         $cid = Auth::concernId() ?: 1;
         $qcBatchId = (int)($_GET['qc_batch_id'] ?? 0);
 
-        // Fetch QC Inspections for this concern with remaining passed pieces
+        // Fetch QC Inspections grouped uniquely by ID so each inspection appears ONCE in the dropdown
         $qcList = DB::fetchAll("
             SELECT q.*, 
-                   v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
-                   COALESCE(p.program_no, q.batch_no, 'PRG-20261113-0001') AS program_no,
-                   COALESCE(p.program_name, v.name) AS program_name
+                   COALESCE(p.program_no, q.batch_no, 'PRG-GEN') AS program_no,
+                   COALESCE(p.program_name, 'Finished Garments') AS program_name
             FROM qc_inspections q
-            JOIN variants v ON q.variant_id = v.id
-            LEFT JOIN production_programs p ON (q.program_id = p.id OR p.target_variant_id = v.id)
+            LEFT JOIN production_programs p ON q.program_id = p.id
             WHERE (q.concern_id = ? OR q.concern_id IS NULL)
               AND (q.passed_qty > 0 OR q.status != 'REJECTED')
             ORDER BY q.id DESC LIMIT 50
         ", [$cid]);
 
         if (empty($qcList)) {
-            // Check if any QC inspections exist at all for this concern
             $qcList = DB::fetchAll("
                 SELECT q.*, 
-                       v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
-                       COALESCE(p.program_no, q.batch_no, 'PRG-20261113-0001') AS program_no,
-                       COALESCE(p.program_name, v.name) AS program_name
+                       COALESCE(p.program_no, q.batch_no, 'PRG-GEN') AS program_no,
+                       COALESCE(p.program_name, 'Finished Garments') AS program_name
                 FROM qc_inspections q
-                JOIN variants v ON q.variant_id = v.id
-                LEFT JOIN production_programs p ON (q.program_id = p.id OR p.target_variant_id = v.id)
+                LEFT JOIN production_programs p ON q.program_id = p.id
                 WHERE (q.concern_id = ? OR q.concern_id IS NULL)
                 ORDER BY q.id DESC LIMIT 50
             ", [$cid]);
@@ -193,118 +236,115 @@ class BatchController extends Controller {
             return;
         }
 
-        // Dynamic Calculation from Real Concern Records (No hardcoded mock numbers)
-        $totalPassed = (int)($selectedQc['passed_qty'] ?? 0);
-        $packed = (int)DB::fetchValue("
-            SELECT COALESCE(SUM(batch_qty), 0) 
-            FROM batches 
-            WHERE qc_batch_id = ? AND (concern_id = ? OR concern_id IS NULL)
-        ", [$selectedQc['id'], $cid]);
-        $passedRem = max(0, $totalPassed - $packed);
-        $rework = (int)($selectedQc['rework_qty'] ?? 0);
-        $rejected = (int)($selectedQc['rejected_qty'] ?? 0);
-
-        // Compute remaining for each item in qcList so dropdown shows correct rem qty
+        // Compute total remaining pieces for each QC inspection so dropdown displays correct rem pcs
         foreach ($qcList as &$item) {
-            $itemTotal = (int)($item['passed_qty'] ?? 0);
-            $itemPacked = (int)DB::fetchValue("
+            $itemTotal = (float)($item['passed_qty'] ?? 0);
+            $itemPacked = (float)DB::fetchValue("
                 SELECT COALESCE(SUM(batch_qty), 0) 
                 FROM batches 
                 WHERE qc_batch_id = ? AND (concern_id = ? OR concern_id IS NULL)
             ", [$item['id'], $cid]);
-            $item['passed_rem'] = max(0, $itemTotal - $itemPacked);
+            $item['passed_rem'] = max(0, (int)($itemTotal - $itemPacked));
         }
         unset($item);
 
+        $totalPassed = (float)($selectedQc['passed_qty'] ?? 0);
+        $packed = (float)DB::fetchValue("
+            SELECT COALESCE(SUM(batch_qty), 0) 
+            FROM batches 
+            WHERE qc_batch_id = ? AND (concern_id = ? OR concern_id IS NULL)
+        ", [$selectedQc['id'], $cid]);
+        $passedRem = max(0, (int)($totalPassed - $packed));
+        $rework = (int)($selectedQc['rework_qty'] ?? 0);
+        $rejected = (int)($selectedQc['rejected_qty'] ?? 0);
+
         $programStats = [
             'program_no'      => $selectedQc['program_no'] ?? 'PRG-GEN',
-            'program_name'    => $selectedQc['program_name'] ?? ($selectedQc['variant_name'] ?? 'Production Piece'),
-            'total_passed'    => $totalPassed,
-            'packed'          => $packed,
-            'passed_rem'      => $passedRem,
+            'program_name'    => $selectedQc['program_name'] ?? 'Production Item',
+            'total_passed'    => (int)$totalPassed,
+            'packed'          => (int)$packed,
+            'passed_rem'      => (int)$passedRem,
             'rework'          => $rework,
             'rejected'        => $rejected,
         ];
 
-        $varPrice = (float)($selectedQc['price'] ?? 0);
-        if ($varPrice <= 0) $varPrice = (float)($selectedQc['mrp'] ?? 0);
-        if ($varPrice <= 0) $varPrice = 700.00;
+        // Fetch all variant line items for this QC inspection from qc_inspection_items
+        $rawItems = DB::fetchAll("
+            SELECT qii.*, 
+                   v.sku_code AS v_sku_code, v.name AS v_name, v.size AS v_size, v.price AS v_price, v.mrp AS v_mrp
+            FROM qc_inspection_items qii
+            LEFT JOIN variants v ON qii.variant_id = v.id
+            WHERE qii.qc_id = ?
+            ORDER BY qii.id ASC
+        ", [$selectedQc['id']]);
 
-        $variant = [
-            'id'             => (int)$selectedQc['variant_id'],
-            'name'           => $selectedQc['variant_name'] ?? 'Production Item',
-            'sku_code'       => $selectedQc['sku_code'] ?? 'GRM-STY-0001-L',
-            'size'           => $selectedQc['size'] ?? 'L',
-            'color'          => 'GREEN',
-            'total_passed'   => $totalPassed,
-            'already_packed' => $packed,
-            'passed_avail'   => $passedRem,
-            'price'          => $varPrice,
-            'mrp'            => (float)($selectedQc['mrp'] ?? $varPrice),
-        ];
-
-        // Fetch real QR tags or generate dynamic piece tags for this concern
-        $limitNum = max(50, (int)($totalPassed + 100));
-        $existingJobTags = [];
-        if (!empty($selectedQc['variant_id'])) {
-            $existingJobTags = DB::fetchAll("
-                SELECT qr_payload FROM label_jobs 
-                WHERE variant_id = ? AND (concern_id = ? OR concern_id IS NULL)
-                ORDER BY id ASC LIMIT {$limitNum}
-            ", [$selectedQc['variant_id'], $cid]);
-        }
-        $allJobCodes = array_filter(array_column($existingJobTags, 'qr_payload'));
-
-        $packedBatches = DB::fetchAll("SELECT qr_codes FROM batches WHERE qc_batch_id = ?", [$selectedQc['id']]);
-        $alreadyPackedCodes = [];
-        foreach ($packedBatches as $pb) {
-            $decoded = json_decode($pb['qr_codes'] ?? '[]', true);
-            if (is_array($decoded)) {
-                $alreadyPackedCodes = array_merge($alreadyPackedCodes, $decoded);
-            }
-        }
-        $alreadyPackedMap = array_flip($alreadyPackedCodes);
-
-        $availableCodes = [];
-        foreach ($allJobCodes as $code) {
-            if (!isset($alreadyPackedMap[$code])) {
-                $availableCodes[] = $code;
+        // Fallback if no qc_inspection_items (e.g. legacy single-variant QC)
+        if (empty($rawItems)) {
+            $fallbackVariant = DB::fetch("SELECT * FROM variants WHERE id = ?", [$selectedQc['variant_id'] ?? 0]);
+            if ($fallbackVariant) {
+                $rawItems = [[
+                    'id'            => 1,
+                    'qc_id'         => $selectedQc['id'],
+                    'variant_id'    => $fallbackVariant['id'],
+                    'size'          => $fallbackVariant['size'],
+                    'color'         => 'Standard',
+                    'sku_code'      => $fallbackVariant['sku_code'],
+                    'variant_name'  => $fallbackVariant['name'],
+                    'inspected_qty' => (int)$selectedQc['inspected_qty'],
+                    'passed_qty'    => (int)$selectedQc['passed_qty'],
+                    'rejected_qty'  => (int)$selectedQc['rejected_qty'],
+                    'rework_qty'    => (int)$selectedQc['rework_qty'],
+                    'v_price'       => $fallbackVariant['price'],
+                    'v_mrp'         => $fallbackVariant['mrp'],
+                ]];
             }
         }
 
-        // Dynamically synthesize unique tags for any remaining approved passed pieces
-        $skuClean = preg_replace('/[^A-Z0-9]/', '', strtoupper($selectedQc['sku_code'] ?? 'KBD'));
-        $prefix = (strlen($skuClean) >= 3 ? substr($skuClean, 0, 3) : 'KBD') . date('md');
-        $startIndex = $packed + 1;
-        for ($i = count($availableCodes); $i < $passedRem; $i++) {
-            $tagNum = $startIndex + $i;
-            $code = $prefix . str_pad((string)$tagNum, 2, '0', STR_PAD_LEFT);
-            if (!isset($alreadyPackedMap[$code])) {
-                $availableCodes[] = $code;
-            }
-        }
+        $variantItems = [];
+        foreach ($rawItems as $ri) {
+            $vid = (int)($ri['variant_id'] ?? 0);
+            $varTotalPassed = (float)($ri['passed_qty'] ?? 0);
 
-        $approvedQrTags = [];
-        $toSelect = array_slice($availableCodes, 0, $passedRem);
-        foreach ($toSelect as $tag) {
-            $approvedQrTags[] = [
-                'tag'      => $tag,
-                'status'   => 'approved',
-                'selected' => true,
+            // Calculate already packed for this variant under this QC inspection
+            $alreadyPacked = (float)DB::fetchValue("
+                SELECT COALESCE(SUM(bi.qty), 0)
+                FROM batch_items bi
+                JOIN batches b ON bi.batch_id = b.id
+                WHERE b.qc_batch_id = ? AND bi.variant_id = ? AND (b.concern_id = ? OR b.concern_id IS NULL)
+            ", [$selectedQc['id'], $vid, $cid]);
+
+            if ($alreadyPacked <= 0) {
+                $alreadyPacked = (float)DB::fetchValue("
+                    SELECT COALESCE(SUM(b.batch_qty), 0)
+                    FROM batches b
+                    WHERE b.qc_batch_id = ? AND b.variant_id = ? AND (b.concern_id = ? OR b.concern_id IS NULL)
+                      AND b.id NOT IN (SELECT DISTINCT batch_id FROM batch_items)
+                ", [$selectedQc['id'], $vid, $cid]);
+            }
+
+            $varPassedAvail = max(0, (int)($varTotalPassed - $alreadyPacked));
+            $varPrice = (float)($ri['v_price'] ?? 0);
+            if ($varPrice <= 0) $varPrice = (float)($ri['v_mrp'] ?? 0);
+            if ($varPrice <= 0) $varPrice = 700.00;
+
+            $variantItems[] = [
+                'variant_id'     => $vid,
+                'name'           => $ri['variant_name'] ?: ($ri['v_name'] ?? 'Production Item'),
+                'sku_code'       => $ri['sku_code'] ?: ($ri['v_sku_code'] ?? ''),
+                'size'           => $ri['size'] ?: ($ri['v_size'] ?? 'Standard'),
+                'color'          => $ri['color'] ?? 'Standard',
+                'total_passed'   => (int)$varTotalPassed,
+                'already_packed' => (int)$alreadyPacked,
+                'passed_avail'   => $varPassedAvail,
+                'rework_qty'     => (int)($ri['rework_qty'] ?? 0),
+                'rejected_qty'   => (int)($ri['rejected_qty'] ?? 0),
+                'price'          => $varPrice,
+                'mrp'            => (float)($ri['v_mrp'] ?? $varPrice),
             ];
         }
 
-        // Dynamically synthesize rework tags if rework > 0
-        $reworkTags = [];
-        if ($rework > 0) {
-            for ($j = 1; $j <= $rework; $j++) {
-                $reworkTags[] = [
-                    'tag'      => $prefix . 'R' . str_pad((string)$j, 2, '0', STR_PAD_LEFT),
-                    'status'   => 'rework',
-                    'selected' => false,
-                ];
-            }
-        }
+        // Active Concerns list for direct outward destination
+        $allConcerns = DB::fetchAll("SELECT id, name, code, address FROM concerns WHERE status = 'active' ORDER BY id ASC");
 
         // Dynamic Warehouses for this concern
         $warehouses = DB::fetchAll("SELECT id, name, code FROM production_units WHERE (concern_id = ? OR concern_id IS NULL) AND is_active = 1", [$cid]);
@@ -313,7 +353,7 @@ class BatchController extends Controller {
         }
         if (empty($warehouses)) {
             $warehouses = [
-                ['id' => 1, 'name' => 'wareouse (WH-01)', 'code' => 'WH-01'],
+                ['id' => 1, 'name' => 'Main Warehouse (WH-01)', 'code' => 'WH-01'],
                 ['id' => 2, 'name' => 'Main Distribution Central', 'code' => 'WH-02'],
             ];
         }
@@ -323,45 +363,104 @@ class BatchController extends Controller {
             'currentModule'   => 'batch',
             'qcList'          => $qcList,
             'selectedQcId'    => (int)($selectedQc['id'] ?? 0),
+            'selectedQc'      => $selectedQc,
             'programStats'    => $programStats,
-            'variant'         => $variant,
-            'approvedQrTags'  => $approvedQrTags,
-            'reworkTags'      => $reworkTags,
+            'variantItems'    => $variantItems,
+            'allConcerns'     => $allConcerns,
             'warehouses'      => $warehouses,
+            'currentConcernId'=> $cid,
         ]);
     }
 
     /**
      * Store newly created packed batch (Form POST)
+     * Supports multi-variant packing and optional direct outward to concern
      */
     public function store(): void {
         $this->validateCsrf();
         $cid = Auth::concernId() ?: 1;
 
+        $action          = trim($_POST['action'] ?? 'pack_only'); // 'pack_only' or 'pack_and_outward'
         $qcBatchId       = (int)($_POST['qc_batch_id'] ?? 0);
-        $programNo       = trim($_POST['program_no'] ?? 'PRG-20261113-0001');
-        $variantId       = (int)($_POST['variant_id'] ?? 0);
+        $programNo       = trim($_POST['program_no'] ?? 'PRG-GEN');
         $warehouseId     = (int)($_POST['warehouse_id'] ?? 1);
-        $warehouseName   = trim($_POST['warehouse_name'] ?? 'wareouse (WH-01)');
+        $warehouseName   = trim($_POST['warehouse_name'] ?? 'Main Warehouse (WH-01)');
         $totalBoxes      = max(1, (int)($_POST['total_boxes'] ?? 1));
-        $qtyToPack       = (float)($_POST['quantity_to_pack'] ?? 0);
         $reworkIncluded  = !empty($_POST['rework_included']) ? 1 : 0;
-        $selectedTags    = $_POST['selected_tags'] ?? [];
-        $taxableValue    = (float)($_POST['taxable_value'] ?? 0.00);
-        $gstAmount       = (float)($_POST['gst_amount'] ?? 0.00);
-        $totalAmount     = (float)($_POST['total_amount'] ?? 0.00);
 
-        if (is_string($selectedTags)) {
-            $selectedTags = json_decode($selectedTags, true) ?: explode(',', $selectedTags);
+        // Direct Outward fields
+        $destConcernId   = !empty($_POST['destination_concern_id']) ? (int)$_POST['destination_concern_id'] : 0;
+        $vehicleNumber   = trim($_POST['vehicle_number'] ?? '');
+        $driverName      = trim($_POST['driver_name'] ?? '');
+        $driverContact   = trim($_POST['driver_contact'] ?? '');
+        $transporterName = trim($_POST['transporter_name'] ?? '');
+
+        $rawItems = $_POST['items'] ?? [];
+        $packedItems = [];
+        $totalBatchQty = 0;
+        $totalTaxable = 0.00;
+        $totalGst = 0.00;
+        $totalAmount = 0.00;
+
+        // Support both items array and legacy single variant submission
+        if (!empty($rawItems) && is_array($rawItems)) {
+            foreach ($rawItems as $vId => $item) {
+                $qty = (float)($item['qty'] ?? 0);
+                if ($qty > 0) {
+                    $unitPrice = (float)($item['unit_price'] ?? 700.00);
+                    $lineTotal = round($qty * $unitPrice, 2);
+                    $lineTaxable = round($lineTotal / 1.05, 2);
+                    $lineGst = round($lineTotal - $lineTaxable, 2);
+
+                    $packedItems[] = [
+                        'variant_id'    => (int)$vId,
+                        'size'          => trim((string)($item['size'] ?? '')),
+                        'color'         => trim((string)($item['color'] ?? '')),
+                        'sku_code'      => trim((string)($item['sku_code'] ?? '')),
+                        'qty'           => $qty,
+                        'unit_price'    => $unitPrice,
+                        'taxable_value' => $lineTaxable,
+                        'gst_amount'    => $lineGst,
+                        'total_amount'  => $lineTotal,
+                    ];
+
+                    $totalBatchQty += $qty;
+                    $totalTaxable += $lineTaxable;
+                    $totalGst += $lineGst;
+                    $totalAmount += $lineTotal;
+                }
+            }
+        } elseif (!empty($_POST['variant_id']) && !empty($_POST['quantity_to_pack'])) {
+            $vId = (int)$_POST['variant_id'];
+            $qty = (float)$_POST['quantity_to_pack'];
+            if ($qty > 0) {
+                $vRow = DB::fetch("SELECT size, sku_code, price FROM variants WHERE id = ?", [$vId]);
+                $unitPrice = (float)($vRow['price'] ?? 700.00);
+                $lineTotal = round($qty * $unitPrice, 2);
+                $lineTaxable = round($lineTotal / 1.05, 2);
+                $lineGst = round($lineTotal - $lineTaxable, 2);
+
+                $packedItems[] = [
+                    'variant_id'    => $vId,
+                    'size'          => $vRow['size'] ?? 'Standard',
+                    'color'         => 'Standard',
+                    'sku_code'      => $vRow['sku_code'] ?? '',
+                    'qty'           => $qty,
+                    'unit_price'    => $unitPrice,
+                    'taxable_value' => $lineTaxable,
+                    'gst_amount'    => $lineGst,
+                    'total_amount'  => $lineTotal,
+                ];
+
+                $totalBatchQty = $qty;
+                $totalTaxable = $lineTaxable;
+                $totalGst = $lineGst;
+                $totalAmount = $lineTotal;
+            }
         }
-        $selectedTags = array_values(array_filter((array)$selectedTags));
 
-        if (!empty($selectedTags)) {
-            $qtyToPack = (float)count($selectedTags);
-        }
-
-        if ($qtyToPack <= 0) {
-            $this->flash('error', 'Please select at least 1 QR code piece to pack.');
+        if ($totalBatchQty <= 0) {
+            $this->flash('error', 'Please enter at least 1 piece to pack across the variants.');
             $this->redirect('/production/batches/create' . ($qcBatchId ? "?qc_batch_id={$qcBatchId}" : ''));
             return;
         }
@@ -373,43 +472,124 @@ class BatchController extends Controller {
         $batchNo = "BAT-{$today}-{$seq}";
         $billNo  = "BILL-{$today}-{$seq}";
 
-        // Lookup program
+        // Lookup program & production unit
         $progId = (int)DB::fetchValue("SELECT id FROM production_programs WHERE program_no = ? LIMIT 1", [$programNo]);
         $puId = (int)DB::fetchValue("SELECT id FROM production_units WHERE (concern_id = ? OR concern_id IS NULL) LIMIT 1", [$cid]) ?: 1;
+        $primaryVariantId = !empty($packedItems[0]['variant_id']) ? $packedItems[0]['variant_id'] : null;
 
+        DB::beginTransaction();
         try {
             DB::query("
                 INSERT INTO batches (
                     concern_id, production_unit_id, program_id, qc_batch_id, batch_no, variant_id,
                     batch_qty, total_boxes, warehouse_id, warehouse_name, packed_by_name, rework_included,
-                    qr_codes, taxable_value, gst_amount, total_amount, bill_no, fabric_details, status, mfg_date, created_at
+                    taxable_value, gst_amount, total_amount, bill_no, fabric_details, status, mfg_date, created_at
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, 'System Administrator', ?,
-                    ?, ?, ?, ?, ?, 'GREEN / BIRDS', 'PREPARING', CURDATE(), NOW()
+                    ?, ?, ?, ?, 'MULTI-VARIANT PACKED', 'PREPARING', CURDATE(), NOW()
                 )
             ", [
-                $cid, $puId, $progId, $qcBatchId, $batchNo, $variantId,
-                $qtyToPack, $totalBoxes, $warehouseId, $warehouseName, $reworkIncluded,
-                json_encode($selectedTags), $taxableValue, $gstAmount, $totalAmount, $billNo
+                $cid, $puId, $progId, $qcBatchId, $batchNo, $primaryVariantId,
+                $totalBatchQty, $totalBoxes, $warehouseId, $warehouseName, $reworkIncluded,
+                $totalTaxable, $totalGst, $totalAmount, $billNo
             ]);
 
             $newBatchId = (int)DB::lastInsertId();
 
-            // Update QC inspection status if all passed pieces are packed and no rework remains
+            // Insert each packed variant into batch_items
+            foreach ($packedItems as $pItem) {
+                DB::query("
+                    INSERT INTO batch_items (
+                        concern_id, batch_id, variant_id, size, color, sku_code,
+                        qty, unit_price, taxable_value, gst_amount, total_amount, created_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, NOW()
+                    )
+                ", [
+                    $cid, $newBatchId, $pItem['variant_id'], $pItem['size'], $pItem['color'], $pItem['sku_code'],
+                    $pItem['qty'], $pItem['unit_price'], $pItem['taxable_value'], $pItem['gst_amount'], $pItem['total_amount']
+                ]);
+            }
+
+            // Check if user requested direct outward to concern
+            $isDirectOutward = ($action === 'pack_and_outward' || $destConcernId > 0);
+            $outwardId = null;
+
+            if ($isDirectOutward && $destConcernId > 0) {
+                $destCon = DB::fetch("SELECT id, name FROM concerns WHERE id = ?", [$destConcernId]);
+                $destWhName = $destCon['name'] ?? $warehouseName;
+
+                $countOutToday = (int)DB::fetchValue("SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?", ["OUT-{$today}-%"]);
+                $outSeq = str_pad((string)($countOutToday + 1), 4, '0', STR_PAD_LEFT);
+                $outwardNo = "OUT-{$today}-{$outSeq}";
+                $gatePassNo = "GP-{$today}-{$outSeq}";
+
+                DB::query("
+                    INSERT INTO outwards (
+                        concern_id, production_unit_id, outward_no, gate_pass_no, transfer_type,
+                        destination_concern_id, outward_date, location, warehouse_name, total_boxes,
+                        vehicle_number, driver_name, driver_contact, transporter_name, dispatched_by_name,
+                        notes, status, dispatched_at, created_at
+                    ) VALUES (
+                        ?, ?, ?, ?, 'concern',
+                        ?, CURDATE(), 'Main Store', ?, ?,
+                        ?, ?, ?, ?, 'System Administrator',
+                        ?, 'DISPATCHED', NOW(), NOW()
+                    )
+                ", [
+                    $cid, $puId, $outwardNo, $gatePassNo,
+                    $destConcernId, $destWhName, $totalBoxes,
+                    $vehicleNumber ?: 'TN-38-BK-4421', $driverName ?: 'Murugan', $driverContact ?: '9842109876', $transporterName ?: 'Express Logistics',
+                    "Direct Outward from Finished Production Batch {$batchNo}"
+                ]);
+
+                $outwardId = (int)DB::lastInsertId();
+
+                // Link batch
+                DB::query("
+                    INSERT INTO production_outward_batches (concern_id, outward_id, batch_id, cartons_count, pieces_count)
+                    VALUES (?, ?, ?, ?, ?)
+                ", [$cid, $outwardId, $newBatchId, $totalBoxes, $totalBatchQty]);
+
+                // Insert all variants into outward_items and deduct stock from Main Store
+                foreach ($packedItems as $pItem) {
+                    DB::query("
+                        INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
+                        VALUES (?, ?, ?, ?)
+                    ", [$cid, $outwardId, $pItem['variant_id'], $pItem['qty']]);
+
+                    // Deduct stock from Main Store
+                    StockService::move($cid, $pItem['variant_id'], 'Main Store', 0.00, $pItem['qty'], 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
+                }
+
+                // Update batch status and outward link
+                DB::query("UPDATE batches SET status = 'DISPATCHED', outward_id = ? WHERE id = ?", [$outwardId, $newBatchId]);
+            }
+
+            // Update QC inspection status if all passed pieces are packed and rework is 0
             if ($qcBatchId > 0) {
                 $qcRow = DB::fetch("SELECT passed_qty, rework_qty FROM qc_inspections WHERE id = ?", [$qcBatchId]);
                 if ($qcRow) {
-                    $totalPacked = (float)DB::fetchValue("SELECT SUM(batch_qty) FROM batches WHERE qc_batch_id = ?", [$qcBatchId]);
-                    if ($totalPacked >= (float)$qcRow['passed_qty'] && (float)$qcRow['rework_qty'] <= 0) {
+                    $totalPackedAll = (float)DB::fetchValue("SELECT SUM(batch_qty) FROM batches WHERE qc_batch_id = ?", [$qcBatchId]);
+                    if ($totalPackedAll >= (float)$qcRow['passed_qty'] && (float)$qcRow['rework_qty'] <= 0) {
                         DB::query("UPDATE qc_inspections SET status = 'COMPLETED' WHERE id = ?", [$qcBatchId]);
                     }
                 }
             }
 
-            $this->flash('success', "Batch {$batchNo} successfully packed! ({$qtyToPack} pcs, {$totalBoxes} box, Bill #{$billNo})");
-            $this->redirect("/production/batches/label/{$newBatchId}");
+            DB::commit();
+
+            if ($isDirectOutward && $outwardId) {
+                $this->flash('success', "Batch {$batchNo} packed & directly dispatched to concern via Outward Manifest {$outwardNo}! ({$totalBatchQty} pcs, {$totalBoxes} box)");
+                $this->redirect("/production/batches/challan/{$newBatchId}");
+            } else {
+                $this->flash('success', "Batch {$batchNo} successfully packed! ({$totalBatchQty} pcs across " . count($packedItems) . " variants, {$totalBoxes} box, Bill #{$billNo})");
+                $this->redirect("/production/batches/label/{$newBatchId}");
+            }
         } catch (\Throwable $e) {
+            DB::rollBack();
             $this->flash('error', "Failed to save batch: " . $e->getMessage());
             $this->redirect('/production/batches/create' . ($qcBatchId ? "?qc_batch_id={$qcBatchId}" : ''));
         }
@@ -438,12 +618,208 @@ class BatchController extends Controller {
             return;
         }
 
+        $batchItems = DB::fetchAll("
+            SELECT bi.*, v.name AS variant_name
+            FROM batch_items bi
+            LEFT JOIN variants v ON bi.variant_id = v.id
+            WHERE bi.batch_id = ?
+            ORDER BY bi.id ASC
+        ", [$batch['id']]);
+
         $this->render('concern/batch_label', [
             'pageTitle'     => 'Warehouse Carton QR Sticker - ' . $batch['batch_no'],
             'currentModule' => 'batch',
             'batch'         => $batch,
+            'batchItems'    => $batchItems,
             'noLayout'      => true,
         ]);
+    }
+
+    /**
+     * 4. Printable Delivery Challan, Outward Gate Pass & Tax Invoice
+     */
+    public function challan(int|string $id): void {
+        $batch = DB::fetch("
+            SELECT b.*,
+                   v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                   p.program_no, p.program_name,
+                   pu.name AS production_unit_name, pu.code AS production_unit_code, pu.location AS production_unit_location
+            FROM batches b
+            LEFT JOIN variants v ON b.variant_id = v.id
+            LEFT JOIN production_programs p ON b.program_id = p.id
+            LEFT JOIN production_units pu ON b.production_unit_id = pu.id
+            WHERE b.id = ? OR b.batch_no = ?
+            LIMIT 1
+        ", [$id, $id]);
+
+        if (!$batch) {
+            $this->flash('error', 'Batch not found.');
+            $this->redirect('/production/batches');
+            return;
+        }
+
+        $items = DB::fetchAll("
+            SELECT bi.*, v.name AS variant_name
+            FROM batch_items bi
+            LEFT JOIN variants v ON bi.variant_id = v.id
+            WHERE bi.batch_id = ?
+            ORDER BY bi.id ASC
+        ", [$batch['id']]);
+
+        // Find linked outward if any
+        $outward = null;
+        if (!empty($batch['outward_id'])) {
+            $outward = DB::fetch("
+                SELECT o.*, dest_con.name AS dest_concern_name, dest_con.code AS dest_concern_code, dest_con.address AS dest_concern_address, dest_con.gstin AS dest_concern_gstin
+                FROM outwards o
+                LEFT JOIN concerns dest_con ON o.destination_concern_id = dest_con.id
+                WHERE o.id = ?
+            ", [$batch['outward_id']]);
+        }
+        if (!$outward) {
+            $pobOutwardId = DB::fetchValue("SELECT outward_id FROM production_outward_batches WHERE batch_id = ? LIMIT 1", [$batch['id']]);
+            if ($pobOutwardId) {
+                $outward = DB::fetch("
+                    SELECT o.*, dest_con.name AS dest_concern_name, dest_con.code AS dest_concern_code, dest_con.address AS dest_concern_address, dest_con.gstin AS dest_concern_gstin
+                    FROM outwards o
+                    LEFT JOIN concerns dest_con ON o.destination_concern_id = dest_con.id
+                    WHERE o.id = ?
+                ", [$pobOutwardId]);
+            }
+        }
+
+        $cid = (int)($batch['concern_id'] ?: (Auth::concernId() ?: 1));
+        $concern = DB::fetch("SELECT * FROM concerns WHERE id = ?", [$cid]) ?: [
+            'name' => 'GRM Garments Pvt Ltd',
+            'code' => 'GRM',
+            'address' => '12, Textile City, Tirupur, Tamil Nadu',
+            'gstin' => '33AABCG1234F1Z5',
+            'phone' => '+91 98421 23456',
+        ];
+
+        $destConcern = null;
+        if (!empty($outward['destination_concern_id'])) {
+            $destConcern = DB::fetch("SELECT * FROM concerns WHERE id = ?", [$outward['destination_concern_id']]);
+        }
+
+        $this->render('concern/batch_challan', [
+            'pageTitle'     => 'Delivery Challan & Invoice - ' . $batch['batch_no'],
+            'currentModule' => 'batch',
+            'batch'         => $batch,
+            'items'         => $items,
+            'outward'       => $outward,
+            'concern'       => $concern,
+            'destConcern'   => $destConcern,
+            'noLayout'      => true,
+        ]);
+    }
+
+    /**
+     * 5. Direct Outward Dispatch from Batch (AJAX or Form POST)
+     */
+    public function directOutward(): void {
+        $this->validateCsrf();
+        $cid = Auth::concernId() ?: 1;
+        $batchId = (int)($_POST['batch_id'] ?? 0);
+        $destConcernId = (int)($_POST['destination_concern_id'] ?? 0);
+
+        if (!$batchId || !$destConcernId) {
+            $this->flash('error', 'Please select both Batch and Destination Concern.');
+            $this->redirect('/production/batches');
+            return;
+        }
+
+        $batch = DB::fetch("SELECT * FROM batches WHERE id = ?", [$batchId]);
+        if (!$batch) {
+            $this->flash('error', 'Batch not found.');
+            $this->redirect('/production/batches');
+            return;
+        }
+
+        $destCon = DB::fetch("SELECT id, name FROM concerns WHERE id = ?", [$destConcernId]);
+        if (!$destCon) {
+            $this->flash('error', 'Selected destination concern not found.');
+            $this->redirect('/production/batches');
+            return;
+        }
+
+        $vehicleNumber   = trim($_POST['vehicle_number'] ?? 'TN-38-BK-4421');
+        $driverName      = trim($_POST['driver_name'] ?? 'Murugan');
+        $driverContact   = trim($_POST['driver_contact'] ?? '9842109876');
+        $transporterName = trim($_POST['transporter_name'] ?? 'Express Logistics');
+
+        $today = date('Ymd');
+        $countOutToday = (int)DB::fetchValue("SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?", ["OUT-{$today}-%"]);
+        $outSeq = str_pad((string)($countOutToday + 1), 4, '0', STR_PAD_LEFT);
+        $outwardNo = "OUT-{$today}-{$outSeq}";
+        $gatePassNo = "GP-{$today}-{$outSeq}";
+
+        $puId = (int)($batch['production_unit_id'] ?: 1);
+        $totalBoxes = max(1, (int)($batch['total_boxes'] ?: 1));
+        $totalQty = (float)($batch['batch_qty'] ?: 0);
+
+        // Fetch variants for this batch
+        $batchItems = DB::fetchAll("SELECT * FROM batch_items WHERE batch_id = ?", [$batchId]);
+
+        DB::beginTransaction();
+        try {
+            DB::query("
+                INSERT INTO outwards (
+                    concern_id, production_unit_id, outward_no, gate_pass_no, transfer_type,
+                    destination_concern_id, outward_date, location, warehouse_name, total_boxes,
+                    vehicle_number, driver_name, driver_contact, transporter_name, dispatched_by_name,
+                    notes, status, dispatched_at, created_at
+                ) VALUES (
+                    ?, ?, ?, ?, 'concern',
+                    ?, CURDATE(), 'Main Store', ?, ?,
+                    ?, ?, ?, ?, 'System Administrator',
+                    ?, 'DISPATCHED', NOW(), NOW()
+                )
+            ", [
+                $cid, $puId, $outwardNo, $gatePassNo,
+                $destConcernId, $destCon['name'], $totalBoxes,
+                $vehicleNumber, $driverName, $driverContact, $transporterName,
+                "Direct Outward from Batch {$batch['batch_no']}"
+            ]);
+
+            $outwardId = (int)DB::lastInsertId();
+
+            DB::query("
+                INSERT INTO production_outward_batches (concern_id, outward_id, batch_id, cartons_count, pieces_count)
+                VALUES (?, ?, ?, ?, ?)
+            ", [$cid, $outwardId, $batchId, $totalBoxes, $totalQty]);
+
+            if (!empty($batchItems)) {
+                foreach ($batchItems as $bItem) {
+                    DB::query("
+                        INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
+                        VALUES (?, ?, ?, ?)
+                    ", [$cid, $outwardId, $bItem['variant_id'], $bItem['qty']]);
+
+                    StockService::move($cid, (int)$bItem['variant_id'], 'Main Store', 0.00, (float)$bItem['qty'], 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
+                }
+            } else {
+                DB::query("
+                    INSERT INTO outward_items (concern_id, outward_id, variant_id, qty)
+                    VALUES (?, ?, ?, ?)
+                ", [$cid, $outwardId, $batch['variant_id'], $totalQty]);
+
+                if (!empty($batch['variant_id'])) {
+                    StockService::move($cid, (int)$batch['variant_id'], 'Main Store', 0.00, $totalQty, 'Outward', $outwardId, "Batch outward dispatch {$outwardNo}");
+                }
+            }
+
+            DB::query("UPDATE batches SET status = 'DISPATCHED', outward_id = ? WHERE id = ?", [$outwardId, $batchId]);
+
+            DB::commit();
+
+            $this->flash('success', "Batch {$batch['batch_no']} successfully dispatched to {$destCon['name']} via Outward {$outwardNo}!");
+            $this->redirect("/production/batches/challan/{$batchId}");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->flash('error', "Outward dispatch failed: " . $e->getMessage());
+            $this->redirect('/production/batches');
+        }
     }
 
     /**

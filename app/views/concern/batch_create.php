@@ -1,12 +1,24 @@
 <?php
 // app/views/concern/batch_create.php
-// Pack Finished Production Batch View (Matches Image 1: /production/batches/create)
+// Pack Finished Production Batch View (Multi-Variant Packing & Direct Outward Dispatch)
 
-$initialCount = count($approvedQrTags ?? []);
-$unitPrice = (float)($variant['price'] ?: 700.00);
-$initialTotal = $initialCount * $unitPrice;
-$initialTaxable = $initialTotal > 0 ? round($initialTotal / 1.05, 2) : 0.00;
-$initialGst = round($initialTotal - $initialTaxable, 2);
+$totalInitialPcs = 0;
+$totalInitialTaxable = 0.00;
+$totalInitialGst = 0.00;
+$totalInitialAmount = 0.00;
+
+foreach ($variantItems as $vi) {
+    $qty = (int)$vi['passed_avail'];
+    $price = (float)$vi['price'];
+    $lineTotal = $qty * $price;
+    $lineTaxable = $lineTotal > 0 ? round($lineTotal / 1.05, 2) : 0.00;
+    $lineGst = round($lineTotal - $lineTaxable, 2);
+
+    $totalInitialPcs += $qty;
+    $totalInitialTaxable += $lineTaxable;
+    $totalInitialGst += $lineGst;
+    $totalInitialAmount += $lineTotal;
+}
 ?>
 <div class="container-fluid px-3 py-2">
     <!-- Breadcrumb -->
@@ -20,27 +32,37 @@ $initialGst = round($initialTotal - $initialTaxable, 2);
     </nav>
 
     <!-- Page Title -->
-    <h4 class="fw-bold mb-4 text-dark d-flex align-items-center gap-2">
-        <i class="bi bi-box-seam text-success"></i> Pack Finished Production Batch
-    </h4>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-box-seam text-success"></i> Pack Finished Production Batch
+            </h4>
+            <p class="text-secondary small mb-0">Select a QC inspection batch to pack all inspected garment variants into a unified finished goods batch or dispatch directly to concern.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
+                <i class="bi bi-arrow-left me-1"></i> Back to Batches
+            </a>
+            <a href="<?= \App\Core\Controller::url('/production/outward') ?>" class="btn btn-outline-info btn-sm px-3 fw-semibold">
+                <i class="bi bi-truck me-1"></i> Outward Manifests
+            </a>
+        </div>
+    </div>
 
     <form action="<?= \App\Core\Controller::url('/production/batches/store') ?>" method="POST" id="formPackBatch" onsubmit="return validateBatchForm(event)">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
         <input type="hidden" name="program_no" value="<?= htmlspecialchars($programStats['program_no'] ?? 'PRG-GEN') ?>">
-        <input type="hidden" name="variant_id" value="<?= (int)($variant['id'] ?? 0) ?>">
-        <input type="hidden" name="taxable_value" id="inputTaxable" value="<?= number_format($initialTaxable, 2, '.', '') ?>">
-        <input type="hidden" name="gst_amount" id="inputGst" value="<?= number_format($initialGst, 2, '.', '') ?>">
-        <input type="hidden" name="total_amount" id="inputTotal" value="<?= number_format($initialTotal, 2, '.', '') ?>">
+        <input type="hidden" name="action" id="formActionType" value="pack_only">
 
         <div class="row g-4">
-            <!-- Left Column: Packing Details -->
-            <div class="col-lg-5">
-                <div class="card border-0 shadow-sm rounded-3 h-100">
+            <!-- Left Column: Packing Details & Destination -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
                     <div class="card-header bg-white py-3 border-bottom d-flex align-items-center gap-2">
                         <i class="bi bi-info-circle text-primary"></i>
                         <h6 class="mb-0 fw-bold text-dark">Packing Details</h6>
                     </div>
-                    <div class="card-body p-4">
+                    <div class="card-body p-3">
                         <!-- QC Inspection Selector -->
                         <div class="mb-3">
                             <label class="form-label small fw-semibold text-secondary">
@@ -49,64 +71,57 @@ $initialGst = round($initialTotal - $initialTaxable, 2);
                             <select name="qc_batch_id" id="qcBatchSelect" class="form-select form-select-sm" required onchange="handleQcChange(this)">
                                 <?php foreach ($qcList as $q): ?>
                                     <option value="<?= $q['id'] ?>" <?= ((int)$q['id'] === $selectedQcId) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($q['qc_no']) ?> (<?= htmlspecialchars($q['program_no'] ?? 'PRG-20261113-0001') ?> — <?= htmlspecialchars($q['program_name'] ?? 'KIDS - BABY - DRESS') ?>) [<?= (int)($q['passed_rem'] ?? $q['passed_qty']) ?> pcs rem]
+                                        <?= htmlspecialchars($q['qc_no']) ?> (<?= htmlspecialchars($q['program_no'] ?? 'PRG-GEN') ?> &mdash; <?= htmlspecialchars($q['program_name'] ?? 'Garments') ?>) [<?= (int)($q['passed_rem'] ?? $q['passed_qty']) ?> pcs rem]
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                        </div>
-
-                        <!-- Combine with Reworked Checkbox -->
-                        <div class="form-check mb-4">
-                            <input class="form-check-input" type="checkbox" name="combine_rework" id="combineRework" onchange="handleCombineRework(this)">
-                            <label class="form-check-label small text-secondary" for="combineRework">
-                                Combine with Reworked / Re-inspected Batch
-                            </label>
+                            <div class="form-text small text-muted">All passed variants in this QC batch will load in the packing table.</div>
                         </div>
 
                         <!-- Program & Product Summary Box -->
-                        <div class="p-3 bg-light rounded-3 border mb-4">
-                            <div class="small fw-bold text-muted text-uppercase mb-1" style="font-size:0.75rem;">Program & Product</div>
-                            <div class="fw-bold text-dark mb-3" style="font-size:0.95rem;">
-                                <?= htmlspecialchars($programStats['program_no']) ?> — <?= htmlspecialchars($programStats['program_name']) ?>
+                        <div class="p-3 bg-light rounded-3 border mb-3">
+                            <div class="small fw-bold text-muted text-uppercase mb-1" style="font-size:0.72rem;">Program & Product</div>
+                            <div class="fw-bold text-dark mb-2" style="font-size:0.92rem;">
+                                <?= htmlspecialchars($programStats['program_no']) ?> &mdash; <?= htmlspecialchars($programStats['program_name']) ?>
                             </div>
 
                             <div class="row g-2 text-center">
                                 <div class="col-3">
-                                    <div class="bg-white p-2 rounded border">
-                                        <div class="text-muted" style="font-size:0.7rem;">Total Passed</div>
-                                        <div class="fw-bold text-dark fs-6" id="statTotalPassed"><?= (int)$programStats['total_passed'] ?></div>
+                                    <div class="bg-white p-1.5 rounded border">
+                                        <div class="text-muted" style="font-size:0.68rem;">Total Passed</div>
+                                        <div class="fw-bold text-dark" id="statTotalPassed"><?= (int)$programStats['total_passed'] ?></div>
                                     </div>
                                 </div>
                                 <div class="col-3">
-                                    <div class="bg-white p-2 rounded border">
-                                        <div class="text-muted" style="font-size:0.7rem;">Packed</div>
-                                        <div class="fw-bold fs-6" id="statPacked" style="color: #ef4444;"><?= (int)$programStats['packed'] ?></div>
+                                    <div class="bg-white p-1.5 rounded border">
+                                        <div class="text-muted" style="font-size:0.68rem;">Packed</div>
+                                        <div class="fw-bold" id="statPacked" style="color: #ef4444;"><?= (int)$programStats['packed'] ?></div>
                                     </div>
                                 </div>
                                 <div class="col-3">
-                                    <div class="bg-white p-2 rounded border">
-                                        <div class="text-muted" style="font-size:0.7rem;">Passed Rem.</div>
-                                        <div class="fw-bold fs-6" id="statPassedRem" style="color: #10b981;"><?= (int)$programStats['passed_rem'] ?></div>
+                                    <div class="bg-white p-1.5 rounded border">
+                                        <div class="text-muted" style="font-size:0.68rem;">Passed Rem.</div>
+                                        <div class="fw-bold" id="statPassedRem" style="color: #10b981;"><?= (int)$programStats['passed_rem'] ?></div>
                                     </div>
                                 </div>
                                 <div class="col-3">
-                                    <div class="bg-white p-2 rounded border">
-                                        <div class="text-muted" style="font-size:0.7rem;">Rework</div>
-                                        <div class="fw-bold fs-6" id="statRework" style="color: #f59e0b;"><?= (int)$programStats['rework'] ?></div>
+                                    <div class="bg-white p-1.5 rounded border">
+                                        <div class="text-muted" style="font-size:0.68rem;">Rework</div>
+                                        <div class="fw-bold" id="statRework" style="color: #f59e0b;"><?= (int)$programStats['rework'] ?></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Destination Warehouse -->
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label class="form-label small fw-semibold text-secondary">
                                 Destination Warehouse <span class="text-danger">*</span>
                             </label>
                             <select name="warehouse_name" id="destWarehouse" class="form-select form-select-sm" required>
-                                <option value="" disabled selected>-- Select Warehouse --</option>
+                                <option value="" disabled>-- Select Warehouse --</option>
                                 <?php foreach ($warehouses as $wh): ?>
-                                    <option value="<?= htmlspecialchars($wh['name']) ?>">
+                                    <option value="<?= htmlspecialchars($wh['name']) ?>" selected>
                                         <?= htmlspecialchars($wh['name']) ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -114,174 +129,212 @@ $initialGst = round($initialTotal - $initialTaxable, 2);
                         </div>
 
                         <!-- Total Box / Carton Count -->
-                        <div class="mb-2">
+                        <div class="mb-3">
                             <label class="form-label small fw-semibold text-secondary">
                                 Total Box / Carton Count <span class="text-danger">*</span>
                             </label>
                             <input type="number" name="total_boxes" id="totalBoxes" class="form-control form-control-sm" value="1" min="1" required>
-                            <div class="form-text small text-muted">Total number of boxes or cartons packed for this batch.</div>
+                            <div class="form-text small text-muted">Number of packing boxes/cartons for this batch.</div>
                         </div>
+
+                        <hr class="my-3">
+
+                        <!-- Direct Outward to Concern Section -->
+                        <div class="p-3 rounded-3" style="background:#f0fdf4; border:1px solid #bbf7d0;">
+                            <label class="form-label small fw-bold text-success d-flex align-items-center gap-1 mb-1">
+                                <i class="bi bi-truck"></i> Destination Concern (Direct Outward)
+                            </label>
+                            <div class="small text-muted mb-2" style="font-size:0.75rem;">
+                                Select a concern to automatically dispatch and generate the Delivery Challan & Gate Pass upon packing:
+                            </div>
+                            <select name="destination_concern_id" id="destConcernSelect" class="form-select form-select-sm mb-2" onchange="toggleOutwardFields(this)">
+                                <option value="">-- Keep in Warehouse (No Direct Outward) --</option>
+                                <?php foreach ($allConcerns as $con): ?>
+                                    <option value="<?= $con['id'] ?>" <?= ((int)$con['id'] === (int)($currentConcernId ?? 0)) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+
+                            <div id="outwardTransportFields" class="mt-2">
+                                <div class="mb-2">
+                                    <label class="form-label small text-muted mb-0" style="font-size:0.72rem;">Vehicle Number</label>
+                                    <input type="text" name="vehicle_number" class="form-control form-control-sm font-monospace" placeholder="e.g. TN-38-BK-4421" value="TN-38-BK-4421">
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label small text-muted mb-0" style="font-size:0.72rem;">Driver Name</label>
+                                        <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="e.g. Murugan" value="Murugan">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small text-muted mb-0" style="font-size:0.72rem;">Driver Contact</label>
+                                        <input type="text" name="driver_contact" class="form-control form-control-sm" placeholder="e.g. 9842109876" value="9842109876">
+                                    </div>
+                                </div>
+                                <div class="mb-1">
+                                    <label class="form-label small text-muted mb-0" style="font-size:0.72rem;">Transporter / Carrier</label>
+                                    <input type="text" name="transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics" value="Express Logistics">
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
 
-            <!-- Right Column: Packed Quantities -->
-            <div class="col-lg-7">
+            <!-- Right Column: Multi-Variant Packed Quantities Table -->
+            <div class="col-lg-8">
                 <div class="card border-0 shadow-sm rounded-3">
                     <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-grid-3x3 text-primary"></i>
-                            <h6 class="mb-0 fw-bold text-dark">Packed Quantities</h6>
+                            <h6 class="mb-0 fw-bold text-dark">Packed Quantities by Variant</h6>
                         </div>
                         <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-outline-success btn-sm fw-semibold" onclick="openBillPreviewModal()">
-                                <i class="bi bi-receipt me-1"></i> Bill Generation
+                            <button type="button" class="btn btn-outline-primary btn-sm rounded-pill py-0.5 px-2.5" style="font-size:0.75rem;" onclick="packAllRemaining()">
+                                <i class="bi bi-check-all me-1"></i> Pack All Max
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill py-0.5 px-2.5" style="font-size:0.75rem;" onclick="clearAllQuantities()">
+                                Clear
                             </button>
                             <span class="badge px-2.5 py-1.5 fw-bold" id="badgeHeaderPacked" style="background:#10b981; color:#fff;">
-                                <?= $initialCount ?> pcs Packed
+                                <?= $totalInitialPcs ?> pcs Packed
                             </span>
                         </div>
                     </div>
                     <div class="card-body p-4">
-                        <!-- Admin Rework Option Toggle -->
-                        <div class="p-2.5 rounded-3 mb-4 d-flex justify-content-between align-items-center" style="background: #fffbeb; border: 1px solid #fef08a;">
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" name="rework_included" id="reworkToggle" onchange="toggleReworkOption(this)">
-                                <label class="form-check-label small fw-semibold text-dark" for="reworkToggle">
-                                    <i class="bi bi-tools text-warning me-1"></i> Include Reworked / Repaired Garments in this Batch (Admin Option)
-                                </label>
+
+                        <?php if (empty($variantItems)): ?>
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-exclamation-circle fs-2 text-warning d-block mb-2"></i>
+                                No passed variants available for packing in this QC inspection batch.
                             </div>
-                            <span class="badge px-2 py-1 fw-bold" id="badgeReworkBanner" style="background:#fef08a; color:#854d0e; font-size:0.75rem;">
-                                <?= (int)$programStats['rework'] ?> Rework Pcs in this QC Batch
-                            </span>
-                        </div>
+                        <?php else: ?>
+                            <!-- Multi-Variant Packing Table -->
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                                    <thead class="table-light text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.05em;">
+                                        <tr>
+                                            <th style="width: 28%;">VARIANT & SKU</th>
+                                            <th style="width: 27%;">QC PASSED STOCK</th>
+                                            <th style="width: 15%;" class="text-end">UNIT RATE</th>
+                                            <th style="width: 15%;" class="text-end">QTY TO PACK *</th>
+                                            <th style="width: 15%;" class="text-end">LINE TOTAL</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($variantItems as $idx => $vItem): 
+                                            $initQty = (int)$vItem['passed_avail'];
+                                            $vPrice = (float)$vItem['price'];
+                                            $vLineTotal = $initQty * $vPrice;
+                                        ?>
+                                            <tr>
+                                                <td class="align-middle py-3">
+                                                    <div class="fw-bold text-dark fs-6">
+                                                        <?= htmlspecialchars($vItem['size'] ?? 'Standard') ?> / <?= htmlspecialchars($vItem['color'] ?? 'Standard') ?>
+                                                    </div>
+                                                    <div class="small text-muted font-monospace"><?= htmlspecialchars($vItem['sku_code'] ?? '') ?></div>
+                                                    <div class="small text-secondary" style="font-size:0.75rem;"><?= htmlspecialchars($vItem['name'] ?? '') ?></div>
+                                                </td>
+                                                <td class="align-middle py-3">
+                                                    <?php if ($vItem['passed_avail'] > 0): ?>
+                                                        <span class="badge px-2 py-1 fw-semibold mb-1 d-inline-block" style="background:#d1fae5; color:#065f46;">
+                                                            <i class="bi bi-check-circle me-1"></i> <span id="labelAvail_<?= $vItem['variant_id'] ?>"><?= (int)$vItem['passed_avail'] ?></span> pcs Available
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-secondary text-white px-2 py-1 mb-1 d-inline-block">
+                                                            Fully Packed (0 pcs rem)
+                                                        </span>
+                                                    <?php endif; ?>
+                                                    <div class="small text-muted" style="font-size:0.75rem;">
+                                                        Passed: <?= (int)$vItem['total_passed'] ?> pcs (<?= (int)$vItem['already_packed'] ?> packed)
+                                                    </div>
+                                                </td>
+                                                <td class="align-middle py-3 text-end font-monospace text-secondary">
+                                                    ₹<?= number_format($vPrice, 2) ?>
+                                                </td>
+                                                <td class="align-middle py-3 text-end">
+                                                    <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][variant_id]" value="<?= $vItem['variant_id'] ?>">
+                                                    <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][size]" value="<?= htmlspecialchars($vItem['size'] ?? '') ?>">
+                                                    <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][color]" value="<?= htmlspecialchars($vItem['color'] ?? '') ?>">
+                                                    <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][sku_code]" value="<?= htmlspecialchars($vItem['sku_code'] ?? '') ?>">
+                                                    <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][unit_price]" value="<?= $vPrice ?>">
 
-                        <!-- Variant Packing Table -->
-                        <div class="table-responsive">
-                            <table class="table align-middle mb-0" style="font-size: 0.85rem;">
-                                <thead class="table-light text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.05em;">
-                                    <tr>
-                                        <th style="width: 20%;">VARIANT</th>
-                                        <th style="width: 25%;">QC STATUS & REMAINING</th>
-                                        <th style="width: 40%;">APPROVED QR CODE(S) TO PACK</th>
-                                        <th style="width: 15%;" class="text-end">QUANTITY TO PACK *</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td class="align-top py-3">
-                                            <div class="fw-bold text-dark"><?= htmlspecialchars($variant['size'] ?? 'L') ?> / <?= htmlspecialchars($variant['color'] ?? 'GREEN') ?></div>
-                                            <small class="text-muted font-monospace"><?= htmlspecialchars($variant['sku_code'] ?? '') ?></small>
-                                        </td>
-                                        <td class="align-top py-3">
-                                            <span class="badge px-2 py-1 fw-semibold mb-1 d-inline-block" style="background:#d1fae5; color:#065f46;">
-                                                <i class="bi bi-box me-1"></i> <span id="labelPassedAvail"><?= (int)$variant['passed_avail'] ?></span> pcs Passed Available
-                                            </span>
-                                            <div class="small text-muted" style="font-size:0.75rem;">
-                                                Total Passed: <?= (int)$variant['total_passed'] ?> pcs (<?= (int)$variant['already_packed'] ?> already packed)
-                                            </div>
-                                        </td>
-                                        <td class="align-top py-3">
-                                            <!-- Approved & Excluded Info -->
-                                            <div class="small text-success fw-semibold mb-0.5 d-flex align-items-center gap-1">
-                                                <i class="bi bi-check-circle-fill"></i> <span id="textAvailCount"><?= $initialCount ?></span> approved QR code(s) available
-                                            </div>
-                                            <?php if ((int)$programStats['rejected'] > 0): ?>
-                                                <div class="small text-danger mb-2" style="font-size:0.72rem; line-height: 1.3;">
-                                                    <?= (int)$programStats['rejected'] ?> rejected QR code(s) excluded. Re-inspect and pass them in QC before packing.
-                                                </div>
-                                            <?php endif; ?>
+                                                    <div class="d-inline-flex align-items-center gap-1 justify-content-end">
+                                                        <input type="number" 
+                                                               name="items[<?= $vItem['variant_id'] ?>][qty]" 
+                                                               id="inputQty_<?= $vItem['variant_id'] ?>" 
+                                                               class="form-control form-control-sm text-end fw-bold variant-qty-input font-monospace" 
+                                                               style="width: 80px;" 
+                                                               value="<?= $initQty ?>" 
+                                                               min="0" 
+                                                               max="<?= $vItem['passed_avail'] ?>" 
+                                                               data-variant-id="<?= $vItem['variant_id'] ?>"
+                                                               data-unit-price="<?= $vPrice ?>"
+                                                               data-max="<?= $vItem['passed_avail'] ?>"
+                                                               oninput="handleVariantQtyChange(this)">
+                                                        <span class="small text-muted">pcs</span>
+                                                    </div>
+                                                    <div class="small text-muted mt-0.5" style="font-size:0.7rem;">Max: <?= (int)$vItem['passed_avail'] ?></div>
+                                                </td>
+                                                <td class="align-middle py-3 text-end font-monospace fw-bold text-dark">
+                                                    ₹<span id="lineTotal_<?= $vItem['variant_id'] ?>"><?= number_format($vLineTotal, 2) ?></span>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
 
-                                            <!-- QR Code Search Bar -->
-                                            <div class="input-group input-group-sm mb-2">
-                                                <input type="text" id="qrSearchInput" class="form-control form-control-sm" placeholder="Search QR codes..." onkeyup="filterQrCheckboxes()">
-                                            </div>
-
-                                            <!-- Selection Counter & Buttons -->
-                                            <div class="d-flex justify-content-between align-items-center mb-2 small">
-                                                <span class="text-muted fw-semibold">
-                                                    <span id="selectedCount"><?= $initialCount ?></span> selected / <span id="totalAvailable"><?= $initialCount ?></span> qty
-                                                </span>
-                                                <div class="d-flex align-items-center">
-                                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill py-0 px-2" style="font-size:0.75rem;" onclick="selectAllQr(true)">
-                                                        <i class="bi bi-check2 me-1"></i>Select All
-                                                    </button>
-                                                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill py-0 px-2 ms-1" style="font-size:0.75rem;" onclick="selectAllQr(false)">
-                                                        Clear
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <!-- Scrollable QR Code Checkbox List (Single Column in Image 1) -->
-                                            <div class="border rounded p-2 bg-light overflow-auto" id="qrListContainer" style="max-height: 180px;">
-                                                <div class="d-flex flex-column gap-1" id="qrCheckboxesRow">
-                                                    <?php foreach ($approvedQrTags as $item): ?>
-                                                        <div class="form-check small mb-1 qr-item-col" data-code="<?= htmlspecialchars($item['tag']) ?>">
-                                                            <input class="form-check-input qr-checkbox" type="checkbox" name="selected_tags[]" value="<?= htmlspecialchars($item['tag']) ?>" id="qr_<?= htmlspecialchars($item['tag']) ?>" checked onchange="updateQrSelection()">
-                                                            <label class="form-check-label font-monospace fw-semibold text-dark" for="qr_<?= htmlspecialchars($item['tag']) ?>">
-                                                                <?= htmlspecialchars($item['tag']) ?>
-                                                            </label>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                </div>
-                                            </div>
-                                            <div class="form-text small text-muted mt-1" style="font-size: 0.72rem;">
-                                                Check QR codes to pack. The quantity updates to match your selection.
-                                            </div>
-                                        </td>
-                                        <td class="align-top py-3 text-end">
-                                            <div class="d-inline-flex align-items-center gap-1 justify-content-end">
-                                                <input type="number" name="quantity_to_pack" id="qtyToPack" class="form-control form-control-sm text-end fw-bold" style="width: 75px;" value="<?= $initialCount ?>" min="1" max="<?= $initialCount ?>" required oninput="handleManualQtyChange(this)">
-                                                <span class="small text-muted">pcs</span>
-                                            </div>
-                                            <div class="small text-muted mt-1" id="subtextMax">Max: <?= $initialCount ?> pcs</div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- Horizontal Invoice & Financial Summary Bar (Image 1) -->
+                        <!-- Horizontal Invoice & Financial Summary Bar -->
                         <div class="p-3 bg-light rounded-3 border mt-4">
                             <div class="row g-3 text-center align-items-center">
                                 <div class="col-6 col-md-3">
                                     <div class="small text-muted text-uppercase mb-0.5 fw-semibold" style="font-size: 0.72rem;">
                                         <i class="bi bi-box me-1"></i> PRODUCT COUNT
                                     </div>
-                                    <div class="fw-bold text-dark fs-5" id="footerCount"><?= $initialCount ?> pcs</div>
+                                    <div class="fw-bold text-dark fs-5" id="footerCount"><?= $totalInitialPcs ?> pcs</div>
                                 </div>
                                 <div class="col-6 col-md-3">
                                     <div class="small text-muted text-uppercase mb-0.5 fw-semibold" style="font-size: 0.72rem;">
                                         <i class="bi bi-currency-rupee me-0.5"></i> TAXABLE VALUE
                                     </div>
-                                    <div class="fw-bold text-dark fs-5">₹<span id="footerTaxable"><?= number_format($initialTaxable, 2) ?></span></div>
+                                    <div class="fw-bold text-dark fs-5">₹<span id="footerTaxable"><?= number_format($totalInitialTaxable, 2) ?></span></div>
                                 </div>
                                 <div class="col-6 col-md-3">
                                     <div class="small text-muted text-uppercase mb-0.5 fw-semibold" style="font-size: 0.72rem;">
-                                        <i class="bi bi-percent me-0.5"></i> % GST AMOUNT (INCL.)
+                                        <i class="bi bi-percent me-0.5"></i> GST (5% INCL.)
                                     </div>
-                                    <div class="fw-bold fs-5" style="color: #2563eb;">₹<span id="footerGst"><?= number_format($initialGst, 2) ?></span></div>
+                                    <div class="fw-bold fs-5" style="color: #2563eb;">₹<span id="footerGst"><?= number_format($totalInitialGst, 2) ?></span></div>
                                 </div>
                                 <div class="col-6 col-md-3">
                                     <div class="small text-muted text-uppercase mb-0.5 fw-semibold" style="font-size: 0.72rem;">
                                         <i class="bi bi-file-earmark-check me-0.5"></i> TOTAL BILL & INVOICE
                                     </div>
-                                    <div class="fw-bold fs-5" style="color: #10b981;">₹<span id="footerTotal"><?= number_format($initialTotal, 2) ?></span></div>
+                                    <div class="fw-bold fs-5" style="color: #10b981;">₹<span id="footerTotal"><?= number_format($totalInitialAmount, 2) ?></span></div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Form Action Buttons -->
-                        <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 mt-4 pt-2">
-                            <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
-                                <i class="bi bi-x-circle me-1"></i> Cancel
-                            </a>
-                            <button type="button" class="btn btn-outline-success btn-sm px-3 fw-semibold" onclick="openBillPreviewModal()">
-                                <i class="bi bi-receipt me-1"></i> Generate Bill & Invoice
-                            </button>
-                            <button type="submit" class="btn btn-primary btn-sm px-4 fw-semibold shadow-sm" style="background:#4f46e5; border-color:#4f46e5;">
-                                <i class="bi bi-box-seam me-1"></i> Save Packed Batch & Generate Bill / Invoice
-                            </button>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4 pt-2 border-top">
+                            <div>
+                                <a href="<?= \App\Core\Controller::url('/production/batches') ?>" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
+                                    <i class="bi bi-x-circle me-1"></i> Cancel
+                                </a>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-success btn-sm px-3 fw-semibold" onclick="openBillPreviewModal()">
+                                    <i class="bi bi-receipt me-1"></i> Preview Invoice
+                                </button>
+                                <button type="submit" onclick="document.getElementById('formActionType').value='pack_only';" class="btn btn-outline-primary btn-sm px-3 fw-semibold">
+                                    <i class="bi bi-box-seam me-1"></i> Save Packed Batch Only
+                                </button>
+                                <button type="submit" onclick="document.getElementById('formActionType').value='pack_and_outward';" class="btn btn-success btn-sm px-4 fw-bold shadow-sm" style="background:#10b981; border-color:#10b981;">
+                                    <i class="bi bi-truck me-1"></i> Pack & Outward to Concern
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -304,20 +357,12 @@ $initialGst = round($initialTotal - $initialTaxable, 2);
                     <span class="fw-bold text-dark font-monospace"><?= htmlspecialchars($programStats['program_no']) ?></span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-                    <span class="text-muted small">Product Variant</span>
-                    <span class="fw-bold text-dark"><?= htmlspecialchars($variant['name']) ?> (<?= htmlspecialchars($variant['size']) ?>)</span>
+                    <span class="text-muted small">Target Destination</span>
+                    <span class="fw-semibold text-primary" id="previewDestination">-</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-                    <span class="text-muted small">Target Warehouse</span>
-                    <span class="fw-semibold text-primary" id="previewWarehouse">-</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-                    <span class="text-muted small">Pieces to Pack</span>
+                    <span class="text-muted small">Total Pieces to Pack</span>
                     <span class="fw-bold fs-6 text-dark" id="previewPieces">0 pcs</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-                    <span class="text-muted small">Unit Price</span>
-                    <span class="fw-semibold text-secondary">₹<?= number_format($unitPrice, 2) ?> / pc</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
                     <span class="text-muted small">Taxable Value</span>
@@ -335,7 +380,7 @@ $initialGst = round($initialTotal - $initialTaxable, 2);
             <div class="modal-footer bg-light py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-success btn-sm px-3" onclick="document.getElementById('formPackBatch').submit();">
-                    <i class="bi bi-check2-circle me-1"></i> Confirm & Save Packed Batch
+                    <i class="bi bi-check2-circle me-1"></i> Confirm & Save
                 </button>
             </div>
         </div>
@@ -343,139 +388,100 @@ $initialGst = round($initialTotal - $initialTaxable, 2);
 </div>
 
 <script>
-var piecePrice = <?= json_encode($unitPrice) ?>;
-var passedPieces = <?= (int)$initialCount ?>;
-var maxPieces = <?= (int)$initialCount ?>;
-var reworkTagsList = <?= json_encode($reworkTags ?? []) ?>;
-
 function handleQcChange(select) {
     if (select.value) {
         window.location.href = '<?= \App\Core\Controller::url('/production/batches/create') ?>?qc_batch_id=' + select.value;
     }
 }
 
-function handleCombineRework(checkbox) {
-    var toggle = document.getElementById('reworkToggle');
-    if (toggle) {
-        toggle.checked = checkbox.checked;
-        toggleReworkOption(toggle);
+function toggleOutwardFields(select) {
+    var fields = document.getElementById('outwardTransportFields');
+    if (fields) {
+        fields.style.display = select.value ? 'block' : 'none';
     }
 }
 
-function updateQrSelection() {
-    var checkboxes = document.querySelectorAll('.qr-checkbox');
-    var checkedCount = 0;
-    checkboxes.forEach(function(cb) {
-        if (cb.checked) checkedCount++;
-    });
-
-    document.getElementById('selectedCount').innerText = checkedCount;
-    document.getElementById('badgeHeaderPacked').innerText = checkedCount + ' pcs Packed';
-    document.getElementById('qtyToPack').value = checkedCount;
-    document.getElementById('footerCount').innerText = checkedCount + ' pcs';
-
-    calculateFinancials(checkedCount);
-}
-
-function selectAllQr(state) {
-    var checkboxes = document.querySelectorAll('.qr-checkbox');
-    checkboxes.forEach(function(cb) {
-        // Only modify if parent row is visible (not filtered out by search)
-        var row = cb.closest('.qr-item-col');
-        if (!row || row.style.display !== 'none') {
-            cb.checked = state;
-        }
-    });
-    updateQrSelection();
-}
-
-function handleManualQtyChange(input) {
+function handleVariantQtyChange(input) {
     var val = parseInt(input.value) || 0;
-    val = Math.max(0, Math.min(maxPieces, val));
+    var max = parseInt(input.getAttribute('data-max')) || 0;
+    if (val < 0) val = 0;
+    if (val > max) val = max;
     input.value = val;
 
-    var checkboxes = document.querySelectorAll('.qr-checkbox');
-    checkboxes.forEach(function(cb, idx) {
-        cb.checked = (idx < val);
-    });
+    var vId = input.getAttribute('data-variant-id');
+    var price = parseFloat(input.getAttribute('data-unit-price')) || 0;
+    var lineTotal = val * price;
 
-    document.getElementById('selectedCount').innerText = val;
-    document.getElementById('badgeHeaderPacked').innerText = val + ' pcs Packed';
-    document.getElementById('footerCount').innerText = val + ' pcs';
-
-    calculateFinancials(val);
-}
-
-function calculateFinancials(qty) {
-    var totalAmount = qty * piecePrice;
-    var gstRate = 0.05; // 5% GST included
-    var taxable = totalAmount > 0 ? (totalAmount / (1 + gstRate)) : 0;
-    var gst = totalAmount - taxable;
-
-    document.getElementById('footerTaxable').innerText = taxable.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-    document.getElementById('footerGst').innerText = gst.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-    document.getElementById('footerTotal').innerText = totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-
-    document.getElementById('inputTaxable').value = taxable.toFixed(2);
-    document.getElementById('inputGst').value = gst.toFixed(2);
-    document.getElementById('inputTotal').value = totalAmount.toFixed(2);
-}
-
-function filterQrCheckboxes() {
-    var query = document.getElementById('qrSearchInput').value.toLowerCase().trim();
-    var cols = document.querySelectorAll('.qr-item-col');
-    cols.forEach(function(col) {
-        var code = col.getAttribute('data-code').toLowerCase();
-        if (code.includes(query)) {
-            col.style.display = '';
-        } else {
-            col.style.display = 'none';
-        }
-    });
-}
-
-function toggleReworkOption(toggle) {
-    var container = document.getElementById('qrCheckboxesRow');
-    var existingReworkElements = container.querySelectorAll('.rework-qr-item');
-
-    if (toggle.checked) {
-        // Add rework tags dynamically if not already added
-        if (existingReworkElements.length === 0 && reworkTagsList.length > 0) {
-            reworkTagsList.forEach(function(item) {
-                var div = document.createElement('div');
-                div.className = 'form-check small mb-1 qr-item-col rework-qr-item';
-                div.setAttribute('data-code', item.tag);
-                div.innerHTML = `
-                    <input class="form-check-input qr-checkbox" type="checkbox" name="selected_tags[]" value="${item.tag}" id="qr_${item.tag}" checked onchange="updateQrSelection()">
-                    <label class="form-check-label font-monospace fw-semibold text-warning" for="qr_${item.tag}">
-                        ${item.tag} <span class="badge bg-warning text-dark py-0 px-1" style="font-size:0.65rem;">REWORK</span>
-                    </label>
-                `;
-                container.appendChild(div);
-            });
-        }
-        maxPieces = passedPieces + reworkTagsList.length;
-    } else {
-        // Remove rework tags
-        existingReworkElements.forEach(function(el) {
-            el.remove();
-        });
-        maxPieces = passedPieces;
+    var lineSpan = document.getElementById('lineTotal_' + vId);
+    if (lineSpan) {
+        lineSpan.innerText = lineTotal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
 
-    document.getElementById('totalAvailable').innerText = maxPieces;
-    document.getElementById('textAvailCount').innerText = maxPieces;
-    document.getElementById('qtyToPack').max = maxPieces;
-    document.getElementById('subtextMax').innerText = 'Max: ' + maxPieces + ' pcs';
-    updateQrSelection();
+    calculateAllTotals();
+}
+
+function calculateAllTotals() {
+    var inputs = document.querySelectorAll('.variant-qty-input');
+    var totalPieces = 0;
+    var grandTotal = 0.00;
+
+    inputs.forEach(function(inp) {
+        var qty = parseInt(inp.value) || 0;
+        var price = parseFloat(inp.getAttribute('data-unit-price')) || 0;
+        totalPieces += qty;
+        grandTotal += (qty * price);
+    });
+
+    var gstRate = 0.05;
+    var taxable = grandTotal > 0 ? (grandTotal / (1 + gstRate)) : 0;
+    var gst = grandTotal - taxable;
+
+    document.getElementById('badgeHeaderPacked').innerText = totalPieces + ' pcs Packed';
+    document.getElementById('footerCount').innerText = totalPieces + ' pcs';
+    document.getElementById('footerTaxable').innerText = taxable.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('footerGst').innerText = gst.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('footerTotal').innerText = grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function packAllRemaining() {
+    var inputs = document.querySelectorAll('.variant-qty-input');
+    inputs.forEach(function(inp) {
+        var max = parseInt(inp.getAttribute('data-max')) || 0;
+        inp.value = max;
+        var vId = inp.getAttribute('data-variant-id');
+        var price = parseFloat(inp.getAttribute('data-unit-price')) || 0;
+        var lineSpan = document.getElementById('lineTotal_' + vId);
+        if (lineSpan) {
+            lineSpan.innerText = (max * price).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+    });
+    calculateAllTotals();
+}
+
+function clearAllQuantities() {
+    var inputs = document.querySelectorAll('.variant-qty-input');
+    inputs.forEach(function(inp) {
+        inp.value = 0;
+        var vId = inp.getAttribute('data-variant-id');
+        var lineSpan = document.getElementById('lineTotal_' + vId);
+        if (lineSpan) {
+            lineSpan.innerText = '0.00';
+        }
+    });
+    calculateAllTotals();
 }
 
 function openBillPreviewModal() {
-    var qty = parseInt(document.getElementById('qtyToPack').value) || 0;
+    var count = document.getElementById('footerCount').innerText;
+    var destSel = document.getElementById('destConcernSelect');
     var wh = document.getElementById('destWarehouse').value || 'Main Warehouse';
+    var destLabel = wh;
+    if (destSel && destSel.value) {
+        destLabel = destSel.options[destSel.selectedIndex].text;
+    }
 
-    document.getElementById('previewWarehouse').innerText = wh;
-    document.getElementById('previewPieces').innerText = qty + ' pcs';
+    document.getElementById('previewDestination').innerText = destLabel;
+    document.getElementById('previewPieces').innerText = count;
     document.getElementById('previewTaxable').innerText = document.getElementById('footerTaxable').innerText;
     document.getElementById('previewGst').innerText = document.getElementById('footerGst').innerText;
     document.getElementById('previewTotal').innerText = document.getElementById('footerTotal').innerText;
@@ -484,9 +490,14 @@ function openBillPreviewModal() {
 }
 
 function validateBatchForm(event) {
-    var qty = parseInt(document.getElementById('qtyToPack').value) || 0;
-    var wh = document.getElementById('destWarehouse').value;
     var boxes = parseInt(document.getElementById('totalBoxes').value) || 0;
+    var wh = document.getElementById('destWarehouse').value;
+    var inputs = document.querySelectorAll('.variant-qty-input');
+    var totalQty = 0;
+
+    inputs.forEach(function(inp) {
+        totalQty += (parseInt(inp.value) || 0);
+    });
 
     if (!wh) {
         alert("Please select a Destination Warehouse.");
@@ -498,8 +509,8 @@ function validateBatchForm(event) {
         event.preventDefault();
         return false;
     }
-    if (qty <= 0) {
-        alert("Please select at least 1 QR code piece to pack.");
+    if (totalQty <= 0) {
+        alert("Please enter at least 1 piece to pack across the variants.");
         event.preventDefault();
         return false;
     }

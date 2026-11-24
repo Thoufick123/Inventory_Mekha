@@ -159,17 +159,28 @@
                                         </button>
                                         <?php endif; ?>
 
-                                        <!-- 3. Print Production Bill / Invoice -->
-                                        <a href="<?= \App\Core\Controller::url('/production/batches/label/' . $b['id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary p-1 px-1.5" title="Print Production Bill">
-                                            <i class="bi bi-printer"></i>
+                                        <!-- 3. Print Delivery Challan / Outward Invoice -->
+                                        <a href="<?= \App\Core\Controller::url('/production/batches/challan/' . $b['id']) ?>" target="_blank" class="btn btn-sm btn-outline-primary p-1 px-1.5" title="Print Delivery Challan & Outward Invoice">
+                                            <i class="bi bi-receipt"></i>
                                         </a>
 
-                                        <!-- 4. Carton QR Sticker Label (Image 3) -->
+                                        <!-- 4. Direct Outward Dispatch to Concern -->
+                                        <?php if ($st !== 'DISPATCHED'): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-success p-1 px-1.5" title="Direct Outward Dispatch to Concern" onclick='openDirectOutwardModal(<?= json_encode($b, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
+                                            <i class="bi bi-truck"></i>
+                                        </button>
+                                        <?php else: ?>
+                                        <a href="<?= \App\Core\Controller::url('/production/batches/challan/' . $b['id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary p-1 px-1.5 text-success" title="Dispatched (Outward <?= htmlspecialchars($b['outward_no'] ?? '') ?>)">
+                                            <i class="bi bi-check2-all"></i>
+                                        </a>
+                                        <?php endif; ?>
+
+                                        <!-- 5. Carton QR Sticker Label (Image 3) -->
                                         <a href="<?= \App\Core\Controller::url('/production/batches/label/' . $b['id']) ?>" class="btn btn-sm btn-outline-success p-1 px-1.5" title="Warehouse Carton QR Sticker">
                                             <i class="bi bi-file-earmark-code"></i>
                                         </a>
 
-                                        <!-- 5. Supervisor Approve / Gatepass -->
+                                        <!-- 6. Supervisor Approve -->
                                         <?php if (\App\Core\Auth::can('batch', 'edit')): ?>
                                             <?php if (strtoupper($b['status'] ?? '') === 'PREPARING' || strtoupper($b['status'] ?? '') === 'DRAFT'): ?>
                                                 <form action="<?= \App\Core\Controller::url('/m/batch/approve') ?>" method="POST" class="d-inline" onsubmit="return confirm('Supervisor Approval: Approve batch <?= htmlspecialchars($b['batch_no']) ?> and credit live inventory?');">
@@ -181,17 +192,17 @@
                                                 </form>
                                             <?php else: ?>
                                                 <span class="btn btn-sm btn-outline-secondary p-1 px-1.5 disabled" title="Already Processed">
-                                                    <i class="bi bi-truck"></i>
+                                                    <i class="bi bi-check-lg"></i>
                                                 </span>
                                             <?php endif; ?>
                                         <?php endif; ?>
 
-                                        <!-- 6. View Piece QR Codes Modal -->
+                                        <!-- 7. View Piece QR Codes Modal -->
                                         <button type="button" class="btn btn-sm btn-outline-dark p-1 px-1.5" title="View Piece QR Codes" onclick="openPieceQrModal('<?= htmlspecialchars($b['batch_no']) ?>', <?= (int)$b['id'] ?>)">
                                             <i class="bi bi-qr-code"></i>
                                         </button>
 
-                                        <!-- 7. Delete Batch -->
+                                        <!-- 8. Delete Batch -->
                                         <?php if (\App\Core\Auth::can('batch', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/m/batch/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete batch <?= htmlspecialchars($b['batch_no']) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
@@ -334,6 +345,71 @@
     </div>
 </div>
 
+<!-- Modal 4: Direct Outward Dispatch to Concern -->
+<div class="modal fade" id="modalDirectOutward" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form action="<?= \App\Core\Controller::url('/production/batches/outward') ?>" method="POST" class="modal-content border-0 shadow">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
+            <input type="hidden" name="batch_id" id="outwardBatchId" value="">
+            <div class="modal-header bg-success text-white py-3">
+                <h6 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <i class="bi bi-truck"></i> Dispatch Batch Directly to Concern
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="p-3 bg-light rounded-3 border mb-3">
+                    <small class="text-muted d-block mb-1">Batch to Dispatch</small>
+                    <div class="fw-bold font-monospace fs-6 text-dark" id="outwardBatchNo">-</div>
+                    <div class="small text-secondary" id="outwardBatchProduct">-</div>
+                    <div class="small fw-bold text-success mt-1" id="outwardBatchQty">-</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-secondary">
+                        Destination Concern <span class="text-danger">*</span>
+                    </label>
+                    <select name="destination_concern_id" id="outwardDestConcern" class="form-select form-select-sm" required>
+                        <option value="" disabled selected>-- Select Destination Concern --</option>
+                        <?php foreach (($allConcerns ?? []) as $con): ?>
+                            <option value="<?= $con['id'] ?>">
+                                <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-secondary">Vehicle Number</label>
+                    <input type="text" name="vehicle_number" class="form-control form-control-sm font-monospace" placeholder="e.g. TN-38-BK-4421" value="TN-38-BK-4421">
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold text-secondary">Driver Name</label>
+                        <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="e.g. Murugan" value="Murugan">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold text-secondary">Driver Contact</label>
+                        <input type="text" name="driver_contact" class="form-control form-control-sm" placeholder="e.g. 9842109876" value="9842109876">
+                    </div>
+                </div>
+
+                <div class="mb-1">
+                    <label class="form-label small fw-semibold text-secondary">Transporter / Carrier</label>
+                    <input type="text" name="transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics" value="Express Logistics">
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success btn-sm px-3 fw-semibold">
+                    <i class="bi bi-truck me-1"></i> Confirm Dispatch & Generate Challan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 function openViewBatchModal(b) {
     document.getElementById('viewBatchTitle').innerHTML = '<i class="bi bi-box-seam text-primary"></i> Batch Details: ' + (b.batch_no || '');
@@ -433,5 +509,14 @@ function openPieceQrModal(batchNo, batchId) {
         .catch(function(err) {
             document.getElementById('pieceQrGrid').innerHTML = '<div class="col-12 text-danger">Error: ' + err.message + '</div>';
         });
+}
+
+function openDirectOutwardModal(b) {
+    document.getElementById('outwardBatchId').value = b.id;
+    document.getElementById('outwardBatchNo').innerText = b.batch_no || ('Batch #' + b.id);
+    document.getElementById('outwardBatchProduct').innerText = (b.program_no ? (b.program_no + ' — ') : '') + (b.program_name || b.variant_name || 'Finished Garment Batch');
+    document.getElementById('outwardBatchQty').innerText = parseInt(b.batch_qty || 0) + ' pieces (' + parseInt(b.total_boxes || 1) + ' box)';
+
+    new bootstrap.Modal(document.getElementById('modalDirectOutward')).show();
 }
 </script>

@@ -215,6 +215,10 @@ $router->post('/m/batch/store', [BatchController::class, 'store'], 'batch', 'add
 $router->post('/production/batches/store', [BatchController::class, 'store'], 'batch', 'add');
 $router->get('/m/batch/label/{id}', [BatchController::class, 'label'], 'batch', 'view');
 $router->get('/production/batches/label/{id}', [BatchController::class, 'label'], 'batch', 'view');
+$router->get('/m/batch/challan/{id}', [BatchController::class, 'challan'], 'batch', 'view');
+$router->get('/production/batches/challan/{id}', [BatchController::class, 'challan'], 'batch', 'view');
+$router->post('/m/batch/outward', [BatchController::class, 'directOutward'], 'batch', 'edit');
+$router->post('/production/batches/outward', [BatchController::class, 'directOutward'], 'batch', 'edit');
 $router->get('/m/batch/pieces/{id}', [BatchController::class, 'pieces'], 'batch', 'view');
 $router->get('/production/batches/pieces/{id}', [BatchController::class, 'pieces'], 'batch', 'view');
 $router->post('/m/batch/approve', [BatchController::class, 'approve'], 'batch', 'edit');
