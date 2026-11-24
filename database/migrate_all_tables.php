@@ -137,6 +137,23 @@ if (!in_array('inward_at', $cols)) {
     echo "  . `inward_at` already exists\n";
 }
 
+$pbiAdditional = [
+    'design_name'     => "VARCHAR(150) NULL AFTER `item_name`",
+    'rolls_count'     => "INT NULL DEFAULT 0 AFTER `qty`",
+    'weight_per_roll' => "DECIMAL(10,2) NULL DEFAULT 0.00 AFTER `rolls_count`",
+    'fabric_type'     => "VARCHAR(100) NULL AFTER `pattern`",
+    'gsm'             => "VARCHAR(50) NULL AFTER `fabric_type`",
+    'dia'             => "VARCHAR(50) NULL AFTER `gsm`",
+];
+foreach ($pbiAdditional as $pbiCol => $pbiDef) {
+    if (!in_array($pbiCol, $cols, true)) {
+        DB::query("ALTER TABLE `purchase_bill_items` ADD COLUMN `{$pbiCol}` {$pbiDef}");
+        echo "  + Added `{$pbiCol}` to `purchase_bill_items`\n";
+    } else {
+        echo "  . `{$pbiCol}` already exists\n";
+    }
+}
+
 // 7. STITCHING_ITEMS
 echo "\n7. Checking `stitching_items`...\n";
 $cols = array_column(DB::fetchAll("SHOW COLUMNS FROM `stitching_items`"), 'Field');
@@ -162,6 +179,16 @@ if (!in_array('inward_status', $cols)) {
     echo "  + Added `inward_status` to `stitching_logs`\n";
 } else {
     echo "  . `inward_status` already exists\n";
+}
+
+// 8.1 CUTTING_LOGS
+echo "\n8.1 Checking `cutting_logs`...\n";
+$cutLogCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `cutting_logs`"), 'Field');
+if (!in_array('updated_at', $cutLogCols, true)) {
+    DB::query("ALTER TABLE `cutting_logs` ADD COLUMN `updated_at` TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP");
+    echo "  + Added `updated_at` to `cutting_logs`\n";
+} else {
+    echo "  . `updated_at` already exists\n";
 }
 
 echo "\n9. Checking HSN/SAC and GST master...\n";
@@ -511,13 +538,57 @@ DB::query("CREATE TABLE IF NOT EXISTS `production_stock_request_audits` (
 echo "  + `production_stock_requests` and audit tables verified\n";
 
 // 17. BATCHES
-echo "\n17. Checking `batches` status...\n";
+echo "\n17. Checking `batches` columns & `batch_items`...\n";
 DB::query("ALTER TABLE `batches` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'active'");
-echo "  + Ensured flexible `status` on `batches`\n";
+DB::query("ALTER TABLE `batches` MODIFY COLUMN `variant_id` INT NULL");
+
+$batchCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `batches`"), 'Field');
+$batchAdditional = [
+    'warehouse_id'    => "INT NULL AFTER `concern_id`",
+    'warehouse_name'  => "VARCHAR(150) NULL AFTER `warehouse_id`",
+    'packed_by_name'  => "VARCHAR(150) NULL AFTER `packed_by`",
+    'rework_included' => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `packed_by_name`",
+    'qr_codes'        => "TEXT NULL AFTER `rework_included`",
+    'taxable_value'   => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `qr_codes`",
+    'gst_amount'      => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `taxable_value`",
+    'total_amount'    => "DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `gst_amount`",
+    'bill_no'         => "VARCHAR(100) NULL AFTER `total_amount`",
+    'outward_id'      => "INT NULL AFTER `bill_no`",
+    'fabric_details'  => "TEXT NULL AFTER `outward_id`",
+];
+foreach ($batchAdditional as $bCol => $bDef) {
+    if (!in_array($bCol, $batchCols, true)) {
+        DB::query("ALTER TABLE `batches` ADD COLUMN `{$bCol}` {$bDef}");
+        echo "  + Added `{$bCol}` to `batches`\n";
+    } else {
+        echo "  . `{$bCol}` already exists on `batches`\n";
+    }
+}
+
+DB::query("CREATE TABLE IF NOT EXISTS `batch_items` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `batch_id` INT NOT NULL,
+    `variant_id` INT NOT NULL,
+    `sku_code` VARCHAR(100) NULL,
+    `variant_name` VARCHAR(255) NULL,
+    `size` VARCHAR(50) NULL,
+    `color` VARCHAR(50) NULL,
+    `quantity` INT NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_bi_batch` (`batch_id`),
+    INDEX `idx_bi_variant` (`variant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+echo "  + `batch_items` table verified\n";
 
 // 18. POS PRODUCTION BATCH TRACEABILITY
 echo "\n18. Checking POS production batch traceability...\n";
 $salesItemCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `sales_invoice_items`"), 'Field');
+if (!in_array('inward_status', $salesItemCols, true)) {
+    DB::query("ALTER TABLE `sales_invoice_items` ADD COLUMN `inward_status` VARCHAR(50) NULL DEFAULT NULL AFTER `price`");
+    echo "  + Added `inward_status` to `sales_invoice_items`\n";
+} else {
+    echo "  . `inward_status` already exists on `sales_invoice_items`\n";
+}
 if (!in_array('production_batch_id', $salesItemCols, true)) {
     DB::query("ALTER TABLE `sales_invoice_items` ADD COLUMN `production_batch_id` INT NULL AFTER `variant_id`");
     echo "  + Added `production_batch_id` to `sales_invoice_items`\n";
@@ -616,12 +687,28 @@ if (!in_array('is_complementary', $varCols, true)) {
     echo "  . `is_complementary` already exists\n";
 }
 
-// 22. Standardize collation across purchase damage & supplier tables
-echo "\n22. Aligning table collation for purchase damages and suppliers...\n";
-DB::query("ALTER TABLE `purchase_damages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-DB::query("ALTER TABLE `purchase_damage_quarantine` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-DB::query("ALTER TABLE `suppliers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-echo "  + Collation aligned to utf8mb4_unicode_ci\n";
+// 22. Standardize collation across all tables to utf8mb4_unicode_ci
+echo "\n22. Standardizing all database tables to utf8mb4_unicode_ci...\n";
+try {
+    DB::query("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+        DB::query("ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    } catch (\Throwable $e) {}
+
+    $dbTables = DB::fetchAll("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'");
+    foreach ($dbTables as $tRow) {
+        $tName = $tRow['table_name'] ?? $tRow['TABLE_NAME'] ?? '';
+        if ($tName) {
+            try {
+                DB::query("ALTER TABLE `{$tName}` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            } catch (\Throwable $e) {}
+        }
+    }
+    DB::query("SET FOREIGN_KEY_CHECKS = 1");
+    echo "  + All tables converted to utf8mb4_unicode_ci\n";
+} catch (\Throwable $e) {
+    echo "  ! Collation migration note: " . $e->getMessage() . "\n";
+}
 
 // 23. CATALOG SOURCE
 echo "\n23. Checking `catalogs` source...\n";

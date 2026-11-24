@@ -166,11 +166,31 @@ class ProductionController extends Controller {
 
             // Align table collations to prevent "1267 Illegal mix of collations" error
             try {
-                DB::query("ALTER TABLE `purchase_damages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-                DB::query("ALTER TABLE `purchase_damage_quarantine` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-                DB::query("ALTER TABLE `qc_inspection_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-                DB::query("ALTER TABLE `qc_piece_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-                DB::query("ALTER TABLE `suppliers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                $alignTables = [
+                    'purchase_bill_items',
+                    'purchase_bills',
+                    'purchase_damages',
+                    'purchase_damage_quarantine',
+                    'purchase_damage_reasons',
+                    'program_rolls',
+                    'production_programs',
+                    'catalogs',
+                    'categories',
+                    'subcategories',
+                    'sub_subcategories',
+                    'variants',
+                    'batches',
+                    'batch_items',
+                    'qc_inspections',
+                    'qc_inspection_items',
+                    'qc_piece_items',
+                    'suppliers'
+                ];
+                foreach ($alignTables as $tbl) {
+                    try {
+                        DB::query("ALTER TABLE `{$tbl}` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                    } catch (\Throwable $t) {}
+                }
             } catch (\Throwable $colEx) {
                 // Ignore if lacks alter privileges
             }
