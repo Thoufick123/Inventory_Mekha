@@ -766,8 +766,9 @@ function onEditPermCheckboxChange(mid, act, checked) {
 
 function toggleEditHeaderColumn(action, checked) {
     document.querySelectorAll('.edit-matrix-perm-' + action).forEach(cb => {
-        cb.checked = checked;
         const row = cb.closest('tr');
+        if (row && row.style.display === 'none') return;
+        cb.checked = checked;
         const mid = row ? row.getAttribute('data-mid') : null;
         if (checked && action !== 'view' && mid) {
             const vCb = document.getElementById('edit_m_view_' + mid);
@@ -776,7 +777,11 @@ function toggleEditHeaderColumn(action, checked) {
     });
     if (!checked && action === 'view') {
         ['add', 'edit', 'delete'].forEach(act => {
-            document.querySelectorAll('.edit-matrix-perm-' + act).forEach(cb => cb.checked = false);
+            document.querySelectorAll('.edit-matrix-perm-' + act).forEach(cb => {
+                const row = cb.closest('tr');
+                if (row && row.style.display === 'none') return;
+                cb.checked = false;
+            });
             const h = document.getElementById('edit_header_check_' + act);
             if (h) { h.checked = false; h.indeterminate = false; }
         });
@@ -805,7 +810,10 @@ function setAllEditMatrixReadOnly() {
 function updateEditHeaderCheckboxesState() {
     const actions = ['view', 'add', 'edit', 'delete'];
     actions.forEach(act => {
-        const cbs = Array.from(document.querySelectorAll('.edit-matrix-perm-' + act));
+        const cbs = Array.from(document.querySelectorAll('.edit-matrix-perm-' + act)).filter(cb => {
+            const row = cb.closest('tr');
+            return row && row.style.display !== 'none';
+        });
         const headerCb = document.getElementById('edit_header_check_' + act);
         if (!cbs.length || !headerCb) return;
         const checkedCount = cbs.filter(c => c.checked).length;
