@@ -387,7 +387,7 @@ class PurchaseStockController extends Controller {
             $color = strtoupper(trim((string)($_GET['color'] ?? '')));
             $design = strtoupper(trim((string)($_GET['design'] ?? '')));
             if (!$concernId || $color === '' || $design === '') {
-                $this->json(['success' => false, 'message' => 'Invalid roll specification.'], 400);
+                $this->renderJson(['success' => false, 'message' => 'Invalid roll specification.'], 400);
                 return;
             }
 
@@ -404,7 +404,7 @@ class PurchaseStockController extends Controller {
                 }
             }
             if (!$matched) {
-                $this->json(['success' => false, 'message' => 'Fabric roll stock not found.'], 404);
+                $this->renderJson(['success' => false, 'message' => 'Fabric roll stock not found.'], 404);
                 return;
             }
 
@@ -423,7 +423,7 @@ class PurchaseStockController extends Controller {
                 [$concernId, $color, $design]
             );
 
-            $this->json([
+            $this->renderJson([
                 'success' => true,
                 'section_type' => 'rolls',
                 'item' => $matched,
@@ -434,7 +434,7 @@ class PurchaseStockController extends Controller {
 
         $itemId = (int)($_GET['item_id'] ?? 0);
         if (!$itemId || !in_array($sectionType, ['garment_other', 'finished_goods'], true)) {
-            $this->json(['success' => false, 'message' => 'Invalid stock item requested.'], 400);
+            $this->renderJson(['success' => false, 'message' => 'Invalid stock item requested.'], 400);
             return;
         }
 
@@ -454,7 +454,7 @@ class PurchaseStockController extends Controller {
 
         $row = DB::fetch($sql, $params);
         if (!$row) {
-            $this->json(['success' => false, 'message' => 'Purchase stock item not found.'], 404);
+            $this->renderJson(['success' => false, 'message' => 'Purchase stock item not found.'], 404);
             return;
         }
 
@@ -462,7 +462,7 @@ class PurchaseStockController extends Controller {
         $rows = PurchaseStockItemOverrideService::applyToItems([$row]);
         $item = $rows[0];
 
-        $this->json([
+        $this->renderJson([
             'success' => true,
             'section_type' => $sectionType,
             'item' => $item,
