@@ -43,15 +43,10 @@ foreach ($modules as $m) {
     <div class="row justify-content-center">
         <div class="col-12 col-lg-11 col-xl-10">
             <div class="card border-0 shadow-sm rounded-4 bg-white" style="border: 1px solid #e2e8f0 !important;">
-                <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+                <div class="card-header bg-white py-3 px-4 border-bottom">
                     <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
                         <i class="bi bi-person-vcard text-primary fs-5"></i> Employee Details & Account Credentials
                     </h6>
-                    <a href="<?= \App\Core\Controller::url('/m/staff/create' . ($selectedCid ? '?concern_id=' . $selectedCid : '')) ?>" 
-                       class="btn btn-sm rounded-pill px-3 py-1 fw-semibold d-inline-flex align-items-center gap-1 shadow-sm" 
-                       style="font-size: 0.78rem; background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; text-decoration: none;">
-                        <i class="bi bi-plus-lg"></i> Add New
-                    </a>
                 </div>
 
                 <form action="<?= \App\Core\Controller::url('/m/staff/store') ?>" method="POST" class="card-body p-4" autocomplete="off">
@@ -59,7 +54,7 @@ foreach ($modules as $m) {
 
                     <!-- 1. BUSINESS CONCERN ASSIGNMENT -->
                     <div class="mb-4 p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                        <input type="hidden" name="concern_id" id="staff_concern_id" value="<?= (int)($selectedCid ?: ($allConcerns[0]['id'] ?? 0)) ?>">
+                        <input type="hidden" name="concern_id" id="staff_concern_id" value="">
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                             <label class="small fw-bold text-dark text-uppercase mb-0 d-flex align-items-center gap-1.5" style="font-size: 0.78rem; letter-spacing: 0.05em;">
                                 <i class="bi bi-buildings-fill text-primary"></i> 1. Authorized Business Concerns *
@@ -86,10 +81,8 @@ foreach ($modules as $m) {
                         <div class="row g-2 mb-1" id="create_concern_checkboxes_grid">
                             <?php foreach ($allConcerns as $c): ?>
                                 <?php 
-                                    $isPrimary = ($selectedCid ? ($selectedCid == $c['id']) : false); 
                                     $isChecked = !empty($oldInput['concern_ids']) 
-                                        ? in_array((int)$c['id'], array_map('intval', (array)$oldInput['concern_ids']), true) 
-                                        : $isPrimary;
+                                        && in_array((int)$c['id'], array_map('intval', (array)$oldInput['concern_ids']), true);
                                 ?>
                                 <div class="col-md-6" data-name="<?= htmlspecialchars($c['name']) ?>" data-code="<?= htmlspecialchars($c['code']) ?>">
                                     <div class="p-2.5 border rounded-3 bg-white d-flex align-items-center gap-2.5 concern-check-card" id="box_cid_<?= $c['id'] ?>" style="transition: all 0.18s ease; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT') { const cb = document.getElementById('create_cid_<?= $c['id'] ?>'); if(cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); } }">
@@ -251,17 +244,6 @@ foreach ($modules as $m) {
                                 </h6>
                                 <small class="text-secondary">Configure specific View, Create, Edit, and Delete operational rights across selected concern modules.</small>
                             </div>
-                            <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                <button type="button" class="btn btn-outline-primary btn-xs py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllMatrixPerms(true)">
-                                    <i class="bi bi-check-square me-1"></i> Full Access (All)
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-xs py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllMatrixReadOnly()">
-                                    <i class="bi bi-eye me-1"></i> Read-Only (View All)
-                                </button>
-                                <button type="button" class="btn btn-outline-danger btn-xs py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllMatrixPerms(false)">
-                                    <i class="bi bi-x-square me-1"></i> Clear All
-                                </button>
-                            </div>
                         </div>
 
                         <!-- DYNAMIC CONCERN TABS (Shown separately for each selected concern) -->
@@ -277,24 +259,6 @@ foreach ($modules as $m) {
                             <ul class="nav nav-pills gap-1.5 p-1.5 bg-light rounded-3 border" id="concern_matrix_pills" role="tablist">
                                 <!-- Dynamically populated concern tabs -->
                             </ul>
-                        </div>
-
-                        <!-- Column Quick Toggles -->
-                        <div class="d-flex align-items-center justify-content-between p-2.5 bg-light rounded-3 mb-3 border flex-wrap gap-2">
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <span class="fw-bold text-secondary text-uppercase d-flex align-items-center gap-1" style="font-size: 0.71rem;">
-                                    <i class="bi bi-toggles text-primary"></i> Column Toggles:
-                                </span>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setColumnMatrixPerm('view', true)">All View</button>
-                                <button type="button" class="btn btn-sm btn-outline-success py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setColumnMatrixPerm('add', true)">All Create</button>
-                                <button type="button" class="btn btn-sm btn-outline-warning text-dark py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setColumnMatrixPerm('edit', true)">All Edit</button>
-                                <button type="button" class="btn btn-sm btn-outline-danger py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setColumnMatrixPerm('delete', true)">All Delete</button>
-                            </div>
-                            <div>
-                                <span class="text-muted small" id="perm_sync_role_text" style="font-size: 0.74rem;">
-                                    <i class="bi bi-shield-check me-1"></i> Configure module access and permissions below.
-                                </span>
-                            </div>
                         </div>
 
                         <!-- Container for dynamic serialized permissions inputs -->

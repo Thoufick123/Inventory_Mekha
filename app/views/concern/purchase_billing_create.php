@@ -3569,28 +3569,6 @@ function addRollRow() {
     div.className = 'roll-card card border mb-4 shadow-sm rounded-3';
     div.id = 'rollCard_' + rollCounter;
 
-    const quickSelectHtml = `
-        <div class="mb-3 p-2.5 rounded bg-light border d-flex flex-wrap align-items-center justify-content-between gap-2 roll-spec-selector-bar">
-            <div class="d-flex align-items-center gap-1.5 small text-secondary">
-                <i class="bi bi-bookmark-star text-primary"></i>
-                <span class="fw-semibold">Roll Design / Pattern:</span>
-            </div>
-            <div class="flex-grow-1" style="max-width: 520px;">
-                <div class="input-group input-group-sm">
-                    <select class="form-select form-select-sm roll-quick-select" id="rollQuickSelect_${rollCounter}" onchange="applySavedRollSpec(this, ${rollCounter})">
-                        ${getSavedRollSpecsOptionsHtml()}
-                    </select>
-                    <button type="button" class="btn btn-outline-info btn-sm btn-view-spec px-2" id="btnViewSpec_${rollCounter}" onclick="viewCurrentRollSpec(${rollCounter})" title="View Details of Selected Design">
-                        <i class="bi bi-eye"></i> View
-                    </button>
-                    <button type="button" class="btn btn-primary btn-sm px-2 fw-semibold" onclick="openCreateDesignModal(${rollCounter})" title="Create New Design & Color">
-                        <i class="bi bi-plus-lg"></i> New
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-
     div.innerHTML = `
         <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
@@ -3603,7 +3581,6 @@ function addRollRow() {
             </button>
         </div>
         <div class="card-body p-3">
-            ${quickSelectHtml}
             <!-- Row 1: Roll No, Color, Pattern, Qty, Weight, Price -->
             <div class="row g-2 mb-2 align-items-end">
                 <div class="col-md-2">
@@ -4449,32 +4426,6 @@ function loadInitialData() {
             const gstRate = parseFloat(r.gst_rate) || 0;
             const halfRate = (gstRate / 2).toFixed(2);
 
-            const rPat = (r.pattern || r.item_name || '').trim().toUpperCase();
-            const rCol = (r.color || '').trim().toUpperCase();
-            const rSpecVal = (rPat && rCol) ? `${rPat}|${rCol}` : '';
-
-            const quickSelectHtml = `
-                <div class="mb-3 p-2.5 rounded bg-light border d-flex flex-wrap align-items-center justify-content-between gap-2 roll-spec-selector-bar">
-                    <div class="d-flex align-items-center gap-1.5 small text-secondary">
-                        <i class="bi bi-bookmark-star text-primary"></i>
-                        <span class="fw-semibold">Roll Design / Pattern:</span>
-                    </div>
-                    <div class="flex-grow-1" style="max-width: 520px;">
-                        <div class="input-group input-group-sm">
-                            <select class="form-select form-select-sm roll-quick-select" id="rollQuickSelect_${rollCounter}" onchange="applySavedRollSpec(this, ${rollCounter})">
-                                ${getSavedRollSpecsOptionsHtml(rSpecVal)}
-                            </select>
-                            <button type="button" class="btn btn-outline-info btn-sm btn-view-spec px-2" id="btnViewSpec_${rollCounter}" onclick="viewCurrentRollSpec(${rollCounter})" title="View Details of Selected Design">
-                                <i class="bi bi-eye"></i> View
-                            </button>
-                            <button type="button" class="btn btn-primary btn-sm px-2 fw-semibold" onclick="openCreateDesignModal(${rollCounter})" title="Create New Design & Color">
-                                <i class="bi bi-plus-lg"></i> New
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-
             div.innerHTML = `
                 <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -4488,7 +4439,6 @@ function loadInitialData() {
                 </div>
                 <div class="card-body p-3">
                     <input type="hidden" name="rolls[${rollCounter}][existing_photo]" value="${escapeHtml(existingPhoto)}">
-                    ${quickSelectHtml}
                     <div id="rollStockNotice_${rollCounter}" style="display: none;"></div>
                     <!-- Row 1: Roll No, Color, Pattern, RQ, Weight, Price -->
                     <div class="row g-2 mb-3 align-items-end">

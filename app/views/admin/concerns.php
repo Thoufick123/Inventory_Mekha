@@ -180,9 +180,9 @@
                                 <div class="form-text" id="newConcernCodeHelp">Generated automatically from the concern name.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">GSTIN *</label>
-                                <input type="text" name="gstin" id="newConcernGstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9A-Za-z]{15}" placeholder="15-character GSTIN" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="15-character alphanumeric GSTIN (e.g. 29AAAAA0000A1Z5)" required>
-                                <div class="invalid-feedback" id="newConcernGstinFeedback">A valid 15-character alphanumeric GSTIN is required.</div>
+                                <label class="form-label small fw-semibold">GSTIN <span class="text-muted fw-normal">(Optional)</span></label>
+                                <input type="text" name="gstin" id="newConcernGstin" class="form-control text-uppercase font-monospace" maxlength="15" placeholder="15-character GSTIN (optional)" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="Optional 15-character alphanumeric GSTIN">
+                                <div class="invalid-feedback" id="newConcernGstinFeedback"></div>
                             </div>
                         </div>
 
@@ -298,9 +298,9 @@
                                 <input type="text" name="code" id="edit_concern_code" class="form-control text-uppercase font-monospace" required maxlength="20" autocomplete="off">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">GSTIN *</label>
-                                <input type="text" name="gstin" id="edit_concern_gstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9A-Za-z]{15}" placeholder="15-character GSTIN" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="15-character alphanumeric GSTIN" required>
-                                <div class="invalid-feedback" id="editConcernGstinFeedback">A valid 15-character alphanumeric GSTIN is required.</div>
+                                <label class="form-label small fw-semibold">GSTIN <span class="text-muted fw-normal">(Optional)</span></label>
+                                <input type="text" name="gstin" id="edit_concern_gstin" class="form-control text-uppercase font-monospace" maxlength="15" placeholder="15-character GSTIN (optional)" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="Optional 15-character alphanumeric GSTIN">
+                                <div class="invalid-feedback" id="editConcernGstinFeedback"></div>
                             </div>
                         </div>
 
@@ -477,18 +477,7 @@
                 </div>
             </div>
 
-            <div class="modal-footer border-top px-4 py-2 bg-light d-flex justify-content-between align-items-center">
-                <div class="btn-group">
-                    <a href="#" id="view_concern_pdf_btn" class="btn btn-sm btn-outline-danger" target="_blank" title="Download / Print PDF Dossier">
-                        <i class="bi bi-file-earmark-pdf me-1"></i> PDF Dossier
-                    </a>
-                    <a href="#" id="view_concern_excel_btn" class="btn btn-sm btn-outline-success" title="Download Excel Dossier">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Excel Dossier
-                    </a>
-                    <a href="#" id="view_concern_csv_btn" class="btn btn-sm btn-outline-secondary" title="Download CSV Dossier">
-                        <i class="bi bi-file-earmark-text me-1"></i> CSV
-                    </a>
-                </div>
+            <div class="modal-footer border-top px-4 py-2 bg-light d-flex justify-content-end align-items-center">
                 <button type="button" class="btn btn-sm btn-secondary px-3" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
@@ -619,13 +608,6 @@ function validateConcernGstin(inputEl, feedbackEl, isFinalCheck = false) {
     if (!inputEl) return true;
     const val = inputEl.value.trim().toUpperCase();
     if (!val) {
-        if (isFinalCheck) {
-            const errorMsg = 'A valid 15-character alphanumeric GSTIN is required.';
-            inputEl.classList.add('is-invalid');
-            inputEl.setCustomValidity(errorMsg);
-            if (feedbackEl) feedbackEl.textContent = errorMsg;
-            return false;
-        }
         inputEl.classList.remove('is-invalid');
         inputEl.setCustomValidity('');
         if (feedbackEl) feedbackEl.textContent = '';
@@ -843,14 +825,6 @@ function openViewConcernModal(con) {
             }
         }
     });
-
-    const downloadBaseUrl = '<?= \App\Core\Controller::url('/admin/concerns/download') ?>';
-    const pdfBtn = document.getElementById('view_concern_pdf_btn');
-    const excelBtn = document.getElementById('view_concern_excel_btn');
-    const csvBtn = document.getElementById('view_concern_csv_btn');
-    if (pdfBtn) pdfBtn.href = `${downloadBaseUrl}?id=${encodeURIComponent(con.id)}&format=pdf`;
-    if (excelBtn) excelBtn.href = `${downloadBaseUrl}?id=${encodeURIComponent(con.id)}&format=excel`;
-    if (csvBtn) csvBtn.href = `${downloadBaseUrl}?id=${encodeURIComponent(con.id)}&format=csv`;
 
     const modal = new bootstrap.Modal(document.getElementById('modalViewConcern'));
     modal.show();
