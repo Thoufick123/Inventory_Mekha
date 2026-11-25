@@ -269,7 +269,7 @@ class AdminController extends Controller {
                 $errors[] = 'A business concern named "' . htmlspecialchars($name) . '" already exists. Concern names must be unique.';
             }
         }
-        if ($gstin === '' || !preg_match('/^[0-9A-Z]{15}$/D', $gstin)) {
+        if ($gstin !== '' && !preg_match('/^[0-9A-Z]{15}$/D', $gstin)) {
             $errors[] = 'A valid 15-character alphanumeric GSTIN is required.';
         }
         if ($phone === '') {
@@ -524,7 +524,7 @@ class AdminController extends Controller {
             $this->redirect('/admin/concerns');
             return;
         }
-        if ($gstin === '' || !preg_match('/^[0-9A-Z]{15}$/D', $gstin)) {
+        if ($gstin !== '' && !preg_match('/^[0-9A-Z]{15}$/D', $gstin)) {
             $this->flash('error', 'A valid 15-character alphanumeric GSTIN is required.');
             $this->redirect('/admin/concerns');
             return;

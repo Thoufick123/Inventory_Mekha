@@ -180,9 +180,9 @@
                                 <div class="form-text" id="newConcernCodeHelp">Generated automatically from the concern name.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">GSTIN *</label>
-                                <input type="text" name="gstin" id="newConcernGstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9A-Za-z]{15}" placeholder="15-character GSTIN" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="15-character alphanumeric GSTIN (e.g. 29AAAAA0000A1Z5)" required>
-                                <div class="invalid-feedback" id="newConcernGstinFeedback">A valid 15-character alphanumeric GSTIN is required.</div>
+                                <label class="form-label small fw-semibold">GSTIN <span class="text-muted fw-normal">(Optional)</span></label>
+                                <input type="text" name="gstin" id="newConcernGstin" class="form-control text-uppercase font-monospace" maxlength="15" placeholder="15-character GSTIN (optional)" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="Optional 15-character alphanumeric GSTIN">
+                                <div class="invalid-feedback" id="newConcernGstinFeedback"></div>
                             </div>
                         </div>
 
@@ -298,9 +298,9 @@
                                 <input type="text" name="code" id="edit_concern_code" class="form-control text-uppercase font-monospace" required maxlength="20" autocomplete="off">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">GSTIN *</label>
-                                <input type="text" name="gstin" id="edit_concern_gstin" class="form-control text-uppercase font-monospace" maxlength="15" pattern="[0-9A-Za-z]{15}" placeholder="15-character GSTIN" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="15-character alphanumeric GSTIN" required>
-                                <div class="invalid-feedback" id="editConcernGstinFeedback">A valid 15-character alphanumeric GSTIN is required.</div>
+                                <label class="form-label small fw-semibold">GSTIN <span class="text-muted fw-normal">(Optional)</span></label>
+                                <input type="text" name="gstin" id="edit_concern_gstin" class="form-control text-uppercase font-monospace" maxlength="15" placeholder="15-character GSTIN (optional)" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);" autocomplete="off" title="Optional 15-character alphanumeric GSTIN">
+                                <div class="invalid-feedback" id="editConcernGstinFeedback"></div>
                             </div>
                         </div>
 
@@ -608,13 +608,6 @@ function validateConcernGstin(inputEl, feedbackEl, isFinalCheck = false) {
     if (!inputEl) return true;
     const val = inputEl.value.trim().toUpperCase();
     if (!val) {
-        if (isFinalCheck) {
-            const errorMsg = 'A valid 15-character alphanumeric GSTIN is required.';
-            inputEl.classList.add('is-invalid');
-            inputEl.setCustomValidity(errorMsg);
-            if (feedbackEl) feedbackEl.textContent = errorMsg;
-            return false;
-        }
         inputEl.classList.remove('is-invalid');
         inputEl.setCustomValidity('');
         if (feedbackEl) feedbackEl.textContent = '';
