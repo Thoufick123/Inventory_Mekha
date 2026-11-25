@@ -151,9 +151,6 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                         </li>
                     </ul>
                 </div>
-                <div class="text-muted small pe-2 d-none d-lg-block" style="font-size: 0.78rem;">
-                    <i class="bi bi-info-circle me-1 text-primary"></i> Separate configuration and product lists for Fabric Rolls and Garment Trims.
-                </div>
             </div>
 
             <!-- Purchase Label Sub-Tab Contents -->
@@ -172,7 +169,6 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                         <i class="bi bi-stack text-primary fs-5"></i>
                                         <span>Fabric Roll Label Configuration</span>
                                     </h6>
-                                    <span class="badge bg-primary-subtle text-primary border border-primary">Rolls Only</span>
                                 </div>
                                 <form action="<?= \App\Core\Controller::url('/m/label_generation/generate') ?>" method="POST" target="_blank" class="card-body p-4 d-flex flex-column">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -187,10 +183,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                         ksort($rollSuppliers);
                                     ?>
                                     <div class="mb-3">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <label class="form-label small fw-semibold mb-0">Select Fabric Roll <span class="text-danger">*</span></label>
-                                            <span class="small text-muted" id="roll_filter_count"><?= count($purchaseRollItems) ?> roll(s)</span>
-                                        </div>
+                                        <label class="form-label small fw-semibold mb-1">Select Fabric Roll <span class="text-danger">*</span></label>
                                         <!-- User-friendly Supplier & Search Filter -->
                                         <div class="row g-2 mb-2">
                                             <div class="col-sm-5">
