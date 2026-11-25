@@ -331,6 +331,7 @@ class StaffController extends Controller {
         }
 
         $name        = trim($_POST['name'] ?? '');
+        $username    = trim($_POST['username'] ?? '');
         $email       = trim($_POST['email'] ?? '');
         $password    = trim($_POST['password'] ?? '');
         $phone       = trim($_POST['phone'] ?? '');
@@ -343,6 +344,16 @@ class StaffController extends Controller {
         $address     = trim($_POST['address'] ?? '');
         $selectedRole = !empty($_POST['role_id']) ? (int)$_POST['role_id'] : null;
 
+        // If designation is empty but role is selected, populate designation with role name
+        if ($designation === '' && $selectedRole) {
+            $designation = (string)DB::fetchValue("SELECT name FROM roles WHERE id = ?", [$selectedRole]);
+        }
+
+        // If email is empty but username is given, generate a consistent internal login email
+        if ($email === '' && $username !== '') {
+            $email = preg_replace('/[^a-zA-Z0-9._-]/', '', strtolower($username)) . '@invento.com';
+        }
+
         // Server-side validation
         if (mb_strlen($name) < 2) {
             $_SESSION['_old_input'] = $_POST;
@@ -352,6 +363,18 @@ class StaffController extends Controller {
 
         $existingStaffId = null;
         $existingUserId = null;
+        if ($username !== '') {
+            $userByUsername = DB::fetch("SELECT id, concern_id FROM users WHERE name = ?", [$username]);
+            if ($userByUsername) {
+                if ((int)$userByUsername['concern_id'] === $cid) {
+                    $existingUserId = (int)$userByUsername['id'];
+                } else {
+                    $_SESSION['_old_input'] = $_POST;
+                    $this->flash('error', "The username '{$username}' is already in use by another user.");
+                    $this->redirect('/m/staff/create?concern_id=' . $cid);
+                }
+            }
+        }
         if ($email !== '') {
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $_SESSION['_old_input'] = $_POST;
@@ -430,7 +453,8 @@ class StaffController extends Controller {
                     $roleId = (int)DB::fetchValue("SELECT id FROM roles WHERE id != 1 LIMIT 1") ?: 3;
                 }
                 $uSql = "UPDATE users SET name = ?, concern_id = ?, phone = ?, status = ?, role_id = ?";
-                $uParams = [$name, $cid, $phone, $status, $roleId];
+                $userNameToSave = $username !== '' ? $username : $name;
+                $uParams = [$userNameToSave, $cid, $phone, $status, $roleId];
                 if ($passwordHash) {
                     $uSql .= ", password_hash = ?";
                     $uParams[] = $passwordHash;
@@ -457,10 +481,11 @@ class StaffController extends Controller {
                     $roleId = (int)DB::fetchValue("SELECT id FROM roles WHERE id != 1 LIMIT 1") ?: 3;
                 }
 
+                $userNameToSave = $username !== '' ? $username : $name;
                 DB::query(
                     "INSERT INTO users (concern_id, role_id, name, email, password_hash, phone, status, created_at)
                      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
-                    [$cid, $roleId, $name, $email, $passHash, $phone, $status]
+                    [$cid, $roleId, $userNameToSave, $email, $passHash, $phone, $status]
                 );
                 $userId = (int)DB::lastInsertId();
 
@@ -1339,6 +1364,84 @@ class StaffController extends Controller {
         }
 
         $this->redirect('/m/staff/roles?tab=matrix&matrix_role_id=' . $roleId);
+    }
+
+    public function createRoleView(): void {
+        ModuleGuard::enforce('staff', 'create');
+        $this->ensureSchema();
+        $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
+        $modules = DB::fetchAll("SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC");
+        
+        $oldInput = $_SESSION['_old_input'] ?? [];
+        unset($_SESSION['_old_input']);
+
+        $this->render('concern/role_create', [
+            'pageTitle'        => 'Add New Role',
+            'currentModule'    => 'staff',
+            'currentSubModule' => 'roles',
+            'allConcerns'      => $allConcerns,
+            'modules'          => $modules,
+            'oldInput'         => $oldInput,
+        ]);
+    }
+
+    public function storeRole(): void {
+        ModuleGuard::enforce('staff', 'create');
+        $this->validateCsrf();
+        $name = trim($_POST['name'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $concernId = Auth::concernId() ?: (!empty($_POST['concern_id']) ? (int)$_POST['concern_id'] : null);
+        $perms = (array)($_POST['perms'] ?? []);
+
+        if (!$name) {
+            $_SESSION['_old_input'] = $_POST;
+            $this->flash('error', 'Role name is required.');
+            $this->redirect('/m/staff/roles/create');
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::query(
+                "INSERT INTO roles (concern_id, name, description, created_at) VALUES (?, ?, ?, NOW())",
+                [$concernId, $name, $description]
+            );
+            $newRoleId = (int)DB::lastInsertId();
+
+            $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'cash'");
+            $stmt = DB::pdo()->prepare(
+                "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, ?, ?, ?, ?)"
+            );
+
+            foreach ($modules as $m) {
+                $mid = (int)$m['id'];
+                $canView = !empty($perms[$mid]['view']) ? 1 : 0;
+                $canAdd = !empty($perms[$mid]['add']) ? 1 : 0;
+                $canEdit = !empty($perms[$mid]['edit']) ? 1 : 0;
+                $canDelete = !empty($perms[$mid]['delete']) ? 1 : 0;
+                $stmt->execute([$newRoleId, $mid, $canView, $canAdd, $canEdit, $canDelete]);
+            }
+
+            AuditLog::record(
+                $concernId,
+                'roles',
+                $newRoleId,
+                'ROLE_CREATE',
+                null,
+                ['name' => $name, 'concern_id' => $concernId],
+                "Created role {$name}"
+            );
+
+            DB::commit();
+
+            $this->flash('success', "Role '{$name}' created and permissions provisioned successfully.");
+            $this->redirect('/m/staff/roles?tab=matrix&matrix_role_id=' . $newRoleId);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            error_log('StaffController storeRole error: ' . $e->getMessage());
+            $_SESSION['_old_input'] = $_POST;
+            $this->flash('error', 'Failed to create role: ' . $e->getMessage());
+            $this->redirect('/m/staff/roles/create');
+        }
     }
 
     public function createRole(): void {
