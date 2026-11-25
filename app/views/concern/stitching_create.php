@@ -51,34 +51,21 @@
                                    placeholder="E.G. STITCHING - LOT A"
                                    oninput="this.value = this.value.toUpperCase();" required>
                             <div class="invalid-feedback">Please enter a Stitching Name.</div>
-                            <div class="form-text small text-muted">Identifies this stitching production batch.</div>
                         </div>
 
-                        <!-- Batch Number & Status -->
-                        <div class="row g-3 mb-3">
-                            <div class="col-sm-6">
-                                <label class="form-label fw-semibold text-dark mb-1">Batch Number</label>
-                                <input type="text" class="form-control bg-light fw-bold text-secondary font-monospace" 
-                                       value="<?= htmlspecialchars($batchNo) ?>" readonly>
-                            </div>
-                            <div class="col-sm-6">
-                                <label class="form-label fw-semibold text-dark mb-1">Status</label>
-                                <select name="status" class="form-select fw-semibold">
-                                    <option value="in_progress" selected>In Progress</option>
-                                    <option value="planned">Planned</option>
-                                    <option value="completed">Completed</option>
-                                </select>
-                            </div>
+                        <!-- Batch Number -->
+                        <div class="mb-3">
+                            <input type="hidden" name="status" value="in_progress">
+                            <label class="form-label fw-semibold text-dark mb-1">Batch Number</label>
+                            <input type="text" class="form-control bg-light fw-bold text-secondary font-monospace" 
+                                   value="<?= htmlspecialchars($batchNo) ?>" readonly>
                         </div>
 
                         <!-- Select Cutting Name * -->
                         <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label fw-semibold text-dark mb-0">
-                                    <i class="bi bi-scissors text-danger me-1"></i> Select Cutting Name <span class="text-danger">*</span>
-                                </label>
-                                <span class="badge bg-light text-primary border px-2 py-1">Source Batch</span>
-                            </div>
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                <i class="bi bi-scissors text-danger me-1"></i> Select Cutting Name <span class="text-danger">*</span>
+                            </label>
                             <select name="cutting_id" id="selectCuttingBatch" class="form-select" required>
                                 <option value="">-- Choose Cutting Name / Batch --</option>
                                 <?php foreach ($cuttingBatches as $cb): ?>
@@ -92,9 +79,6 @@
                                 <?php endforeach; ?>
                             </select>
                             <div class="invalid-feedback">Please select a Cutting Batch.</div>
-                            <div class="form-text small text-muted">
-                                Select a cutting batch to automatically load multi-catalog cut components & quantities.
-                            </div>
 
                             <?php if (empty($cuttingBatches)): ?>
                                 <div class="alert alert-warning py-2 px-3 small border-0 d-flex align-items-center gap-2 mt-2">
@@ -162,62 +146,53 @@
                                     <i class="bi bi-grid-3x3-gap text-primary"></i>
                                     2. Stitching Quantities, Weights & Pricing
                                 </h6>
-                                <div class="text-muted small">Variant components grouped with distinct catalog identities</div>
                             </div>
-                            <div class="d-flex flex-wrap align-items-center gap-1.5">
-                                <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" id="btnCopyCutQty" title="Copy cut quantities to stitching quantities">
-                                    <i class="bi bi-files"></i> Copy Cut Qty
-                                </button>
-                                
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1.5 px-2" id="badgeCutPcs">
+                            <div class="d-flex flex-wrap align-items-center gap-2 justify-content-md-end">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1.5 px-2.5" id="badgeCutPcs">
                                     0 Cut pcs
                                 </span>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle py-1.5 px-2" id="badgeStitchedPcs">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle py-1.5 px-2.5" id="badgeStitchedPcs">
                                     0 Stitched pcs
                                 </span>
-                                <span class="badge bg-light text-secondary border py-1.5 px-2" id="badgeCutWt">
+                                <span class="badge bg-light text-secondary border py-1.5 px-2.5" id="badgeCutWt">
                                     Cut Wt: 0.00 kg
                                 </span>
-                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle py-1.5 px-2" id="badgeStitchWt">
+                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle py-1.5 px-2.5" id="badgeStitchWt">
                                     Stitch Wt: 0.00 kg
                                 </span>
-                                <span class="badge bg-success text-white py-1.5 px-2" id="badgeWeightMatched" style="display:none;">
-                                    <i class="bi bi-check2-circle"></i> Weight Matched
+                                <span class="badge bg-success text-white py-1.5 px-2.5" id="badgeWeightMatched" style="display:none;">
+                                    <i class="bi bi-check2-circle me-1"></i>Weight Matched
                                 </span>
                             </div>
                         </div>
                     </div>
 
                     <!-- BULK CATALOG PRICING TOOLBAR (Shown when items loaded) -->
-                    <div id="pricingToolbar" class="bg-light px-3 py-2 border-bottom" style="display:none;">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-auto">
-                                <span class="small fw-bold text-secondary d-flex align-items-center gap-1">
-                                    <i class="bi bi-tags-fill text-primary"></i> Catalog Pricing:
-                                </span>
-                            </div>
-                            <div class="col-md-4 col-sm-6">
+                    <div id="pricingToolbar" class="bg-light px-3 py-2.5 border-bottom" style="display:none;">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="small fw-bold text-secondary d-flex align-items-center gap-1 text-nowrap">
+                                <i class="bi bi-tags-fill text-primary"></i> Catalog Pricing:
+                            </span>
+                            <div class="flex-grow-1" style="min-width: 180px; max-width: 280px;">
                                 <select id="bulkCatalogSelect" class="form-select form-select-sm">
                                     <option value="">-- All Catalogs in Batch --</option>
                                 </select>
                             </div>
-                            <div class="col-sm-2 col-6">
+                            <div style="width: 110px;">
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">₹</span>
                                     <input type="number" step="0.01" id="bulkBasePrice" class="form-control" placeholder="Base ₹">
                                 </div>
                             </div>
-                            <div class="col-sm-2 col-6">
+                            <div style="width: 110px;">
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">₹</span>
                                     <input type="number" step="0.01" id="bulkDiscPrice" class="form-control" placeholder="Disc ₹">
                                 </div>
                             </div>
-                            <div class="col-auto">
-                                <button type="button" class="btn btn-sm btn-dark fw-semibold" id="btnApplyBulkPricing">
-                                    Set Prices to Table
-                                </button>
-                            </div>
+                            <button type="button" class="btn btn-sm btn-dark fw-semibold text-nowrap px-3" id="btnApplyBulkPricing">
+                                Set Prices to Table
+                            </button>
                         </div>
                     </div>
 
@@ -528,7 +503,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Copy Cut Qty button
-    btnCopyCutQty.addEventListener('click', function () {
+    btnCopyCutQty?.addEventListener('click', function () {
         const rows = tbody.querySelectorAll('tr');
         rows.forEach(tr => {
             const cutVal = tr.querySelector('.input-cut-qty').value;
