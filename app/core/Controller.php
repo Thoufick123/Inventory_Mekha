@@ -161,6 +161,7 @@ abstract class Controller {
                 if ($hasSkuIdx) {
                     DB::query("ALTER TABLE `variants` DROP INDEX `uk_concern_sku`, ADD UNIQUE KEY `uk_concern_product_code` (`concern_id`, `product_code`)");
                 }
+                DB::query("UPDATE `modules` SET `name` = 'Catalog Hierarchy' WHERE `code` = 'catalog_mapping' AND `name` != 'Catalog Hierarchy'");
             } catch (\Throwable $e) {}
 
             // Self-healing columns for inwards, inward_items, batches, qc_inspections, outwards

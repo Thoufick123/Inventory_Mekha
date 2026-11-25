@@ -207,7 +207,7 @@
         <ol class="breadcrumb small mb-1">
             <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/') ?>" class="text-decoration-none text-muted">Home</a></li>
             <li class="breadcrumb-item text-muted">Production</li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog-mapping') ?>" class="text-decoration-none text-muted">Catalog Mapping</a></li>
+            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog-mapping') ?>" class="text-decoration-none text-muted">Catalog Hierarchy</a></li>
             <li class="breadcrumb-item active fw-semibold text-dark" aria-current="page">Map Finished Good</li>
         </ol>
     </nav>

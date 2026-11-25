@@ -163,4 +163,65 @@ class VariantService
         }
         return self::normalizeCustomAttributes($raw);
     }
+
+    /**
+     * Fetch full Variant ID details with 3-tier hierarchy, attributes, pricing, created date, and live stock.
+     */
+    public static function getVariantDetailsList(?int $cid): array
+    {
+        $sql = "SELECT v.id AS variant_id, v.concern_id, v.product_code, v.name, v.size,
+                       v.weight, v.weight_unit, v.attributes, v.cost_price, v.price, v.mrp,
+                       v.creation_date, v.status, v.created_at,
+                       cat.name AS category_name, sub.name AS subcategory_name, ssc.name AS sub_subcategory_name,
+                       c.style_code, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, c.hierarchy_path,
+                       con.name AS concern_name,
+                       COALESCE(stk.total_qty, 0) AS stock_qty
+                FROM variants v
+                LEFT JOIN categories cat ON cat.id = v.category_id
+                LEFT JOIN subcategories sub ON sub.id = v.subcategory_id
+                LEFT JOIN catalogs c ON c.id = v.catalog_id
+                LEFT JOIN sub_subcategories ssc ON ssc.id = COALESCE(v.sub_sub_category_id, c.sub_sub_category_id)
+                LEFT JOIN concerns con ON con.id = v.concern_id
+                LEFT JOIN (
+                    SELECT variant_id, SUM(qty) AS total_qty
+                    FROM stocks
+                    GROUP BY variant_id
+                ) stk ON stk.variant_id = v.id
+                WHERE 1=1";
+        $params = [];
+        if ($cid) {
+            $sql .= " AND v.concern_id = ?";
+            $params[] = $cid;
+        }
+        $sql .= " ORDER BY v.id DESC";
+
+        $rows = DB::fetchAll($sql, $params);
+        foreach ($rows as &$r) {
+            $attrs = json_decode((string)($r['attributes'] ?? ''), true);
+            $attrs = is_array($attrs) ? $attrs : [];
+            $r['color'] = trim((string)($attrs['color'] ?? ''));
+            $r['hsn_code'] = trim((string)($r['catalog_hsn'] ?? '')) ?: trim((string)($attrs['hsn'] ?? ''));
+            if (empty($r['hierarchy_path'])) {
+                $r['hierarchy_path'] = implode(' › ', array_filter([
+                    $r['category_name'] ?? '',
+                    $r['subcategory_name'] ?? '',
+                    $r['sub_subcategory_name'] ?? '',
+                ]));
+            } else {
+                $r['hierarchy_path'] = str_replace(' > ', ' › ', (string)$r['hierarchy_path']);
+            }
+            $custom = $attrs['custom_attributes'] ?? [];
+            if (!is_array($custom)) {
+                $custom = [];
+            }
+            foreach ($attrs as $k => $v) {
+                if (!in_array((string)$k, ['size', 'color', 'hsn', 'weight', 'custom_attributes'], true) && is_scalar($v) && trim((string)$v) !== '') {
+                    $custom[(string)$k] = trim((string)$v);
+                }
+            }
+            $r['custom_attributes'] = $custom;
+        }
+        unset($r);
+        return $rows;
+    }
 }

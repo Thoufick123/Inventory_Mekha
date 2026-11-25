@@ -7,7 +7,7 @@
         <ol class="breadcrumb small mb-1">
             <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/') ?>" class="text-decoration-none text-muted">Home</a></li>
             <li class="breadcrumb-item text-muted">Purchase</li>
-            <li class="breadcrumb-item active fw-semibold text-dark" aria-current="page">Catalog Mapping</li>
+            <li class="breadcrumb-item active fw-semibold text-dark" aria-current="page">Catalog Hierarchy</li>
         </ol>
     </nav>
 
@@ -18,8 +18,8 @@
                 <i class="bi bi-diagram-3-fill fs-4"></i>
             </div>
             <div>
-                <h4 class="fw-bold mb-0 text-dark">3-Tier Hierarchy &amp; Attributes</h4>
-                <p class="text-secondary small mb-0">Manage 3-tier category hierarchies, reusable product attributes, and HSN master codes.</p>
+                <h4 class="fw-bold mb-0 text-dark">Catalog Hierarchy</h4>
+                <p class="text-secondary small mb-0">Manage 3-tier category hierarchies, reusable product attributes, HSN master codes, and Variant ID details.</p>
             </div>
         </div>
     </div>

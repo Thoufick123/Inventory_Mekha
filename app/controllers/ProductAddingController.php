@@ -260,6 +260,7 @@ class ProductAddingController extends Controller
         sort($attributeTypes);
 
         $activeTab = $_GET['tab'] ?? 'purchases';
+        $variantDetails = \App\Services\VariantService::getVariantDetailsList($cid);
 
         $this->render('concern/product_adding_list', [
             'pageTitle' => 'Product Adding',
@@ -276,6 +277,7 @@ class ProductAddingController extends Controller
             'attributeTypes' => $attributeTypes,
             'hsnCodes' => $hsnCodes,
             'hsnCategories' => $hsnCategories,
+            'variantDetails' => $variantDetails,
             'allConcerns' => Auth::isSuperAdmin() ? Auth::allConcerns() : [],
         ]);
     }

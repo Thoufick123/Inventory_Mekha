@@ -25,7 +25,7 @@ $masterModules = [
     ['code' => 'purchase_billing',  'name' => 'Purchase Billing',     'icon' => 'bi-receipt',          'sort' => 21, 'group' => 'Purchase',    'admin_only' => 0],
     ['code' => 'purchase_stocks',   'name' => 'Purchase Stocks',      'icon' => 'bi-boxes',            'sort' => 22, 'group' => 'Purchase',    'admin_only' => 0],
     ['code' => 'purchase_damage',   'name' => 'Purchase Damage',      'icon' => 'bi-shield-x',         'sort' => 23, 'group' => 'Purchase',    'admin_only' => 0],
-    ['code' => 'catalog_mapping',   'name' => 'Catalog Mapping',      'icon' => 'bi-diagram-3-fill',   'sort' => 24, 'group' => 'Purchase',    'admin_only' => 0],
+    ['code' => 'catalog_mapping',   'name' => 'Catalog Hierarchy',    'icon' => 'bi-diagram-3-fill',   'sort' => 24, 'group' => 'Purchase',    'admin_only' => 0],
     ['code' => 'product_adding',    'name' => 'Product Adding',       'icon' => 'bi-plus-square-dotted', 'sort' => 25, 'group' => 'Purchase',  'admin_only' => 0],
     ['code' => 'catalog_program',   'name' => 'Catalog & Program',   'icon' => 'bi-journal-bookmark', 'sort' => 30, 'group' => 'Production',  'admin_only' => 0],
     ['code' => 'cutting_wastage',   'name' => 'Cutting & Wastage',    'icon' => 'bi-scissors',         'sort' => 31, 'group' => 'Production',  'admin_only' => 0],

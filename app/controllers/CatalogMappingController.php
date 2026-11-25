@@ -132,7 +132,7 @@ class CatalogMappingController extends Controller
             if (!$existMod) {
                 DB::query(
                     "INSERT INTO `modules` (`code`, `name`, `icon`, `sort_order`, `group_name`, `is_super_admin_only`)
-                     VALUES ('catalog_mapping', 'Catalog Mapping', 'bi-diagram-3-fill', 24, 'Purchase', 0)"
+                     VALUES ('catalog_mapping', 'Catalog Hierarchy', 'bi-diagram-3-fill', 24, 'Purchase', 0)"
                 );
             } else {
                 DB::query(
@@ -187,8 +187,10 @@ class CatalogMappingController extends Controller
         $attributeTypes = array_values(array_unique(array_filter(array_column($attributes, 'attribute_type'))));
         sort($attributeTypes);
 
+        $variantDetails = \App\Services\VariantService::getVariantDetailsList($cid);
+
         $this->render('concern/catalog_mapping', [
-            'pageTitle' => 'Catalog Mapping',
+            'pageTitle' => 'Catalog Hierarchy',
             'currentModule' => 'catalog_mapping',
             'categories' => $categories,
             'subcategories' => $subcategories,
@@ -197,6 +199,7 @@ class CatalogMappingController extends Controller
             'hsnCodes' => $hsnCodes,
             'hsnCategories' => $hsnCategories,
             'attributeTypes' => $attributeTypes,
+            'variantDetails' => $variantDetails,
             'selectedCid' => $cid,
             'allConcerns' => Auth::isSuperAdmin() ? Auth::allConcerns() : [],
         ]);

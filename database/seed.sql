@@ -19,7 +19,7 @@ INSERT INTO `modules` (`code`, `name`, `icon`, `sort_order`, `group_name`, `is_s
 ('purchase_billing', 'Purchase Billing', 'bi-receipt', 21, 'Purchase', 0),
 ('purchase_stocks', 'Purchase Stocks', 'bi-boxes', 22, 'Purchase', 0),
 ('purchase_damage', 'Purchase Damage', 'bi-shield-x', 23, 'Purchase', 0),
-('catalog_mapping', 'Catalog Mapping', 'bi-diagram-3-fill', 24, 'Purchase', 0),
+('catalog_mapping', 'Catalog Hierarchy', 'bi-diagram-3-fill', 24, 'Purchase', 0),
 ('product_adding', 'Product Adding', 'bi-plus-square-dotted', 25, 'Purchase', 0),
 ('catalog_program', 'Catalog & Program', 'bi-journal-bookmark', 30, 'Production', 0),
 ('cutting_wastage', 'Cutting & Wastage', 'bi-scissors', 31, 'Production', 0),

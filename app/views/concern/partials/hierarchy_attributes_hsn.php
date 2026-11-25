@@ -291,6 +291,133 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
         </div>
     </div>
 
+    <!-- 6. VARIANT ID MASTER (ALL PRODUCT VARIANT DETAILS) -->
+    <?php $variantDetails = $variantDetails ?? []; ?>
+    <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-upc text-primary me-1.5"></i> Variant ID Details</h6>
+                    <small class="text-muted" style="font-size: 0.75rem;">All registered product Variant IDs with 3-tier hierarchy, attributes, selling price, created date, and live stock</small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
+                        <?= count($variantDetails) ?> Variant IDs
+                    </span>
+                    <div class="input-group input-group-sm" style="width: min(100%, 280px);">
+                        <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                        <input type="search" class="form-control" id="catalogVariantSearch" placeholder="Search Variant ID, product, category..." aria-label="Search Variant IDs">
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <?php if (empty($variantDetails)): ?>
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-boxes fs-2 text-secondary d-block mb-2"></i>
+                        <p class="small mb-0">No product variants registered yet.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="table-responsive" style="max-height: 480px;">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light position-sticky top-0" style="z-index: 1;">
+                                <tr>
+                                    <th class="ps-3 text-nowrap">Variant ID</th>
+                                    <th>Product Name</th>
+                                    <th>3-Tier Hierarchy</th>
+                                    <th>Size &amp; Attributes</th>
+                                    <th class="text-end text-nowrap">Selling Price / MRP</th>
+                                    <th class="text-end text-nowrap">Stock Qty</th>
+                                    <th class="text-nowrap">Created Date</th>
+                                    <th class="pe-3 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="catalogVariantTableBody">
+                                <?php foreach ($variantDetails as $vd): ?>
+                                    <?php
+                                        $attrSearch = implode(' ', array_map(fn($k, $v) => "$k $v", array_keys($vd['custom_attributes'] ?? []), $vd['custom_attributes'] ?? []));
+                                        $searchHay = strtolower(implode(' ', [
+                                            $vd['variant_id'] ?? '',
+                                            $vd['product_code'] ?? '',
+                                            $vd['name'] ?? '',
+                                            $vd['hierarchy_path'] ?? '',
+                                            $vd['size'] ?? '',
+                                            $vd['color'] ?? '',
+                                            $vd['hsn_code'] ?? '',
+                                            $vd['concern_name'] ?? '',
+                                            $attrSearch,
+                                        ]));
+                                    ?>
+                                    <tr class="catalog-variant-row" data-search="<?= htmlspecialchars($searchHay, ENT_QUOTES, 'UTF-8') ?>">
+                                        <td class="ps-3 text-nowrap">
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace fw-bold fs-6">#<?= (int)$vd['variant_id'] ?></span>
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold text-dark"><?= htmlspecialchars($vd['name']) ?></div>
+                                            <?php if (!empty($vd['concern_name']) && empty($selectedCid)): ?>
+                                                <small class="text-muted"><?= htmlspecialchars($vd['concern_name']) ?></small>
+                                            <?php endif; ?>
+                                            <?php if (!empty($vd['hsn_code'])): ?>
+                                                <div class="small text-muted font-monospace">HSN: <?= htmlspecialchars($vd['hsn_code']) ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($vd['hierarchy_path'])): ?>
+                                                <span class="small text-dark"><?= htmlspecialchars($vd['hierarchy_path']) ?></span>
+                                            <?php else: ?>
+                                                <span class="text-muted small">—</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                <?php if (!empty($vd['size'])): ?>
+                                                    <span class="badge bg-light text-dark border">Size: <?= htmlspecialchars($vd['size']) ?></span>
+                                                <?php endif; ?>
+                                                <?php if (!empty($vd['color'])): ?>
+                                                    <span class="badge bg-light text-dark border">Color: <?= htmlspecialchars($vd['color']) ?></span>
+                                                <?php endif; ?>
+                                                <?php foreach (($vd['custom_attributes'] ?? []) as $ak => $av): ?>
+                                                    <span class="badge bg-light text-secondary border"><?= htmlspecialchars(ucfirst((string)$ak)) ?>: <?= htmlspecialchars((string)$av) ?></span>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <div class="fw-bold text-success">₹<?= number_format((float)$vd['price'], 2) ?></div>
+                                            <?php if ((float)$vd['mrp'] > 0): ?>
+                                                <div class="small text-muted">MRP: ₹<?= number_format((float)$vd['mrp'], 2) ?></div>
+                                            <?php endif; ?>
+                                            <?php if ((float)$vd['cost_price'] > 0): ?>
+                                                <div class="small text-muted">Cost: ₹<?= number_format((float)$vd['cost_price'], 2) ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <span class="fw-bold <?= ((float)$vd['stock_qty'] > 0) ? 'text-primary' : 'text-muted' ?>">
+                                                <?= number_format((float)$vd['stock_qty'], 0) ?> pcs
+                                            </span>
+                                        </td>
+                                        <td class="text-nowrap">
+                                            <small class="text-muted"><?= !empty($vd['creation_date']) ? htmlspecialchars(date('d M Y', strtotime((string)$vd['creation_date']))) : (!empty($vd['created_at']) ? htmlspecialchars(date('d M Y', strtotime((string)$vd['created_at']))) : '—') ?></small>
+                                        </td>
+                                        <td class="pe-3 text-center">
+                                            <?php if (($vd['status'] ?? 'active') === 'active'): ?>
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary-subtle text-secondary border">Inactive</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-none text-center text-muted small py-4" id="catalogVariantNoResults">No Variant IDs match your search.</div>
+                    <div class="border-top px-3 py-2 text-muted small" id="catalogVariantVisibleCount" aria-live="polite">
+                        Showing <?= count($variantDetails) ?> of <?= count($variantDetails) ?> registered Variant IDs
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <?php if ($canAddHierarchy): ?>
@@ -728,6 +855,26 @@ document.addEventListener('DOMContentLoaded', function() {
             if (hsnNoResults) hsnNoResults.classList.toggle('d-none', visibleCount > 0);
             if (hsnVisibleCount) {
                 hsnVisibleCount.textContent = `Showing ${visibleCount} of ${hsnRows.length} active HSN codes`;
+            }
+        });
+    }
+
+    const variantSearch = document.getElementById('catalogVariantSearch');
+    const variantRows = Array.from(document.querySelectorAll('.catalog-variant-row'));
+    const variantNoResults = document.getElementById('catalogVariantNoResults');
+    const variantVisibleCount = document.getElementById('catalogVariantVisibleCount');
+    if (variantSearch) {
+        variantSearch.addEventListener('input', function() {
+            const query = variantSearch.value.trim().toLowerCase();
+            let visibleCount = 0;
+            variantRows.forEach(function(row) {
+                const matches = (row.dataset.search || '').includes(query);
+                row.classList.toggle('d-none', !matches);
+                if (matches) visibleCount++;
+            });
+            if (variantNoResults) variantNoResults.classList.toggle('d-none', visibleCount > 0);
+            if (variantVisibleCount) {
+                variantVisibleCount.textContent = `Showing ${visibleCount} of ${variantRows.length} registered Variant IDs`;
             }
         });
     }
