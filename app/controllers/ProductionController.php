@@ -3586,6 +3586,47 @@ class ProductionController extends Controller {
         $sql .= " ORDER BY cl.id DESC";
         $batches = DB::fetchAll($sql, $params);
 
+        if (!empty($batches)) {
+            $batchIds = array_map(static fn($row) => (int)$row['id'], $batches);
+            $placeholders = implode(',', array_fill(0, count($batchIds), '?'));
+            $batchCatalogRows = DB::fetchAll(
+                "SELECT DISTINCT ci.cutting_id, cat.id AS catalog_id, cat.style_code, cat.name AS catalog_name
+                 FROM cutting_items ci
+                 LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
+                 JOIN catalogs cat ON cat.id = COALESCE(NULLIF(ci.catalog_id, 0), pr.catalog_id)
+                 WHERE ci.cutting_id IN ({$placeholders})
+                 ORDER BY cat.id ASC",
+                $batchIds
+            );
+            $catalogMap = [];
+            foreach ($batchCatalogRows as $cr) {
+                $cidKey = (int)$cr['cutting_id'];
+                $catIdKey = (int)$cr['catalog_id'];
+                if (!isset($catalogMap[$cidKey][$catIdKey])) {
+                    $catalogMap[$cidKey][$catIdKey] = [
+                        'id' => $catIdKey,
+                        'style_code' => $cr['style_code'],
+                        'name' => $cr['catalog_name'],
+                    ];
+                }
+            }
+            foreach ($batches as &$bRow) {
+                $bid = (int)$bRow['id'];
+                if (!empty($catalogMap[$bid])) {
+                    $bRow['catalogs'] = array_values($catalogMap[$bid]);
+                } elseif (!empty($bRow['catalog_name'])) {
+                    $bRow['catalogs'] = [[
+                        'id' => 0,
+                        'style_code' => $bRow['catalog_code'] ?? '',
+                        'name' => $bRow['catalog_name'],
+                    ]];
+                } else {
+                    $bRow['catalogs'] = [];
+                }
+            }
+            unset($bRow);
+        }
+
         // 2. Available Cutting Wastage for Scrap Sale
         $availSql = "SELECT cl.*, 
                             pp.program_no, pp.program_name,
