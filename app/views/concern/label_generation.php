@@ -178,59 +178,122 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                     <input type="hidden" name="label_type" value="purchase_raw">
 
+                                    <?php
+                                        $rollSuppliers = [];
+                                        foreach ($purchaseRollItems as $rItem) {
+                                            $supLabel = trim($rItem['supplier_company'] ?: ($rItem['supplier_name'] ?: 'Vendor Mill'));
+                                            $rollSuppliers[$supLabel] = ($rollSuppliers[$supLabel] ?? 0) + 1;
+                                        }
+                                        ksort($rollSuppliers);
+                                    ?>
                                     <div class="mb-3">
-                                        <label class="form-label small fw-semibold">Select Fabric Roll <span class="text-danger">*</span></label>
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label small fw-semibold mb-0">Select Fabric Roll <span class="text-danger">*</span></label>
+                                            <span class="small text-muted" id="roll_filter_count"><?= count($purchaseRollItems) ?> roll(s)</span>
+                                        </div>
+                                        <!-- User-friendly Supplier & Search Filter -->
+                                        <div class="row g-2 mb-2">
+                                            <div class="col-sm-5">
+                                                <select id="roll_supplier_filter" class="form-select form-select-sm" onchange="filterRollSelectOptions()" title="Filter rolls by Supplier">
+                                                    <option value="">All Suppliers (<?= count($purchaseRollItems) ?>)</option>
+                                                    <?php foreach ($rollSuppliers as $supName => $supCount): ?>
+                                                        <option value="<?= htmlspecialchars(strtolower($supName)) ?>"><?= htmlspecialchars($supName) ?> (<?= $supCount ?>)</option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-sm-7">
+                                                <div class="input-group input-group-sm">
+                                                    <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                                                    <input type="text" id="roll_quick_search" class="form-control form-control-sm" placeholder="Search fabric, color, design, bill..." oninput="filterRollSelectOptions()">
+                                                    <button type="button" class="btn btn-outline-secondary" onclick="resetRollFilters()" title="Clear filters"><i class="bi bi-x-lg"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <select name="item_id" id="roll_item_select" class="form-select" required onchange="updateRollPreview(); matchRollQty()">
                                             <option value="">-- Choose Fabric Roll --</option>
-                                            <?php foreach ($purchaseRollItems as $raw): 
-                                                $codeVal = trim($raw['item_code'] ?? '');
-                                                $nameVal = trim($raw['item_name'] ?? '');
-                                                $patternVal = trim($raw['pattern'] ?? '');
-                                                $codeIsGenericRoll = preg_match('/^ROLL\s*#?\s*\d*$/i', $codeVal);
-                                                $nameIsPatternFabric = !empty($patternVal) && (strcasecmp($nameVal, $patternVal . ' Fabric') === 0 || strcasecmp($nameVal, $patternVal) === 0);
-
-                                                if (!empty($codeVal) && !$codeIsGenericRoll) {
-                                                    $fabricName = $codeVal;
-                                                } elseif (!empty($nameVal) && !$nameIsPatternFabric) {
-                                                    $fabricName = $nameVal;
-                                                } else {
-                                                    $fabricName = !empty($codeVal) ? $codeVal : (!empty($nameVal) ? $nameVal : 'Fabric Material');
+                                            <?php
+                                                $rollsGroupedBySup = [];
+                                                foreach ($purchaseRollItems as $raw) {
+                                                    $supLabel = trim($raw['supplier_company'] ?: ($raw['supplier_name'] ?: 'Vendor Mill'));
+                                                    $rollsGroupedBySup[$supLabel][] = $raw;
                                                 }
-
-                                                $code = $raw['item_code'] ?: ('ROLL-' . $raw['id']);
-                                                $tagCode = QrService::generateTagCode(
-                                                    $fabricName,
-                                                    $raw['color'] ?? '',
-                                                    $raw['pattern'] ?: ($raw['specification'] ?? ''),
-                                                    (string)$raw['id']
-                                                );
-                                                $isRollInStock = (($raw['inward_status'] ?? '') === 'completed');
+                                                foreach ($rollsGroupedBySup as $supGroupName => $supRolls):
                                             ?>
-                                                <option value="<?= $raw['id'] ?>"
-                                                        <?= (count($purchaseRollItems) === 1 || ($activeRollItemId ?? 0) == $raw['id']) ? 'selected' : '' ?>
-                                                        data-name="<?= htmlspecialchars($raw['item_name']) ?>"
-                                                        data-fabric="<?= htmlspecialchars($fabricName) ?>"
-                                                        data-code="<?= htmlspecialchars($code) ?>"
-                                                        data-tag="<?= htmlspecialchars($tagCode) ?>"
-                                                        data-type="Fabric Roll"
-                                                        data-isroll="1"
-                                                        data-inward="<?= $isRollInStock ? 'completed' : 'pending' ?>"
-                                                        data-vendor="<?= htmlspecialchars($raw['supplier_company'] ?: ($raw['supplier_name'] ?: 'Vendor Mill')) ?>"
-                                                        data-color="<?= htmlspecialchars($raw['color'] ?: 'STANDARD') ?>"
-                                                        data-pattern="<?= htmlspecialchars($raw['pattern'] ?: '') ?>"
-                                                        data-spec="<?= htmlspecialchars($raw['specification'] ?? '') ?>"
-                                                        data-qty="<?= htmlspecialchars($raw['qty']) ?>"
-                                                        data-unit="<?= htmlspecialchars($raw['unit'] ?: 'Rolls') ?>"
-                                                        data-rq="<?= htmlspecialchars(!empty($raw['rq_qty']) ? $raw['rq_qty'] : $raw['qty']) ?>"
-                                                        data-net="<?= htmlspecialchars($raw['net_weight'] ?? '') ?>"
-                                                        data-price="<?= (float)($raw['unit_price'] ?: ($raw['mrp'] ?: 0)) ?>"
-                                                        data-bill="<?= htmlspecialchars($raw['bill_no']) ?>"
-                                                        data-qr="<?= htmlspecialchars($tagCode) ?>">
-                                                    [ROLL] <?= htmlspecialchars($fabricName) ?> (<?= htmlspecialchars($tagCode) ?>) &bull; <?= number_format((float)$raw['qty'], 2) ?> <?= htmlspecialchars($raw['unit'] ?: 'Rolls') ?> &bull; Bill #<?= htmlspecialchars($raw['bill_no']) ?><?= $isRollInStock ? ' &bull; [IN STOCK]' : '' ?>
-                                                </option>
+                                                <optgroup label="Supplier: <?= htmlspecialchars($supGroupName) ?> (<?= count($supRolls) ?>)">
+                                                    <?php foreach ($supRolls as $raw): 
+                                                        $codeVal = trim($raw['item_code'] ?? '');
+                                                        $nameVal = trim($raw['item_name'] ?? '');
+                                                        $patternVal = trim($raw['pattern'] ?? '');
+                                                        $codeIsGenericRoll = preg_match('/^ROLL\s*#?\s*\d*$/i', $codeVal);
+                                                        $nameIsPatternFabric = !empty($patternVal) && (strcasecmp($nameVal, $patternVal . ' Fabric') === 0 || strcasecmp($nameVal, $patternVal) === 0);
+
+                                                        if (!empty($codeVal) && !$codeIsGenericRoll) {
+                                                            $fabricName = $codeVal;
+                                                        } elseif (!empty($nameVal) && !$nameIsPatternFabric) {
+                                                            $fabricName = $nameVal;
+                                                        } else {
+                                                            $fabricName = !empty($codeVal) ? $codeVal : (!empty($nameVal) ? $nameVal : 'Fabric Material');
+                                                        }
+
+                                                        $code = $raw['item_code'] ?: ('ROLL-' . $raw['id']);
+                                                        $tagCode = QrService::generateTagCode(
+                                                            $fabricName,
+                                                            $raw['color'] ?? '',
+                                                            $raw['pattern'] ?: ($raw['specification'] ?? ''),
+                                                            (string)$raw['id']
+                                                        );
+                                                        $isRollInStock = (($raw['inward_status'] ?? '') === 'completed');
+                                                        $colorLabel = trim($raw['color'] ?: 'STANDARD');
+                                                        $designLabel = trim($raw['pattern'] ?: ($raw['specification'] ?: 'PLAIN'));
+                                                        $weightStr = !empty($raw['net_weight']) ? (number_format((float)$raw['net_weight'], 2) . ' kg') : '';
+                                                        $stockBadgeText = $isRollInStock ? 'IN STOCK' : 'PENDING';
+                                                        $searchBlob = strtolower($supGroupName . ' ' . $fabricName . ' ' . $raw['item_name'] . ' ' . $code . ' ' . $colorLabel . ' ' . $designLabel . ' ' . $raw['bill_no'] . ' ' . $tagCode);
+                                                    ?>
+                                                        <option value="<?= $raw['id'] ?>"
+                                                                <?= (count($purchaseRollItems) === 1 || ($activeRollItemId ?? 0) == $raw['id']) ? 'selected' : '' ?>
+                                                                data-name="<?= htmlspecialchars($raw['item_name']) ?>"
+                                                                data-fabric="<?= htmlspecialchars($fabricName) ?>"
+                                                                data-code="<?= htmlspecialchars($code) ?>"
+                                                                data-tag="<?= htmlspecialchars($tagCode) ?>"
+                                                                data-type="Fabric Roll"
+                                                                data-isroll="1"
+                                                                data-inward="<?= $isRollInStock ? 'completed' : 'pending' ?>"
+                                                                data-vendor="<?= htmlspecialchars($supGroupName) ?>"
+                                                                data-search="<?= htmlspecialchars($searchBlob) ?>"
+                                                                data-color="<?= htmlspecialchars($colorLabel) ?>"
+                                                                data-pattern="<?= htmlspecialchars($raw['pattern'] ?: '') ?>"
+                                                                data-spec="<?= htmlspecialchars($raw['specification'] ?? '') ?>"
+                                                                data-qty="<?= htmlspecialchars($raw['qty']) ?>"
+                                                                data-unit="<?= htmlspecialchars($raw['unit'] ?: 'Rolls') ?>"
+                                                                data-rq="<?= htmlspecialchars(!empty($raw['rq_qty']) ? $raw['rq_qty'] : $raw['qty']) ?>"
+                                                                data-net="<?= htmlspecialchars($raw['net_weight'] ?? '') ?>"
+                                                                data-price="<?= (float)($raw['unit_price'] ?: ($raw['mrp'] ?: 0)) ?>"
+                                                                data-bill="<?= htmlspecialchars($raw['bill_no']) ?>"
+                                                                data-qr="<?= htmlspecialchars($tagCode) ?>">
+                                                            <?= htmlspecialchars($fabricName) ?> &bull; <?= htmlspecialchars($colorLabel) ?> / <?= htmlspecialchars($designLabel) ?> &bull; <?= number_format((float)$raw['qty'], 2) ?> <?= htmlspecialchars($raw['unit'] ?: 'RQ') ?><?= $weightStr ? ' (' . $weightStr . ')' : '' ?> &bull; Bill #<?= htmlspecialchars($raw['bill_no']) ?> [<?= $stockBadgeText ?>]
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </optgroup>
                                             <?php endforeach; ?>
                                         </select>
-                                        <small class="text-muted">Directly sourced from Purchase Billing Fabric Rolls.</small>
+
+                                        <!-- Selected Roll Quick Details Card -->
+                                        <div id="roll_selected_summary" class="mt-2 p-2.5 rounded-3 border bg-primary-subtle bg-opacity-10 d-none" style="font-size: 0.78rem;">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-bold text-dark text-truncate"><i class="bi bi-building text-primary me-1"></i><span id="roll_sum_vendor">-</span></span>
+                                                <span id="roll_sum_status_badge" class="badge bg-secondary">PENDING</span>
+                                            </div>
+                                            <div class="d-flex flex-wrap gap-2 text-secondary">
+                                                <span><strong>Roll:</strong> <span id="roll_sum_fabric" class="text-dark">-</span></span>
+                                                <span>&bull; <strong>Color/Design:</strong> <span id="roll_sum_color_design" class="text-dark">-</span></span>
+                                            </div>
+                                            <div class="d-flex flex-wrap gap-2 text-secondary mt-0.5">
+                                                <span><strong>Stock/Qty:</strong> <span id="roll_sum_stock" class="text-dark fw-semibold">-</span></span>
+                                                <span>&bull; <strong>Bill:</strong> <span id="roll_sum_bill" class="text-dark">-</span></span>
+                                            </div>
+                                        </div>
+                                        <small class="text-muted d-block mt-1">Filter by supplier or search above, or click any row in the directory.</small>
                                     </div>
 
                                     <div class="mb-3">
@@ -344,7 +407,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                                     }
                                                     $code = $item['item_code'] ?: ('ROLL-' . $item['id']);
                                                 ?>
-                                                    <tr class="roll-row" data-search="<?= strtolower(htmlspecialchars($fabricName . ' ' . $item['item_name'] . ' ' . $code . ' ' . ($item['color'] ?? '') . ' ' . ($item['pattern'] ?? '') . ' ' . $item['bill_no'] . ' ' . ($item['supplier_name'] ?? ''))) ?>">
+                                                    <tr class="roll-row" data-roll-id="<?= (int)$item['id'] ?>" style="cursor: pointer;" onclick="selectRollItem(<?= (int)$item['id'] ?>)" data-search="<?= strtolower(htmlspecialchars($fabricName . ' ' . $item['item_name'] . ' ' . $code . ' ' . ($item['color'] ?? '') . ' ' . ($item['pattern'] ?? '') . ' ' . $item['bill_no'] . ' ' . ($item['supplier_company'] ?? '') . ' ' . ($item['supplier_name'] ?? ''))) ?>">
                                                         <td class="text-muted small"><?= $idx++ ?></td>
                                                         <td>
                                                             <div class="fw-bold text-dark"><?= htmlspecialchars($fabricName) ?></div>
@@ -1528,7 +1591,86 @@ function renderQr(containerId, text) {
     });
 }
 
-// 1A. Fabric Roll Preview Handler
+// 1A. Fabric Roll Preview & Smart Filter Handlers
+let cachedRollGroups = null;
+
+function initRollSelectCache() {
+    if (cachedRollGroups !== null) return;
+    const sel = document.getElementById('roll_item_select');
+    if (!sel) return;
+    cachedRollGroups = [];
+    sel.querySelectorAll('optgroup').forEach(grp => {
+        const opts = [];
+        grp.querySelectorAll('option').forEach(opt => {
+            opts.push(opt.cloneNode(true));
+        });
+        cachedRollGroups.push({
+            label: grp.getAttribute('label') || '',
+            options: opts
+        });
+    });
+}
+
+function filterRollSelectOptions() {
+    initRollSelectCache();
+    const sel = document.getElementById('roll_item_select');
+    if (!sel || !cachedRollGroups) return;
+
+    const supFilter = (document.getElementById('roll_supplier_filter')?.value || '').trim().toLowerCase();
+    const searchVal = (document.getElementById('roll_quick_search')?.value || '').trim().toLowerCase();
+    const prevSelected = sel.value;
+
+    sel.innerHTML = '<option value="">-- Choose Fabric Roll --</option>';
+    let matchCount = 0;
+    let firstMatchVal = '';
+
+    cachedRollGroups.forEach(grp => {
+        const matchedOpts = grp.options.filter(opt => {
+            const optVendor = (opt.dataset.vendor || '').toLowerCase();
+            const optSearch = (opt.dataset.search || opt.textContent || '').toLowerCase();
+            if (supFilter && optVendor !== supFilter) return false;
+            if (searchVal && !optSearch.includes(searchVal)) return false;
+            return true;
+        });
+
+        if (matchedOpts.length > 0) {
+            const optgroup = document.createElement('optgroup');
+            const baseLabel = grp.label.replace(/\s*\(\d+\)$/, '');
+            optgroup.setAttribute('label', `${baseLabel} (${matchedOpts.length})`);
+            matchedOpts.forEach(opt => {
+                const cloned = opt.cloneNode(true);
+                cloned.selected = false;
+                optgroup.appendChild(cloned);
+                if (!firstMatchVal) firstMatchVal = cloned.value;
+                matchCount++;
+            });
+            sel.appendChild(optgroup);
+        }
+    });
+
+    const countEl = document.getElementById('roll_filter_count');
+    if (countEl) countEl.textContent = matchCount + ' roll(s)';
+
+    if (prevSelected && Array.from(sel.options).some(o => o.value === prevSelected)) {
+        sel.value = prevSelected;
+    } else if (matchCount === 1 && (supFilter || searchVal)) {
+        sel.value = firstMatchVal;
+    } else {
+        sel.value = '';
+    }
+
+    updateRollPreview();
+    if (sel.value) matchRollQty();
+}
+
+function resetRollFilters() {
+    const supEl = document.getElementById('roll_supplier_filter');
+    const searchEl = document.getElementById('roll_quick_search');
+    if (supEl) supEl.value = '';
+    if (searchEl) searchEl.value = '';
+    filterRollSelectOptions();
+}
+
 function updateRollPreview() {
     const sel = document.getElementById('roll_item_select');
     if (!sel) return;
@@ -1540,6 +1682,17 @@ function updateRollPreview() {
 
     const addStockBtn = document.getElementById('roll_add_stock_btn');
     const inStockBadge = document.getElementById('roll_in_stock_badge');
+    const summaryCard = document.getElementById('roll_selected_summary');
+
+    // Highlight active row in Purchase Fabric Rolls Directory
+    const activeVal = sel.value ? String(sel.value) : '';
+    document.querySelectorAll('#tableRollItems tr.roll-row').forEach(tr => {
+        if (activeVal && tr.dataset.rollId === activeVal) {
+            tr.classList.add('table-primary');
+        } else {
+            tr.classList.remove('table-primary');
+        }
+    });
 
     const opt = sel.options[sel.selectedIndex];
     if (opt && opt.value) {
@@ -1565,6 +1718,29 @@ function updateRollPreview() {
         const design = (opt.dataset.pattern || opt.dataset.spec || 'PLAIN').toUpperCase();
         const price = parseFloat(opt.dataset.price || 0);
         const ref = opt.dataset.bill ? ('PO-' + opt.dataset.bill) : 'PO-REF';
+        const vendor = opt.dataset.vendor || 'Vendor Mill';
+        const qtyVal = parseFloat(opt.dataset.qty || 0).toFixed(2);
+        const unitVal = opt.dataset.unit || 'Rolls';
+        const netWt = opt.dataset.net ? (parseFloat(opt.dataset.net).toFixed(2) + ' kg') : '';
+
+        if (summaryCard) {
+            summaryCard.classList.remove('d-none');
+            const vEl = document.getElementById('roll_sum_vendor');
+            if (vEl) vEl.textContent = vendor;
+            const fEl = document.getElementById('roll_sum_fabric');
+            if (fEl) fEl.textContent = fabric + (opt.dataset.code && opt.dataset.code !== fabric ? ` (${opt.dataset.code})` : '');
+            const cdEl = document.getElementById('roll_sum_color_design');
+            if (cdEl) cdEl.textContent = `${color} / ${design}`;
+            const stEl = document.getElementById('roll_sum_stock');
+            if (stEl) stEl.textContent = `${qtyVal} ${unitVal}${netWt ? ' • ' + netWt : ''}`;
+            const bEl = document.getElementById('roll_sum_bill');
+            if (bEl) bEl.textContent = opt.dataset.bill ? ('#' + opt.dataset.bill) : '-';
+            const sbEl = document.getElementById('roll_sum_status_badge');
+            if (sbEl) {
+                sbEl.textContent = isInStock ? 'IN STOCK' : 'PENDING INWARD';
+                sbEl.className = isInStock ? 'badge bg-success' : 'badge bg-warning text-dark';
+            }
+        }
 
         const refEl = document.getElementById('roll_preview_ref');
         if (refEl) refEl.textContent = ref;
@@ -1592,6 +1768,7 @@ function updateRollPreview() {
     } else {
         if (addStockBtn) addStockBtn.classList.remove('d-none');
         if (inStockBadge) inStockBadge.classList.add('d-none');
+        if (summaryCard) summaryCard.classList.add('d-none');
 
         const refEl = document.getElementById('roll_preview_ref');
         if (refEl) refEl.textContent = 'PO-REF';
@@ -1621,6 +1798,9 @@ function updateRollPreview() {
 function selectRollItem(id) {
     const sel = document.getElementById('roll_item_select');
     if (!sel) return;
+    if (!Array.from(sel.options).some(o => o.value === String(id))) {
+        resetRollFilters();
+    }
     sel.value = String(id);
     updateRollPreview();
     matchRollQty();
