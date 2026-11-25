@@ -75,6 +75,18 @@ class QrService {
 
     public static function parseFinishedGoodsCode(string $code): ?array {
         $code = strtoupper(trim($code));
+        if (preg_match('/^GRMV(\d+)$/', $code, $matches)) {
+            $idDigits = ltrim($matches[1], '0');
+            if ($idDigits !== '') {
+                $variantId = filter_var($idDigits, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                if ($variantId !== false) {
+                    return [
+                        'variant_id' => $variantId,
+                        'raw' => $code,
+                    ];
+                }
+            }
+        }
         if (!preg_match('/^GRM[A-Z0-9]{6}(\d{2,})$/', $code, $matches)) {
             return null;
         }
@@ -93,6 +105,14 @@ class QrService {
             'variant_id' => $variantId,
             'raw' => $code,
         ];
+    }
+
+    /** Build the Brand(GRM) + Variant(V) + zero-padded variant ID code (e.g. GRMV001). */
+    public static function formatBrandVariantCode(int $variantId): string {
+        if ($variantId <= 0) {
+            return '';
+        }
+        return self::FINISHED_GOODS_CODE_PREFIX . 'V' . str_pad((string)$variantId, 3, '0', STR_PAD_LEFT);
     }
 
     /** Build the GRM hierarchy code with a zero-padded minimum three-digit variant ID. */

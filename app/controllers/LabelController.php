@@ -1446,8 +1446,8 @@ class LabelController extends Controller {
                     }
 
                     $prodName = $bItem['variant_name'] ?: ($bItem['catalog_name'] ?: 'In-House Garment');
-                    $tagCode = QrService::generateFinishedGoodsCode($itemVariantId);
-                    if ($tagCode === null) {
+                    $tagCode = QrService::formatBrandVariantCode($itemVariantId);
+                    if ($tagCode === '') {
                         $this->flash('error', 'Could not generate a product code for the saved variant.');
                         $this->redirect('/m/label_generation?tab=production');
                         return;
@@ -1469,6 +1469,8 @@ class LabelController extends Controller {
                         'label_4_val'    => '₹' . number_format($itemPrice, 2),
                         'price'          => $itemPrice,
                         'price_mrp'      => $itemMrp,
+                        'base_price'     => $itemMrp,
+                        'discount_price' => $itemPrice,
                         'variant_id'     => $itemVariantId,
                         'tag_code'       => $tagCode,
                         'qr_payload'     => $tagCode,
@@ -1478,7 +1480,7 @@ class LabelController extends Controller {
                         'item_code'      => $tagCode,
                         'item_id'        => (int)($bItem['stitching_item_id'] ?: 0),
                         'variant_size'   => $itemSize,
-                        'product_code'       => $itemSku ?: $tagCode,
+                        'product_code'   => $tagCode,
                         'stock_tab'      => 'production',
                         'brand_name'     => $bItem['brand_name'] ?: $concernName,
                         'category_name'  => $bItem['category_name'] ?: 'Apparel',
@@ -1662,8 +1664,8 @@ class LabelController extends Controller {
             }
 
             $prodName = $item['variant_name'] ?: 'In-House Garment';
-            $tagCode = QrService::generateFinishedGoodsCode($variantId);
-            if ($tagCode === null) {
+            $tagCode = QrService::formatBrandVariantCode($variantId);
+            if ($tagCode === '') {
                 $this->flash('error', 'Could not generate a product code for the saved variant.');
                 $this->redirect('/m/label_generation?tab=production');
                 return;
@@ -1671,7 +1673,8 @@ class LabelController extends Controller {
             $qrText = $tagCode;
 
             $designVal = trim(!empty($item['variant_size']) ? ('SIZE: ' . $item['variant_size']) : (!empty($item['pattern']) ? $item['pattern'] : ($item['program_no'] ?: 'STANDARD')));
-            $priceVal = (float)($item['variant_mrp'] ?: ($item['variant_price'] ?? 0));
+            $basePriceVal = (float)($item['variant_mrp'] ?: ($item['variant_price'] ?? 0));
+            $priceVal = (float)($item['variant_price'] ?: $basePriceVal);
 
             $labelData = [
                 'concern_name'   => $concernName,
@@ -1687,7 +1690,9 @@ class LabelController extends Controller {
                 'label_4_name'   => 'Price',
                 'label_4_val'    => '₹' . number_format($priceVal, 2),
                 'price'          => $priceVal,
-                'price_mrp'      => $priceVal,
+                'price_mrp'      => $basePriceVal,
+                'base_price'     => $basePriceVal,
+                'discount_price' => $priceVal,
                 'variant_id'     => $variantId,
                 'tag_code'       => $tagCode,
                 'qr_payload'     => $qrText,
@@ -1697,7 +1702,7 @@ class LabelController extends Controller {
                 'item_code'      => $tagCode,
                 'item_id'        => $itemId,
                 'variant_size'   => $item['variant_size'] ?: ($item['size'] ?: 'Free'),
-                'product_code'       => $item['product_code'] ?? $tagCode,
+                'product_code'   => $tagCode,
                 'stock_tab'      => 'production',
                 'brand_name'     => $item['brand_name'] ?: $concernName,
                 'category_name'  => $item['category_name'] ?: 'Apparel',
