@@ -262,7 +262,7 @@
                                     $labelColor = $cr['last_item_color'] ?: 'STANDARD';
                                     $labelDesign = trim($cr['last_item_pattern'] ?: ($cr['last_item_specification'] ?: 'PLAIN'));
                                     $labelPrice = (float)($cr['last_item_unit_price'] ?: ($cr['last_item_mrp'] ?: 0));
-                                    $labelHeader = 'ROLL #' . ($cr['last_item_code'] ?: $cr['last_item_id']);
+                                    $labelHeader = '';
                                     $labelRef = $cr['last_bill_no'] ?: ('PO-' . ($cr['last_item_bill_id'] ?? ''));
                                     $labelConcern = \App\Core\Auth::concern()['name'] ?? 'GRM Inventory';
                                     $qrPayload = \App\Services\QrService::generateTagCode(
@@ -1162,7 +1162,12 @@ function showRollQr(button) {
     const payload = button.dataset.qr || '';
     document.getElementById('rollQrConcern').textContent = button.dataset.labelConcern || 'GRM Inventory';
     document.getElementById('rollQrRef').textContent = button.dataset.labelRef || '';
-    document.getElementById('rollQrTitle').textContent = button.dataset.labelTitle || '';
+    const titleEl = document.getElementById('rollQrTitle');
+    const labelTitle = (button.dataset.labelTitle || '').trim();
+    if (titleEl) {
+        titleEl.textContent = labelTitle;
+        titleEl.style.display = labelTitle ? 'block' : 'none';
+    }
     document.getElementById('rollQrField1Label').textContent = (button.dataset.labelField1Label || 'Fabric') + ':';
     document.getElementById('rollQrFabric').textContent = button.dataset.labelFabric || '';
     document.getElementById('rollQrColor').textContent = button.dataset.labelColor || '';
