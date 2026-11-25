@@ -477,18 +477,7 @@
                 </div>
             </div>
 
-            <div class="modal-footer border-top px-4 py-2 bg-light d-flex justify-content-between align-items-center">
-                <div class="btn-group">
-                    <a href="#" id="view_concern_pdf_btn" class="btn btn-sm btn-outline-danger" target="_blank" title="Download / Print PDF Dossier">
-                        <i class="bi bi-file-earmark-pdf me-1"></i> PDF Dossier
-                    </a>
-                    <a href="#" id="view_concern_excel_btn" class="btn btn-sm btn-outline-success" title="Download Excel Dossier">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Excel Dossier
-                    </a>
-                    <a href="#" id="view_concern_csv_btn" class="btn btn-sm btn-outline-secondary" title="Download CSV Dossier">
-                        <i class="bi bi-file-earmark-text me-1"></i> CSV
-                    </a>
-                </div>
+            <div class="modal-footer border-top px-4 py-2 bg-light d-flex justify-content-end align-items-center">
                 <button type="button" class="btn btn-sm btn-secondary px-3" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
@@ -843,14 +832,6 @@ function openViewConcernModal(con) {
             }
         }
     });
-
-    const downloadBaseUrl = '<?= \App\Core\Controller::url('/admin/concerns/download') ?>';
-    const pdfBtn = document.getElementById('view_concern_pdf_btn');
-    const excelBtn = document.getElementById('view_concern_excel_btn');
-    const csvBtn = document.getElementById('view_concern_csv_btn');
-    if (pdfBtn) pdfBtn.href = `${downloadBaseUrl}?id=${encodeURIComponent(con.id)}&format=pdf`;
-    if (excelBtn) excelBtn.href = `${downloadBaseUrl}?id=${encodeURIComponent(con.id)}&format=excel`;
-    if (csvBtn) csvBtn.href = `${downloadBaseUrl}?id=${encodeURIComponent(con.id)}&format=csv`;
 
     const modal = new bootstrap.Modal(document.getElementById('modalViewConcern'));
     modal.show();
