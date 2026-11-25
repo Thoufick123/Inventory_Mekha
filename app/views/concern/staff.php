@@ -332,7 +332,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-secondary text-uppercase mb-1">
-                            <i class="bi bi-briefcase me-1 text-primary"></i> Designation *
+                            <i class="bi bi-briefcase me-1 text-primary"></i> Role Assign *
                         </label>
                         <input type="text" name="designation" class="form-control" required placeholder="e.g. Cutting Master / Tailor / Supervisor">
                     </div>
@@ -433,7 +433,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-secondary text-uppercase mb-1">
-                            <i class="bi bi-briefcase me-1 text-primary"></i> Designation *
+                            <i class="bi bi-briefcase me-1 text-primary"></i> Role Assign *
                         </label>
                         <input type="text" name="designation" id="edit_staff_designation" class="form-control" required>
                     </div>
