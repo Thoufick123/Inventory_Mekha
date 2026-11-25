@@ -337,8 +337,14 @@ abstract class Controller {
     protected function validateCsrf(): void {
         $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
         if (!Auth::verifyCsrfToken($token)) {
-            http_response_code(419);
-            die("CSRF token validation failed. Please refresh and try again.");
+            $this->flash('error', 'Your session expired or the form security token was invalid. Please try submitting again.');
+            $referer = $_SERVER['HTTP_REFERER'] ?? null;
+            if ($referer && filter_var($referer, FILTER_VALIDATE_URL)) {
+                $this->redirect($referer);
+                return;
+            }
+            $this->redirect('/admin/concerns');
+            return;
         }
     }
 }
