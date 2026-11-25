@@ -26,7 +26,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <label for="admin_concern_filter" class="fw-bold text-dark small mb-0 d-flex align-items-center gap-1">
-                    <i class="bi bi-buildings text-primary"></i> Concern Scope:
+                    <i class="bi bi-buildings text-primary"></i> Single Concern Filter:
                 </label>
                 <select id="admin_concern_filter" class="form-select form-select-sm" style="min-width: 270px; border-radius: 8px; font-weight: 500;" onchange="onConcernFilterChange(this.value)">
                     <option value="" <?= empty($selectedConcernIds) ? 'selected' : '' ?>>-- All Concerns (Consolidated) --</option>
@@ -44,8 +44,30 @@
             </div>
             <div class="text-secondary small d-flex align-items-center gap-2">
                 <i class="bi bi-info-circle text-primary"></i>
-                <span>Use the table checkboxes below to select <strong>any 2 or separated concerns</strong> to download separated or combined reports.</span>
+                <span>Select any <strong>2 or more concerns</strong> below to download them together in the <strong>same report at the same time</strong>.</span>
             </div>
+        </div>
+
+        <!-- Quick Multi-Concern Checkboxes (Pick 2 or more concerns for same report) -->
+        <div class="d-flex align-items-center gap-2 flex-wrap mt-3 pt-2 border-top">
+            <span class="small fw-bold text-dark d-flex align-items-center gap-1 me-1">
+                <i class="bi bi-check2-square text-primary"></i> Select Concerns for Same Report:
+            </span>
+            <?php foreach ($allConcerns as $c): ?>
+                <label class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2 py-1 px-3 rounded-pill shadow-xs" style="font-size: 0.82rem; cursor: pointer;">
+                    <input type="checkbox" class="form-check-input m-0 concern-pill-check" 
+                           value="<?= $c['id'] ?>" 
+                           data-name="<?= htmlspecialchars($c['name']) ?>" 
+                           data-code="<?= htmlspecialchars($c['code']) ?>"
+                           onchange="onPillCheckChange(this)"
+                           style="cursor: pointer;">
+                    <span class="fw-bold font-monospace">[<?= htmlspecialchars($c['code']) ?>]</span>
+                    <span><?= htmlspecialchars($c['name']) ?></span>
+                </label>
+            <?php endforeach; ?>
+            <button type="button" id="top_export_2_excel" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm ms-auto" onclick="exportSelectedCombined('excel')">
+                <i class="bi bi-file-earmark-excel"></i> <span id="top_export_label">Download Selected Report (Excel)</span>
+            </button>
         </div>
     </div>
 
@@ -72,7 +94,7 @@
                 </div>
                 <div>
                     <div class="fw-bold fs-6 text-white">
-                        <span id="selected_concerns_count">0</span> Concerns Selected
+                        <span id="selected_concerns_count">0</span> Concerns Selected (Same Report)
                     </div>
                     <small id="selected_concerns_names" class="text-white-50" style="font-size: 0.8rem;"></small>
                 </div>
@@ -80,18 +102,18 @@
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <span class="text-white-50 small me-1">Export Mode:</span>
                 <!-- Combined Export -->
-                <button type="button" class="btn btn-sm btn-light fw-bold text-primary shadow-sm" onclick="exportSelectedCombined('excel')">
-                    <i class="bi bi-file-earmark-excel text-success me-1"></i> Combined Report (Excel)
+                <button type="button" class="btn btn-sm btn-light fw-bold text-success shadow-sm" onclick="exportSelectedCombined('excel')">
+                    <i class="bi bi-file-earmark-excel text-success me-1"></i> Download Same Report (Excel)
                 </button>
-                <button type="button" class="btn btn-sm btn-light fw-bold text-primary shadow-sm" onclick="exportSelectedCombined('pdf')">
-                    <i class="bi bi-file-earmark-pdf text-danger me-1"></i> Combined (PDF)
+                <button type="button" class="btn btn-sm btn-light fw-bold text-danger shadow-sm" onclick="exportSelectedCombined('pdf')">
+                    <i class="bi bi-file-earmark-pdf text-danger me-1"></i> Same Report (PDF)
                 </button>
-                <button type="button" class="btn btn-sm btn-light fw-bold text-primary shadow-sm" onclick="exportSelectedCombined('csv')">
+                <button type="button" class="btn btn-sm btn-light fw-bold text-secondary shadow-sm" onclick="exportSelectedCombined('csv')">
                     <i class="bi bi-file-earmark-arrow-down text-secondary me-1"></i> CSV
                 </button>
                 <!-- Separated Reports (1 file per concern) -->
-                <button type="button" class="btn btn-sm btn-warning fw-bold text-dark shadow-sm" onclick="downloadSeparatedReports('excel')" title="Downloads a separated Excel report file for each selected concern">
-                    <i class="bi bi-folder-symlink me-1"></i> Download Separated Reports (Excel)
+                <button type="button" class="btn btn-sm btn-warning fw-bold text-dark shadow-sm" onclick="downloadSeparatedReports('excel')" title="Downloads a separated individual Excel report file for each selected concern">
+                    <i class="bi bi-folder-symlink me-1"></i> Download Separated (1 File Each)
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-light" onclick="clearAllSelections()" title="Deselect All">
                     <i class="bi bi-x-lg"></i>
@@ -102,17 +124,24 @@
 
     <!-- Summary Metrics Table -->
     <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden" style="border: 1px solid #e2e8f0 !important;">
-        <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
                 <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-bar-chart-line me-2 text-primary"></i> Tenant Performance Breakdown</h6>
                 <span class="badge bg-light text-dark border"><?= count($concernStats) ?> Shown</span>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllVisibleConcerns()">
                     <i class="bi bi-check-all me-1"></i> Select All
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAllSelections()">
                     Clear
+                </button>
+                <!-- Direct Export Selected Button in Table Header -->
+                <button type="button" id="header_export_btn_excel" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm" onclick="exportSelectedCombined('excel')">
+                    <i class="bi bi-file-earmark-excel"></i> <span id="header_export_label">Download Selected Concerns (Excel)</span>
+                </button>
+                <button type="button" id="header_export_btn_pdf" class="btn btn-sm btn-danger fw-bold d-inline-flex align-items-center gap-1 shadow-sm" onclick="exportSelectedCombined('pdf')">
+                    <i class="bi bi-file-earmark-pdf"></i> PDF
                 </button>
             </div>
         </div>
@@ -120,16 +149,18 @@
             <table class="table table-hover align-middle mb-0 table-custom">
                 <thead>
                     <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em;">
-                        <th style="width: 44px; text-align: center;">
-                            <input type="checkbox" id="master_concern_check" class="form-check-input" onchange="toggleMasterCheck(this)" title="Select / Deselect All">
+                        <th style="min-width: 220px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="checkbox" id="master_concern_check" class="form-check-input" onchange="toggleMasterCheck(this)" title="Select / Deselect All Concerns" style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>CONCERN (CHECK TO SELECT)</span>
+                            </div>
                         </th>
-                        <th>Concern</th>
                         <th>Variants Mastered</th>
                         <th>Stock Units In Hand</th>
                         <th>Live Inventory Valuation</th>
                         <th>Gross Purchases in Period</th>
                         <th>Gross Invoiced Sales in Period</th>
-                        <th style="text-align: right; width: 160px;">Action / Separated Export</th>
+                        <th style="text-align: right; width: 170px;">Individual Concern Report</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -141,7 +172,7 @@
 
                     if (empty($concernStats)): ?>
                         <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
+                            <td colspan="7" class="text-center py-4 text-muted">
                                 <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                                 No concerns found matching the selected filter.
                             </td>
@@ -154,16 +185,19 @@
                             $grandSales += (float)$cs['total_sales'];
                         ?>
                             <tr id="row_concern_<?= $cs['id'] ?>">
-                                <td style="text-align: center;">
-                                    <input type="checkbox" class="form-check-input concern-row-check" 
-                                           value="<?= $cs['id'] ?>" 
-                                           data-name="<?= htmlspecialchars($cs['name']) ?>" 
-                                           data-code="<?= htmlspecialchars($cs['code']) ?>"
-                                           onchange="onRowCheckChange()">
-                                </td>
                                 <td>
-                                    <div class="fw-bold text-dark"><?= htmlspecialchars($cs['name']) ?></div>
-                                    <span class="badge bg-light text-dark border font-monospace"><?= htmlspecialchars($cs['code']) ?></span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input type="checkbox" class="form-check-input concern-row-check flex-shrink-0" 
+                                               value="<?= $cs['id'] ?>" 
+                                               data-name="<?= htmlspecialchars($cs['name']) ?>" 
+                                               data-code="<?= htmlspecialchars($cs['code']) ?>"
+                                               onchange="onRowCheckChange()"
+                                               style="width: 19px; height: 19px; cursor: pointer;">
+                                        <div>
+                                            <div class="fw-bold text-dark"><?= htmlspecialchars($cs['name']) ?></div>
+                                            <span class="badge bg-light text-dark border font-monospace"><?= htmlspecialchars($cs['code']) ?></span>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td><?= number_format($cs['total_variants']) ?> items</td>
                                 <td>
@@ -204,7 +238,7 @@
                 </tbody>
                 <tfoot class="table-light fw-bold">
                     <tr>
-                        <td colspan="2">
+                        <td>
                             <?= !empty($selectedConcernIds) ? 'TOTAL (SELECTED ' . count($concernStats) . ' CONCERNS)' : 'TOTAL CONSOLIDATED (' . count($concernStats) . ' CONCERNS)' ?>
                         </td>
                         <td>-</td>
@@ -285,26 +319,59 @@ function getSelectedRowChecks() {
     return Array.from(document.querySelectorAll('.concern-row-check:checked'));
 }
 
+function onPillCheckChange(pillInput) {
+    const rowCheck = document.querySelector('.concern-row-check[value="' + pillInput.value + '"]');
+    if (rowCheck) {
+        rowCheck.checked = pillInput.checked;
+    }
+    onRowCheckChange();
+}
+
 function onRowCheckChange() {
     const checked = getSelectedRowChecks();
     const batchBar = document.getElementById('batch_export_bar');
     const countSpan = document.getElementById('selected_concerns_count');
     const namesSpan = document.getElementById('selected_concerns_names');
     const masterCheck = document.getElementById('master_concern_check');
-    const allChecks = document.querySelectorAll('.concern-row-check');
+    const allRowChecks = document.querySelectorAll('.concern-row-check');
+    const allPillChecks = document.querySelectorAll('.concern-pill-check');
+    const headerLabel = document.getElementById('header_export_label');
+    const topLabel = document.getElementById('top_export_label');
+
+    // Sync pill checkboxes to match row checkboxes
+    const checkedValues = checked.map(c => c.value);
+    allPillChecks.forEach(p => {
+        p.checked = checkedValues.includes(p.value);
+        const parentLabel = p.closest('label');
+        if (parentLabel) {
+            if (p.checked) {
+                parentLabel.classList.remove('btn-outline-primary');
+                parentLabel.classList.add('btn-primary', 'text-white');
+            } else {
+                parentLabel.classList.remove('btn-primary', 'text-white');
+                parentLabel.classList.add('btn-outline-primary');
+            }
+        }
+    });
 
     if (checked.length > 0) {
-        batchBar.classList.remove('d-none');
-        countSpan.textContent = checked.length;
+        if (batchBar) batchBar.classList.remove('d-none');
+        if (countSpan) countSpan.textContent = checked.length;
         const codes = checked.map(c => c.getAttribute('data-code')).join(', ');
-        namesSpan.textContent = 'Selected: ' + codes;
+        if (namesSpan) namesSpan.textContent = 'Selected: ' + codes;
+        
+        const btnText = 'Download ' + checked.length + ' Concern' + (checked.length > 1 ? 's' : '') + ' (Excel)';
+        if (headerLabel) headerLabel.textContent = btnText;
+        if (topLabel) topLabel.textContent = btnText;
     } else {
-        batchBar.classList.add('d-none');
+        if (batchBar) batchBar.classList.add('d-none');
+        if (headerLabel) headerLabel.textContent = 'Download Selected Concerns (Excel)';
+        if (topLabel) topLabel.textContent = 'Download Selected Report (Excel)';
     }
 
     if (masterCheck) {
-        masterCheck.checked = (allChecks.length > 0 && checked.length === allChecks.length);
-        masterCheck.indeterminate = (checked.length > 0 && checked.length < allChecks.length);
+        masterCheck.checked = (allRowChecks.length > 0 && checked.length === allRowChecks.length);
+        masterCheck.indeterminate = (checked.length > 0 && checked.length < allRowChecks.length);
     }
 }
 
@@ -326,11 +393,11 @@ function clearAllSelections() {
     onRowCheckChange();
 }
 
-// Export combined report for the checked concerns
+// Export combined report for the checked concerns (at the same time into one single file)
 function exportSelectedCombined(format) {
     const checked = getSelectedRowChecks();
     if (checked.length === 0) {
-        alert('Please select at least 1 concern from the table.');
+        alert('Please check at least 1 or 2 concerns to download the report.');
         return;
     }
 
@@ -355,7 +422,7 @@ function exportSelectedCombined(format) {
 function downloadSeparatedReports(format) {
     const checked = getSelectedRowChecks();
     if (checked.length === 0) {
-        alert('Please select at least 1 concern from the table.');
+        alert('Please check at least 1 or 2 concerns to download separated reports.');
         return;
     }
 
