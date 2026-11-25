@@ -107,9 +107,6 @@ class StaffController extends Controller {
              ORDER BY c.name ASC"
         );
 
-        $allRoles = DB::fetchAll("SELECT id, name FROM roles ORDER BY (concern_id IS NULL) DESC, id ASC");
-        $allDepartments = DB::fetchAll("SELECT DISTINCT department FROM staff WHERE department IS NOT NULL AND department != '' ORDER BY department ASC");
-
         // Concern selection logic
         $selectedCid = null;
         if (isset($_GET['concern_id']) && $_GET['concern_id'] !== '') {
@@ -120,6 +117,17 @@ class StaffController extends Controller {
         } else {
             $selectedCid = Auth::concernId();
         }
+
+        // Only show roles belonging to this specific concern or global roles (Super Admin)
+        if ($selectedCid) {
+            $allRoles = DB::fetchAll(
+                "SELECT id, name FROM roles WHERE concern_id = ? OR concern_id IS NULL ORDER BY (concern_id IS NULL) DESC, id ASC",
+                [$selectedCid]
+            );
+        } else {
+            $allRoles = DB::fetchAll("SELECT id, name FROM roles ORDER BY (concern_id IS NULL) DESC, id ASC");
+        }
+        $allDepartments = DB::fetchAll("SELECT DISTINCT department FROM staff WHERE department IS NOT NULL AND department != '' ORDER BY department ASC");
 
         // If force choose or if no concern selected yet
         $showConcernModal = false;
@@ -803,9 +811,15 @@ class StaffController extends Controller {
     public function roles(): void {
         ModuleGuard::enforce('staff', 'view');
         $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
-        $allRoles = DB::fetchAll("SELECT id, name, description, concern_id FROM roles ORDER BY (concern_id IS NULL) DESC, id ASC");
-
         $concernFilter = isset($_GET['concern_id']) && $_GET['concern_id'] !== '' ? (int)$_GET['concern_id'] : null;
+        if ($concernFilter) {
+            $allRoles = DB::fetchAll(
+                "SELECT id, name, description, concern_id FROM roles WHERE concern_id = ? OR concern_id IS NULL ORDER BY (concern_id IS NULL) DESC, id ASC",
+                [$concernFilter]
+            );
+        } else {
+            $allRoles = DB::fetchAll("SELECT id, name, description, concern_id FROM roles ORDER BY (concern_id IS NULL) DESC, id ASC");
+        }
         $search = trim($_GET['search'] ?? '');
 
         $sql = "SELECT s.*, c.name AS concern_name, c.code AS concern_code,
