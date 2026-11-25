@@ -1387,16 +1387,11 @@ class LabelController extends Controller {
                     return;
                 }
 
-                // Validation: Prevent duplicate label generation if labels have already been generated for this batch
+                // Check if labels were already generated for this batch; allow re-opening/reprinting without blocking
                 $existingJob = DB::fetch(
                     "SELECT id, qty, created_at FROM label_jobs WHERE label_type = 'production' AND ref_id = ? ORDER BY id DESC LIMIT 1",
                     [$batchId]
                 );
-                if ($existingJob && empty($_POST['force_reprint'])) {
-                    $this->flash('error', "Validation Alert: Labels have already been generated for this stitching batch on " . date('d M Y, h:i A', strtotime($existingJob['created_at'])) . " (Job #{$existingJob['id']}, {$existingJob['qty']} copies). Duplicate label generation is restricted.");
-                    $this->redirect('/m/label_generation?tab=production');
-                    return;
-                }
 
                 $multiLabels = [];
                 $batchNo = $batchItems[0]['log_no'] ?? ('STCH-' . $batchId);
@@ -1446,8 +1441,8 @@ class LabelController extends Controller {
                     }
 
                     $prodName = $bItem['variant_name'] ?: ($bItem['catalog_name'] ?: 'In-House Garment');
-                    $tagCode = QrService::generateFinishedGoodsCode($itemVariantId);
-                    if ($tagCode === null) {
+                    $tagCode = QrService::formatBrandVariantCode($itemVariantId);
+                    if ($tagCode === '') {
                         $this->flash('error', 'Could not generate a product code for the saved variant.');
                         $this->redirect('/m/label_generation?tab=production');
                         return;
@@ -1469,6 +1464,8 @@ class LabelController extends Controller {
                         'label_4_val'    => '₹' . number_format($itemPrice, 2),
                         'price'          => $itemPrice,
                         'price_mrp'      => $itemMrp,
+                        'base_price'     => $itemMrp,
+                        'discount_price' => $itemPrice,
                         'variant_id'     => $itemVariantId,
                         'tag_code'       => $tagCode,
                         'qr_payload'     => $tagCode,
@@ -1478,7 +1475,7 @@ class LabelController extends Controller {
                         'item_code'      => $tagCode,
                         'item_id'        => (int)($bItem['stitching_item_id'] ?: 0),
                         'variant_size'   => $itemSize,
-                        'product_code'       => $itemSku ?: $tagCode,
+                        'product_code'   => $tagCode,
                         'stock_tab'      => 'production',
                         'brand_name'     => $bItem['brand_name'] ?: $concernName,
                         'category_name'  => $bItem['category_name'] ?: 'Apparel',
@@ -1492,22 +1489,37 @@ class LabelController extends Controller {
 
                 $totalCopies = count($multiLabels);
 
-                DB::query(
-                    "INSERT INTO label_jobs (concern_id, label_type, ref_id, variant_id, item_title, item_code, qr_payload, qty, printed_by, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                    [
-                        $batchConcernId,
-                        'production',
-                        $batchId,
-                        null,
-                        "Batch #{$batchNo} (" . count($batchItems) . " Variants)",
-                        $batchNo,
-                        "BATCH-{$batchNo}",
-                        $totalCopies,
-                        Auth::id()
-                    ]
-                );
-                $jobId = (int)DB::lastInsertId();
+                if ($existingJob) {
+                    $jobId = (int)$existingJob['id'];
+                    DB::query(
+                        "UPDATE label_jobs SET item_title = ?, item_code = ?, qr_payload = ?, qty = ?, printed_by = ? WHERE id = ?",
+                        [
+                            "Batch #{$batchNo} (" . count($batchItems) . " Variants)",
+                            $batchNo,
+                            "BATCH-{$batchNo}",
+                            $totalCopies,
+                            Auth::id(),
+                            $jobId
+                        ]
+                    );
+                } else {
+                    DB::query(
+                        "INSERT INTO label_jobs (concern_id, label_type, ref_id, variant_id, item_title, item_code, qr_payload, qty, printed_by, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                        [
+                            $batchConcernId,
+                            'production',
+                            $batchId,
+                            null,
+                            "Batch #{$batchNo} (" . count($batchItems) . " Variants)",
+                            $batchNo,
+                            "BATCH-{$batchNo}",
+                            $totalCopies,
+                            Auth::id()
+                        ]
+                    );
+                    $jobId = (int)DB::lastInsertId();
+                }
 
                 AuditLog::log('GENERATE_LABELS', 'label_jobs', $jobId, null, [
                     'label_type'    => 'production_batch',
@@ -1662,8 +1674,8 @@ class LabelController extends Controller {
             }
 
             $prodName = $item['variant_name'] ?: 'In-House Garment';
-            $tagCode = QrService::generateFinishedGoodsCode($variantId);
-            if ($tagCode === null) {
+            $tagCode = QrService::formatBrandVariantCode($variantId);
+            if ($tagCode === '') {
                 $this->flash('error', 'Could not generate a product code for the saved variant.');
                 $this->redirect('/m/label_generation?tab=production');
                 return;
@@ -1671,7 +1683,8 @@ class LabelController extends Controller {
             $qrText = $tagCode;
 
             $designVal = trim(!empty($item['variant_size']) ? ('SIZE: ' . $item['variant_size']) : (!empty($item['pattern']) ? $item['pattern'] : ($item['program_no'] ?: 'STANDARD')));
-            $priceVal = (float)($item['variant_mrp'] ?: ($item['variant_price'] ?? 0));
+            $basePriceVal = (float)($item['variant_mrp'] ?: ($item['variant_price'] ?? 0));
+            $priceVal = (float)($item['variant_price'] ?: $basePriceVal);
 
             $labelData = [
                 'concern_name'   => $concernName,
@@ -1687,7 +1700,9 @@ class LabelController extends Controller {
                 'label_4_name'   => 'Price',
                 'label_4_val'    => '₹' . number_format($priceVal, 2),
                 'price'          => $priceVal,
-                'price_mrp'      => $priceVal,
+                'price_mrp'      => $basePriceVal,
+                'base_price'     => $basePriceVal,
+                'discount_price' => $priceVal,
                 'variant_id'     => $variantId,
                 'tag_code'       => $tagCode,
                 'qr_payload'     => $qrText,
@@ -1697,7 +1712,7 @@ class LabelController extends Controller {
                 'item_code'      => $tagCode,
                 'item_id'        => $itemId,
                 'variant_size'   => $item['variant_size'] ?: ($item['size'] ?: 'Free'),
-                'product_code'       => $item['product_code'] ?? $tagCode,
+                'product_code'   => $tagCode,
                 'stock_tab'      => 'production',
                 'brand_name'     => $item['brand_name'] ?: $concernName,
                 'category_name'  => $item['category_name'] ?: 'Apparel',
@@ -3157,5 +3172,136 @@ class LabelController extends Controller {
 
         DB::query("UPDATE purchase_bill_items SET variant_id = ?, catalog_id = ?, item_code = ? WHERE id = ?", [$variantId, $catalogId, $productCode, (int)$item['id']]);
         return $variantId;
+    }
+
+    public function viewJob(): void {
+        ModuleGuard::enforce('label_generation', 'view');
+
+        $jobId = (int)($_GET['id'] ?? 0);
+        if (!$jobId) {
+            $this->renderJson(['success' => false, 'message' => 'Invalid label job ID.'], 400);
+            return;
+        }
+
+        $cid = Auth::concernId();
+        $sql = "SELECT lj.*, u.name AS printed_by_name, c.name AS concern_name
+                FROM label_jobs lj
+                LEFT JOIN users u ON lj.printed_by = u.id
+                LEFT JOIN concerns c ON lj.concern_id = c.id
+                WHERE lj.id = ?";
+        $params = [$jobId];
+        if ($cid) {
+            $sql .= " AND lj.concern_id = ?";
+            $params[] = $cid;
+        }
+        $job = DB::fetch($sql, $params);
+        if (!$job) {
+            $this->renderJson(['success' => false, 'message' => 'Label job not found.'], 404);
+            return;
+        }
+
+        $variants = [];
+        if (($job['label_type'] ?? '') === 'production' && !empty($job['ref_id'])) {
+            $variants = DB::fetchAll(
+                "SELECT si.id, si.variant_id, si.size, si.color, si.stitching_qty, si.base_price, si.discount_price,
+                        v.name AS variant_name
+                 FROM stitching_items si
+                 LEFT JOIN variants v ON si.variant_id = v.id
+                 WHERE si.stitching_id = ?
+                 ORDER BY si.id ASC",
+                [(int)$job['ref_id']]
+            );
+            foreach ($variants as &$vRow) {
+                $vRow['qr_code'] = !empty($vRow['variant_id'])
+                    ? QrService::formatBrandVariantCode((int)$vRow['variant_id'])
+                    : '-';
+            }
+            unset($vRow);
+        }
+
+        $this->renderJson([
+            'success' => true,
+            'job' => $job,
+            'variants' => $variants,
+        ]);
+    }
+
+    public function updateJob(): void {
+        ModuleGuard::enforce('label_generation', 'edit');
+        $this->validateCsrf();
+
+        $jobId = (int)($_POST['job_id'] ?? 0);
+        $title = trim((string)($_POST['item_title'] ?? ''));
+        $code = trim((string)($_POST['item_code'] ?? ''));
+        $qty = max(1, (int)($_POST['qty'] ?? 1));
+        $returnTab = trim((string)($_POST['tab'] ?? 'production'));
+
+        if (!$jobId || $title === '') {
+            $this->flash('error', 'Valid job ID and label title are required.');
+            $this->redirect('/m/label_generation?tab=' . rawurlencode($returnTab));
+            return;
+        }
+
+        $cid = Auth::concernId();
+        $sql = "SELECT * FROM label_jobs WHERE id = ?";
+        $params = [$jobId];
+        if ($cid) {
+            $sql .= " AND concern_id = ?";
+            $params[] = $cid;
+        }
+        $existing = DB::fetch($sql, $params);
+        if (!$existing) {
+            $this->flash('error', 'Label job not found.');
+            $this->redirect('/m/label_generation?tab=' . rawurlencode($returnTab));
+            return;
+        }
+
+        DB::query(
+            "UPDATE label_jobs SET item_title = ?, item_code = ?, qty = ? WHERE id = ?",
+            [$title, $code ?: $existing['item_code'], $qty, $jobId]
+        );
+
+        AuditLog::log('UPDATE', 'label_jobs', $jobId, $existing, [
+            'item_title' => $title,
+            'item_code' => $code,
+            'qty' => $qty,
+        ]);
+
+        $this->flash('success', "Label Job #{$jobId} updated successfully.");
+        $this->redirect('/m/label_generation?tab=' . rawurlencode($returnTab));
+    }
+
+    public function deleteJob(): void {
+        ModuleGuard::enforce('label_generation', 'delete');
+        $this->validateCsrf();
+
+        $jobId = (int)($_POST['job_id'] ?? 0);
+        $returnTab = trim((string)($_POST['tab'] ?? 'production'));
+
+        if (!$jobId) {
+            $this->flash('error', 'Invalid label job ID.');
+            $this->redirect('/m/label_generation?tab=' . rawurlencode($returnTab));
+            return;
+        }
+
+        $cid = Auth::concernId();
+        $sql = "SELECT * FROM label_jobs WHERE id = ?";
+        $params = [$jobId];
+        if ($cid) {
+            $sql .= " AND concern_id = ?";
+            $params[] = $cid;
+        }
+        $existing = DB::fetch($sql, $params);
+        if (!$existing) {
+            $this->flash('error', 'Label job not found.');
+            $this->redirect('/m/label_generation?tab=' . rawurlencode($returnTab));
+            return;
+        }
+
+        DB::query("DELETE FROM label_jobs WHERE id = ?", [$jobId]);
+        AuditLog::log('DELETE', 'label_jobs', $jobId, $existing, null);
+
+        $this->flash('success', "Label Job #{$jobId} deleted successfully.");
+        $this->redirect('/m/label_generation?tab=' . rawurlencode($returnTab));
     }
 }

@@ -110,7 +110,7 @@ foreach ($modules as $m) {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-briefcase me-1 text-primary"></i> Designation / Title *
+                                <i class="bi bi-briefcase me-1 text-primary"></i> Role Assign *
                             </label>
                             <input type="text" name="designation" id="staff_create_designation" class="form-control" value="<?= htmlspecialchars($oldInput['designation'] ?? '') ?>" required autocomplete="off" style="border-radius: 8px;">
                         </div>

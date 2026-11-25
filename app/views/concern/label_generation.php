@@ -1070,7 +1070,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                     <div class="d-flex justify-content-between align-items-center mb-1">
                                         <label class="form-label small fw-semibold mb-0">Select Stitched Production Batch <span class="text-danger">*</span></label>
                                         <div class="form-check form-switch mb-0">
-                                            <input class="form-check-input" type="checkbox" id="toggleHideLabeledBatches" checked onchange="toggleLabeledBatchesVisibility()">
+                                            <input class="form-check-input" type="checkbox" id="toggleHideLabeledBatches" onchange="toggleLabeledBatchesVisibility()">
                                             <label class="form-check-label small text-muted" for="toggleHideLabeledBatches" style="font-size:0.75rem;">Hide already generated</label>
                                         </div>
                                     </div>
@@ -1082,8 +1082,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                             $isLabeled = !empty($batch['labels_already_generated']);
                                         ?>
                                         <option value="<?= (int)$batch['stitching_id'] ?>"
-                                                class="prod-batch-opt <?= $isLabeled ? 'batch-opt-labeled text-muted' : 'batch-opt-pending' ?>"
-                                                style="<?= $isLabeled ? 'display: none;' : '' ?>"
+                                                class="prod-batch-opt <?= $isLabeled ? 'batch-opt-labeled' : 'batch-opt-pending' ?>"
                                                 data-batch-no="<?= htmlspecialchars($batch['batch_no']) ?>"
                                                 data-log-no="<?= htmlspecialchars($batch['log_no']) ?>"
                                                 data-program="<?= htmlspecialchars($batch['program_no']) ?>"
@@ -1493,11 +1492,12 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                         <th>Copies</th>
                         <th>Printed By</th>
                         <th>Timestamp</th>
+                        <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($recentJobs)): ?>
-                        <tr><td colspan="7" class="text-center py-4 text-muted">No label print jobs recorded yet. Choose an item above to generate labels.</td></tr>
+                        <tr><td colspan="8" class="text-center py-4 text-muted">No label print jobs recorded yet. Choose an item above to generate labels.</td></tr>
                     <?php else: ?>
                         <?php foreach ($recentJobs as $job): 
                             $type = $job['label_type'] ?? 'variant';
@@ -1534,6 +1534,44 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                 <td><span class="badge bg-info-subtle text-info border border-info font-monospace"><?= (int)$job['qty'] ?> Prints</span></td>
                                 <td class="small text-muted"><?= htmlspecialchars($job['user_name'] ?? 'System') ?></td>
                                 <td class="small text-muted font-monospace"><?= date('d M Y, H:i', strtotime($job['created_at'])) ?></td>
+                                <td class="text-end pe-3 text-nowrap">
+                                    <div class="d-inline-flex gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline-info py-1 px-2" onclick="viewLabelJob(<?= (int)$job['id'] ?>)" title="View Label Job Details">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <?php if ($type === 'production' && !empty($job['ref_id']) && $canAddLabels): ?>
+                                        <form action="<?= \App\Core\Controller::url('/m/label_generation/generate') ?>" method="POST" target="_blank" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                            <input type="hidden" name="label_type" value="production">
+                                            <input type="hidden" name="prod_print_mode" value="batch">
+                                            <input type="hidden" name="batch_id" value="<?= (int)$job['ref_id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary py-1 px-2" title="Re-Open &amp; Print Labels">
+                                                <i class="bi bi-printer"></i>
+                                            </button>
+                                        </form>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::can('label_generation', 'edit')): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2"
+                                                data-job-id="<?= (int)$job['id'] ?>"
+                                                data-title="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"
+                                                data-code="<?= htmlspecialchars($code, ENT_QUOTES, 'UTF-8') ?>"
+                                                data-qty="<?= (int)$job['qty'] ?>"
+                                                onclick="openEditLabelJobModal(this)"
+                                                title="Edit Label Job">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::can('label_generation', 'delete')): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2"
+                                                data-job-id="<?= (int)$job['id'] ?>"
+                                                data-title="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"
+                                                onclick="openDeleteLabelJobModal(this)"
+                                                title="Delete Label Job">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -2291,22 +2329,23 @@ function onBatchSelect() {
     if (hiddenBatch) hiddenBatch.value = batchId;
     if (hiddenStock) hiddenStock.value = 'batch_' + batchId;
 
-    // Check if labels were already generated
+    // Allow generating or re-opening labels anytime when user has Add permission
     const canAddLabels = <?= $canAddLabels ? 'true' : 'false' ?>;
     if (!canAddLabels) {
         if (printBtn) {
             printBtn.disabled = true;
             printBtn.title = 'Label generation restricted (requires Create / Add permission)';
         }
-    } else if (isLabelsGenerated) {
-        if (printBtn) {
-            printBtn.disabled = true;
-            printBtn.title = 'Labels already generated for this batch';
-        }
     } else {
         if (printBtn) {
             printBtn.disabled = false;
-            printBtn.title = 'Generate all variant labels for this batch';
+            if (isLabelsGenerated) {
+                printBtn.innerHTML = '<i class="bi bi-printer-fill me-1"></i> Re-Open / Print Labels';
+                printBtn.title = 'Re-open and print labels for this batch';
+            } else {
+                printBtn.innerHTML = '<i class="bi bi-printer-fill me-1"></i> Generate All Labels';
+                printBtn.title = 'Generate all variant labels for this batch';
+            }
         }
     }
 
@@ -2326,7 +2365,7 @@ function onBatchSelect() {
 
     if (noteEl) {
         if (isLabelsGenerated) {
-            noteEl.innerHTML = '<span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i> Validation Alert: Labels have already been generated for this batch' + (printedAt ? ' on ' + printedAt : '') + '. Duplicate label generation is restricted. Please proceed to Quality Control (QC).</span>';
+            noteEl.innerHTML = '<span class="text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i> Labels generated' + (printedAt ? ' on ' + printedAt : '') + '. You can re-open/reprint anytime or proceed to Quality Control (QC).</span>';
         } else {
             noteEl.textContent = isAllInStock
                 ? '✓ All variants of this batch are already in stock.'
@@ -2337,8 +2376,8 @@ function onBatchSelect() {
     // Summary banner
     if (summary && summaryText) {
         if (isLabelsGenerated) {
-            summary.className = 'alert alert-info py-2 px-3 mb-3 small d-flex align-items-center gap-2';
-            summaryText.innerHTML = '<i class="bi bi-check-circle-fill text-success fs-5"></i> <div><strong>Validation Notice:</strong> Labels already generated for Batch #' + batchNo + (printedAt ? ' (' + printedAt + ')' : '') + '. Duplicate generation is prevented. Use <strong>Move to Quality Control (QC)</strong> below.</div>';
+            summary.className = 'alert alert-success py-2 px-3 mb-3 small d-flex align-items-center gap-2';
+            summaryText.innerHTML = '<i class="bi bi-check-circle-fill text-success fs-5"></i> <div><strong>Batch #' + batchNo + '</strong> • ' + totalPcs + ' labels across ' + variantCount + ' variants' + (printedAt ? ' (Last printed: ' + printedAt + ')' : '') + '. Click <strong>Re-Open / Print Labels</strong> or <strong>Move to Quality Control (QC)</strong>.</div>';
         } else {
             summary.className = 'alert alert-warning py-2 px-3 mb-3 small';
             summaryText.textContent =
@@ -2571,4 +2610,152 @@ document.addEventListener('DOMContentLoaded', function() {
     updateProdPreview();
 
 });
+
+function viewLabelJob(jobId) {
+    const modalEl = document.getElementById('viewLabelJobModal');
+    const bodyEl = document.getElementById('viewLabelJobBody');
+    if (!modalEl || !bodyEl) return;
+
+    bodyEl.innerHTML = '<div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading label job details...</div>';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+    fetch('<?= \App\Core\Controller::url('/m/label_generation/job/view') ?>?id=' + encodeURIComponent(jobId), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data || !data.success) {
+            bodyEl.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml((data && data.message) || 'Failed to load job.')}</div>`;
+            return;
+        }
+        const job = data.job || {};
+        const variants = Array.isArray(data.variants) ? data.variants : [];
+        let varTable = '';
+        if (variants.length > 0) {
+            varTable = `
+                <h6 class="fw-bold small text-uppercase text-muted mt-3 mb-2">Variant Breakdown (${variants.length})</h6>
+                <div class="table-responsive border rounded">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead class="table-light small"><tr><th>Variant</th><th>Size</th><th>Base ₹</th><th>Disc ₹</th><th>QR Code</th><th class="text-end">Qty</th></tr></thead>
+                        <tbody>
+                            ${variants.map(v => `
+                                <tr>
+                                    <td class="small fw-semibold">${escapeHtml(v.variant_name || '-')}</td>
+                                    <td class="small">${escapeHtml(v.size || '-')}</td>
+                                    <td class="small">₹${parseFloat(v.base_price || 0).toFixed(2)}</td>
+                                    <td class="small text-success fw-semibold">₹${parseFloat(v.discount_price || 0).toFixed(2)}</td>
+                                    <td class="small font-monospace text-primary">${escapeHtml(v.qr_code || '-')}</td>
+                                    <td class="small text-end fw-bold">${parseInt(v.stitching_qty || 0, 10)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        bodyEl.innerHTML = `
+            <div class="row g-3">
+                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Job ID</div><div class="fw-bold font-monospace">#${parseInt(job.id || 0, 10)}</div></div></div>
+                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Batch / Item Code</div><div class="fw-bold font-monospace">${escapeHtml(job.item_code || '-')}</div></div></div>
+                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Total Copies</div><div class="fw-bold text-primary">${parseInt(job.qty || 0, 10)} Prints</div></div></div>
+                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">Title</div><div class="fw-semibold">${escapeHtml(job.item_title || '-')}</div></div></div>
+                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">QR Reference</div><div class="font-monospace text-primary">${escapeHtml(job.qr_payload || '-')}</div></div></div>
+            </div>
+            ${varTable}
+        `;
+    })
+    .catch(() => {
+        bodyEl.innerHTML = '<div class="alert alert-danger mb-0">Network error while loading label job.</div>';
+    });
+}
+
+function openEditLabelJobModal(button) {
+    const modalEl = document.getElementById('editLabelJobModal');
+    if (!modalEl || !button) return;
+    document.getElementById('edit_job_id').value = button.dataset.jobId || '';
+    document.getElementById('edit_job_title').value = button.dataset.title || '';
+    document.getElementById('edit_job_code').value = button.dataset.code || '';
+    document.getElementById('edit_job_qty').value = button.dataset.qty || '1';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+function openDeleteLabelJobModal(button) {
+    const modalEl = document.getElementById('deleteLabelJobModal');
+    if (!modalEl || !button) return;
+    document.getElementById('delete_job_id').value = button.dataset.jobId || '';
+    document.getElementById('delete_job_label').textContent = '#' + (button.dataset.jobId || '') + ' (' + (button.dataset.title || '') + ')';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
 </script>
+
+<!-- View Label Job Modal -->
+<div class="modal fade" id="viewLabelJobModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-eye text-info me-1"></i> Label Job Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewLabelJobBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Label Job Modal -->
+<div class="modal fade" id="editLabelJobModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="<?= \App\Core\Controller::url('/m/label_generation/job/update') ?>" method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                <input type="hidden" name="job_id" id="edit_job_id">
+                <input type="hidden" name="tab" value="<?= htmlspecialchars($curTab) ?>">
+                <div class="modal-header py-2">
+                    <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-pencil-square text-primary me-1"></i> Edit Label Job</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="item_title" id="edit_job_title" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Batch / Item Code</label>
+                        <input type="text" name="item_code" id="edit_job_code" class="form-control form-control-sm font-monospace">
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label small fw-semibold">Copies <span class="text-danger">*</span></label>
+                        <input type="number" name="qty" id="edit_job_qty" class="form-control form-control-sm" min="1" required>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-semibold">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Label Job Modal -->
+<div class="modal fade" id="deleteLabelJobModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="<?= \App\Core\Controller::url('/m/label_generation/job/delete') ?>" method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                <input type="hidden" name="job_id" id="delete_job_id">
+                <input type="hidden" name="tab" value="<?= htmlspecialchars($curTab) ?>">
+                <div class="modal-header py-2 bg-danger-subtle">
+                    <h5 class="modal-title fs-6 fw-bold text-danger"><i class="bi bi-trash3 me-1"></i> Delete Label Job</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">Are you sure you want to delete Label Job <strong id="delete_job_label"></strong>?</p>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger btn-sm fw-semibold">Delete Job</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

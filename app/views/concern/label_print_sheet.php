@@ -356,10 +356,16 @@ if (!empty($multiLabels)) {
             $tCode     = $isLabelFinishedGoods && !empty($lbl['variant_id'])
                 ? $finishedGoodsCode($lbl)
                 : ($lbl['tag_code'] ?? ($lbl['item_code'] ?? 'Product Code'));
-            $iQr       = $isLabelFinishedGoods && !empty($lbl['variant_id'])
-                ? $tCode
-                : ($lbl['qr_payload'] ?? $tCode);
-            $displayCode = !empty($lbl['variant_id']) ? (string)(int)$lbl['variant_id'] : $tCode;
+            $displayCode = $isProduction && !empty($lbl['variant_id'])
+                ? \App\Services\QrService::formatBrandVariantCode((int)$lbl['variant_id'])
+                : (!empty($lbl['variant_id']) ? (string)(int)$lbl['variant_id'] : $tCode);
+            $iQr       = $isProduction && !empty($lbl['variant_id'])
+                ? $displayCode
+                : ($isLabelFinishedGoods && !empty($lbl['variant_id'])
+                    ? $tCode
+                    : ($lbl['qr_payload'] ?? $tCode));
+            $basePriceVal = (float)($lbl['base_price'] ?? ($lbl['price_mrp'] ?? $pVal));
+            $discPriceVal = (float)($lbl['discount_price'] ?? $pVal);
             $vSize     = !empty($lbl['variant_size'])
                 ? $lbl['variant_size']
                 : ($isPurchaseFinishedGoodsLabel
@@ -407,17 +413,21 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displayCode) ?></span>
                             </div>
                         <?php elseif ($isProduction): ?>
-                            <!-- PRODUCTION: Clean layout without Program or Color, Size instead of Design -->
+                            <!-- PRODUCTION: Show Size, Base Price, Discount Price, and GRMV Product Code -->
                             <div class="label-detail-row">
                                 <span class="detail-label">Size:</span>
                                 <span class="detail-val text-uppercase fw-bold"><?= htmlspecialchars($vSize) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">Price:</span>
-                                <span class="detail-val fw-bold text-success">₹<?= number_format($pVal, 2) ?></span>
+                                <span class="detail-label">Base Price:</span>
+                                <span class="detail-val fw-semibold text-dark">₹<?= number_format($basePriceVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">Product Code:</span>
+                                <span class="detail-label">Discount Price:</span>
+                                <span class="detail-val fw-bold text-success">₹<?= number_format($discPriceVal, 2) ?></span>
+                            </div>
+                            <div class="label-detail-row">
+                                <span class="detail-label">QR Code:</span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displayCode) ?></span>
                             </div>
                         <?php else: ?>
@@ -509,30 +519,26 @@ if (!empty($multiLabels)) {
                                 <span class="detail-label">Product Code:</span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displaySingleProductCode) ?></span>
                             </div>
-                        <?php elseif ($isProduction): ?>
-                            <?php if (!empty($labelData['category_name'])): ?>
-                                <div class="label-detail-row">
-                                    <span class="detail-label">Product:</span>
-                                    <span class="detail-val"><?= htmlspecialchars($labelData['category_name']) ?></span>
-                                </div>
-                            <?php endif; ?>
-                            <?php if (!empty($label2Val) && strtoupper($label2Val) !== 'STANDARD'): ?>
-                                <div class="label-detail-row">
-                                    <span class="detail-label">Color:</span>
-                                    <span class="detail-val text-uppercase"><?= htmlspecialchars($label2Val) ?></span>
-                                </div>
-                            <?php endif; ?>
+                        <?php elseif ($isProduction):
+                            $sBasePrice = (float)($labelData['base_price'] ?? ($labelData['price_mrp'] ?? $priceVal));
+                            $sDiscPrice = (float)($labelData['discount_price'] ?? $priceVal);
+                            $sBrandCode = !empty($labelData['variant_id']) ? \App\Services\QrService::formatBrandVariantCode((int)$labelData['variant_id']) : $displaySingleProductCode;
+                        ?>
                             <div class="label-detail-row">
                                 <span class="detail-label">Size:</span>
                                 <span class="detail-val text-uppercase fw-bold"><?= htmlspecialchars($sSize) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">Price:</span>
-                                <span class="detail-val fw-bold text-success">₹<?= number_format($priceVal, 2) ?></span>
+                                <span class="detail-label">Base Price:</span>
+                                <span class="detail-val fw-semibold text-dark">₹<?= number_format($sBasePrice, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">Product Code:</span>
-                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displaySingleProductCode) ?></span>
+                                <span class="detail-label">Discount Price:</span>
+                                <span class="detail-val fw-bold text-success">₹<?= number_format($sDiscPrice, 2) ?></span>
+                            </div>
+                            <div class="label-detail-row">
+                                <span class="detail-label">QR Code:</span>
+                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($sBrandCode) ?></span>
                             </div>
                         <?php else: ?>
                             <div class="label-detail-row">
