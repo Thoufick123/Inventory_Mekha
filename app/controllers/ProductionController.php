@@ -4006,7 +4006,7 @@ class ProductionController extends Controller {
 
         $fabricRatePerKg = $totalRollWeight > 0 ? round($totalRollPrice / $totalRollWeight, 2) : 0.00;
 
-        $wastageWeight = (float)floor((float)($_POST['wastage_qty'] ?? 0.00));
+        $wastageWeight = round((float)($_POST['wastage_qty'] ?? 0.00), 2);
         if ($wastageWeight < 0) {
             $wastageWeight = 0.00;
         }
@@ -4530,7 +4530,7 @@ class ProductionController extends Controller {
 
         $fabricRatePerKg = $totalRollWeight > 0 ? round($totalRollPrice / $totalRollWeight, 2) : (float)$batch['fabric_rate_per_kg'];
 
-        $wastageWeight = (float)floor((float)($_POST['wastage_qty'] ?? 0.00));
+        $wastageWeight = round((float)($_POST['wastage_qty'] ?? 0.00), 2);
         if ($wastageWeight < 0) {
             $wastageWeight = 0.00;
         }

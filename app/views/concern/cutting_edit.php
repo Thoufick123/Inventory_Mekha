@@ -18,7 +18,7 @@ $fabricRatePerKg = (float)($batch['fabric_rate_per_kg'] ?? ($totalRollWeight > 0
 if ($fabricRatePerKg <= 0 && $totalRollWeight > 0 && $totalRollPrice > 0) {
     $fabricRatePerKg = $totalRollPrice / $totalRollWeight;
 }
-$wastageWeight = (int)floor((float)($batch['wastage_qty'] ?? 0));
+$wastageWeight = round((float)($batch['wastage_qty'] ?? 0), 2);
 $wastageCost = (float)($batch['wastage_cost'] ?? ($wastageWeight * $fabricRatePerKg));
 $wastagePct = (float)($batch['wastage_percent'] ?? ($totalRollWeight > 0 ? ($wastageWeight / $totalRollWeight) * 100 : 0.00));
 $usedWeight = (float)($batch['used_weight'] ?? max(0.00, $totalRollWeight - $wastageWeight));
