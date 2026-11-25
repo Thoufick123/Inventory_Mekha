@@ -521,7 +521,12 @@
                         <input type="text" name="warehouse_name" id="edit_warehouse_name" class="form-control form-control-sm">
                     </div>
 
-                    <div class="col-md-12">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">Transporter / Carrier Name</label>
+                        <input type="text" name="transporter_name" id="edit_transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics">
+                    </div>
+
+                    <div class="col-md-6">
                         <label class="form-label small fw-semibold text-secondary">Status</label>
                         <select name="status" id="edit_status" class="form-select form-select-sm">
                             <option value="DISPATCHED">✔ DISPATCHED</option>
@@ -529,6 +534,11 @@
                             <option value="DELIVERED">📦 DELIVERED</option>
                             <option value="PREPARING">⏳ PREPARING</option>
                         </select>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label small fw-semibold text-secondary">Notes / Remarks</label>
+                        <input type="text" name="notes" id="edit_notes" class="form-control form-control-sm" placeholder="e.g. Priority shipment">
                     </div>
                 </div>
             </div>
@@ -1029,13 +1039,36 @@ function openEditOutwardModal(o) {
     document.getElementById('edit_driver_name').value = o.driver_name || '';
     document.getElementById('edit_driver_contact').value = o.driver_contact || '';
     document.getElementById('edit_warehouse_name').value = o.display_warehouse_name || o.warehouse_name || '';
+    if (document.getElementById('edit_transporter_name')) {
+        document.getElementById('edit_transporter_name').value = o.transporter_name || '';
+    }
+    if (document.getElementById('edit_notes')) {
+        document.getElementById('edit_notes').value = o.notes || '';
+    }
     const editCon = document.getElementById('edit_destination_concern_id');
     if (editCon) {
         excludeSourceConcernFromDestination('edit_destination_concern_id', o.concern_id);
         const destinationId = Number(o.destination_concern_id || 0);
         editCon.value = destinationId === Number(o.concern_id) ? '' : String(destinationId || '');
     }
-    document.getElementById('edit_status').value = (o.status || 'DISPATCHED').toUpperCase();
+    const statusSelect = document.getElementById('edit_status');
+    const rawStatus = (o.status || 'DISPATCHED').trim().toUpperCase();
+    if (statusSelect) {
+        let matched = false;
+        Array.from(statusSelect.options).forEach(function(opt) {
+            if (opt.value.toUpperCase() === rawStatus) {
+                statusSelect.value = opt.value;
+                matched = true;
+            }
+        });
+        if (!matched) {
+            const newOpt = document.createElement('option');
+            newOpt.value = rawStatus;
+            newOpt.textContent = '✔ ' + rawStatus;
+            statusSelect.appendChild(newOpt);
+            statusSelect.value = rawStatus;
+        }
+    }
 
     new bootstrap.Modal(document.getElementById('modalEditOutward')).show();
 }

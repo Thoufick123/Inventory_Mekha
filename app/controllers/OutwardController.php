@@ -1141,6 +1141,8 @@ class OutwardController extends Controller {
         $vehicle       = trim($_POST['vehicle_number'] ?? $out['vehicle_number']);
         $driver        = trim($_POST['driver_name'] ?? $out['driver_name']);
         $contact       = trim($_POST['driver_contact'] ?? $out['driver_contact']);
+        $transporter   = trim($_POST['transporter_name'] ?? ($out['transporter_name'] ?? ''));
+        $notes         = trim($_POST['notes'] ?? ($out['notes'] ?? ''));
         $warehouse     = trim($_POST['warehouse_name'] ?? ($out['warehouse_name'] ?? 'wareouse (WH-01)'));
         $destConcernId = !empty($_POST['destination_concern_id']) ? (int)$_POST['destination_concern_id'] : $out['destination_concern_id'];
         $boxes         = max(1, (int)($_POST['total_boxes'] ?? ($out['total_boxes'] ?? 1)));
@@ -1169,10 +1171,10 @@ class OutwardController extends Controller {
         try {
             DB::query("
                 UPDATE outwards 
-                SET vehicle_number = ?, driver_name = ?, driver_contact = ?, warehouse_name = ?, 
+                SET vehicle_number = ?, driver_name = ?, driver_contact = ?, transporter_name = ?, notes = ?, warehouse_name = ?, 
                     destination_concern_id = ?, total_boxes = ?, status = ?
                 WHERE id = ?
-            ", [$vehicle, $driver, $contact, $warehouse, $destConcernId, $boxes, $status, $id]);
+            ", [$vehicle, $driver, $contact, $transporter, $notes, $warehouse, $destConcernId, $boxes, $status, $id]);
 
             $this->flash('success', "Outward dispatch '{$out['outward_no']}' updated successfully.");
         } catch (\Throwable $e) {
