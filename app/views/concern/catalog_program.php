@@ -753,7 +753,6 @@ function showProgramDetails(id) {
                     <div class="col-md-8">
                         <div class="d-flex align-items-center gap-2 mb-1">
                             <span class="badge bg-dark font-monospace fs-6">${p.program_no}</span>
-                            ${statusBadge}
                         </div>
                         <h5 class="fw-bold text-dark mb-1">${p.program_name || 'Production Program'}</h5>
                         <div class="small text-muted"><i class="bi bi-person me-1"></i>Planner: <strong>${p.planner_name || 'Planner'}</strong></div>
@@ -768,19 +767,19 @@ function showProgramDetails(id) {
                     <div class="col-md-4">
                         <div class="p-3 rounded-3 bg-light border text-center">
                             <div class="text-secondary small fw-semibold">Allocated Fabric Weight</div>
-                            <div class="fs-4 fw-bold text-primary font-monospace">${parseFloat(p.planned_qty || 0).toFixed(2)} Units</div>
+                            <div class="fs-4 fw-bold text-primary font-monospace">${parseFloat(p.planned_qty || 0)} qty</div>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="p-3 rounded-3 bg-light border text-center">
                             <div class="text-secondary small fw-semibold">Assigned Fabric Rolls</div>
-                            <div class="fs-4 fw-bold text-dark font-monospace">${rolls.length} Roll(s)</div>
+                            <div class="fs-4 fw-bold text-dark font-monospace">${rolls.length} Roll</div>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="p-3 rounded-3 bg-light border text-center">
                             <div class="text-secondary small fw-semibold">Cutting History</div>
-                            <div class="fs-4 fw-bold text-success font-monospace">${cutting.total_lots || 0} Lot(s)</div>
+                            <div class="fs-4 fw-bold text-success font-monospace">${cutting.total_lots || 0} Lot</div>
                         </div>
                     </div>
                 </div>
