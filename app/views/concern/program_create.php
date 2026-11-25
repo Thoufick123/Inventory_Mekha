@@ -404,7 +404,7 @@ function createRollCardHtml(index, preselectedRollId = null) {
                     </div>
                 </div>
 
-                <div>
+                <div class="d-none">
                     <label class="form-label small text-muted mb-1">Product Style / Catalog Style</label>
                     <select name="rolls[${index}][catalog_id]" class="form-select form-select-sm select-roll-catalog">
                         ${catlgOptionsHtml}
