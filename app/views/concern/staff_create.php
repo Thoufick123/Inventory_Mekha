@@ -52,7 +52,7 @@ foreach ($modules as $m) {
                 <form action="<?= \App\Core\Controller::url('/m/staff/store') ?>" method="POST" class="card-body p-4" autocomplete="off">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
 
-                    <!-- ROW 1: Full Name & Username -->
+                    <!-- ROW 1: Full Name & Assign Role -->
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-secondary mb-1">
@@ -67,7 +67,7 @@ foreach ($modules as $m) {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-secondary mb-1">
-                                Username <span class="text-danger">*</span>
+                                Assign Role <span class="text-danger">*</span>
                             </label>
                             <div class="input-group">
                                 <span class="input-group-text bg-white border-end-0 text-muted font-monospace fw-semibold" style="border-radius: 8px 0 0 8px;">@</span>
