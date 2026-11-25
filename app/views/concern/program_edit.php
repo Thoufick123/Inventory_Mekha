@@ -58,29 +58,21 @@
                             <div class="invalid-feedback">Program title is required (minimum 3 characters).</div>
                         </div>
 
+                        <input type="hidden" name="status" value="<?= htmlspecialchars($program['status']) ?>">
                         <div class="row g-3">
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="form-label small fw-semibold text-dark mb-1">Program Code / Number <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-muted font-monospace">#</span>
                                     <input type="text" name="program_no" id="inputProgramNo" class="form-control font-monospace fw-bold bg-light" value="<?= htmlspecialchars($program['program_no']) ?>" readonly required>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="form-label small fw-semibold text-dark mb-1">Planner / Creator <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-muted"><i class="bi bi-person-fill"></i></span>
                                     <input type="text" name="planner_name" class="form-control bg-light fw-semibold" value="<?= htmlspecialchars($program['planner_name'] ?? 'System Administrator') ?>" readonly required>
                                 </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-semibold text-dark mb-1">Lifecycle Status <span class="text-danger">*</span></label>
-                                <select name="status" class="form-select fw-semibold" required>
-                                    <option value="planned" <?= $program['status'] === 'planned' ? 'selected' : '' ?>>Planned</option>
-                                    <option value="in_progress" <?= $program['status'] === 'in_progress' ? 'selected' : '' ?>>In Progress</option>
-                                    <option value="completed" <?= $program['status'] === 'completed' ? 'selected' : '' ?>>Completed</option>
-                                    <option value="cancelled" <?= $program['status'] === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
-                                </select>
                             </div>
                         </div>
                     </div>
@@ -97,9 +89,6 @@
                             <small class="text-secondary" style="font-size: 0.78rem;">Assign fabric rolls and configure 3-tier catalog categories for each roll.</small>
                         </div>
                         <div class="d-flex align-items-center gap-1.5">
-                            <button type="button" class="btn btn-sm btn-outline-success rounded-3 fw-semibold" id="btnFocusScanner">
-                                <i class="bi bi-upc-scan me-1"></i> Scan Roll
-                            </button>
                             <button type="button" class="btn btn-sm btn-primary rounded-3 fw-semibold shadow-xs" id="btnAddRollCard">
                                 <i class="bi bi-plus-circle me-1"></i> Add Roll
                             </button>
@@ -935,7 +924,7 @@ document.getElementById('btnAddRollCard').addEventListener('click', () => {
     addRollCard();
 });
 
-document.getElementById('btnFocusScanner').addEventListener('click', () => {
+document.getElementById('btnFocusScanner')?.addEventListener('click', () => {
     const input = document.getElementById('scannerInput');
     input.focus();
     input.select();
