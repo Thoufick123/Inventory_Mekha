@@ -22,25 +22,12 @@
             <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
                 <i class="bi bi-stack text-primary"></i> <?= htmlspecialchars($batch['stitching_name'] ?: $batch['display_batch_no']) ?>
                 <span class="badge bg-light text-primary font-monospace border fs-6"><?= htmlspecialchars($batch['display_batch_no']) ?></span>
-                <?php if ($batch['status'] === 'completed'): ?>
-                    <span class="badge bg-success text-white fs-6">Completed</span>
-                <?php elseif ($batch['status'] === 'planned'): ?>
-                    <span class="badge bg-secondary text-white fs-6">Planned</span>
-                <?php else: ?>
-                    <span class="badge bg-primary text-white fs-6">In Progress</span>
-                <?php endif; ?>
             </h4>
             <p class="text-secondary small mb-0">
                 Created on <?= date('d M Y, h:i A', strtotime($batch['created_at'])) ?> <?= $batch['created_by_name'] ? 'by ' . htmlspecialchars($batch['created_by_name']) : '' ?>
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
-            <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $batch['id']) ?>" 
-               class="btn btn-outline-primary shadow-sm fw-semibold">
-                <i class="bi bi-pencil me-1"></i> Edit Batch
-            </a>
-            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/production/stitching') ?>" 
                class="btn btn-outline-secondary shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
@@ -88,28 +75,24 @@
                     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
                         <div class="text-muted small text-uppercase fw-semibold">Cut Pieces</div>
                         <div class="fs-4 fw-bold text-primary mt-1"><?= (int)$batch['cut_pieces'] ?></div>
-                        <div class="small text-muted">Input panels</div>
                     </div>
                 </div>
                 <div class="col-sm-3 col-6">
                     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
                         <div class="text-muted small text-uppercase fw-semibold">Stitched Units</div>
                         <div class="fs-4 fw-bold text-success mt-1"><?= (int)$batch['stitched_pieces'] ?></div>
-                        <div class="small text-muted">Completed</div>
                     </div>
                 </div>
                 <div class="col-sm-3 col-6">
                     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
                         <div class="text-muted small text-uppercase fw-semibold">Cut Fabric Wt</div>
                         <div class="fs-4 fw-bold text-secondary mt-1"><?= number_format((float)$batch['cut_weight'], 2) ?> <span class="fs-6 fw-normal">kg</span></div>
-                        <div class="small text-muted">Usable input</div>
                     </div>
                 </div>
                 <div class="col-sm-3 col-6">
                     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
                         <div class="text-muted small text-uppercase fw-semibold">Stitch Fabric Wt</div>
                         <div class="fs-4 fw-bold text-dark mt-1"><?= number_format((float)$batch['stitch_weight'], 2) ?> <span class="fs-6 fw-normal">kg</span></div>
-                        <div class="small text-muted">Garment weight</div>
                     </div>
                 </div>
             </div>
