@@ -191,7 +191,80 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
         </div>
     </div>
 
-    <!-- Items Tables by Section -->
+    <!-- Items Tables -->
+    <?php if (($bill['source_module'] ?? 'purchase_billing') !== 'product_adding'): ?>
+        <?php
+        $typeLabels = [
+            'rolls' => 'Fabric',
+            'garment_other' => 'Other Garments Supply',
+            'finished_goods' => 'Finished Goods',
+        ];
+        ?>
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-table text-primary fs-5"></i>
+                    <h6 class="mb-0 fw-bold text-dark">Purchase Billing Items (<?= count($items) ?> Items)</h6>
+                </div>
+                <?php if (\App\Core\Auth::can('purchase_billing', 'export')): ?>
+                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-outline-success btn-sm py-1 px-3 d-flex align-items-center gap-1 shadow-sm">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Download Items (CSV)
+                </a>
+                <?php endif; ?>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle mb-0 small">
+                    <thead class="table-light text-uppercase text-muted">
+                        <tr>
+                            <th class="text-center" style="width: 42px;">#</th>
+                            <th>Product Type</th>
+                            <th>Name</th>
+                            <th>HSN</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Price (₹)</th>
+                            <th class="text-center">Tax Mode</th>
+                            <th class="text-center">GST</th>
+                            <th class="text-end">Tax</th>
+                            <th class="text-end table-success text-success fw-bold">Total Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($items)): ?>
+                            <tr><td colspan="10" class="text-center py-4 text-muted">No items recorded on this bill.</td></tr>
+                        <?php else: ?>
+                            <?php $idx = 1; foreach ($items as $item): ?>
+                                <?php
+                                $sType = (string)($item['section_type'] ?? 'rolls');
+                                $gstType = (string)($item['gst_type'] ?? 'Exempted');
+                                $gstRate = (float)($item['gst_rate'] ?? 0);
+                                $taxVal = (float)($item['tax_amount'] ?? 0);
+                                $totalVal = (float)($item['total_price'] ?? 0);
+                                ?>
+                                <tr>
+                                    <td class="text-center text-muted fw-semibold"><?= $idx++ ?></td>
+                                    <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($typeLabels[$sType] ?? $sType) ?></span></td>
+                                    <td class="fw-semibold text-dark"><?= htmlspecialchars($item['item_name'] ?? '-') ?></td>
+                                    <td class="font-monospace"><?= htmlspecialchars($item['hsn_code'] ?: '-') ?></td>
+                                    <td class="text-end"><?= number_format((float)($item['qty'] ?? 0), 2) ?></td>
+                                    <td class="text-end">₹<?= number_format((float)($item['unit_price'] ?? 0), 2) ?></td>
+                                    <td class="text-center"><?= htmlspecialchars($item['tax_mode'] ?? 'Exclude GST') ?></td>
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark border"><?= htmlspecialchars($gstType) ?></span>
+                                        <?php if ($gstType !== 'Exempted' && $gstRate > 0): ?>
+                                            <small class="text-muted d-block"><?= number_format($gstRate, 2) ?>%</small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-end">₹<?= number_format($taxVal, 2) ?></td>
+                                    <td class="text-end table-success fw-bold text-success">₹<?= number_format($totalVal, 2) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    <?php else: ?>
+    <!-- Items Tables by Section (Product Adding) -->
     <?php
     $rolls = array_filter($items, fn($i) => ($i['section_type'] ?? '') === 'rolls');
     $other = array_filter($items, fn($i) => ($i['section_type'] ?? '') === 'garment_other');
@@ -428,6 +501,7 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                 </table>
             </div>
         </div>
+    <?php endif; ?>
     <?php endif; ?>
     </div><!-- End #paneInteractive -->
 

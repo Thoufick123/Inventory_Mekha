@@ -174,11 +174,11 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <?php if ($inwardStatus === 'completed'): ?>
-                                        <span class="badge text-bg-success">Completed</span>
-                                    <?php else: ?>
-                                        <span class="badge text-bg-warning"><?= (int)$bill['stocked_count'] ?> / <?= (int)$bill['item_count'] ?> lines</span>
-                                    <?php endif; ?>
+                                    <span class="badge <?= htmlspecialchars($bill['sync_badge_class'] ?? ($inwardStatus === 'completed' ? 'text-bg-success' : 'text-bg-warning')) ?>">
+                                        <?php if (!empty($bill['qty_mismatch'])): ?><i class="bi bi-exclamation-triangle-fill me-1"></i><?php endif; ?>
+                                        <?= htmlspecialchars($bill['sync_label'] ?? ($inwardStatus === 'completed' ? 'Completed' : ((int)$bill['stocked_count'] . ' / ' . (int)$bill['item_count'] . ' lines'))) ?>
+                                    </span>
+                                    <div class="small text-muted mt-1"><?= (int)$bill['stocked_count'] ?> / <?= (int)$bill['item_count'] ?> stocked</div>
                                 </td>
                                 <td class="text-end">
                                     <?php if (($bill['source_module'] ?? '') === 'purchase_billing'): ?>

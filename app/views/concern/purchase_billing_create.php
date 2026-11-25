@@ -4,6 +4,8 @@ $formAction = $formAction ?? ($isEdit ? \App\Core\Controller::url('/m/purchase_b
 $hsnSaveUrl = $hsnSaveUrl ?? \App\Core\Controller::url('/m/purchase_billing/save_hsn');
 $rollSpecSaveUrl = $rollSpecSaveUrl ?? \App\Core\Controller::url('/m/purchase_billing/save_roll_spec');
 $quickSupplierSaveUrl = $quickSupplierSaveUrl ?? '';
+$quickSupplierUpdateUrl = $quickSupplierUpdateUrl ?? '';
+$quickSupplierDeleteUrl = $quickSupplierDeleteUrl ?? '';
 $quickCategorySaveUrl = $quickCategorySaveUrl ?? '';
 $quickAttributeSaveUrl = $quickAttributeSaveUrl ?? '';
 $invoiceCheckUrl = $invoiceCheckUrl ?? '';
@@ -601,8 +603,19 @@ if ($isEdit && !empty($existingItems)) {
 
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold">Supplier <span class="text-danger">*</span></label>
+                        <?php
+                            $selectedSupplierLabel = '';
+                            if ($isEdit && !empty($bill['supplier_id'])) {
+                                foreach ($suppliers as $sup) {
+                                    if ((int)$sup['id'] === (int)$bill['supplier_id']) {
+                                        $selectedSupplierLabel = $sup['name'] . (!empty($sup['company_name']) ? ' (' . $sup['company_name'] . ')' : '');
+                                        break;
+                                    }
+                                }
+                            }
+                        ?>
                         <div class="input-group">
-                            <select name="supplier_id" id="supplierSelect" class="form-select" required>
+                            <select name="supplier_id" id="supplierSelect" class="d-none" required>
                                 <option value="">-- Select registered supplier --</option>
                                 <?php foreach ($suppliers as $sup): ?>
                                     <option value="<?= (int)$sup['id'] ?>" data-district="<?= htmlspecialchars($sup['district'] ?? '') ?>" <?= ($isEdit && $bill['supplier_id'] == $sup['id']) ? 'selected' : '' ?>>
@@ -610,6 +623,18 @@ if ($isEdit && !empty($existingItems)) {
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <div class="position-relative flex-grow-1">
+                                <input type="text"
+                                       id="supplierSearchInput"
+                                       class="form-control"
+                                       placeholder="Type supplier name, company or phone..."
+                                       autocomplete="off"
+                                       value="<?= htmlspecialchars($selectedSupplierLabel) ?>">
+                                <div id="supplierAutocompleteMenu" class="dropdown-menu w-100 shadow-sm" style="max-height: 240px; overflow-y: auto;"></div>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary" id="viewSupplierBtn" title="View Suppliers">
+                                <i class="bi bi-eye me-1"></i> View
+                            </button>
                             <?php if (!empty($allowQuickSupplier)): ?>
                                 <button type="button" class="btn btn-outline-primary" id="openQuickSupplier" data-bs-toggle="modal" data-bs-target="#modalQuickSupplier">
                                     <i class="bi bi-plus-lg me-1"></i> Add New
@@ -697,6 +722,7 @@ if ($isEdit && !empty($existingItems)) {
             </div>
         </div>
 
+        <?php if ($isProductAddingForm): ?>
         <!-- Section 2: Items in a Single Row with One-by-One Sections -->
         <div class="card border-0 shadow-sm rounded-3 mb-4">
             <!-- Single Row Navigation Header -->
@@ -771,8 +797,8 @@ if ($isEdit && !empty($existingItems)) {
                             No fabric rolls added. Click <strong>+ Add Fabric Roll</strong> to add roll items.
                         </div>
 
-                        <!-- Fabric Rolls Inventory & Details Table (Matching Image 1 & 2) -->
-                        <div class="card border mb-3 shadow-none rounded-3">
+                        <!-- Fabric Rolls Inventory & Details Table (Hidden to keep single-table entry) -->
+                        <div class="card border mb-3 shadow-none rounded-3 d-none">
                             <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center">
                                 <i class="bi bi-table text-primary me-2"></i>
                                 <span class="fw-bold small text-dark">Fabric Rolls Inventory & Details Table</span>
@@ -856,8 +882,8 @@ if ($isEdit && !empty($existingItems)) {
                             No general supplies added. Click <strong>+ Add Supply</strong> to add buttons, threads, zippers or trims.
                         </div>
 
-                        <!-- Other Garment Supplies Details Table (Matching Image 2) -->
-                        <div class="card border mb-3 shadow-none rounded-3">
+                        <!-- Other Garment Supplies Details Table (Hidden to keep single-table entry) -->
+                        <div class="card border mb-3 shadow-none rounded-3 d-none">
                             <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-table text-success me-2"></i>
@@ -912,8 +938,8 @@ if ($isEdit && !empty($existingItems)) {
                             No finished goods added. Click <strong>+ Add Finished Good</strong> to add ready apparel.
                         </div>
 
-                        <!-- Finished Goods Inventory & Details Table (Matching Image 3) -->
-                        <div class="card border mb-3 shadow-none rounded-3">
+                        <!-- Finished Goods Inventory & Details Table (Hidden to keep single-table entry) -->
+                        <div class="card border mb-3 shadow-none rounded-3 d-none">
                             <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-table text-purple me-2" style="color:#8b5cf6;"></i>
@@ -988,6 +1014,48 @@ if ($isEdit && !empty($existingItems)) {
                 </div>
             </div>
         </div>
+        <?php else: ?>
+        <!-- Section 2 (Purchase Billing Simplified): Single Inline Entry Table -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" id="simplePurchaseBillingSection">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-table text-primary me-2"></i>Purchase Billing Items</h5>
+                    <small class="text-muted">Enter Fabric, Other Garments Supply, or Finished Goods items directly in the table.</small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-light text-dark border" id="simpleItemsCountBadge">0 Items</span>
+                    <button type="button" class="btn btn-primary btn-sm px-3" onclick="addSimplePurchaseRow()">
+                        <i class="bi bi-plus-circle me-1"></i> Add Row
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-2">
+                <div style="overflow: visible;">
+                    <table class="table table-sm table-bordered align-middle mb-0" id="simplePurchaseEntryTable" style="table-layout: fixed; width: 100%;">
+                        <thead class="table-light small text-uppercase text-muted text-nowrap">
+                            <tr>
+                                <th class="text-center px-1" style="width: 3%;">#</th>
+                                <th class="px-1" style="width: 12%;">Type <span class="text-danger">*</span></th>
+                                <th class="px-1" style="width: 15%;">Name <span class="text-danger">*</span></th>
+                                <th class="px-1" style="width: 11%;">HSN</th>
+                                <th class="px-1" style="width: 7%;">Qty <span class="text-danger">*</span></th>
+                                <th class="px-1" style="width: 9%;">Price <span class="text-danger">*</span></th>
+                                <th class="px-1" style="width: 12%;">Tax Mode</th>
+                                <th class="px-1" style="width: 14%;">GST</th>
+                                <th class="text-end px-1" style="width: 6%;">Tax</th>
+                                <th class="text-end px-1 bg-success bg-opacity-10 text-success" style="width: 7%;">Total</th>
+                                <th class="text-center px-1" style="width: 4%;">Del</th>
+                            </tr>
+                        </thead>
+                        <tbody id="simplePurchaseItemsContainer"></tbody>
+                    </table>
+                </div>
+                <div id="noSimpleItemsPlaceholder" class="text-center py-4 text-muted bg-light border-top" style="display: none;">
+                    No items added yet. Click <strong>"+ Add Row"</strong> to begin.
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Section 3: Summary & Total Price Card (Exact Image 2 Bottom Layout) -->
         <div class="card border-0 shadow-sm rounded-3 mb-5 p-4 bg-white">
@@ -1023,9 +1091,10 @@ if ($isEdit && !empty($existingItems)) {
 
 <?php if (!empty($allowQuickSupplier)): ?>
 <div class="modal fade" id="modalQuickSupplier" tabindex="-1" aria-labelledby="modalQuickSupplierLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
         <form id="quickSupplierForm" class="modal-content needs-validation" novalidate>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+            <input type="hidden" name="supplier_id" id="quickSupplierId" value="">
             <?php if (!empty($selectedCid)): ?>
                 <input type="hidden" name="concern_id" value="<?= (int)$selectedCid ?>">
             <?php else: ?>
@@ -1102,16 +1171,56 @@ if ($isEdit && !empty($existingItems)) {
     const supplierSelect = document.getElementById('supplierSelect');
     const saveButton = document.getElementById('saveQuickSupplier');
     const errorBox = document.getElementById('quickSupplierError');
+    const idInput = document.getElementById('quickSupplierId');
+    const titleEls = document.querySelectorAll('#modalQuickSupplier #modalQuickSupplierLabel');
+    const openBtn = document.getElementById('openQuickSupplier');
     if (!form || !supplierSelect || !saveButton || !errorBox) return;
+
+    const resetQuickSupplierModalMode = function () {
+        form.reset();
+        if (idInput) idInput.value = '';
+        titleEls.forEach(function (el) { el.textContent = 'Add Supplier'; });
+        saveButton.innerHTML = '<i class="bi bi-check-circle me-1"></i> Save & Select Supplier';
+        errorBox.classList.add('d-none');
+    };
+
+    if (openBtn) {
+        openBtn.addEventListener('click', resetQuickSupplierModalMode);
+    }
+
+    window.openQuickSupplierEdit = function (sup) {
+        if (!sup || !sup.id) return;
+        resetQuickSupplierModalMode();
+        if (idInput) idInput.value = String(sup.id);
+        titleEls.forEach(function (el) { el.textContent = 'Edit Supplier'; });
+        saveButton.innerHTML = '<i class="bi bi-check-circle me-1"></i> Update Supplier';
+        ['name', 'company_name', 'phone', 'gstin', 'email', 'district', 'address', 'state'].forEach(function (field) {
+            const el = form.querySelector('[name="' + field + '"]');
+            if (el) el.value = sup[field] || '';
+        });
+        const concernEl = form.querySelector('select[name="concern_id"]');
+        if (concernEl && sup.concern_id) concernEl.value = String(sup.concern_id);
+        const viewModalEl = document.getElementById('modalViewSupplier');
+        if (viewModalEl) bootstrap.Modal.getOrCreateInstance(viewModalEl).hide();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalQuickSupplier')).show();
+    };
 
     form.addEventListener('submit', async function (event) {
         event.preventDefault();
         if (!form.reportValidity()) return;
 
+        const isEditSup = Boolean(idInput && idInput.value.trim() !== '');
+        const targetUrl = isEditSup ? <?= json_encode($quickSupplierUpdateUrl) ?> : <?= json_encode($quickSupplierSaveUrl) ?>;
+        if (!targetUrl) {
+            errorBox.textContent = 'Supplier endpoint is not configured.';
+            errorBox.classList.remove('d-none');
+            return;
+        }
+
         saveButton.disabled = true;
         errorBox.classList.add('d-none');
         try {
-            const response = await fetch(<?= json_encode($quickSupplierSaveUrl) ?>, {
+            const response = await fetch(targetUrl, {
                 method: 'POST',
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 body: new FormData(form)
@@ -1122,17 +1231,23 @@ if ($isEdit && !empty($existingItems)) {
             }
 
             const supplier = result.supplier;
-            const option = new Option(
-                supplier.name + (supplier.company_name ? ' (' + supplier.company_name + ')' : ''),
-                supplier.id,
-                true,
-                true
-            );
-            option.dataset.district = supplier.district || '';
-            supplierSelect.add(option);
+            const label = supplier.name + (supplier.company_name ? ' (' + supplier.company_name + ')' : '');
+            const existingOpt = Array.from(supplierSelect.options).find(function (opt) { return String(opt.value) === String(supplier.id); });
+            if (existingOpt) {
+                existingOpt.text = label;
+                existingOpt.dataset.district = supplier.district || '';
+                existingOpt.selected = true;
+            } else {
+                const option = new Option(label, supplier.id, true, true);
+                option.dataset.district = supplier.district || '';
+                supplierSelect.add(option);
+            }
+            if (window.registerPurchaseSupplier) {
+                window.registerPurchaseSupplier(supplier);
+            }
             supplierSelect.dispatchEvent(new Event('change', { bubbles: true }));
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modalQuickSupplier')).hide();
-            form.reset();
+            resetQuickSupplierModalMode();
         } catch (error) {
             errorBox.textContent = error.message || 'Unable to save supplier.';
             errorBox.classList.remove('d-none');
@@ -1140,61 +1255,400 @@ if ($isEdit && !empty($existingItems)) {
             saveButton.disabled = false;
         }
     });
-    refreshProductAddingAttributeSelectors();
+    if (typeof refreshProductAddingAttributeSelectors === 'function') {
+        refreshProductAddingAttributeSelectors();
+    }
 })();
 </script>
 <?php endif; ?>
 
-<!-- ============================================================== -->
-<!-- Add New HSN Code & GST Rate Modal (EXACTLY AS IN IMAGE 1)     -->
-<!-- ============================================================== -->
-<div class="modal fade" id="modalQuickHsn" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+<!-- View Supplier Details / Directory Modal -->
+<div class="modal fade" id="modalViewSupplier" tabindex="-1" aria-labelledby="modalViewSupplierLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
-            <!-- Modal Header (Blue header with icon and white close button) -->
-            <div class="modal-header text-white px-4 py-3" style="background: #2563eb;">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-plus-circle fs-5"></i>
-                    <h5 class="modal-title fw-bold mb-0">Add HSN Code & GST Details</h5>
+            <div class="modal-header bg-light border-bottom px-4 py-3">
+                <h5 class="modal-title fw-bold text-dark" id="modalViewSupplierLabel">
+                    <i class="bi bi-person-vcard text-primary me-2"></i>Supplier Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="viewSupDetailsPane" style="display: none;">
+                    <div class="row g-3 small">
+                        <div class="col-6">
+                            <div class="text-muted">Supplier Code</div>
+                            <div class="fw-semibold font-monospace" id="viewSupCode">-</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">Contact Name</div>
+                            <div class="fw-semibold" id="viewSupName">-</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">Company / Mill Name</div>
+                            <div class="fw-semibold" id="viewSupCompany">-</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">Phone</div>
+                            <div class="fw-semibold" id="viewSupPhone">-</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">Email</div>
+                            <div class="fw-semibold" id="viewSupEmail">-</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">GSTIN</div>
+                            <div class="fw-semibold font-monospace" id="viewSupGstin">-</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">District</div>
+                            <div class="fw-semibold" id="viewSupDistrict">-</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">State</div>
+                            <div class="fw-semibold" id="viewSupState">-</div>
+                        </div>
+                        <div class="col-12">
+                            <div class="text-muted">Address</div>
+                            <div class="fw-semibold" id="viewSupAddress">-</div>
+                        </div>
+                    </div>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div id="viewSupListPane" style="display: none;">
+                    <div class="mb-2">
+                        <input type="text" id="viewSupDirectoryFilter" class="form-control form-control-sm" placeholder="Filter suppliers by name, company, phone, or district...">
+                    </div>
+                    <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                        <table class="table table-sm table-hover table-bordered align-middle mb-0 small">
+                            <thead class="table-light text-nowrap">
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Contact Name</th>
+                                    <th>Company / Mill</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>GSTIN</th>
+                                    <th>Address</th>
+                                    <th>District</th>
+                                    <th>State</th>
+                                    <th class="text-center" style="min-width: 95px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="viewSupDirectoryTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light justify-content-between">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="viewSupBrowseAllBtn" style="display: none;">
+                    <i class="bi bi-list-ul me-1"></i> Browse All Suppliers
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm ms-auto" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const suppliersCatalog = <?= json_encode(array_values($suppliers ?? []), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    const supplierSelect = document.getElementById('supplierSelect');
+    const searchInput = document.getElementById('supplierSearchInput');
+    const menu = document.getElementById('supplierAutocompleteMenu');
+    const viewBtn = document.getElementById('viewSupplierBtn');
+    if (!supplierSelect || !searchInput || !menu) return;
+
+    const formatSupplierLabel = function (sup) {
+        return (sup.name || '') + (sup.company_name ? ' (' + sup.company_name + ')' : '');
+    };
+
+    const findSupplierById = function (id) {
+        const targetId = String(id || '');
+        return suppliersCatalog.find(function (s) { return String(s.id) === targetId; }) || null;
+    };
+
+    const syncViewButton = function () {
+        // Keep View button always clickable: shows selected supplier details or full supplier directory.
+        if (viewBtn) viewBtn.disabled = false;
+    };
+
+    const selectSupplier = function (sup) {
+        supplierSelect.value = String(sup.id);
+        searchInput.value = formatSupplierLabel(sup);
+        searchInput.setCustomValidity('');
+        menu.classList.remove('show');
+        syncViewButton();
+        supplierSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const renderSuggestions = function (query) {
+        const q = String(query || '').trim().toLowerCase();
+        const matches = suppliersCatalog.filter(function (sup) {
+            if (!q) return true;
+            const hay = [sup.name, sup.company_name, sup.phone, sup.code, sup.district]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            return hay.includes(q);
+        }).slice(0, 30);
+
+        menu.innerHTML = '';
+        if (matches.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'dropdown-item-text text-muted small py-2';
+            empty.textContent = 'No matching suppliers found.';
+            menu.appendChild(empty);
+        } else {
+            matches.forEach(function (sup) {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'dropdown-item d-flex justify-content-between align-items-center py-2';
+                const left = document.createElement('span');
+                left.className = 'fw-semibold text-dark';
+                left.textContent = formatSupplierLabel(sup);
+                const right = document.createElement('small');
+                right.className = 'text-muted ms-2';
+                right.textContent = [sup.phone, sup.district].filter(Boolean).join(' • ');
+                item.appendChild(left);
+                item.appendChild(right);
+                item.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    selectSupplier(sup);
+                });
+                menu.appendChild(item);
+            });
+        }
+        menu.classList.add('show');
+    };
+
+    searchInput.addEventListener('focus', function () {
+        renderSuggestions(searchInput.value);
+    });
+
+    searchInput.addEventListener('input', function () {
+        const current = findSupplierById(supplierSelect.value);
+        if (!current || formatSupplierLabel(current) !== searchInput.value) {
+            supplierSelect.value = '';
+            syncViewButton();
+        }
+        renderSuggestions(searchInput.value);
+    });
+
+    searchInput.addEventListener('blur', function () {
+        setTimeout(function () { menu.classList.remove('show'); }, 150);
+    });
+
+    supplierSelect.addEventListener('change', syncViewButton);
+
+    window.registerPurchaseSupplier = function (sup) {
+        if (!sup || !sup.id) return;
+        const idx = suppliersCatalog.findIndex(function (s) { return String(s.id) === String(sup.id); });
+        if (idx === -1) {
+            suppliersCatalog.push(sup);
+        } else {
+            suppliersCatalog[idx] = Object.assign({}, suppliersCatalog[idx], sup);
+        }
+        selectSupplier(sup);
+    };
+
+    const deleteSupplierById = async function (sup) {
+        const deleteUrl = <?= json_encode($quickSupplierDeleteUrl) ?>;
+        if (!deleteUrl || !sup || !sup.id) return;
+        if (!confirm('Delete supplier "' + (sup.name || sup.company_name || sup.code) + '"?')) return;
+
+        const fd = new FormData();
+        fd.append('csrf_token', <?= json_encode($csrfToken ?? '') ?>);
+        fd.append('supplier_id', String(sup.id));
+        try {
+            const resp = await fetch(deleteUrl, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd
+            });
+            const result = await resp.json();
+            if (!resp.ok || !result.success) {
+                throw new Error(result.message || 'Unable to delete supplier.');
+            }
+            const idx = suppliersCatalog.findIndex(function (s) { return String(s.id) === String(sup.id); });
+            if (idx !== -1) suppliersCatalog.splice(idx, 1);
+
+            const opt = Array.from(supplierSelect.options).find(function (o) { return String(o.value) === String(sup.id); });
+            if (opt) opt.remove();
+
+            if (String(supplierSelect.value) === String(sup.id)) {
+                supplierSelect.value = '';
+                searchInput.value = '';
+                supplierSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            renderSupplierDirectory(document.getElementById('viewSupDirectoryFilter')?.value || '');
+        } catch (err) {
+            alert(err.message || 'Unable to delete supplier.');
+        }
+    };
+
+    const renderSupplierDirectory = function (filterText = '') {
+        const tbody = document.getElementById('viewSupDirectoryTbody');
+        if (!tbody) return;
+        const q = String(filterText || '').trim().toLowerCase();
+        const rows = suppliersCatalog.filter(function (sup) {
+            if (!q) return true;
+            const hay = [sup.code, sup.name, sup.company_name, sup.phone, sup.email, sup.gstin, sup.address, sup.district, sup.state]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            return hay.includes(q);
+        });
+        tbody.innerHTML = '';
+        if (rows.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 10;
+            td.className = 'text-center text-muted py-3';
+            td.textContent = 'No suppliers found.';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+        rows.forEach(function (sup) {
+            const tr = document.createElement('tr');
+            const addCell = function (val, cls = '') {
+                const td = document.createElement('td');
+                if (cls) td.className = cls;
+                td.textContent = val || '-';
+                return td;
+            };
+
+            const tdAction = document.createElement('td');
+            tdAction.className = 'text-center text-nowrap';
+
+            const editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'btn btn-outline-secondary btn-sm py-0 px-2 me-1';
+            editBtn.title = 'Edit Supplier';
+            editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+            editBtn.addEventListener('click', function () {
+                if (window.openQuickSupplierEdit) window.openQuickSupplierEdit(sup);
+            });
+
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'btn btn-outline-danger btn-sm py-0 px-2';
+            delBtn.title = 'Delete Supplier';
+            delBtn.innerHTML = '<i class="bi bi-trash3"></i>';
+            delBtn.addEventListener('click', function () {
+                deleteSupplierById(sup);
+            });
+
+            tdAction.append(editBtn, delBtn);
+            tr.append(
+                addCell(sup.code, 'font-monospace text-nowrap'),
+                addCell(sup.name, 'fw-semibold'),
+                addCell(sup.company_name),
+                addCell(sup.phone, 'text-nowrap'),
+                addCell(sup.email),
+                addCell(sup.gstin, 'font-monospace text-nowrap'),
+                addCell(sup.address),
+                addCell(sup.district),
+                addCell(sup.state),
+                tdAction
+            );
+            tbody.appendChild(tr);
+        });
+    };
+
+    const showSupplierDirectoryPane = function () {
+        const detailsPane = document.getElementById('viewSupDetailsPane');
+        const listPane = document.getElementById('viewSupListPane');
+        const browseBtn = document.getElementById('viewSupBrowseAllBtn');
+        const titleEl = document.getElementById('modalViewSupplierLabel');
+        const filterEl = document.getElementById('viewSupDirectoryFilter');
+        if (detailsPane) detailsPane.style.display = 'none';
+        if (listPane) listPane.style.display = 'block';
+        if (browseBtn) browseBtn.style.display = 'none';
+        if (titleEl) titleEl.innerHTML = '<i class="bi bi-people text-primary me-2"></i>Registered Suppliers';
+        if (filterEl) filterEl.value = '';
+        renderSupplierDirectory('');
+    };
+
+    const dirFilter = document.getElementById('viewSupDirectoryFilter');
+    if (dirFilter) {
+        dirFilter.addEventListener('input', function () {
+            renderSupplierDirectory(dirFilter.value);
+        });
+    }
+
+    const browseAllBtn = document.getElementById('viewSupBrowseAllBtn');
+    if (browseAllBtn) {
+        browseAllBtn.addEventListener('click', showSupplierDirectoryPane);
+    }
+
+    if (viewBtn) {
+        viewBtn.addEventListener('click', function () {
+            const sup = findSupplierById(supplierSelect.value);
+            if (sup) {
+                const detailsPane = document.getElementById('viewSupDetailsPane');
+                const listPane = document.getElementById('viewSupListPane');
+                const browseBtn = document.getElementById('viewSupBrowseAllBtn');
+                const titleEl = document.getElementById('modalViewSupplierLabel');
+                if (detailsPane) detailsPane.style.display = 'block';
+                if (listPane) listPane.style.display = 'none';
+                if (browseBtn) browseBtn.style.display = 'inline-block';
+                if (titleEl) titleEl.innerHTML = '<i class="bi bi-person-vcard text-primary me-2"></i>Supplier Details';
+                document.getElementById('viewSupCode').textContent = sup.code || '-';
+                document.getElementById('viewSupName').textContent = sup.name || '-';
+                document.getElementById('viewSupCompany').textContent = sup.company_name || '-';
+                document.getElementById('viewSupPhone').textContent = sup.phone || '-';
+                document.getElementById('viewSupEmail').textContent = sup.email || '-';
+                document.getElementById('viewSupGstin').textContent = sup.gstin || '-';
+                document.getElementById('viewSupDistrict').textContent = sup.district || '-';
+                document.getElementById('viewSupState').textContent = sup.state || '-';
+                document.getElementById('viewSupAddress').textContent = sup.address || '-';
+            } else {
+                showSupplierDirectoryPane();
+            }
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modalViewSupplier')).show();
+        });
+    }
+
+    syncViewButton();
+})();
+</script>
+
+<!-- Add HSN Master Code Modal (Unified with Catalog Hierarchy) -->
+<div class="modal fade" id="modalQuickHsn" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-upc-scan text-primary me-1.5"></i> Add HSN Master Code</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
                 <div id="quickHsnInlineError" class="alert alert-danger d-none py-2 px-3 mb-3 small" role="alert" aria-live="polite"></div>
-                <!-- HSN Code -->
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-dark">HSN Code <span class="text-danger">*</span></label>
-                    <input type="text" id="newHsnCode" class="form-control text-uppercase font-monospace" placeholder="E.G. 6206 OR 61091000" maxlength="8" minlength="4" inputmode="numeric" pattern="[0-9]{4}|[0-9]{6}|[0-9]{8}" title="Enter 4, 6, or 8 numeric digits" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-description-target="#newHsnDesc" data-hsn-gst-target="#newHsnGstRate" data-hsn-note-target="#newHsnRateNote" autocomplete="off" required>
-                    <div class="form-text text-muted small mt-1">Harmonized System of Nomenclature code for invoices</div>
-                </div>
-
-                <!-- Commodity / Description -->
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-dark">Commodity / Description <span class="text-danger">*</span></label>
-                    <input type="text" id="newHsnDesc" class="form-control" placeholder="e.g. Cotton Woven Fabric / Sewing Thread / Buttons" required>
-                </div>
-
-                <!-- Default GST Rate (%) -->
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-dark">GST Rate (%) <span class="text-danger">*</span></label>
-                    <div class="input-group">
-                        <input type="number" step="0.01" min="0" max="100" id="newHsnGstRate" class="form-control fw-semibold" placeholder="0.00" required>
-                        <span class="input-group-text bg-light text-muted fw-bold">%</span>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">HSN Code <span class="text-danger">*</span></label>
+                        <input type="text" id="newHsnCode" class="form-control font-monospace fw-bold" placeholder="4, 6, or 8 digits" maxlength="8" minlength="4" inputmode="numeric" pattern="[0-9]{4}|[0-9]{6}|[0-9]{8}" title="Enter a valid 4-, 6-, or 8-digit numeric HSN code" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-description-target="#newHsnDesc" data-hsn-gst-target="#newHsnGstRate" autocomplete="off" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Category</label>
+                        <input type="text" id="newHsnCategory" class="form-control" placeholder="e.g. Apparel, Fabric, Packaging" maxlength="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">GST Rate (%)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" min="0" max="100" id="newHsnGstRate" class="form-control font-monospace" placeholder="0.00 to 100.00" required title="Enter a GST percentage from 0.00 to 100.00">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-semibold">Description</label>
+                        <textarea id="newHsnDesc" class="form-control" rows="2" placeholder="e.g. T-shirts, singlets and other vests, knitted or crocheted" maxlength="255"></textarea>
                     </div>
                 </div>
-
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-dark">GST Rate Conditions / Notes (Optional)</label>
-                    <input type="text" id="newHsnRateNote" class="form-control" maxlength="500" placeholder="e.g. Verify rate based on product composition and value">
-                </div>
             </div>
-            <!-- Modal Footer (Cancel button + Purple Save & Select HSN) -->
-            <div class="modal-footer bg-light px-4 py-3 d-flex justify-content-between">
-                <button type="button" class="btn btn-secondary px-4 fw-semibold" data-bs-dismiss="modal">
-                    Cancel
-                </button>
-                <button type="button" class="btn text-white px-4 fw-semibold shadow-sm rounded-2 d-flex align-items-center gap-2" style="background: #4f46e5;" onclick="saveAndSelectHsn()">
-                    <i class="bi bi-check-circle fs-6"></i> Save & Select HSN
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm px-3" onclick="saveAndSelectHsn()">
+                    <i class="bi bi-check-circle me-1"></i> Save HSN Code
                 </button>
             </div>
         </div>
@@ -1290,7 +1744,7 @@ if ($isEdit && !empty($existingItems)) {
 
 <!-- Modal: View Saved Color & Design Registry (View Option) -->
 <div class="modal fade" id="modalViewRollSpecs" tabindex="-1" aria-labelledby="modalViewRollSpecsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content border-0 shadow-lg rounded-3">
             <div class="modal-header bg-dark text-white px-4 py-3">
                 <div class="d-flex align-items-center gap-2">
@@ -1544,7 +1998,8 @@ function promptAddHsn(targetId, targetType = 'rolls') {
     document.getElementById('newHsnCode').value = '';
     document.getElementById('newHsnDesc').value = '';
     document.getElementById('newHsnGstRate').value = '';
-    document.getElementById('newHsnRateNote').value = '';
+    const catEl = document.getElementById('newHsnCategory');
+    if (catEl) catEl.value = '';
     const modal = new bootstrap.Modal(document.getElementById('modalQuickHsn'));
     modal.show();
 }
@@ -1555,7 +2010,8 @@ function promptAddVariantHsn(cardId, rowIndex) {
     document.getElementById('newHsnCode').value = '';
     document.getElementById('newHsnDesc').value = '';
     document.getElementById('newHsnGstRate').value = '';
-    document.getElementById('newHsnRateNote').value = '';
+    const catEl = document.getElementById('newHsnCategory');
+    if (catEl) catEl.value = '';
     new bootstrap.Modal(document.getElementById('modalQuickHsn')).show();
 }
 
@@ -1578,7 +2034,7 @@ function saveAndSelectHsn() {
     const desc = document.getElementById('newHsnDesc').value.trim();
     const rateInput = document.getElementById('newHsnGstRate').value.trim();
     const rate = rateInput !== '' ? parseFloat(rateInput) : null;
-    const rateNote = document.getElementById('newHsnRateNote').value.trim();
+    const category = document.getElementById('newHsnCategory')?.value.trim() || 'Garment and textile goods';
 
     if (!/^[0-9]{4}$|^[0-9]{6}$|^[0-9]{8}$/.test(code)) {
         showInlineHsnError('Enter a valid numeric HSN code with 4, 6, or 8 digits.');
@@ -1602,9 +2058,9 @@ function saveAndSelectHsn() {
     formData.append('hsn_code', code);
     formData.append('code_type', 'HSN');
     formData.append('description', desc);
-    formData.append('category', 'Garment and textile goods');
+    formData.append('category', category);
     formData.append('gst_rate', rate === null ? '' : rate);
-    formData.append('rate_note', rateNote);
+    formData.append('rate_note', '');
     if (isProductAddingForm) {
         formData.append('concern_id', String(getProductAddingConcernId() || ''));
     }
@@ -1657,6 +2113,11 @@ function applyCreatedHsn(hsn) {
         const activeInput = row?.querySelector('.fg-variant-hsn');
         if (activeInput) setHsnInputValue(activeInput, selectedHsn);
         onFinishedVariantHsnChange(currentHsnTarget.id, currentHsnTarget.rowIndex);
+    } else if (currentHsnTarget.type === 'simple') {
+        const activeInput = document.querySelector(`#simpleCard_${currentHsnTarget.id} .simple-input-hsn`);
+        if (activeInput) setHsnInputValue(activeInput, selectedHsn);
+        onSimpleHsnChange(currentHsnTarget.id);
+        syncSimplePurchaseTable();
     }
 
     const modalEl = document.getElementById('modalQuickHsn');
@@ -2333,7 +2794,9 @@ async function saveProductAddingAttributeValue(type, rawValue, fgId, rowIndex, a
             });
         }
 
+        if (typeof refreshProductAddingAttributeSelectors === 'function') {
         refreshProductAddingAttributeSelectors();
+    }
         ensureProductAddingAttributeColumn(type, fgId, rowIndex, result.attribute_value);
         document.querySelectorAll('#finishedGoodsContainer .fg-variant-row').forEach(row => {
             const rowCardId = parseInt(row.closest('.finished-card')?.id.replace('finishedCard_', ''), 10);
@@ -3022,7 +3485,9 @@ function onFinishedVariantCategoryChange(fgId, rowIndex) {
         }
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
-    refreshProductAddingAttributeSelectors();
+    if (typeof refreshProductAddingAttributeSelectors === 'function') {
+        refreshProductAddingAttributeSelectors();
+    }
 }
 
 function onFinishedVariantSubcategoryChange(fgId, rowIndex) {
@@ -3039,7 +3504,9 @@ function onFinishedVariantSubcategoryChange(fgId, rowIndex) {
         fillFinishedVariantSubSubcategories(row, subcategory.value);
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
-    refreshProductAddingAttributeSelectors();
+    if (typeof refreshProductAddingAttributeSelectors === 'function') {
+        refreshProductAddingAttributeSelectors();
+    }
 }
 
 function onFinishedVariantSubSubcategoryChange(fgId, rowIndex) {
@@ -3052,7 +3519,9 @@ function onFinishedVariantSubSubcategoryChange(fgId, rowIndex) {
         if ([...select.options].some(option => option.value === selectedId)) select.value = selectedId;
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
-    refreshProductAddingAttributeSelectors();
+    if (typeof refreshProductAddingAttributeSelectors === 'function') {
+        refreshProductAddingAttributeSelectors();
+    }
 }
 
 async function quickAddFinishedHierarchy(tier, fgId, rowIndex) {
@@ -4395,29 +4864,37 @@ function recalcOverallSummary() {
     let grandBase = 0;
     let grandTax = 0;
 
-    // Rolls (qty == rq)
-    document.querySelectorAll('#rollsContainer .roll-card').forEach(function(card) {
-        const rq = parseInt(card.querySelector('.roll-input-rq')?.value) || 1;
-        const price = parseFloat(card.querySelector('.roll-input-price')?.value) || 0;
-        const taxInfo = calculateRollTax(card, rq, price);
+    if (!isProductAddingForm) {
+        document.querySelectorAll('#simplePurchaseItemsContainer .simple-purchase-card').forEach(function(card) {
+            const qty = parseFloat(card.querySelector('.simple-input-qty')?.value) || 0;
+            const price = parseFloat(card.querySelector('.simple-input-price')?.value) || 0;
+            const taxInfo = calculateItemTax(card, 'simple', qty, price);
+            grandBase += taxInfo.base;
+            grandTax += taxInfo.tax;
+        });
+    } else {
+        // Rolls (qty == rq)
+        document.querySelectorAll('#rollsContainer .roll-card').forEach(function(card) {
+            const rq = parseInt(card.querySelector('.roll-input-rq')?.value) || 1;
+            const price = parseFloat(card.querySelector('.roll-input-price')?.value) || 0;
+            const taxInfo = calculateRollTax(card, rq, price);
 
-        grandBase += taxInfo.base;
-        grandTax += taxInfo.tax;
-    });
+            grandBase += taxInfo.base;
+            grandTax += taxInfo.tax;
+        });
 
-    // Other Garment Supplies
-    document.querySelectorAll('#garmentOtherContainer .other-card').forEach(function(card) {
-        const qty = parseFloat(card.querySelector('.other-input-qty')?.value) || 0;
-        const price = parseFloat(card.querySelector('.other-input-price')?.value) || 0;
-        const taxInfo = calculateItemTax(card, 'other', qty, price);
+        // Other Garment Supplies
+        document.querySelectorAll('#garmentOtherContainer .other-card').forEach(function(card) {
+            const qty = parseFloat(card.querySelector('.other-input-qty')?.value) || 0;
+            const price = parseFloat(card.querySelector('.other-input-price')?.value) || 0;
+            const taxInfo = calculateItemTax(card, 'other', qty, price);
 
-        grandBase += taxInfo.base;
-        grandTax += taxInfo.tax;
-    });
+            grandBase += taxInfo.base;
+            grandTax += taxInfo.tax;
+        });
 
-    // Finished Goods
-    document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(function(card) {
-        if (isProductAddingForm) {
+        // Finished Goods
+        document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(function(card) {
             card.querySelectorAll('.fg-variant-row').forEach(row => {
                 const qty = parseInt(row.querySelector('.fg-variant-qty')?.value, 10) || 0;
                 const cost = parseFloat(row.querySelector('.fg-variant-cost')?.value) || 0;
@@ -4426,14 +4903,8 @@ function recalcOverallSummary() {
                 grandBase += taxInfo.base;
                 grandTax += taxInfo.tax;
             });
-        } else {
-            const qty = parseInt(card.querySelector('.fg-input-qty')?.value) || 0;
-            const cost = parseFloat(card.querySelector('.fg-input-cost')?.value) || 0;
-            const taxInfo = calculateItemTax(card, 'fg', qty, cost);
-            grandBase += taxInfo.base;
-            grandTax += taxInfo.tax;
-        }
-    });
+        });
+    }
 
     const grandTotal = grandBase + grandTax;
 
@@ -4443,10 +4914,264 @@ function recalcOverallSummary() {
 }
 
 // ==========================================
+// 4B. SIMPLIFIED PURCHASE BILLING (SINGLE TABLE)
+// ==========================================
+let simpleItemCounter = 0;
+
+function addSimplePurchaseRow(initialData = null) {
+    const container = document.getElementById('simplePurchaseItemsContainer');
+    const placeholder = document.getElementById('noSimpleItemsPlaceholder');
+    if (!container) return;
+    if (placeholder) placeholder.style.display = 'none';
+
+    simpleItemCounter++;
+    const id = simpleItemCounter;
+    const productType = initialData?.product_type || 'rolls';
+    const itemName = initialData?.name || '';
+    const qty = initialData?.qty !== undefined && initialData?.qty !== null ? initialData.qty : 1;
+    const price = initialData?.price !== undefined && initialData?.price !== null ? initialData.price : 0;
+    const hsn = initialData?.hsn || '';
+    const taxMode = initialData?.tax_mode || 'Exclude GST';
+    const gstType = initialData?.gst_type || 'Exempted';
+    const taxInputType = initialData?.tax_input_type || 'Percentage';
+    const sgst = parseFloat(initialData?.sgst) || 0;
+    const cgst = parseFloat(initialData?.cgst) || 0;
+    const igst = parseFloat(initialData?.igst) || 0;
+
+    const tr = document.createElement('tr');
+    tr.className = 'simple-purchase-card';
+    tr.id = 'simpleCard_' + id;
+    tr.innerHTML = `
+        <td class="text-center text-muted fw-semibold px-1 simple-row-index">${id}</td>
+        <td class="px-1">
+            <select class="form-select form-select-sm px-1 simple-input-type" name="purchase_items[${id}][product_type]" required onchange="syncSimplePurchaseTable()">
+                <option value="rolls" ${productType === 'rolls' ? 'selected' : ''}>Fabric</option>
+                <option value="garment_other" ${productType === 'garment_other' ? 'selected' : ''}>Other Garments Supply</option>
+                <option value="finished_goods" ${productType === 'finished_goods' ? 'selected' : ''}>Finished Goods</option>
+            </select>
+        </td>
+        <td class="px-1">
+            <input type="text" class="form-control form-control-sm px-2 simple-input-name" name="purchase_items[${id}][name]" value="${escapeHtml(itemName)}" placeholder="Item name" required oninput="syncSimplePurchaseTable()">
+        </td>
+        <td class="px-1">
+            <div class="input-group input-group-sm">
+                <input type="text" class="form-control form-control-sm px-1 font-monospace simple-input-hsn" name="purchase_items[${id}][hsn]" data-hsn-autocomplete data-hsn-type="HSN" autocomplete="off" value="${escapeHtml(hsn)}" placeholder="HSN" ${getHsnInputAttributes(hsn)} oninput="onSimpleHsnInput(${id})" onchange="onSimpleHsnChange(${id})">
+                <button type="button" class="btn btn-outline-primary px-1" title="Add New HSN" onclick="promptAddHsn(${id}, 'simple')">+</button>
+            </div>
+        </td>
+        <td class="px-1">
+            <input type="number" step="0.01" min="0.01" class="form-control form-control-sm px-1 text-end simple-input-qty" name="purchase_items[${id}][qty]" value="${qty}" required oninput="syncSimplePurchaseTable()">
+        </td>
+        <td class="px-1">
+            <input type="number" step="0.01" min="0" class="form-control form-control-sm px-1 text-end simple-input-price" name="purchase_items[${id}][price]" value="${price}" required oninput="syncSimplePurchaseTable()">
+        </td>
+        <td class="px-1">
+            <select class="form-select form-select-sm px-1 simple-input-tax-mode" name="purchase_items[${id}][tax_mode]" onchange="syncSimplePurchaseTable()">
+                <option value="Exclude GST" ${taxMode === 'Exclude GST' ? 'selected' : ''}>Exclude GST</option>
+                <option value="Include GST" ${taxMode === 'Include GST' ? 'selected' : ''}>Include GST</option>
+            </select>
+        </td>
+        <td class="px-1">
+            <div class="d-flex flex-column gap-1">
+                <div class="d-flex gap-1">
+                    <select class="form-select form-select-sm simple-input-gst" name="purchase_items[${id}][gst]" onchange="onSimpleGstTypeChange(${id})">
+                        <option value="Exempted" ${gstType === 'Exempted' ? 'selected' : ''}>Exempted</option>
+                        <option value="Both (CGST and SGST)" ${gstType === 'Both (CGST and SGST)' ? 'selected' : ''}>Both (CGST & SGST)</option>
+                        <option value="CGST" ${gstType === 'CGST' ? 'selected' : ''}>CGST Only</option>
+                        <option value="SGST" ${gstType === 'SGST' ? 'selected' : ''}>SGST Only</option>
+                        <option value="IGST" ${gstType === 'IGST' ? 'selected' : ''}>IGST</option>
+                    </select>
+                    <div id="simpleTaxInputTypeCol_${id}" style="display: none; min-width: 78px;">
+                        <select class="form-select form-select-sm simple-input-tax-type" name="purchase_items[${id}][tax_input_type]" onchange="onSimpleTaxInputTypeChange(${id})">
+                            <option value="Percentage" ${taxInputType === 'Percentage' ? 'selected' : ''}>%</option>
+                            <option value="Amount" ${taxInputType === 'Amount' ? 'selected' : ''}>₹</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="d-flex gap-1" id="simpleGstDynamic_${id}" style="display: none;">
+                    <div class="flex-fill" id="simpleSgstCol_${id}" style="display: none;">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text px-1 small">S</span>
+                            <input type="number" step="0.01" min="0" class="form-control form-control-sm simple-input-sgst" name="purchase_items[${id}][sgst]" value="${sgst}" placeholder="SGST" oninput="syncSimplePurchaseTable()">
+                        </div>
+                    </div>
+                    <div class="flex-fill" id="simpleCgstCol_${id}" style="display: none;">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text px-1 small">C</span>
+                            <input type="number" step="0.01" min="0" class="form-control form-control-sm simple-input-cgst" name="purchase_items[${id}][cgst]" value="${cgst}" placeholder="CGST" oninput="syncSimplePurchaseTable()">
+                        </div>
+                    </div>
+                    <div class="flex-fill" id="simpleIgstCol_${id}" style="display: none;">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text px-1 small">I</span>
+                            <input type="number" step="0.01" min="0" class="form-control form-control-sm simple-input-igst" name="purchase_items[${id}][igst]" value="${igst}" placeholder="IGST" oninput="syncSimplePurchaseTable()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </td>
+        <td class="text-end simple-row-tax">₹0.00</td>
+        <td class="text-end fw-bold text-success bg-success bg-opacity-10 simple-row-total">₹0.00</td>
+        <td class="text-center">
+            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" title="Delete Row" onclick="removeSimplePurchaseRow(${id})">
+                <i class="bi bi-trash3"></i>
+            </button>
+        </td>
+    `;
+    container.appendChild(tr);
+    onSimpleTaxInputTypeChange(id);
+    onSimpleGstTypeChange(id);
+}
+
+function removeSimplePurchaseRow(id) {
+    const card = document.getElementById('simpleCard_' + id);
+    if (card) card.remove();
+    const container = document.getElementById('simplePurchaseItemsContainer');
+    const placeholder = document.getElementById('noSimpleItemsPlaceholder');
+    if (container && placeholder && container.querySelectorAll('.simple-purchase-card').length === 0) {
+        placeholder.style.display = 'block';
+    }
+    syncSimplePurchaseTable();
+}
+
+function onSimpleTaxInputTypeChange(id) {
+    syncSimplePurchaseTable();
+}
+
+function onSimpleGstTypeChange(id) {
+    const card = document.getElementById('simpleCard_' + id);
+    if (!card) return;
+    const gstType = card.querySelector('.simple-input-gst')?.value || 'Exempted';
+    const typeCol = document.getElementById('simpleTaxInputTypeCol_' + id);
+    const dynRow = document.getElementById('simpleGstDynamic_' + id);
+    const sgstCol = document.getElementById('simpleSgstCol_' + id);
+    const cgstCol = document.getElementById('simpleCgstCol_' + id);
+    const igstCol = document.getElementById('simpleIgstCol_' + id);
+
+    if (gstType === 'Exempted') {
+        if (typeCol) typeCol.style.display = 'none';
+        if (dynRow) dynRow.style.display = 'none';
+    } else {
+        if (typeCol) typeCol.style.display = 'block';
+        if (dynRow) dynRow.style.display = 'flex';
+        if (sgstCol) sgstCol.style.display = (gstType === 'Both (CGST and SGST)' || gstType === 'SGST') ? 'block' : 'none';
+        if (cgstCol) cgstCol.style.display = (gstType === 'Both (CGST and SGST)' || gstType === 'CGST') ? 'block' : 'none';
+        if (igstCol) igstCol.style.display = (gstType === 'IGST') ? 'block' : 'none';
+    }
+    syncSimplePurchaseTable();
+}
+
+function onSimpleHsnChange(id) {
+    const card = document.getElementById('simpleCard_' + id);
+    if (!card) return;
+    const hsnInput = card.querySelector('.simple-input-hsn');
+    if (!hsnInput) return;
+    resolveHsnInputMetadata(hsnInput);
+    updateHsnRateNote(hsnInput);
+    applyHsnRateToGstInputs(card, 'simple');
+    onSimpleGstTypeChange(id);
+}
+
+function onSimpleHsnInput(id) {
+    const card = document.getElementById('simpleCard_' + id);
+    if (!card) return;
+    const hsnInput = card.querySelector('.simple-input-hsn');
+    if (!hsnInput) return;
+    resolveHsnInputMetadata(hsnInput);
+    updateHsnRateNote(hsnInput);
+    const rateText = hsnInput.dataset.hsnGstRate;
+    if (rateText !== '' && rateText !== undefined && rateText !== null) {
+        applyHsnRateToGstInputs(card, 'simple');
+        onSimpleGstTypeChange(id);
+    }
+}
+
+function syncSimplePurchaseTable() {
+    const countBadge = document.getElementById('simpleItemsCountBadge');
+    const rows = document.querySelectorAll('#simplePurchaseItemsContainer .simple-purchase-card');
+
+    if (countBadge) {
+        countBadge.textContent = rows.length + (rows.length === 1 ? ' Item' : ' Items');
+    }
+
+    rows.forEach((row, idx) => {
+        const idxCell = row.querySelector('.simple-row-index');
+        if (idxCell) idxCell.textContent = String(idx + 1);
+
+        const qty = parseFloat(row.querySelector('.simple-input-qty')?.value) || 0;
+        const price = parseFloat(row.querySelector('.simple-input-price')?.value) || 0;
+        const taxInfo = calculateItemTax(row, 'simple', qty, price);
+
+        const taxCell = row.querySelector('.simple-row-tax');
+        if (taxCell) taxCell.innerHTML = taxInfo.taxHtml;
+
+        const totalCell = row.querySelector('.simple-row-total');
+        if (totalCell) totalCell.textContent = '₹' + taxInfo.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    });
+
+    recalcOverallSummary();
+}
+
+// ==========================================
 // 5. LOAD EXISTING ITEMS ON EDIT
 // ==========================================
 function loadInitialData() {
     if (!isEditMode) return;
+
+    if (!isProductAddingForm) {
+        const combined = [];
+        if (Array.isArray(existingRolls)) {
+            existingRolls.forEach(r => combined.push({
+                product_type: 'rolls',
+                name: r.fabric_name || r.item_name || '',
+                qty: parseFloat(r.qty) || 1,
+                price: parseFloat(r.unit_price) || 0,
+                hsn: r.hsn_code || '',
+                tax_mode: r.tax_mode || 'Exclude GST',
+                gst_type: r.gst_type || 'Exempted',
+                tax_input_type: r.tax_input_type || 'Percentage',
+                sgst: parseFloat(r.sgst) || 0,
+                cgst: parseFloat(r.cgst) || 0,
+                igst: parseFloat(r.igst) || 0
+            }));
+        }
+        if (Array.isArray(existingOther)) {
+            existingOther.forEach(g => combined.push({
+                product_type: 'garment_other',
+                name: g.item_name || '',
+                qty: parseFloat(g.qty) || 1,
+                price: parseFloat(g.unit_price) || 0,
+                hsn: g.hsn_code || '',
+                tax_mode: g.tax_mode || 'Exclude GST',
+                gst_type: g.gst_type || 'Exempted',
+                tax_input_type: g.tax_input_type || 'Percentage',
+                sgst: parseFloat(g.sgst) || 0,
+                cgst: parseFloat(g.cgst) || 0,
+                igst: parseFloat(g.igst) || 0
+            }));
+        }
+        if (Array.isArray(existingFinished)) {
+            existingFinished.forEach(f => combined.push({
+                product_type: 'finished_goods',
+                name: f.item_name || '',
+                qty: parseFloat(f.qty) || 1,
+                price: parseFloat(f.unit_price) || 0,
+                hsn: f.hsn_code || '',
+                tax_mode: f.tax_mode || 'Exclude GST',
+                gst_type: f.gst_type || 'Exempted',
+                tax_input_type: f.tax_input_type || 'Percentage',
+                sgst: parseFloat(f.sgst) || 0,
+                cgst: parseFloat(f.cgst) || 0,
+                igst: parseFloat(f.igst) || 0
+            }));
+        }
+        if (combined.length > 0) {
+            combined.forEach(item => addSimplePurchaseRow(item));
+        } else {
+            addSimplePurchaseRow();
+        }
+        return;
+    }
 
     if (Array.isArray(existingRolls) && existingRolls.length > 0) {
         const container = document.getElementById('rollsContainer');
@@ -4649,12 +5374,21 @@ function loadInitialData() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (isEditMode) {
-        loadInitialData();
+    if (isProductAddingForm) {
+        if (isEditMode) {
+            loadInitialData();
+        }
+        syncRollsTable();
+        syncOtherTable();
+        syncFinishedTable();
+    } else {
+        if (isEditMode) {
+            loadInitialData();
+        } else {
+            addSimplePurchaseRow();
+        }
+        syncSimplePurchaseTable();
     }
-    syncRollsTable();
-    syncOtherTable();
-    syncFinishedTable();
 
     const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
     const bulkStockButton = document.getElementById('productAddingBulkStockButton');
@@ -4776,7 +5510,22 @@ document.addEventListener('DOMContentLoaded', function() {
     let invoiceCheckRequest = 0;
     let invoiceSubmitPending = false;
     let allowSubmitAfterInvoiceCheck = false;
+    let matchedPurchaseBill = null;
+    const getCurrentProductAddingQty = function () {
+        let total = 0;
+        form.querySelectorAll('#rollsContainer .roll-card .roll-input-rq').forEach(el => {
+            total += parseFloat(el.value) || 0;
+        });
+        form.querySelectorAll('#garmentOtherContainer .other-card .other-input-qty').forEach(el => {
+            total += parseFloat(el.value) || 0;
+        });
+        form.querySelectorAll('#finishedGoodsContainer .finished-card .fg-variant-qty, #finishedGoodsContainer .finished-card .fg-input-qty').forEach(el => {
+            total += parseFloat(el.value) || 0;
+        });
+        return total;
+    };
     const clearInvoiceError = function () {
+        matchedPurchaseBill = null;
         if (invoiceInput) {
             invoiceInput.setCustomValidity('');
             clearFieldError(invoiceInput);
@@ -4820,6 +5569,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(result.message || 'Unable to verify this invoice number.');
             }
             if (result.duplicate) {
+                matchedPurchaseBill = null;
                 const message = result.message || 'This supplier invoice number has already been recorded for the selected supplier.';
                 invoiceInput.setCustomValidity(message);
                 showFieldError(invoiceInput);
@@ -4839,7 +5589,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             clearInvoiceError();
-            if (invoiceStatus) {
+            if (isProductAddingForm && result.matched_purchase_bill) {
+                matchedPurchaseBill = result.matched_purchase_bill;
+                if (invoiceStatus) {
+                    const invQty = parseFloat(matchedPurchaseBill.invoice_qty) || 0;
+                    const addedQty = parseFloat(matchedPurchaseBill.product_adding_qty) || 0;
+                    const remQty = parseFloat(matchedPurchaseBill.remaining_qty) || 0;
+                    invoiceStatus.textContent = `Matched Purchase Billing Invoice #${matchedPurchaseBill.bill_no} — Invoice Qty: ${invQty} | Added: ${addedQty} | Remaining: ${remQty}`;
+                    invoiceStatus.className = remQty > 0 ? 'form-text small text-info fw-semibold' : 'form-text small text-warning fw-semibold';
+                }
+            } else if (invoiceStatus) {
                 invoiceStatus.textContent = 'Invoice number is available.';
                 invoiceStatus.className = 'form-text small text-success';
             }
@@ -4926,11 +5685,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     updateProductAddingVariantRow(parseInt(card.id.replace('finishedCard_', ''), 10), parseInt(row.dataset.rowIndex, 10));
                 });
             });
+            if (matchedPurchaseBill && invoiceInput) {
+                const currentQty = getCurrentProductAddingQty();
+                const remQty = parseFloat(matchedPurchaseBill.remaining_qty) || 0;
+                if (currentQty > remQty + 0.0001) {
+                    invoiceInput.setCustomValidity(`Total Product Adding qty (${currentQty}) cannot exceed remaining Purchase Billing invoice qty (${remQty}).`);
+                } else {
+                    invoiceInput.setCustomValidity('');
+                }
+            }
         }
         const invalidFields = Array.from(form.elements).filter(function (control) {
             return control.willValidate && !control.checkValidity();
         });
-        const hasItem = form.querySelector('.roll-card, .other-card, .finished-card');
+        const hasItem = isProductAddingForm
+            ? form.querySelector('.roll-card, .other-card, .finished-card')
+            : form.querySelector('.simple-purchase-card');
         const itemsError = document.getElementById('itemsValidationError');
 
         invalidFields.forEach(showFieldError);

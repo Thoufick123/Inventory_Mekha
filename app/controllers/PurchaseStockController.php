@@ -28,7 +28,7 @@ class PurchaseStockController extends Controller {
         }
 
         $activeTab = trim($_GET['tab'] ?? 'rolls');
-        if (!in_array($activeTab, ['rolls', 'garment_other', 'finished_goods'], true)) {
+        if (!in_array($activeTab, ['rolls', 'garment_other', 'finished_goods', 'damage'], true)) {
             $activeTab = 'rolls';
         }
 
@@ -351,6 +351,7 @@ class PurchaseStockController extends Controller {
         $canEditPurchaseStock = $canEditRollStock;
         $canAddPurchaseStock = $isSuperAdmin || Auth::can('purchase_stocks', 'add');
         $canDeletePurchaseStock = $isSuperAdmin || Auth::can('purchase_stocks', 'delete');
+        $damageData = PurchaseController::fetchPurchaseDamageData($selectedCid);
 
         $this->render('concern/purchase_stocks', [
             'pageTitle'              => 'Purchase Stocks & Inventory',
@@ -365,10 +366,16 @@ class PurchaseStockController extends Controller {
             'suppliers'              => $suppliers,
             'allConcerns'            => $allConcerns,
             'selectedCid'            => $selectedCid,
+            'isSuperAdmin'           => $isSuperAdmin,
             'canEditRollStock'       => $canEditRollStock,
             'canEditPurchaseStock'   => $canEditPurchaseStock,
             'canAddPurchaseStock'    => $canAddPurchaseStock,
             'canDeletePurchaseStock' => $canDeletePurchaseStock,
+            'damages'                => $damageData['damages'],
+            'damageReasons'          => $damageData['damageReasons'],
+            'canAddDamage'           => $canAddPurchaseStock,
+            'canEditDamage'          => $canEditPurchaseStock,
+            'canDeleteDamage'        => $canDeletePurchaseStock,
             'search'                 => $search,
             'supplierFilter'         => $supplierFilter,
             'statusFilter'           => $statusFilter,

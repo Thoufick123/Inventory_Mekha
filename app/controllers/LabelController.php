@@ -127,7 +127,8 @@ class LabelController extends Controller {
                     FROM purchase_bill_items pbi
                     JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                     LEFT JOIN suppliers s ON pb.supplier_id = s.id
-                    WHERE pbi.section_type = 'rolls'";
+                    WHERE pbi.section_type = 'rolls'
+                      AND COALESCE(pb.source_module, 'product_adding') != 'purchase_billing'";
         $rollParams = [];
         if ($cid) {
             $rollSql .= " AND pbi.concern_id = ?";
@@ -147,7 +148,8 @@ class LabelController extends Controller {
                      FROM purchase_bill_items pbi
                      JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                      LEFT JOIN suppliers s ON pb.supplier_id = s.id
-                     WHERE pbi.section_type = 'garment_other'";
+                     WHERE pbi.section_type = 'garment_other'
+                       AND COALESCE(pb.source_module, 'product_adding') != 'purchase_billing'";
         $otherParams = [];
         if ($cid) {
             $otherSql .= " AND pbi.concern_id = ?";
@@ -192,7 +194,8 @@ class LabelController extends Controller {
                   LEFT JOIN catalogs fg_catalog ON fg_catalog.id = v.catalog_id
                   LEFT JOIN sub_subcategories fg_subsub ON fg_subsub.id = fg_catalog.sub_sub_category_id
                   LEFT JOIN brands b ON v.brand_id = b.id
-                  WHERE pbi.section_type = 'finished_goods'";
+                  WHERE pbi.section_type = 'finished_goods'
+                    AND COALESCE(pb.source_module, 'product_adding') != 'purchase_billing'";
         $fgParams = [];
         if ($cid) {
             $fgSql .= " AND pbi.concern_id = ?";

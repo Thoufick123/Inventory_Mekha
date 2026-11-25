@@ -77,6 +77,8 @@ $router->post('/m/product_adding/add_purchase_bill_to_stock', [LabelController::
 $router->post('/m/product_adding/save_hsn', [PurchaseController::class, 'saveHsnAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/save_roll_spec', [PurchaseController::class, 'saveRollSpecAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/suppliers/store', [PurchaseController::class, 'storeSupplierAjax'], 'product_adding', 'add');
+$router->post('/m/product_adding/suppliers/update', [PurchaseController::class, 'updateSupplierAjax'], 'product_adding', 'edit');
+$router->post('/m/product_adding/suppliers/delete', [PurchaseController::class, 'deleteSupplierAjax'], 'product_adding', 'delete');
 $router->post('/m/product_adding/categories/store', [ProductAddingController::class, 'storeHierarchyAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/attributes/store', [ProductAddingController::class, 'storeAttributeAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/quick-category', [CatalogMappingController::class, 'quickCreateCategory'], 'product_adding', 'add');
@@ -148,12 +150,6 @@ $router->post('/m/inward/update', [InwardController::class, 'update'], 'inward',
 $router->post('/m/inward/delete', [InwardController::class, 'delete'], 'inward', 'delete');
 
 // Purchase
-$router->get('/m/suppliers', [PurchaseController::class, 'suppliers'], 'suppliers', 'view');
-$router->get('/m/suppliers/export', [PurchaseController::class, 'exportSuppliers'], 'suppliers', 'export');
-$router->get('/suppliers/export', [PurchaseController::class, 'exportSuppliers'], 'suppliers', 'export');
-$router->post('/m/suppliers/store', [PurchaseController::class, 'storeSupplier'], 'suppliers', 'add');
-$router->post('/m/suppliers/update', [PurchaseController::class, 'updateSupplier'], 'suppliers', 'edit');
-$router->post('/m/suppliers/delete', [PurchaseController::class, 'deleteSupplier'], 'suppliers', 'delete');
 $router->get('/m/purchase_billing', [PurchaseController::class, 'billing'], 'purchase_billing', 'view');
 $router->get('/m/purchase_billing/export', [PurchaseController::class, 'exportBills'], 'purchase_billing', 'export');
 $router->get('/m/purchase_billing/create', [PurchaseController::class, 'createBill'], 'purchase_billing', 'add');
@@ -165,6 +161,9 @@ $router->post('/m/purchase_billing/update_status', [PurchaseController::class, '
 $router->post('/m/purchase_billing/delete', [PurchaseController::class, 'deleteBill'], 'purchase_billing', 'delete');
 $router->post('/m/purchase_billing/save_hsn', [PurchaseController::class, 'saveHsnAjax'], 'purchase_billing', 'add');
 $router->post('/m/purchase_billing/save_roll_spec', [PurchaseController::class, 'saveRollSpecAjax'], 'purchase_billing', 'add');
+$router->post('/m/purchase_billing/suppliers/store', [PurchaseController::class, 'storeSupplierAjax'], 'purchase_billing', 'add');
+$router->post('/m/purchase_billing/suppliers/update', [PurchaseController::class, 'updateSupplierAjax'], 'purchase_billing', 'edit');
+$router->post('/m/purchase_billing/suppliers/delete', [PurchaseController::class, 'deleteSupplierAjax'], 'purchase_billing', 'delete');
 $router->get('/m/purchase_billing/view', [PurchaseController::class, 'viewBill'], 'purchase_billing', 'view');
 $router->get('/m/purchase_billing/download_items', [PurchaseController::class, 'downloadItems'], 'purchase_billing', 'export');
 
@@ -177,13 +176,13 @@ $router->post('/m/purchase_stocks/update_item', [PurchaseStockController::class,
 $router->post('/m/purchase_stocks/delete', [PurchaseStockController::class, 'deleteStock'], 'purchase_stocks', 'delete');
 $router->get('/m/purchase_stocks/export', [PurchaseStockController::class, 'export'], 'purchase_stocks', 'export');
 
-$router->get('/m/purchase_damage', [PurchaseController::class, 'damage'], 'purchase_damage', 'view');
-$router->get('/m/purchase_damage/export', [PurchaseController::class, 'exportDamage'], 'purchase_damage', 'export');
-$router->post('/m/purchase_damage/scan', [PurchaseController::class, 'scanPurchaseDamageTag'], 'purchase_damage', 'add');
-$router->post('/m/purchase_damage/reasons/add', [PurchaseController::class, 'addDamageReason'], 'purchase_damage', 'add');
-$router->post('/m/purchase_damage/store', [PurchaseController::class, 'storeDamage'], 'purchase_damage', 'add');
-$router->post('/m/purchase_damage/update', [PurchaseController::class, 'updateDamageRecord'], 'purchase_damage', 'edit');
-$router->post('/m/purchase_damage/delete', [PurchaseController::class, 'deleteDamageRecord'], 'purchase_damage', 'delete');
+$router->get('/m/purchase_damage', [PurchaseController::class, 'damage'], 'purchase_stocks', 'view');
+$router->get('/m/purchase_damage/export', [PurchaseController::class, 'exportDamage'], 'purchase_stocks', 'export');
+$router->post('/m/purchase_damage/scan', [PurchaseController::class, 'scanPurchaseDamageTag'], 'purchase_stocks', 'add');
+$router->post('/m/purchase_damage/reasons/add', [PurchaseController::class, 'addDamageReason'], 'purchase_stocks', 'add');
+$router->post('/m/purchase_damage/store', [PurchaseController::class, 'storeDamage'], 'purchase_stocks', 'add');
+$router->post('/m/purchase_damage/update', [PurchaseController::class, 'updateDamageRecord'], 'purchase_stocks', 'edit');
+$router->post('/m/purchase_damage/delete', [PurchaseController::class, 'deleteDamageRecord'], 'purchase_stocks', 'delete');
 
 // Concern Damage
 $router->get('/m/concern_damage', [DamageController::class, 'index'], 'concern_damage', 'view');
@@ -315,26 +314,6 @@ $router->post('/m/programs/status', [ProductionController::class, 'updateProgram
 $router->get('/api/programs/available-rolls', [ProductionController::class, 'apiAvailableRolls'], 'catalog_program', 'view');
 $router->get('/api/programs/roll-lookup', [ProductionController::class, 'apiRollLookup'], 'catalog_program', 'view');
 $router->get('/api/programs/details', [ProductionController::class, 'apiProgramDetails'], 'catalog_program', 'view');
-
-// Catalog Mapping Module (Purchased Finished Goods -> 3-Tier Hierarchy & Attributes)
-$router->get('/production/catalog-mapping', [CatalogMappingController::class, 'index'], 'catalog_mapping', 'view');
-$router->get('/m/catalog_mapping', [CatalogMappingController::class, 'index'], 'catalog_mapping', 'view');
-$router->get('/production/catalog-mapping/map', [CatalogMappingController::class, 'mapItemForm'], 'catalog_mapping', 'add|edit');
-$router->get('/m/catalog_mapping/map', [CatalogMappingController::class, 'mapItemForm'], 'catalog_mapping', 'add|edit');
-$router->post('/production/catalog-mapping/save', [CatalogMappingController::class, 'saveMapping'], 'catalog_mapping', 'add|edit');
-$router->post('/m/catalog_mapping/save', [CatalogMappingController::class, 'saveMapping'], 'catalog_mapping', 'add|edit');
-$router->post('/production/catalog-mapping/unmap', [CatalogMappingController::class, 'unmapItem'], 'catalog_mapping', 'delete');
-$router->post('/m/catalog_mapping/unmap', [CatalogMappingController::class, 'unmapItem'], 'catalog_mapping', 'delete');
-$router->post('/production/catalog-mapping/quick-category', [CatalogMappingController::class, 'quickCreateCategory'], 'catalog_mapping', 'add');
-$router->post('/production/catalog-mapping/quick-attribute', [CatalogMappingController::class, 'quickCreateAttribute'], 'catalog_mapping', 'add');
-$router->post('/production/catalog-mapping/delete-hierarchy', [CatalogMappingController::class, 'deleteHierarchy'], 'catalog_mapping', 'delete');
-$router->post('/production/catalog-mapping/create-hsn', [CatalogMappingController::class, 'createHsn'], 'catalog_mapping', 'add');
-$router->post('/m/catalog_mapping/create-hsn', [CatalogMappingController::class, 'createHsn'], 'catalog_mapping', 'add');
-$router->post('/production/catalog-mapping/update-hsn', [CatalogMappingController::class, 'updateHsn'], 'catalog_mapping', 'edit');
-$router->post('/m/catalog_mapping/update-hsn', [CatalogMappingController::class, 'updateHsn'], 'catalog_mapping', 'edit');
-$router->post('/production/catalog-mapping/delete-hsn', [CatalogMappingController::class, 'deleteHsn'], 'catalog_mapping', 'delete');
-$router->post('/m/catalog_mapping/delete-hsn', [CatalogMappingController::class, 'deleteHsn'], 'catalog_mapping', 'delete');
-$router->get('/api/catalog-mapping/item-details', [CatalogMappingController::class, 'apiItemDetails'], 'catalog_mapping', 'view');
 
 // APIs for 3-Tier Hierarchy & HSN Lookups
 $router->get('/api/categories/subcategories', [ProductionController::class, 'getSubcategoriesAjax'], 'catalog_program', 'view');

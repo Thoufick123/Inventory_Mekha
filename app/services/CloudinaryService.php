@@ -113,7 +113,8 @@ class CloudinaryService {
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $postFields,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_CONNECTTIMEOUT => 4,
+            CURLOPT_TIMEOUT        => 10,
             CURLOPT_SSL_VERIFYPEER => true,
         ]);
 

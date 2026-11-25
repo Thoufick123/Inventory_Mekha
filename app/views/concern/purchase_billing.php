@@ -135,12 +135,12 @@
                         <th>Supplier Inv #</th>
                         <th>Bill Date</th>
                         <th>Bill Type</th>
-                        <th>Items</th>
+                        <th>Items / Qty</th>
                         <th>Taxable Amt</th>
                         <th>Tax</th>
                         <th>Net Bill Amount</th>
                         <th>Payment</th>
-                        <th>Inward</th>
+                        <th>Status</th>
                         <th class="text-end pe-3" style="min-width: 130px;">Action</th>
                     </tr>
                 </thead>
@@ -167,6 +167,11 @@
                                     <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . $b['id']) ?>" class="badge bg-dark font-monospace text-decoration-none">
                                         <?= htmlspecialchars($b['bill_no']) ?>
                                     </a>
+                                    <?php if (($b['source_module'] ?? '') === 'product_adding'): ?>
+                                        <span class="badge bg-info-subtle text-info border mt-1 d-inline-block">Product Adding</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-primary-subtle text-primary border mt-1 d-inline-block">Purchase Billing</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($b['supplier_name']) ?></div>
@@ -203,7 +208,10 @@
                                         </div>
                                     <?php endif; ?>
                                 </td>
-                                <td><span class="badge bg-secondary-subtle text-secondary border"><?= (int)($b['items_count'] ?? 1) ?> Items</span></td>
+                                <td>
+                                    <span class="badge bg-secondary-subtle text-secondary border"><?= (int)($b['items_count'] ?? 1) ?> Items</span>
+                                    <small class="text-muted d-block mt-1">Qty: <?= number_format((float)($b['total_qty'] ?? 0), 2) ?></small>
+                                </td>
                                 <td>₹<?= number_format($b['total_amount'], 2) ?></td>
                                 <td>₹<?= number_format($b['tax_amount'], 2) ?></td>
                                 <td class="fw-bold text-primary">₹<?= number_format($b['net_amount'], 2) ?></td>
@@ -220,11 +228,10 @@
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php if ($inwStatus === 'completed'): ?>
-                                        <span class="badge bg-success-subtle text-success border border-success">Completed</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary-subtle text-secondary border">Pending</span>
-                                    <?php endif; ?>
+                                    <span class="badge <?= htmlspecialchars($b['sync_badge_class'] ?? 'bg-secondary-subtle text-secondary border') ?>">
+                                        <?php if (!empty($b['qty_mismatch'])): ?><i class="bi bi-exclamation-triangle-fill me-1"></i><?php endif; ?>
+                                        <?= htmlspecialchars($b['sync_label'] ?? ($inwStatus === 'completed' ? 'Completed' : 'Pending')) ?>
+                                    </span>
                                 </td>
                                 <!-- CRUD Actions -->
                                 <td class="text-end pe-3">
