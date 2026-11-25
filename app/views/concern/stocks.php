@@ -19,7 +19,7 @@
     <!-- Export Intelligence Toolbar -->
     <?php
     $exportTitle = 'Export Live Inventory Stocks (Excel & PDF)';
-    $exportSubtitle = 'Download warehouse stock quantities, valuations, SKU balances & location storage breakdown';
+    $exportSubtitle = 'Download warehouse stock quantities, valuations, Product Code balances & location storage breakdown';
     $exportUrl = \App\Core\Controller::url('/m/stocks/export');
     $prefix = 'stock_exp';
     include __DIR__ . '/../partials/export_card.php';
@@ -181,7 +181,7 @@
                                             ? (string)$s['qr_payload']
                                             : (!empty($s['whole_code'])
                                                 ? (string)$s['whole_code']
-                                                : (string)($s['sku_code'] ?? '')));
+                                                : (string)($s['product_code'] ?? '')));
                                     $subcatDisplay = $s['subcategory_name'] ?? '-';
                                     if (($subcatDisplay === '-' || $subcatDisplay === '') && !empty($s['hierarchy_path'])) {
                                         $hpParts = array_map('trim', explode('>', $s['hierarchy_path']));
@@ -274,7 +274,7 @@
                                                         data-variant-id="<?= (int)$s['variant_id'] ?>"
                                                         data-location="<?= htmlspecialchars((string)$s['location'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-stock-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-product-code="<?= htmlspecialchars((string)$s['product_code'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-category="<?= htmlspecialchars((string)($s['category_name'] ?? 'General'), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-subcategory="<?= htmlspecialchars((string)$subcatDisplay, ENT_QUOTES, 'UTF-8') ?>"
@@ -301,7 +301,7 @@
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#quickStockQrModal"
                                                         data-qr-payload="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        data-product-code="<?= htmlspecialchars((string)$s['product_code'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-variant-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
                                                         data-product-name="<?= htmlspecialchars((string)($s['product_name'] ?? $s['variant_name']), ENT_QUOTES, 'UTF-8') ?>"
                                                         data-design="<?= htmlspecialchars((string)($s['design_name'] ?? 'STANDARD'), ENT_QUOTES, 'UTF-8') ?>"
@@ -330,7 +330,7 @@
                                                             data-variant-id="<?= (int)$s['variant_id'] ?>"
                                                             data-location="<?= htmlspecialchars((string)$s['location'], ENT_QUOTES, 'UTF-8') ?>"
                                                             data-stock-name="<?= htmlspecialchars((string)$s['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
-                                                            data-sku-code="<?= htmlspecialchars((string)$s['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-product-code="<?= htmlspecialchars((string)$s['product_code'], ENT_QUOTES, 'UTF-8') ?>"
                                                             data-category-id="<?= (int)($s['category_id'] ?? 0) ?>"
                                                             data-subcategory-id="<?= (int)($s['subcategory_id'] ?? 0) ?>"
                                                             data-size="<?= htmlspecialchars((string)($s['size'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
@@ -564,7 +564,7 @@
                                         <strong id="detailQrTagCode" class="text-primary font-monospace fs-6">-</strong>
                                     </div>
                                     <div class="col-sm-6 col-lg-3">
-                                        <span class="text-muted d-block">SKU Code:</span>
+                                        <span class="text-muted d-block">Product Code:</span>
                                         <strong id="detailQrSkuCode" class="text-dark font-monospace">-</strong>
                                     </div>
                                     <div class="col-sm-6 col-lg-3">
@@ -974,8 +974,8 @@
                             <input type="text" class="form-control" id="stockEditName" name="variant_name" required maxlength="190">
                         </div>
                         <div class="col-md-5">
-                            <label class="form-label fw-semibold small text-muted" for="stockEditSku">SKU Code *</label>
-                            <input type="text" class="form-control font-monospace" id="stockEditSku" name="sku_code" required maxlength="100">
+                            <label class="form-label fw-semibold small text-muted" for="stockEditSku">Product Code *</label>
+                            <input type="text" class="form-control font-monospace" id="stockEditSku" name="product_code" required maxlength="100">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small text-muted" for="stockEditCategory">Category</label>
@@ -1135,7 +1135,7 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         const source = d.source || 'other';
 
         // Prepopulate basic info immediately from dataset
-        document.getElementById('detailSkuBadge').textContent = d.skuCode || '-';
+        document.getElementById('detailSkuBadge').textContent = d.productCode || '-';
         document.getElementById('detailVariantName').textContent = d.stockName || '-';
         document.getElementById('detailLocationText').textContent = location || '-';
         document.getElementById('detailConcernText').textContent = d.concernName || ('Concern #' + concernId);
@@ -1157,9 +1157,9 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         document.getElementById('detailValuation').textContent = '₹' + valuation;
 
         // Render QR in modal immediately from dataset
-        const initialQrCode = d.qrPayload || d.wholeCode || d.skuCode || '';
+        const initialQrCode = d.qrPayload || d.wholeCode || d.productCode || '';
         document.getElementById('detailQrTagCode').textContent = initialQrCode || '-';
-        document.getElementById('detailQrSkuCode').textContent = d.skuCode || '-';
+        document.getElementById('detailQrSkuCode').textContent = d.productCode || '-';
         document.getElementById('detailQrStyleCode').textContent = d.styleCode || '-';
         document.getElementById('detailQrWholeCode').textContent = d.wholeCode || '-';
 
@@ -1236,7 +1236,7 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                 // Update variant details
                 if (data.variant) {
                     const v = data.variant;
-                    document.getElementById('detailSkuBadge').textContent = v.sku_code || '-';
+                    document.getElementById('detailSkuBadge').textContent = v.product_code || '-';
                     document.getElementById('detailVariantName').textContent = v.name || '-';
                     document.getElementById('detailCategory').textContent = v.category_name || '-';
                     document.getElementById('detailSubcategory').textContent = v.subcategory_name || '-';
@@ -1258,9 +1258,9 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
 
                 // Update QR details from backend if available
                 if (data.qr) {
-                    const qrVal = data.qr.tag_code || data.qr.whole_code || data.qr.sku_code || '';
+                    const qrVal = data.qr.tag_code || data.qr.whole_code || data.qr.product_code || '';
                     document.getElementById('detailQrTagCode').textContent = qrVal || '-';
-                    document.getElementById('detailQrSkuCode').textContent = data.qr.sku_code || '-';
+                    document.getElementById('detailQrSkuCode').textContent = data.qr.product_code || '-';
                     document.getElementById('detailQrStyleCode').textContent = data.qr.style_code || '-';
                     document.getElementById('detailQrWholeCode').textContent = data.qr.whole_code || '-';
                     if (qrContainer && qrVal && qrVal !== initialQrCode) {
@@ -1429,8 +1429,8 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
 // Quick QR Preview Trigger & Population
 function populateQuickQr(d) {
     if (!d) return;
-    const payload = d.qrPayload || d.skuCode || '';
-    const sku = d.skuCode || '-';
+    const payload = d.qrPayload || d.productCode || '';
+    const sku = d.productCode || '-';
     const name = d.variantName || 'Product';
     const productName = d.productName || name;
     const design = d.design || 'STANDARD';
@@ -1633,7 +1633,7 @@ document.querySelectorAll('[data-stock-edit]').forEach(button => {
             document.getElementById('stockEditLocation').value = d.location || '';
             document.getElementById('stockEditLocationBadge').textContent = d.location || 'Main Store';
             document.getElementById('stockEditName').value = d.stockName || '';
-            document.getElementById('stockEditSku').value = d.skuCode || '';
+            document.getElementById('stockEditSku').value = d.productCode || '';
             
             const catId = d.categoryId || '';
             document.getElementById('stockEditCategory').value = catId;

@@ -131,7 +131,7 @@ class StockController extends Controller {
         \App\Services\StockService::consolidateLegacyLocations();
         $cid = Auth::concernId();
 
-        $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp, v.catalog_id,
+        $sql = "SELECT s.*, v.name AS variant_name, v.product_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp, v.catalog_id,
                        v.category_id, v.subcategory_id, v.is_complementary,
                        v.attributes AS variant_attributes,
                        COALESCE(c.name, 'General') AS category_name, 
@@ -146,7 +146,7 @@ class StockController extends Controller {
                           AND (
                               (pbi.concern_id = s.concern_id AND pbi.variant_id = v.id)
                               OR (v.catalog_id IS NOT NULL AND pbi.catalog_id = v.catalog_id)
-                              OR pbi.item_code = v.sku_code
+                              OR pbi.item_code = v.product_code
                               OR (cat.style_code IS NOT NULL AND pbi.item_code = cat.style_code)
                           )
                           AND (latest_purchase.ref_module IS NULL OR latest_purchase.ref_module <> 'Purchase Inward Item' OR pbi.id = latest_purchase.ref_id)
@@ -159,7 +159,7 @@ class StockController extends Controller {
                                  pbi.id DESC
                         LIMIT 1) AS purchase_item_id,
                        CASE
-                           WHEN v.sku_code LIKE 'FG-%'
+                           WHEN v.product_code LIKE 'FG-%'
                              OR cat.style_code LIKE 'FG-%'
                              OR cat.code LIKE 'FG-%'
                              OR cat.source_module = 'product_adding'
@@ -167,7 +167,7 @@ class StockController extends Controller {
                                  SELECT 1 FROM purchase_bill_items pbi_fg
                                  WHERE ((pbi_fg.concern_id = s.concern_id AND pbi_fg.variant_id = v.id)
                                         OR (v.catalog_id IS NOT NULL AND pbi_fg.catalog_id = v.catalog_id)
-                                        OR pbi_fg.item_code = v.sku_code
+                                        OR pbi_fg.item_code = v.product_code
                                         OR (cat.style_code IS NOT NULL AND pbi_fg.item_code = cat.style_code))
                                    AND pbi_fg.section_type = 'finished_goods'
                              )
@@ -187,7 +187,7 @@ class StockController extends Controller {
                                 ELSE CASE
                            WHEN EXISTS (
                                SELECT 1 FROM purchase_bill_items pbi_chk
-                               WHERE (pbi_chk.variant_id = v.id OR (v.catalog_id IS NOT NULL AND pbi_chk.catalog_id = v.catalog_id) OR pbi_chk.item_code = v.sku_code)
+                               WHERE (pbi_chk.variant_id = v.id OR (v.catalog_id IS NOT NULL AND pbi_chk.catalog_id = v.catalog_id) OR pbi_chk.item_code = v.product_code)
                            ) THEN 'purchase'
                            WHEN EXISTS (
                                SELECT 1 FROM stock_ledger sl_prod 
@@ -392,9 +392,9 @@ class StockController extends Controller {
 
             // Attempt to resolve catalog if catalog_id was missing on variant
             $catId = (int)($variant['catalog_id'] ?? ($variant['catalog_style_id'] ?? 0));
-            if (!$catId && !empty($variant['sku_code'])) {
-                $lastDash = strrpos($variant['sku_code'], '-');
-                $candidateStyleCode = $lastDash !== false ? substr($variant['sku_code'], 0, $lastDash) : $variant['sku_code'];
+            if (!$catId && !empty($variant['product_code'])) {
+                $lastDash = strrpos($variant['product_code'], '-');
+                $candidateStyleCode = $lastDash !== false ? substr($variant['product_code'], 0, $lastDash) : $variant['product_code'];
                 $matchedCat = DB::fetch(
                     "SELECT cat.*, c.name AS category_name, sub.name AS subcategory_name, ssc.name AS sub_subcategory_name
                      FROM catalogs cat
@@ -491,12 +491,12 @@ class StockController extends Controller {
             // QR Code Data
             $qrPayload = \App\Services\QrService::generateFinishedGoodsCode($variantId);
             if (!$qrPayload) {
-                $qrPayload = $variant['sku_code'];
+                $qrPayload = $variant['product_code'];
             }
             $qrData = [
                 'payload'    => $qrPayload,
                 'tag_code'   => $qrPayload,
-                'sku_code'   => $variant['sku_code'],
+                'product_code'   => $variant['product_code'],
                 'whole_code' => $variant['whole_code'] ?? '',
                 'style_code' => $variant['style_code'] ?? '',
                 'print_url'  => \App\Core\Controller::url('/m/label_generation?variant_id=' . $variantId),
@@ -704,7 +704,7 @@ class StockController extends Controller {
                     'concern_name'          => $variant['concern_name'] ?? 'Concern #' . $variant['concern_id'],
                     'concern_code'          => $variant['concern_code'] ?? '',
                     'name'                  => $variant['name'],
-                    'sku_code'              => $variant['sku_code'],
+                    'product_code'              => $variant['product_code'],
                     'catalog_id'            => $catId ?: null,
                     'style_code'            => $variant['style_code'] ?? '',
                     'whole_code'            => $variant['whole_code'] ?? '',
@@ -801,9 +801,9 @@ class StockController extends Controller {
                 throw new \InvalidArgumentException('Variant name is required and cannot exceed 190 characters.');
             }
 
-            $skuCode = trim((string)($_POST['sku_code'] ?? ''));
-            if ($skuCode === '' || strlen($skuCode) > 100) {
-                throw new \InvalidArgumentException('SKU code is required and cannot exceed 100 characters.');
+            $productCode = trim((string)($_POST['product_code'] ?? ''));
+            if ($productCode === '' || strlen($productCode) > 100) {
+                throw new \InvalidArgumentException('Product code is required and cannot exceed 100 characters.');
             }
 
             $size = trim((string)($_POST['size'] ?? ''));
@@ -876,11 +876,11 @@ class StockController extends Controller {
             }
 
             $existingSku = DB::fetch(
-                "SELECT id FROM variants WHERE concern_id = ? AND sku_code = ? AND id != ?",
-                [$concernId, $skuCode, $variantId]
+                "SELECT id FROM variants WHERE concern_id = ? AND product_code = ? AND id != ?",
+                [$concernId, $productCode, $variantId]
             );
             if ($existingSku) {
-                throw new \InvalidArgumentException("SKU code '{$skuCode}' is already used by another variant.");
+                throw new \InvalidArgumentException("Product code '{$productCode}' is already used by another variant.");
             }
 
             $currentVariant = DB::fetch(
@@ -903,11 +903,11 @@ class StockController extends Controller {
 
             DB::query(
                 "UPDATE variants
-                 SET name = ?, sku_code = ?, size = ?, weight = ?, weight_unit = ?,
+                 SET name = ?, product_code = ?, size = ?, weight = ?, weight_unit = ?,
                      cost_price = ?, price = ?, mrp = ?, category_id = ?, subcategory_id = ?, attributes = ?
                  WHERE id = ? AND concern_id = ?",
                 [
-                    $variantName, $skuCode, $size, $weight, $weightUnit,
+                    $variantName, $productCode, $size, $weight, $weightUnit,
                     $costPrice, $price, $mrp, $categoryId, $subcategoryId, json_encode($attributes),
                     $variantId, $concernId
                 ]
@@ -927,7 +927,7 @@ class StockController extends Controller {
                  WHERE concern_id = ?
                    AND (variant_id = ? OR (catalog_id IS NOT NULL AND catalog_id = ?))",
                 [
-                    $variantName, $skuCode, $hsnCode, $color, $size,
+                    $variantName, $productCode, $hsnCode, $color, $size,
                     $costPrice, $mrp, $price,
                     $concernId, $variantId, $catalogId ?: 0
                 ]
@@ -1254,7 +1254,7 @@ class StockController extends Controller {
     public function ledger(): void {
         $cid = Auth::concernId();
 
-        $sql = "SELECT sl.*, v.name AS variant_name, v.sku_code, v.weight_unit, u.name AS user_name,
+        $sql = "SELECT sl.*, v.name AS variant_name, v.product_code, v.weight_unit, u.name AS user_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM stock_ledger sl
                 JOIN variants v ON sl.variant_id = v.id
@@ -1297,7 +1297,7 @@ class StockController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp,
+        $sql = "SELECT s.*, v.name AS variant_name, v.product_code, v.size, v.weight, v.weight_unit, v.cost_price, v.price, v.mrp,
                        COALESCE(c.name, 'General') AS category_name, COALESCE(sub.name, ssc.name, '-') AS subcategory_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM stocks s
@@ -1332,7 +1332,7 @@ class StockController extends Controller {
         $stocks = DB::fetchAll($sql, $params);
 
         $headers = [
-            'SKU Code', 'Variant Name', 'Category', 'Subcategory', 'Quantity', 'Unit', 
+            'Product Code', 'Variant Name', 'Category', 'Subcategory', 'Quantity', 'Unit', 
             'Cost Price (₹)', 'Selling Price (₹)', 'Selling MRP (₹)', 'Cost Valuation (₹)', 'Concern'
         ];
 
@@ -1344,7 +1344,7 @@ class StockController extends Controller {
             $totalQty += (float)$s['qty'];
             $totalVal += $val;
             $rows[] = [
-                $s['sku_code'],
+                $s['product_code'],
                 $s['variant_name'],
                 $s['category_name'] ?? 'General',
                 $s['subcategory_name'] ?? '-',
@@ -1363,7 +1363,7 @@ class StockController extends Controller {
             'Report Title' => 'Current Live Stock Balances & Valuation',
             'Scope / Period' => $dateScope['label'],
             'Generated At' => date('d M Y, h:i A'),
-            'Total SKUs' => count($stocks),
+            'Total Products' => count($stocks),
             'Total Units' => number_format($totalQty, 2),
             'Total Cost Valuation' => '₹' . number_format($totalVal, 2)
         ];
@@ -1389,7 +1389,7 @@ class StockController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT sl.*, v.name AS variant_name, v.sku_code, v.weight_unit, u.name AS user_name,
+        $sql = "SELECT sl.*, v.name AS variant_name, v.product_code, v.weight_unit, u.name AS user_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM stock_ledger sl
                 JOIN variants v ON sl.variant_id = v.id
@@ -1429,7 +1429,7 @@ class StockController extends Controller {
             $rows[] = [
                 '#' . $l['id'],
                 date('d M Y, h:i A', strtotime($l['created_at'])),
-                $l['sku_code'],
+                $l['product_code'],
                 $qrTagCodes[$variantId],
                 $l['variant_name'],
                 $l['ref_module'] ?: 'Movement',
@@ -1444,7 +1444,7 @@ class StockController extends Controller {
         }
 
         $headers = [
-            'ID', 'Date & Time', 'SKU Code', 'Product QR / Tag Code', 'Variant Name', 'Module',
+            'ID', 'Date & Time', 'Product Code', 'Product QR / Tag Code', 'Variant Name', 'Module',
             'Qty In (+)', 'Qty Out (-)', 'Location', 'Ref ID', 'Notes', 'User', 'Concern'
         ];
 

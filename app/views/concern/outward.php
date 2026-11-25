@@ -70,8 +70,8 @@
                 <thead class="bg-light text-muted text-uppercase fw-semibold" style="font-size: 0.72rem; letter-spacing: 0.04em;">
                     <tr>
                         <th class="ps-3 py-3" style="min-width: 170px;">OUTWARD #</th>
-                        <th style="min-width: 160px;">PRODUCTION BATCH</th>
                         <th style="min-width: 160px;">PRODUCT</th>
+                        <th style="min-width: 160px;">PRODUCT CODE</th>
                         <th style="min-width: 170px;">DESTINATION WAREHOUSE</th>
                         <th style="min-width: 130px;">TOTAL PIECES</th>
                         <th style="min-width: 130px;">VEHICLE NUMBER</th>
@@ -111,28 +111,22 @@
                                     <?php endif; ?>
                                 </td>
 
-                                <!-- 2. PRODUCTION BATCH / DISPATCH TYPE -->
-                                <td>
-                                    <?php if (!empty($o['batch_no'])): ?>
-                                        <div class="fw-bold font-monospace text-dark">
-                                            <?= htmlspecialchars($o['batch_no']) ?>
-                                        </div>
-                                    <?php else: ?>
-                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                            <i class="bi bi-upc-scan me-1"></i> Finishing Good
-                                        </span>
-                                    <?php endif; ?>
-                                </td>
-
-                                <!-- 3. PRODUCT -->
+                                <!-- 2. PRODUCT -->
                                 <td>
                                     <div class="fw-semibold text-dark">
-                                        <?= htmlspecialchars($o['product_name'] ?? 'KIDS - BABY - DRESS') ?>
+                                        <?= htmlspecialchars($o['product_name'] ?? '-') ?>
                                     </div>
-                                    <?php if (!empty($o['sku_code'])): ?>
-                                        <small class="text-muted font-monospace" style="font-size: 0.72rem;">
-                                            <?= htmlspecialchars($o['sku_code']) ?>
-                                        </small>
+                                </td>
+
+                                <!-- 3. PRODUCT CODE -->
+                                <td>
+                                    <?php $displayCode = !empty($o['variant_id']) ? (string)(int)$o['variant_id'] : (string)($o['product_code'] ?? ''); ?>
+                                    <?php if ($displayCode !== ''): ?>
+                                        <span class="badge bg-light text-dark border font-monospace" style="font-size: 0.78rem;">
+                                            <?= htmlspecialchars($displayCode) ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="text-muted small">—</span>
                                     <?php endif; ?>
                                 </td>
 
@@ -344,7 +338,7 @@
                         </div>
                         <div class="input-group">
                             <span class="input-group-text bg-white text-muted"><i class="bi bi-qr-code-scan"></i></span>
-                            <input type="text" id="outwardScanInput" class="form-control font-monospace fs-6" placeholder="Scan a batch label, QC number, finished-good QR, barcode, or SKU..." autocomplete="off">
+                            <input type="text" id="outwardScanInput" class="form-control font-monospace fs-6" placeholder="Scan a batch label, QC number, finished-good QR, barcode, or Product Code..." autocomplete="off">
                             <button type="button" class="btn btn-primary px-3 fw-bold" id="outwardScanButton">
                                 <i class="bi bi-plus-lg me-1"></i> Scan / Add
                             </button>
@@ -360,8 +354,8 @@
                                     <select id="fgQuickSelect" class="form-select form-select-sm" onchange="quickAddFromSelect(this)">
                                         <option value="">-- Or Quick Select Finishing Good Product --</option>
                                         <?php foreach ($stockVariants as $sv): ?>
-                                            <option value="<?= $sv['id'] ?>" data-concern-id="<?= (int)$sv['concern_id'] ?>" data-sku="<?= htmlspecialchars($sv['sku_code']) ?>" data-name="<?= htmlspecialchars($sv['name']) ?>" data-size="<?= htmlspecialchars($sv['size'] ?? 'Free') ?>" data-stock="<?= (int)$sv['stock_qty'] ?>">
-                                                <?= htmlspecialchars($sv['name']) ?> (<?= htmlspecialchars($sv['sku_code']) ?> - <?= htmlspecialchars($sv['size']) ?>) &mdash; Available: <?= (int)$sv['stock_qty'] ?> pcs
+                                            <option value="<?= $sv['id'] ?>" data-concern-id="<?= (int)$sv['concern_id'] ?>" data-sku="<?= htmlspecialchars($sv['product_code']) ?>" data-name="<?= htmlspecialchars($sv['name']) ?>" data-size="<?= htmlspecialchars($sv['size'] ?? 'Free') ?>" data-stock="<?= (int)$sv['stock_qty'] ?>">
+                                                <?= htmlspecialchars($sv['name']) ?> (<?= htmlspecialchars($sv['product_code']) ?> - <?= htmlspecialchars($sv['size']) ?>) &mdash; Available: <?= (int)$sv['stock_qty'] ?> pcs
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -586,7 +580,7 @@ if (isPosInvoiceTransfer) {
         scannedFgMap[id] = {
             variant_id: id,
             name: item.name,
-            sku: item.sku_code || 'SKU-' + id,
+            sku: item.product_code || 'SKU-' + id,
             size: item.size || 'Free',
             stock: 0,
             qty: parseFloat(item.qty)
@@ -695,7 +689,7 @@ function processOutwardScan(scannedCode) {
     if (!input || !feedback || !batchSelect) return;
     const code = String(scannedCode || input.value || '').trim();
     if (!code) {
-        feedback.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i> Scan or enter a batch label, barcode, or SKU.</span>';
+        feedback.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i> Scan or enter a batch label, barcode, or Product Code.</span>';
         playScannerBeep('error');
         return;
     }
@@ -777,13 +771,13 @@ function playScannerBeep(type = 'success') {
 function processFinishedGoodScan(code) {
     const input = document.getElementById('outwardScanInput');
     const feedback = document.getElementById('outwardScanFeedback');
-    // Match code against variants: by SKU, ID, or partial name
+    // Match code against variants: by Product Code, ID, or partial name
     const selectedConcernId = getSelectedFgConcernId();
     const match = availableVariants.find(v =>
         parseInt(v.concern_id, 10) === selectedConcernId &&
         parseInt(v.stock_qty || 0, 10) > 0 &&
         (
-            (v.sku_code && v.sku_code.toLowerCase() === code.toLowerCase()) ||
+            (v.product_code && v.product_code.toLowerCase() === code.toLowerCase()) ||
             (v.name && v.name.toLowerCase().includes(code.toLowerCase())) ||
             code.toLowerCase().includes(String(v.id))
         )
@@ -791,7 +785,7 @@ function processFinishedGoodScan(code) {
 
     if (match) {
         if (!addScannedVariant(match)) return;
-        feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Added finished good: ${match.name} (${match.sku_code}), +1 piece.</span>`;
+        feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Added finished good: ${match.name} (${match.product_code}), +1 piece.</span>`;
         playScannerBeep('success');
         input.value = '';
         input.focus();
@@ -813,7 +807,7 @@ function quickAddFromSelect(select) {
             select.value = '';
             return;
         }
-        document.getElementById('outwardScanFeedback').innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i> Added: ${match.name} (${match.sku_code}).</span>`;
+        document.getElementById('outwardScanFeedback').innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i> Added: ${match.name} (${match.product_code}).</span>`;
         playScannerBeep('success');
     }
     select.value = '';
@@ -837,7 +831,7 @@ function addScannedVariant(v) {
             variant_id: id,
             concern_id: parseInt(v.concern_id, 10),
             name: v.name,
-            sku: v.sku_code || 'SKU-' + id,
+            sku: v.product_code || 'SKU-' + id,
             size: v.size || 'Free',
             stock: parseInt(v.stock_qty || 0),
             qty: 1
@@ -1096,27 +1090,60 @@ function openTraceabilityModal(outwardNo, id, concernId) {
                 itemsHtml = `
                     <div class="col-12 mt-2">
                         <div class="card border rounded-3 p-3 bg-white">
-                            <small class="fw-bold text-dark text-uppercase d-block mb-2">Itemized Finishing Goods Breakdown</small>
-                            <table class="table table-sm table-bordered mb-0 small">
-                                <thead class="bg-light">
-                                    <tr>
-                                        <th>Product Name</th>
-                                        <th>SKU Code</th>
-                                        <th>Size</th>
-                                        <th class="text-end">Dispatched Qty</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${data.items.map(it => `
+                            <small class="fw-bold text-dark text-uppercase d-block mb-2">Itemized Product Details</small>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered align-middle mb-0 small">
+                                    <thead class="bg-light text-uppercase" style="font-size: 0.7rem;">
                                         <tr>
-                                            <td>${it.variant_name}</td>
-                                            <td class="font-monospace">${it.sku_code}</td>
-                                            <td>${it.size}</td>
-                                            <td class="text-end fw-bold text-success">${parseInt(it.qty)} pcs</td>
+                                            <th>Product Details</th>
+                                            <th>Product Code</th>
+                                            <th>Specs &amp; Attributes</th>
+                                            <th>HSN / GST</th>
+                                            <th class="text-end">Price / MRP</th>
+                                            <th class="text-end">Dispatched Qty</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        ${data.items.map(it => {
+                                            const hierarchy = it.hierarchy_path || [it.category_name, it.subcategory_name].filter(Boolean).join(' › ');
+                                            const extraAttrs = Object.entries(it.custom_attributes || {}).map(([k, v]) => `<span class="badge bg-light text-dark border me-1">${k}: ${v}</span>`).join('');
+                                            const weightInfo = parseFloat(it.weight || 0) > 0 ? `<div class="text-muted" style="font-size:0.72rem;">Weight: ${parseFloat(it.weight)} ${it.weight_unit || 'kg'}</div>` : '';
+                                            const hsnInfo = it.hsn_code ? `<span class="font-monospace fw-semibold">${it.hsn_code}</span>` : '<span class="text-muted">—</span>';
+                                            const gstInfo = (it.gst_rate !== null && it.gst_rate !== undefined && it.gst_rate !== '') ? `<div class="text-muted" style="font-size:0.72rem;">GST ${parseFloat(it.gst_rate)}%</div>` : '';
+                                            const priceVal = parseFloat(it.price || it.unit_price || 0);
+                                            const mrpVal = parseFloat(it.mrp || 0);
+                                            const costVal = parseFloat(it.cost_price || 0);
+                                            return `
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-bold text-dark">${it.variant_name || '-'}</div>
+                                                    ${hierarchy ? `<div class="text-muted" style="font-size:0.72rem;">${hierarchy}</div>` : ''}
+                                                    ${it.style_code ? `<div class="font-monospace text-secondary" style="font-size:0.7rem;">Style: ${it.style_code}</div>` : ''}
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-light text-dark border font-monospace">${it.product_code || '-'}</span>
+                                                    ${it.variant_id ? `<div class="text-muted font-monospace mt-1" style="font-size:0.7rem;">ID: #${it.variant_id}</div>` : ''}
+                                                </td>
+                                                <td>
+                                                    <div>
+                                                        ${it.size ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">Size: ${it.size}</span>` : ''}
+                                                        ${it.color ? `<span class="badge bg-secondary-subtle text-dark border me-1">Color: ${it.color}</span>` : ''}
+                                                    </div>
+                                                    ${extraAttrs ? `<div class="mt-1">${extraAttrs}</div>` : ''}
+                                                    ${weightInfo}
+                                                </td>
+                                                <td>${hsnInfo}${gstInfo}</td>
+                                                <td class="text-end text-nowrap">
+                                                    <div class="fw-semibold text-dark">₹${priceVal.toFixed(2)}</div>
+                                                    ${mrpVal > 0 ? `<div class="text-muted" style="font-size:0.72rem;">MRP: ₹${mrpVal.toFixed(2)}</div>` : ''}
+                                                    ${costVal > 0 ? `<div class="text-muted" style="font-size:0.7rem;">Cost: ₹${costVal.toFixed(2)}</div>` : ''}
+                                                </td>
+                                                <td class="text-end fw-bold text-success text-nowrap">${parseInt(it.qty)} pcs</td>
+                                            </tr>`;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 `;

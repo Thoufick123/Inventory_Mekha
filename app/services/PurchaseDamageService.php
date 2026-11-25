@@ -199,7 +199,7 @@ class PurchaseDamageService {
 
         $purchaseItems = PurchaseStockItemOverrideService::applyToItems(DB::fetchAll(
             "SELECT pbi.*, pb.bill_no, s.name AS supplier_name,
-                    v.name AS variant_name, v.sku_code AS variant_sku,
+                    v.name AS variant_name, v.product_code AS variant_product_code,
                     COALESCE(stk.qty, 0) AS live_qty,
                     COALESCE(purchases.total_qty, 0) AS purchased_qty,
                     COALESCE(purchases.total_weight, 0) AS purchased_weight,
@@ -340,7 +340,7 @@ class PurchaseDamageService {
                 'key' => $key,
                 'item_type' => 'finished_goods',
                 'item_name' => $item['variant_name'],
-                'item_code' => $item['variant_sku'] ?: ($item['item_code'] ?: ('FG-' . $item['id'])),
+                'item_code' => $item['variant_product_code'] ?: ($item['item_code'] ?: ('FG-' . $item['id'])),
                 'tag_code' => $tag,
                 'available_qty' => $available,
                 'unit_weight' => $purchasedRemaining > 0 ? $weightRemaining / $purchasedRemaining : 0.0,

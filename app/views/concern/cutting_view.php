@@ -191,7 +191,7 @@
                                 <th class="ps-3">#</th>
                                 <th>Roll Tag / Material</th>
                                 <th>Variant / Size</th>
-                                <th>SKU Code</th>
+                                <th>Product Code</th>
                                 <th class="text-end pe-3">Cut Output (pcs)</th>
                             </tr>
                         </thead>
@@ -213,7 +213,7 @@
                                             <small class="text-muted d-block"><?= htmlspecialchars($it['variant_name'] ?? '') ?></small>
                                         </td>
                                         <td class="font-monospace text-muted small">
-                                            <?= htmlspecialchars($it['sku_code'] ?: '-') ?>
+                                            <?= htmlspecialchars($it['product_code'] ?: '-') ?>
                                         </td>
                                         <td class="text-end pe-3">
                                             <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold fs-7 px-2.5 py-1">

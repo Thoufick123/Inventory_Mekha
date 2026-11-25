@@ -179,7 +179,7 @@ foreach ($batchItems as $qcBatchItem) {
                                                     <input type="hidden" name="items[<?= $idx ?>][variant_id]" value="<?= (int)($it['variant_id'] ?? 0) ?>">
                                                     <input type="hidden" name="items[<?= $idx ?>][size]" value="<?= htmlspecialchars($it['size'] ?? '') ?>">
                                                     <input type="hidden" name="items[<?= $idx ?>][color]" value="<?= htmlspecialchars($it['color'] ?? '') ?>">
-                                                    <input type="hidden" name="items[<?= $idx ?>][sku_code]" value="<?= htmlspecialchars($it['variant_sku'] ?? ($it['sku_code'] ?? '')) ?>">
+                                                    <input type="hidden" name="items[<?= $idx ?>][product_code]" value="<?= htmlspecialchars($it['variant_product_code'] ?? ($it['product_code'] ?? '')) ?>">
                                                     <input type="hidden" name="items[<?= $idx ?>][variant_name]" value="<?= htmlspecialchars($it['variant_full_name'] ?? ($it['size'] . ' - ' . $it['color'])) ?>">
                                                     <input type="hidden" name="items[<?= $idx ?>][total_qty]" class="input-total-qty" value="<?= $q ?>">
 
@@ -190,7 +190,7 @@ foreach ($batchItems as $qcBatchItem) {
                                                         <div class="d-flex align-items-center gap-1.5 flex-wrap">
                                                             <span class="badge bg-dark text-white px-2 py-0.5" style="font-size:0.72rem;"><?= htmlspecialchars($it['size'] ?: 'Free') ?></span>
                                                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5" style="font-size:0.72rem;"><?= htmlspecialchars($it['color'] ?: 'STD') ?></span>
-                                                            <span class="badge bg-light text-secondary border font-monospace px-1.5 py-0.5" style="font-size:0.68rem;">SKU: <?= htmlspecialchars($it['variant_sku'] ?: ($it['sku_code'] ?: 'N/A')) ?></span>
+                                                            <span class="badge bg-light text-secondary border font-monospace px-1.5 py-0.5" style="font-size:0.68rem;">Product Code: <?= htmlspecialchars($it['variant_product_code'] ?: ($it['product_code'] ?: 'N/A')) ?></span>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -318,7 +318,7 @@ function renderQcVariants(batch, items) {
                 <input type="hidden" name="items[${idx}][variant_id]" value="${it.variant_id || ''}">
                 <input type="hidden" name="items[${idx}][size]" value="${escapeHtml(it.size || '')}">
                 <input type="hidden" name="items[${idx}][color]" value="${escapeHtml(it.color || '')}">
-                <input type="hidden" name="items[${idx}][sku_code]" value="${escapeHtml(it.variant_sku || it.sku_code || '')}">
+                <input type="hidden" name="items[${idx}][product_code]" value="${escapeHtml(it.variant_product_code || it.product_code || '')}">
                 <input type="hidden" name="items[${idx}][variant_name]" value="${escapeHtml(it.variant_full_name || (it.size + ' - ' + it.color))}">
                 <input type="hidden" name="items[${idx}][total_qty]" class="input-total-qty" value="${q}">
 
@@ -329,7 +329,7 @@ function renderQcVariants(batch, items) {
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <span class="badge bg-dark text-white px-2 py-0.5" style="font-size:0.72rem;">${escapeHtml(it.size || 'Free')}</span>
                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5" style="font-size:0.72rem;">${escapeHtml(it.color || 'STD')}</span>
-                        <span class="badge bg-light text-secondary border font-monospace px-1.5 py-0.5" style="font-size:0.68rem;">SKU: ${escapeHtml(it.variant_sku || it.sku_code || 'N/A')}</span>
+                        <span class="badge bg-light text-secondary border font-monospace px-1.5 py-0.5" style="font-size:0.68rem;">Product Code: ${escapeHtml(it.variant_product_code || it.product_code || 'N/A')}</span>
                     </div>
                 </div>
             </td>

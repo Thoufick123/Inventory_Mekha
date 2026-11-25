@@ -112,7 +112,7 @@ assertTest("Found #fg_item_select in HTML", !empty($selectHtml));
 
 // Verification: Mapped item MUST be present inside the dropdown
 assertTest("Mapped item option is PRESENT in #fg_item_select", str_contains($selectHtml, "value=\"{$mappedId}\""));
-assertTest("Mapped item SKU or Name is PRESENT in #fg_item_select", str_contains($selectHtml, $variant['sku_code']) || str_contains($selectHtml, $variant['name']) || str_contains($selectHtml, $mappedCode));
+assertTest("Mapped item SKU or Name is PRESENT in #fg_item_select", str_contains($selectHtml, $variant['product_code']) || str_contains($selectHtml, $variant['name']) || str_contains($selectHtml, $mappedCode));
 
 // Verification: Unmapped item MUST NOT be present inside the dropdown
 assertTest("Unmapped item option is STRICTLY ABSENT from #fg_item_select", !str_contains($selectHtml, "value=\"{$unmappedId}\""));

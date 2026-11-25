@@ -180,7 +180,7 @@ $mapJsonStr = ob_get_clean();
 $mapResult = json_decode($mapJsonStr, true);
 
 assertTest("Map variant returned success = true", ($mapResult['success'] ?? false) === true);
-assertTest("Map variant returned valid SKU code", !empty($mapResult['sku_code']));
+assertTest("Map variant returned valid SKU code", !empty($mapResult['product_code']));
 $updatedPbi = DB::fetch("SELECT variant_id FROM purchase_bill_items WHERE id = ?", [$fgItem['id']]);
 assertTest("Purchase bill item updated with variant_id = 3", (int)$updatedPbi['variant_id'] === 3);
 

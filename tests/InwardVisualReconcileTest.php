@@ -39,10 +39,10 @@ try {
         $puId = (int)DB::lastInsertId();
     }
 
-    $varId = (int)DB::fetchValue("SELECT id FROM variants WHERE name LIKE '%KIDS - BABY - DRESS%' OR sku_code = 'GRM-STY-0001-XL' LIMIT 1");
+    $varId = (int)DB::fetchValue("SELECT id FROM variants WHERE name LIKE '%KIDS - BABY - DRESS%' OR product_code = 'GRM-STY-0001-XL' LIMIT 1");
     if (!$varId) {
         $catId = (int)DB::fetchValue("SELECT id FROM categories LIMIT 1") ?: null;
-        DB::query("INSERT INTO variants (concern_id, sku_code, name, category_id, size, weight, weight_unit, price, mrp, status) VALUES (1, 'GRM-STY-0001-XL', 'KIDS - BABY - DRESS', ?, 'XL', 0.5, 'pcs', 700.00, 1000.00, 'active')", [$catId]);
+        DB::query("INSERT INTO variants (concern_id, product_code, name, category_id, size, weight, weight_unit, price, mrp, status) VALUES (1, 'GRM-STY-0001-XL', 'KIDS - BABY - DRESS', ?, 'XL', 0.5, 'pcs', 700.00, 1000.00, 'active')", [$catId]);
         $varId = (int)DB::lastInsertId();
     }
 
@@ -107,7 +107,7 @@ $variant = DB::fetch(
      WHERE oi.outward_id = ? LIMIT 1",
     [(int)$sampleOutward['id']]
 );
-assertCondition(!empty($variant), "KIDS - BABY - DRESS variant exists", $variant['sku_code'] ?? '');
+assertCondition(!empty($variant), "KIDS - BABY - DRESS variant exists", $variant['product_code'] ?? '');
 
 $matchPct = round(($creditedQty / $totalQty) * 100);
 assertCondition($matchPct === 1.0, "Verification Match percentage matches Image 2 (1%)", "{$matchPct}%");

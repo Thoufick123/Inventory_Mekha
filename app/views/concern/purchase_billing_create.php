@@ -1082,19 +1082,7 @@ if ($isEdit && !empty($existingItems)) {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">State <span class="text-danger">*</span></label>
-                            <select name="state" class="form-select" required>
-                                <option value="Tamil Nadu" selected>Tamil Nadu</option>
-                                <option value="Kerala">Kerala</option>
-                                <option value="Karnataka">Karnataka</option>
-                                <option value="Andhra Pradesh">Andhra Pradesh</option>
-                                <option value="Telangana">Telangana</option>
-                                <option value="Maharashtra">Maharashtra</option>
-                                <option value="Gujarat">Gujarat</option>
-                                <option value="Delhi">Delhi</option>
-                                <option value="Rajasthan">Rajasthan</option>
-                                <option value="West Bengal">West Bengal</option>
-                                <option value="Other">Other State</option>
-                            </select>
+                            <input type="text" name="state" class="form-control" required minlength="2" placeholder="Enter state">
                         </div>
                     </div>
                     <div class="alert alert-danger mt-3 mb-0 d-none" id="quickSupplierError" role="alert"></div>
@@ -1172,10 +1160,11 @@ if ($isEdit && !empty($existingItems)) {
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
+                <div id="quickHsnInlineError" class="alert alert-danger d-none py-2 px-3 mb-3 small" role="alert" aria-live="polite"></div>
                 <!-- HSN Code -->
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-dark">HSN Code <span class="text-danger">*</span></label>
-                    <input type="text" id="newHsnCode" class="form-control text-uppercase font-monospace" placeholder="E.G. 6206 OR 61091000" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-description-target="#newHsnDesc" data-hsn-gst-target="#newHsnGstRate" data-hsn-note-target="#newHsnRateNote" autocomplete="off" required>
+                    <input type="text" id="newHsnCode" class="form-control text-uppercase font-monospace" placeholder="E.G. 6206 OR 61091000" maxlength="8" minlength="4" inputmode="numeric" pattern="[0-9]{4}|[0-9]{6}|[0-9]{8}" title="Enter 4, 6, or 8 numeric digits" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-description-target="#newHsnDesc" data-hsn-gst-target="#newHsnGstRate" data-hsn-note-target="#newHsnRateNote" autocomplete="off" required>
                     <div class="form-text text-muted small mt-1">Harmonized System of Nomenclature code for invoices</div>
                 </div>
 
@@ -1187,12 +1176,11 @@ if ($isEdit && !empty($existingItems)) {
 
                 <!-- Default GST Rate (%) -->
                 <div class="mb-2">
-                    <label class="form-label small fw-bold text-dark">GST Rate (%) (Optional)</label>
+                    <label class="form-label small fw-bold text-dark">GST Rate (%) <span class="text-danger">*</span></label>
                     <div class="input-group">
-                        <input type="number" step="0.01" min="0" max="100" id="newHsnGstRate" class="form-control fw-semibold" placeholder="0.00">
+                        <input type="number" step="0.01" min="0" max="100" id="newHsnGstRate" class="form-control fw-semibold" placeholder="0.00" required>
                         <span class="input-group-text bg-light text-muted fw-bold">%</span>
                     </div>
-                    <div class="form-text text-muted small mt-1">Leave blank when the rate depends on item details or price.</div>
                 </div>
 
                 <div class="mb-2">
@@ -1552,6 +1540,7 @@ function saveAndSelectUnit() {
 
 function promptAddHsn(targetId, targetType = 'rolls') {
     currentHsnTarget = { type: targetType, id: targetId };
+    clearInlineHsnError();
     document.getElementById('newHsnCode').value = '';
     document.getElementById('newHsnDesc').value = '';
     document.getElementById('newHsnGstRate').value = '';
@@ -1562,11 +1551,26 @@ function promptAddHsn(targetId, targetType = 'rolls') {
 
 function promptAddVariantHsn(cardId, rowIndex) {
     currentHsnTarget = { type: 'variant', id: cardId, rowIndex };
+    clearInlineHsnError();
     document.getElementById('newHsnCode').value = '';
     document.getElementById('newHsnDesc').value = '';
     document.getElementById('newHsnGstRate').value = '';
     document.getElementById('newHsnRateNote').value = '';
     new bootstrap.Modal(document.getElementById('modalQuickHsn')).show();
+}
+
+function showInlineHsnError(message) {
+    const error = document.getElementById('quickHsnInlineError');
+    if (!error) return;
+    error.textContent = message;
+    error.classList.remove('d-none');
+}
+
+function clearInlineHsnError() {
+    const error = document.getElementById('quickHsnInlineError');
+    if (!error) return;
+    error.textContent = '';
+    error.classList.add('d-none');
 }
 
 function saveAndSelectHsn() {
@@ -1576,17 +1580,20 @@ function saveAndSelectHsn() {
     const rate = rateInput !== '' ? parseFloat(rateInput) : null;
     const rateNote = document.getElementById('newHsnRateNote').value.trim();
 
-    if (!code) {
-        alert('Please enter an HSN code.');
+    if (!/^[0-9]{4}$|^[0-9]{6}$|^[0-9]{8}$/.test(code)) {
+        showInlineHsnError('Enter a valid numeric HSN code with 4, 6, or 8 digits.');
+        document.getElementById('newHsnCode').focus();
         return;
     }
     if (rateInput !== '' && (!Number.isFinite(rate) || rate < 0 || rate > 100)) {
-        alert('Enter a valid GST rate between 0 and 100, or leave it blank.');
+        showInlineHsnError('Enter a GST percentage between 0.00 and 100.00.');
+        document.getElementById('newHsnGstRate').focus();
         return;
     }
 
     const existing = createdHsnList.find(item => item.hsn_code === code && item.code_type === 'HSN');
     if (existing) {
+        clearInlineHsnError();
         applyCreatedHsn(existing);
         return;
     }
@@ -2097,10 +2104,22 @@ function getProductAddingScopedRows(rows) {
     });
 }
 
-function getProductAddingAttributeValues(type) {
+function getProductAddingAttributeValues(type, categoryId = '', subcategoryId = '', subSubcategoryId = '') {
     const values = [];
     getProductAddingScopedRows(productAddingAttributes).forEach(attribute => {
         if (String(attribute.attribute_type || '').toLowerCase() !== type) return;
+        if (categoryId) {
+            const attributeCategoryId = String(attribute.category_id || '');
+            if (attributeCategoryId && attributeCategoryId !== String(categoryId)) return;
+        }
+        if (subcategoryId) {
+            const attributeSubcategoryId = String(attribute.subcategory_id || '');
+            if (attributeSubcategoryId && attributeSubcategoryId !== String(subcategoryId)) return;
+        }
+        if (subSubcategoryId) {
+            const attributeSubSubcategoryId = String(attribute.sub_sub_category_id || '');
+            if (attributeSubSubcategoryId && attributeSubSubcategoryId !== String(subSubcategoryId)) return;
+        }
         String(attribute.attribute_value || '').split(/[,;|]+/).forEach(value => {
             value = value.trim();
             if (value && !values.includes(value)) values.push(value);
@@ -2145,13 +2164,17 @@ function getProductAddingOtherAttributeTypes() {
     ];
     return [...new Set(getProductAddingScopedRows(productAddingAttributes)
         .map(attribute => String(attribute.attribute_type || '').toLowerCase().trim())
-        .filter(type => type && !reservedTypes.includes(type)))];
+        .filter(type => type && type !== 'size' && type !== 'color' && !reservedTypes.includes(type)))];
 }
 
 function buildProductAddingVariantAttributeCell(type, cardId, rowIndex) {
-    const values = getProductAddingAttributeValues(type);
+    const row = document.getElementById(`fgVariantRow_${cardId}_${rowIndex}`);
+    const categoryId = row?.querySelector('.fg-variant-category')?.value || '';
+    const subcategoryId = row?.querySelector('.fg-variant-subcategory')?.value || '';
+    const subSubcategoryId = row?.querySelector('.fg-variant-sub-subcategory')?.value || '';
+    const values = getProductAddingAttributeValues(type, categoryId, subcategoryId, subSubcategoryId);
     const name = `finished_goods[${cardId}][variants][${rowIndex}][${type}]`;
-    const required = type === 'size' || type === 'color';
+    const required = type !== '' && type !== 'weight';
     const label = type.charAt(0).toUpperCase() + type.slice(1);
     if (values.length === 0) {
         return `<td><div class="fg-variant-attribute-control">
@@ -2273,6 +2296,15 @@ async function saveProductAddingAttributeValue(type, rawValue, fgId, rowIndex, a
     formData.append('attribute_type', type);
     formData.append('attribute_name', attributeName || type.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase()));
     formData.append('attribute_value', value);
+    const targetRow = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
+    if (targetRow) {
+        const categoryId = targetRow.querySelector('.fg-variant-category')?.value || '';
+        const subcategoryId = targetRow.querySelector('.fg-variant-subcategory')?.value || '';
+        const subSubcategoryId = targetRow.querySelector('.fg-variant-sub-subcategory')?.value || '';
+        if (categoryId) formData.append('category_id', categoryId);
+        if (subcategoryId) formData.append('subcategory_id', subcategoryId);
+        if (subSubcategoryId) formData.append('sub_sub_category_id', subSubcategoryId);
+    }
 
     try {
         const response = await fetch(quickAttributeSaveUrl, {
@@ -2292,6 +2324,9 @@ async function saveProductAddingAttributeValue(type, rawValue, fgId, rowIndex, a
         )) {
             productAddingAttributes.push({
                 concern_id: result.concern_id,
+                category_id: result.category_id,
+                subcategory_id: result.subcategory_id,
+                sub_sub_category_id: result.sub_sub_category_id,
                 attribute_type: result.attribute_type,
                 attribute_name: result.attribute_name,
                 attribute_value: result.attribute_value
@@ -2357,8 +2392,6 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
                 <button type="button" class="btn btn-outline-primary btn-sm fg-add-sub-subcategory" title="Add sub-subcategory" aria-label="Add sub-subcategory" onclick="quickAddFinishedHierarchy('subsubcategory', ${cardId}, ${rowIndex})" disabled><i class="bi bi-plus-lg"></i></button>
             </div></td>
             <td class="text-center"><span class="badge bg-primary-subtle text-primary border font-monospace fg-variant-hierarchy-key">—</span></td>
-            ${buildProductAddingVariantAttributeCell('color', cardId, rowIndex)}
-            ${buildProductAddingVariantAttributeCell('size', cardId, rowIndex)}
             ${customCells}
             <td><input type="number" step="1" min="1" name="${prefix}[quantity]" class="form-control form-control-sm text-center fg-variant-qty" required oninput="syncFinishedTable()"></td>
             <td><input type="number" step="0.001" min="0" name="${prefix}[weight]" class="form-control form-control-sm fg-variant-weight" value="0"></td>
@@ -2381,10 +2414,14 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
 }
 
 function buildProductAddingAttributeSelectionControls(cardId) {
-    const types = ['color', 'size', ...getProductAddingOtherAttributeTypes()];
+    const types = getProductAddingOtherAttributeTypes();
+    const firstRow = document.getElementById(`fgVariantRow_${cardId}_1`);
+    const categoryId = firstRow?.querySelector('.fg-variant-category')?.value || '';
+    const subcategoryId = firstRow?.querySelector('.fg-variant-subcategory')?.value || '';
+    const subSubcategoryId = firstRow?.querySelector('.fg-variant-sub-subcategory')?.value || '';
     return `<div class="row g-2 align-items-end mb-3" id="fgVariantAttributeSelections_${cardId}">
         ${types.map(type => {
-            const values = getProductAddingAttributeValues(type);
+            const values = getProductAddingAttributeValues(type, categoryId, subcategoryId, subSubcategoryId);
             const label = type.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
             if (!values.length) {
                 return `<div class="col-md-3">
@@ -2460,7 +2497,6 @@ function refreshProductAddingAttributeSelectors() {
 function buildProductAddingFields(id) {
     if (!isProductAddingForm) return '';
     return `
-        <div class="alert alert-info py-2 px-3 mb-3 small">Style code is generated automatically. Choose multiple attribute values above the table to create variant combinations. Every row becomes a purchase line and catalog variant.</div>
         <div class="card border shadow-none rounded-3">
             <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
                 <div>
@@ -2653,6 +2689,25 @@ function addFinishedVariantRow(fgId, presetAttributes = {}) {
     return rowIndex;
 }
 
+function showInlineProductAddingMessage(fgId, message) {
+    const card = document.getElementById('finishedCard_' + fgId);
+    if (!card) return;
+    let box = card.querySelector('.fg-variant-inline-message');
+    if (!box) {
+        box = document.createElement('div');
+        box.className = 'alert alert-danger d-none py-2 px-3 mb-2 small fg-variant-inline-message';
+        box.setAttribute('role', 'alert');
+        box.setAttribute('aria-live', 'polite');
+        card.querySelector('.card-body')?.prepend(box);
+    }
+    box.textContent = message;
+    box.classList.remove('d-none');
+}
+
+function clearInlineProductAddingMessage(fgId) {
+    document.getElementById('finishedCard_' + fgId)?.querySelector('.fg-variant-inline-message')?.classList.add('d-none');
+}
+
 function generateProductAddingVariantRows(fgId) {
     const card = document.getElementById('finishedCard_' + fgId);
     const selectorContainer = document.getElementById(`fgVariantAttributeSelections_${fgId}`);
@@ -2668,17 +2723,15 @@ function generateProductAddingVariantRows(fgId) {
             return { type, values: [...new Set(values)] };
         })
         .filter(dimension => dimension.values.length);
-    const colorSelected = dimensions.some(dimension => dimension.type === 'color');
-    const sizeSelected = dimensions.some(dimension => dimension.type === 'size');
-    if (!colorSelected || !sizeSelected) {
-        alert('Select at least one Color and one Size value to generate variants.');
+    if (!dimensions.length) {
+        showInlineProductAddingMessage(fgId, 'Select at least one attribute value from the selected catalog hierarchy.');
         return;
     }
 
     let combinations = [{}];
     for (const dimension of dimensions) {
         if (combinations.length * dimension.values.length > 100) {
-            alert('This selection creates more than 100 variants. Reduce the selected values and try again.');
+            showInlineProductAddingMessage(fgId, 'This selection creates more than 100 variants. Reduce the selected values and try again.');
             return;
         }
         combinations = combinations.flatMap(combination =>
@@ -2720,7 +2773,7 @@ function generateProductAddingVariantRows(fgId) {
         return true;
     });
     if (!combinations.length) {
-        alert('All selected attribute combinations already exist in the table.');
+        showInlineProductAddingMessage(fgId, 'All selected attribute combinations already exist in the table.');
         return;
     }
     if (activeRows.length + combinations.length > 100) {
@@ -2969,6 +3022,7 @@ function onFinishedVariantCategoryChange(fgId, rowIndex) {
         }
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
+    refreshProductAddingAttributeSelectors();
 }
 
 function onFinishedVariantSubcategoryChange(fgId, rowIndex) {
@@ -2985,6 +3039,7 @@ function onFinishedVariantSubcategoryChange(fgId, rowIndex) {
         fillFinishedVariantSubSubcategories(row, subcategory.value);
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
+    refreshProductAddingAttributeSelectors();
 }
 
 function onFinishedVariantSubSubcategoryChange(fgId, rowIndex) {
@@ -2997,6 +3052,7 @@ function onFinishedVariantSubSubcategoryChange(fgId, rowIndex) {
         if ([...select.options].some(option => option.value === selectedId)) select.value = selectedId;
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
+    refreshProductAddingAttributeSelectors();
 }
 
 async function quickAddFinishedHierarchy(tier, fgId, rowIndex) {

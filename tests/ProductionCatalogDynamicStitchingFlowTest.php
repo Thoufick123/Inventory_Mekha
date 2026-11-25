@@ -82,7 +82,7 @@ $rawItems = DB::fetchAll(
             COALESCE(c.id, c_hier.id, " . ($cutting['prog_catalog_id'] ? (int)$cutting['prog_catalog_id'] : "NULL") . ") AS cat_id,
             COALESCE(c.name, c_hier.name, c_prog.name) AS cat_name,
             COALESCE(c.style_code, c_hier.style_code, c_prog.style_code) AS cat_code,
-            v.id AS var_id, v.name AS var_name, v.sku_code AS var_sku, v.size AS var_size,
+            v.id AS var_id, v.name AS var_name, v.product_code AS var_product_code, v.size AS var_size,
             v.catalog_id AS var_cat_id, v.mrp AS var_mrp, v.price AS var_sp,
             COALESCE(pr.color, pbi.color, 'Standard') AS roll_color
      FROM cutting_items ci

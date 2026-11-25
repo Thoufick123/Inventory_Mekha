@@ -509,7 +509,7 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                     <select name="target_variant_id" class="form-select" required>
                         <option value="">Select Variant to Produce</option>
                         <?php foreach ($variants as $v): ?>
-                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['sku_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?></option>
+                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['product_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -625,7 +625,7 @@ function showStyleDetails(id) {
             let varListHtml = vars.map(v => `
                 <li class="list-group-item d-flex justify-content-between align-items-center py-2">
                     <div>
-                        <strong class="font-monospace text-dark">${v.sku_code}</strong>
+                        <strong class="font-monospace text-dark">${v.product_code}</strong>
                         <div class="small text-muted">${v.name}</div>
                     </div>
                     <div class="d-flex align-items-center gap-2">

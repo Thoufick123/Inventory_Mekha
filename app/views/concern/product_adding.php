@@ -36,7 +36,7 @@
                         <select name="variant_id" class="form-select" required>
                             <?php foreach ($successVariants as $variant): ?>
                                 <option value="<?= (int)$variant['id'] ?>">
-                                    <?= htmlspecialchars($variant['sku_code'] . ' - ' . $variant['name']) ?>
+                                    <?= htmlspecialchars($variant['product_code'] . ' - ' . $variant['name']) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>

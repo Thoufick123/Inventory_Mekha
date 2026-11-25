@@ -439,7 +439,7 @@
                         <label class="form-label small text-muted">Select Variant / Finished Product</label>
                         <select name="items[0][variant_id]" class="form-select form-select-sm" required>
                             <?php foreach ($variants as $v): ?>
-                                <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['sku_code']) ?>)</option>
+                                <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['product_code']) ?>)</option>
                             <?php endforeach; ?>
                         </select>
                     </div>

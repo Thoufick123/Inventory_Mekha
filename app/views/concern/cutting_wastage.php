@@ -110,7 +110,7 @@
                     <select name="raw_variant_id" class="form-select" required>
                         <option value="">Select Fabric Variant</option>
                         <?php foreach ($rawVariants as $v): ?>
-                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['sku_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?></option>
+                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['product_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

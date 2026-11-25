@@ -176,7 +176,7 @@
                                         <td class="small text-muted font-monospace"><?= date('d M H:i', strtotime($sl['created_at'])) ?></td>
                                         <td>
                                             <div class="fw-semibold text-dark"><?= htmlspecialchars($sl['variant_name']) ?></div>
-                                            <small class="badge bg-light text-dark border"><?= htmlspecialchars($sl['sku_code']) ?></small>
+                                            <small class="badge bg-light text-dark border"><?= htmlspecialchars($sl['product_code']) ?></small>
                                         </td>
                                         <td>
                                             <span class="badge bg-light text-secondary border"><?= htmlspecialchars($sl['ref_module']) ?></span>
@@ -226,7 +226,7 @@
                                 <li class="list-group-item p-3 d-flex justify-content-between align-items-center">
                                     <div>
                                         <div class="fw-bold text-dark"><?= htmlspecialchars($ls['variant_name']) ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($ls['sku_code']) ?> &bull; <?= htmlspecialchars($ls['size'] ?: 'Standard') ?></small>
+                                        <small class="text-muted"><?= htmlspecialchars($ls['product_code']) ?> &bull; <?= htmlspecialchars($ls['size'] ?: 'Standard') ?></small>
                                     </div>
                                     <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1 fs-6">
                                         <?= number_format($ls['qty'], 2) ?> <?= htmlspecialchars($ls['weight_unit']) ?>

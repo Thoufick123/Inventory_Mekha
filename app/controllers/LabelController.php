@@ -37,7 +37,7 @@ class LabelController extends Controller {
                     `program_roll_id` INT NULL,
                     `variant_id` INT NULL,
                     `size` VARCHAR(50) NULL,
-                    `sku_code` VARCHAR(100) NULL,
+                    `product_code` VARCHAR(100) NULL,
                     `variant_name` VARCHAR(255) NULL,
                     `cut_pieces` INT NOT NULL DEFAULT 0,
                     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -56,7 +56,7 @@ class LabelController extends Controller {
                     `variant_id` INT NULL,
                     `size` VARCHAR(50) NULL,
                     `color` VARCHAR(100) NULL,
-                    `sku_code` VARCHAR(100) NULL,
+                    `product_code` VARCHAR(100) NULL,
                     `variant_name` VARCHAR(255) NULL,
                     `cut_qty` INT NOT NULL DEFAULT 0,
                     `stitching_qty` INT NOT NULL DEFAULT 0,
@@ -172,7 +172,7 @@ class LabelController extends Controller {
                          COALESCE(pbi.inward_status, pb.inward_status) AS inward_status,
                          s.name AS supplier_name, s.company_name AS supplier_company,
                          fg_concern.name AS item_concern_name,
-                         v.sku_code, v.name AS variant_name, v.size AS variant_size, v.catalog_id AS variant_catalog_id,
+                         v.product_code, v.name AS variant_name, v.size AS variant_size, v.catalog_id AS variant_catalog_id,
                          v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes,
                          v.category_id, v.subcategory_id,
                          c.name AS category_name, c.code AS category_code,
@@ -225,7 +225,7 @@ class LabelController extends Controller {
                 $variantWhere = "concern_id = ? AND {$variantWhere}";
             }
             $mappedVariants = DB::fetchAll(
-                "SELECT catalog_id, sku_code, size, attributes
+                "SELECT catalog_id, product_code, size, attributes
                  FROM variants
                  WHERE {$variantWhere}
                  ORDER BY catalog_id ASC, id ASC",
@@ -306,7 +306,7 @@ class LabelController extends Controller {
                            si.stitching_id,
                            si.variant_id,
                            si.variant_id AS produced_variant_id,
-                           si.sku_code,
+                           si.product_code,
                            si.variant_name,
                            si.size AS variant_size,
                            si.color AS variant_color,
@@ -366,7 +366,7 @@ class LabelController extends Controller {
                              sl.id AS stitching_id,
                              sl.produced_variant_id AS variant_id,
                              sl.produced_variant_id,
-                             v.sku_code, v.name AS variant_name, v.size AS variant_size,
+                             v.product_code, v.name AS variant_name, v.size AS variant_size,
                              v.price AS variant_price, v.mrp AS variant_mrp,
                              sl.inward_status,
                              sl.id AS stitching_log_id,
@@ -476,7 +476,7 @@ class LabelController extends Controller {
 
         // 4. Recent Label Jobs (Audit Trail)
         $jobSql = "SELECT lj.*, u.name AS user_name, con.name AS concern_name, con.code AS concern_code,
-                          v.name AS variant_name, v.sku_code, v.category_id, v.subcategory_id
+                          v.name AS variant_name, v.product_code, v.category_id, v.subcategory_id
                    FROM label_jobs lj
                    LEFT JOIN variants v ON lj.variant_id = v.id
                    LEFT JOIN concerns con ON lj.concern_id = con.id
@@ -551,9 +551,9 @@ class LabelController extends Controller {
 
         $this->renderJson([
             'success'      => true,
-            'message'      => "Item mapped to '{$variant['name']}' ({$variant['sku_code']}) successfully!",
+            'message'      => "Item mapped to '{$variant['name']}' ({$variant['product_code']}) successfully!",
             'variant_name' => $variant['name'],
-            'sku_code'     => $variant['sku_code'],
+            'product_code'     => $variant['product_code'],
             'variant_id'   => (int)$variant['id'],
             'variant_code' => $variantCode,
             'mrp'          => $variant['mrp'],
@@ -633,7 +633,7 @@ class LabelController extends Controller {
         $items = DB::fetchAll(
             "SELECT pbi.*, pb.bill_no, pb.bill_date, s.name AS supplier_name,
                     fg_concern.name AS item_concern_name,
-                    v.sku_code, v.name AS variant_name, v.size AS variant_size,
+                    v.product_code, v.name AS variant_name, v.size AS variant_size,
                     v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes
              FROM purchase_bill_items pbi
              JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
@@ -677,6 +677,21 @@ class LabelController extends Controller {
             $sectionType = (string)$item['section_type'];
             if ($sectionType === 'finished_goods') {
                 $variantId = (int)($item['variant_id'] ?? 0);
+                if ($variantId <= 0) {
+                    $variantId = $this->ensureProductAddingVariant($item, (int)$bill['concern_id']);
+                    if ($variantId > 0) {
+                        $refreshedVar = DB::fetch("SELECT id, product_code, name, size, price, mrp, attributes FROM variants WHERE id = ?", [$variantId]);
+                        if ($refreshedVar) {
+                            $item['variant_id'] = $variantId;
+                            $item['product_code'] = $refreshedVar['product_code'];
+                            $item['variant_name'] = $refreshedVar['name'];
+                            $item['variant_size'] = $refreshedVar['size'];
+                            $item['variant_price'] = $refreshedVar['price'];
+                            $item['variant_mrp'] = $refreshedVar['mrp'];
+                            $item['variant_attributes'] = $refreshedVar['attributes'];
+                        }
+                    }
+                }
                 $tagCode = QrService::generateFinishedGoodsCode($variantId);
                 if ($variantId <= 0 || $tagCode === null) {
                     $this->failProductAddingLabel($billId, "Map '{$item['item_name']}' to a valid catalog variant before printing labels.");
@@ -1057,7 +1072,7 @@ class LabelController extends Controller {
             $item = DB::fetch(
                 "SELECT pbi.*, pb.bill_no, pb.bill_date, s.name AS supplier_name, s.company_name AS supplier_company,
                         fg_concern.name AS item_concern_name,
-                        v.sku_code, v.name AS variant_name, v.size AS variant_size, v.price AS variant_price, v.mrp AS variant_mrp,
+                        v.product_code, v.name AS variant_name, v.size AS variant_size, v.price AS variant_price, v.mrp AS variant_mrp,
                         v.attributes AS variant_attributes, v.category_id, v.subcategory_id,
                         c.name AS category_name, sc.name AS subcategory_name, b.name AS brand_name
                  FROM purchase_bill_items pbi
@@ -1095,7 +1110,7 @@ class LabelController extends Controller {
                 $v = $varModel->findWithDetails($variantId);
                 if ($v) {
                     $item['variant_id']       = $v['id'];
-                    $item['sku_code']         = $v['sku_code'];
+                    $item['product_code']         = $v['product_code'];
                     $item['variant_name']     = $v['name'];
                     $item['variant_size']     = $v['size'];
                     $item['variant_mrp']      = $v['mrp'];
@@ -1155,7 +1170,7 @@ class LabelController extends Controller {
                     'Price'      => '₹' . number_format($mrp, 2),
                     'Bill No'    => $item['bill_no'],
                     'Supplier'   => $item['supplier_name'],
-                    'Catalog SKU'=> $item['sku_code'] ?: 'Not Mapped',
+                    'Product Code'=> $item['product_code'] ?: 'Not Mapped',
                 ] + $labelVariantAttributes
             ];
 
@@ -1168,7 +1183,7 @@ class LabelController extends Controller {
             }
             if ($mappedCatalogId > 0) {
                 $mappedVariants = DB::fetchAll(
-                    "SELECT id, sku_code, name, size, price, mrp, attributes
+                    "SELECT id, product_code, name, size, price, mrp, attributes
                      FROM variants
                      WHERE concern_id = ? AND catalog_id = ? AND status = 'active'
                      ORDER BY id ASC",
@@ -1311,7 +1326,7 @@ class LabelController extends Controller {
                             c.name AS category_name,
                             sc.name AS subcategory_name,
                             b.name AS brand_name,
-                            v.sku_code AS v_sku,
+                            v.product_code AS v_sku,
                             v.name AS v_name,
                             v.mrp AS v_mrp,
                             v.price AS v_price
@@ -1332,7 +1347,7 @@ class LabelController extends Controller {
 
                 if (empty($batchItems)) {
                     $sl = DB::fetch(
-                        "SELECT sl.*, sl.batch_no AS log_no, v.sku_code, v.name AS variant_name, v.size AS variant_size,
+                        "SELECT sl.*, sl.batch_no AS log_no, v.product_code, v.name AS variant_name, v.size AS variant_size,
                                 v.price AS variant_price, v.mrp AS variant_mrp, c.name AS category_name, sc.name AS subcategory_name,
                                 b.name AS brand_name, pp.program_no
                          FROM stitching_logs sl
@@ -1360,7 +1375,7 @@ class LabelController extends Controller {
                             'program_no'        => $sl['program_no'] ?? 'Standard Program',
                             'brand_name'        => $sl['brand_name'] ?? $concernName,
                             'category_name'     => $sl['category_name'] ?? 'Apparel',
-                            'sku_code'          => $sl['sku_code'] ?? 'SKU',
+                            'product_code'          => $sl['product_code'] ?? 'Product Code',
                             'concern_id'        => $sl['concern_id'] ?? 1
                         ]];
                     }
@@ -1389,7 +1404,7 @@ class LabelController extends Controller {
 
                 foreach ($batchItems as $bItem) {
                     $itemVariantId = !empty($bItem['variant_id']) ? (int)$bItem['variant_id'] : 0;
-                    $itemSku = $bItem['sku_code'] ?? ($bItem['v_sku'] ?? '');
+                    $itemSku = $bItem['product_code'] ?? ($bItem['v_sku'] ?? '');
                     $itemSize = $bItem['variant_size'] ?: ($bItem['size'] ?: 'Standard');
                     $itemColor = $bItem['variant_color'] ?? ($bItem['color'] ?? 'STANDARD');
                     $itemProg = $bItem['program_no'] ?: 'Standard Program';
@@ -1398,7 +1413,7 @@ class LabelController extends Controller {
                     $itemPieces = max(1, (int)($bItem['stitched_pieces'] ?: 1));
 
                     if (!$itemVariantId && !empty($itemSku)) {
-                        $existingVar = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND sku_code = ?", [$batchConcernId, $itemSku]);
+                        $existingVar = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND product_code = ?", [$batchConcernId, $itemSku]);
                         if ($existingVar) {
                             $itemVariantId = (int)$existingVar['id'];
                         } else {
@@ -1413,7 +1428,7 @@ class LabelController extends Controller {
                             }
                             $catalogId = !empty($bItem['catalog_id']) ? (int)$bItem['catalog_id'] : null;
                             DB::query(
-                                "INSERT INTO variants (concern_id, catalog_id, sku_code, name, category_id, subcategory_id, size, weight, weight_unit, price, mrp, creation_date, status)
+                                "INSERT INTO variants (concern_id, catalog_id, product_code, name, category_id, subcategory_id, size, weight, weight_unit, price, mrp, creation_date, status)
                                  VALUES (?, ?, ?, ?, ?, ?, ?, 0.4, 'pcs', ?, ?, CURDATE(), 'active')",
                                 [$batchConcernId, $catalogId, $itemSku, $bItem['variant_name'], $catId, $subcatId, $itemSize, $itemPrice, $itemMrp]
                             );
@@ -1463,7 +1478,7 @@ class LabelController extends Controller {
                         'item_code'      => $tagCode,
                         'item_id'        => (int)($bItem['stitching_item_id'] ?: 0),
                         'variant_size'   => $itemSize,
-                        'sku_code'       => $itemSku ?: $tagCode,
+                        'product_code'       => $itemSku ?: $tagCode,
                         'stock_tab'      => 'production',
                         'brand_name'     => $bItem['brand_name'] ?: $concernName,
                         'category_name'  => $bItem['category_name'] ?: 'Apparel',
@@ -1557,7 +1572,7 @@ class LabelController extends Controller {
                     "SELECT sl.*, 
                             sl.id AS stitching_log_id,
                             sl.batch_no AS log_no,
-                            v.sku_code, v.name AS variant_name, v.size AS variant_size, v.price AS variant_price, v.mrp AS variant_mrp,
+                            v.product_code, v.name AS variant_name, v.size AS variant_size, v.price AS variant_price, v.mrp AS variant_mrp,
                             v.category_id, v.subcategory_id,
                             c.name AS category_name, sc.name AS subcategory_name, b.name AS brand_name,
                             pp.program_no
@@ -1584,7 +1599,7 @@ class LabelController extends Controller {
                             'log_no'              => 'STITCH-VAR-' . $v['id'],
                             'produced_variant_id' => $v['id'],
                             'variant_id'          => $v['id'],
-                            'sku_code'            => $v['sku_code'],
+                            'product_code'            => $v['product_code'],
                             'variant_name'        => $v['name'],
                             'variant_size'        => $v['size'],
                             'variant_mrp'         => $v['mrp'],
@@ -1609,8 +1624,8 @@ class LabelController extends Controller {
             $variantId = !empty($item['variant_id']) ? (int)$item['variant_id'] : (!empty($item['produced_variant_id']) ? (int)$item['produced_variant_id'] : 0);
 
             // Auto-resolve or create variant if not yet linked
-            if (!$variantId && !empty($item['sku_code'])) {
-                $existingVar = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND sku_code = ?", [$cid, $item['sku_code']]);
+            if (!$variantId && !empty($item['product_code'])) {
+                $existingVar = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND product_code = ?", [$cid, $item['product_code']]);
                 if ($existingVar) {
                     $variantId = (int)$existingVar['id'];
                 } else {
@@ -1629,9 +1644,9 @@ class LabelController extends Controller {
                     $weight = (float)($item['per_pc_weight'] ?: 0.00);
 
                     DB::query(
-                        "INSERT INTO variants (concern_id, catalog_id, sku_code, name, category_id, subcategory_id, size, weight, weight_unit, price, mrp, creation_date, status)
+                        "INSERT INTO variants (concern_id, catalog_id, product_code, name, category_id, subcategory_id, size, weight, weight_unit, price, mrp, creation_date, status)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pcs', ?, ?, CURDATE(), 'active')",
-                        [$cid, $catalogId, $item['sku_code'], $item['variant_name'], $catId, $subcatId, $item['variant_size'] ?: 'Standard', $weight, $price, $mrp]
+                        [$cid, $catalogId, $item['product_code'], $item['variant_name'], $catId, $subcatId, $item['variant_size'] ?: 'Standard', $weight, $price, $mrp]
                     );
                     $variantId = (int)DB::lastInsertId();
                     if (!empty($item['stitching_item_id'])) {
@@ -1682,7 +1697,7 @@ class LabelController extends Controller {
                 'item_code'      => $tagCode,
                 'item_id'        => $itemId,
                 'variant_size'   => $item['variant_size'] ?: ($item['size'] ?: 'Free'),
-                'sku_code'       => $item['sku_code'] ?? $tagCode,
+                'product_code'       => $item['product_code'] ?? $tagCode,
                 'stock_tab'      => 'production',
                 'brand_name'     => $item['brand_name'] ?: $concernName,
                 'category_name'  => $item['category_name'] ?: 'Apparel',
@@ -1693,7 +1708,7 @@ class LabelController extends Controller {
                     'Color'      => $item['variant_color'] ?? ($item['color'] ?? 'STANDARD'),
                     'Design'     => $designVal,
                     'Price'      => '₹' . number_format($priceVal, 2),
-                    'SKU'        => $item['sku_code'] ?? 'SKU',
+                    'Product Code'        => $item['product_code'] ?? 'Product Code',
                     'Stitched'   => ($item['stitched_pieces'] ?? 1) . ' pcs',
                     'Assembled'  => date('d-m-Y')
                 ]
@@ -1733,7 +1748,7 @@ class LabelController extends Controller {
 
             $labelData = [
                 'concern_name'   => $concernName,
-                'ref_no'         => $v['sku_code'],
+                'ref_no'         => $v['product_code'],
                 'header_title'   => $v['name'],
                 'label_1_name'   => 'Category',
                 'label_1_val'    => $v['category_name'] ?? 'Apparel',
@@ -1762,7 +1777,7 @@ class LabelController extends Controller {
                 'extra_details'  => [
                     'Design'     => $designVal,
                     'Price'      => '₹' . number_format($priceVal, 2),
-                    'SKU'        => $v['sku_code'],
+                    'Product Code'        => $v['product_code'],
                 ]
             ];
         }
@@ -1928,7 +1943,7 @@ class LabelController extends Controller {
                         'success' => true,
                         'data'    => [
                             'name'          => $item['item_name'],
-                            'sku_code'      => $item['item_code'],
+                            'product_code'      => $item['item_code'],
                             'category_name' => ($item['section_type'] === 'rolls' ? 'Fabric Roll' : 'Trims & Accessories'),
                             'current_stock' => $item['qty'],
                             'price'         => $item['unit_price'],
@@ -1969,7 +1984,7 @@ class LabelController extends Controller {
                         'success' => true,
                         'data'    => [
                             'name'          => $pbi['item_name'],
-                            'sku_code'      => $job['item_code'],
+                            'product_code'      => $job['item_code'],
                             'category_name' => ($pbi['section_type'] === 'rolls' ? 'Fabric Roll' : 'Trims & Accessories'),
                             'current_stock' => $pbi['qty'],
                             'price'         => $pbi['unit_price'],
@@ -2030,7 +2045,7 @@ class LabelController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT lj.*, v.name AS variant_name, v.sku_code, u.name AS user_name,
+        $sql = "SELECT lj.*, v.name AS variant_name, v.product_code, u.name AS user_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM label_jobs lj
                 JOIN variants v ON lj.variant_id = v.id
@@ -2054,7 +2069,7 @@ class LabelController extends Controller {
         $jobs = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Job ID', 'Date & Time', 'SKU Code', 'Variant Name', 'Quantity', 
+            'Job ID', 'Date & Time', 'Product Code', 'Variant Name', 'Quantity', 
             'Barcode Type', 'Printed By', 'Concern'
         ];
 
@@ -2066,7 +2081,7 @@ class LabelController extends Controller {
             $rows[] = [
                 '#JOB-' . str_pad($j['id'], 4, '0', STR_PAD_LEFT),
                 date('d M Y, h:i A', strtotime($j['created_at'])),
-                $j['sku_code'],
+                $j['product_code'],
                 $j['variant_name'],
                 $qty,
                 strtoupper($j['barcode_type'] ?? 'QR CODE'),
@@ -2976,8 +2991,8 @@ class LabelController extends Controller {
                 // 1. Resolve or create variant
                 if (!$variantId) {
                     $existingVar = DB::fetch(
-                        "SELECT id FROM variants WHERE concern_id = ? AND sku_code = ?",
-                        [$itemConcernId, $item['sku_code']]
+                        "SELECT id FROM variants WHERE concern_id = ? AND product_code = ?",
+                        [$itemConcernId, $item['product_code']]
                     );
                     if ($existingVar) {
                         $variantId = (int)$existingVar['id'];
@@ -2998,12 +3013,12 @@ class LabelController extends Controller {
                         $weight = (float)($item['per_pc_weight'] ?: 0.00);
 
                         DB::query(
-                            "INSERT INTO variants (concern_id, catalog_id, sku_code, name, category_id, subcategory_id, size, weight, weight_unit, price, mrp, creation_date, status)
+                            "INSERT INTO variants (concern_id, catalog_id, product_code, name, category_id, subcategory_id, size, weight, weight_unit, price, mrp, creation_date, status)
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pcs', ?, ?, CURDATE(), 'active')",
                             [
                                 $itemConcernId,
                                 $catalogId,
-                                $item['sku_code'],
+                                $item['product_code'],
                                 $item['variant_name'],
                                 $catId,
                                 $subcatId,
@@ -3038,7 +3053,7 @@ class LabelController extends Controller {
                             0.00,
                             'Production Inward',
                             $stitchingLogId,
-                            "Stitched garment inward from Batch #{$batchNo} ({$item['sku_code']})"
+                            "Stitched garment inward from Batch #{$batchNo} ({$item['product_code']})"
                         );
                     }
                 }
@@ -3079,5 +3094,68 @@ class LabelController extends Controller {
             $this->redirect('/m/label_generation?tab=production');
             return;
         }
+    }
+
+    private function ensureProductAddingVariant(array $item, int $concernId): int
+    {
+        $itemName = trim((string)($item['item_name'] ?? 'Product'));
+        $size = trim((string)($item['specification'] ?? '')) ?: 'Free Size';
+        $color = trim((string)($item['color'] ?? '')) ?: 'Standard';
+        $hsnCode = trim((string)($item['hsn_code'] ?? ''));
+        $costPrice = (float)($item['unit_price'] ?? 0);
+        $sellingPrice = (float)($item['selling_price'] ?? 0) ?: $costPrice;
+        $mrp = (float)($item['mrp'] ?? 0) ?: $sellingPrice;
+
+        $category = null;
+        if (!empty($item['category_name'])) {
+            $category = DB::fetch(
+                "SELECT id, name FROM categories WHERE name = ? AND status = 'active' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) LIMIT 1",
+                [$item['category_name'], $concernId]
+            );
+        }
+        if (!$category) {
+            $category = DB::fetch(
+                "SELECT id, name FROM categories WHERE status = 'active' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY id ASC LIMIT 1",
+                [$concernId]
+            );
+        }
+        if (!$category) {
+            DB::query("INSERT INTO categories (concern_id, name, code, status) VALUES (?, 'General', 'GEN', 'active')", [$concernId]);
+            $categoryId = (int)DB::lastInsertId();
+            $categoryName = 'General';
+        } else {
+            $categoryId = (int)$category['id'];
+            $categoryName = (string)$category['name'];
+        }
+
+        $catalogId = !empty($item['catalog_id']) ? (int)$item['catalog_id'] : null;
+        if (!$catalogId) {
+            $stylePrefix = strtoupper(preg_replace('/[^A-Z0-9]/', '', $itemName) ?: 'PRD');
+            $styleCode = substr($stylePrefix, 0, 8) . '-' . strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+            $catCode = strtoupper(substr(preg_replace('/[^A-Z0-9]/', '', $categoryName) ?: 'GEN', 0, 2));
+            DB::query(
+                "INSERT INTO catalogs (concern_id, code, style_code, short_code, category_id, main_category_code, hierarchy_path, hsn_code, gst_rate, sizes, status, source_module, name, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 'product_adding', ?, NOW())",
+                [$concernId, $styleCode, $styleCode, $catCode, $categoryId, $catCode, $categoryName, $hsnCode ?: null, (float)($item['gst_rate'] ?? 0), json_encode([$size]), $itemName]
+            );
+            $catalogId = (int)DB::lastInsertId();
+        }
+
+        $resolved = \App\Services\VariantService::findOrCreate($concernId, [
+            'catalog_id' => $catalogId,
+            'name' => $itemName,
+            'category_id' => $categoryId,
+            'size' => $size,
+            'color' => $color,
+            'hsn_code' => $hsnCode,
+            'cost_price' => $costPrice,
+            'price' => $sellingPrice,
+            'mrp' => $mrp,
+        ]);
+        $variantId = (int)$resolved['variant_id'];
+        $productCode = (string)$resolved['product_code'];
+
+        DB::query("UPDATE purchase_bill_items SET variant_id = ?, catalog_id = ?, item_code = ? WHERE id = ?", [$variantId, $catalogId, $productCode, (int)$item['id']]);
+        return $variantId;
     }
 }

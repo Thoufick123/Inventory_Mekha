@@ -115,8 +115,8 @@
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($qc['product_name'] ?? ($qc['variant_name'] ?? 'Production Garment')) ?></div>
                                     <?php if (!empty($qc['variant_count']) && $qc['variant_count'] > 1): ?>
                                         <span class="badge bg-light text-secondary border" style="font-size:0.7rem;"><?= (int)$qc['variant_count'] ?> variants in batch</span>
-                                    <?php elseif (!empty($qc['sku_code'])): ?>
-                                        <small class="text-muted font-monospace" style="font-size: 0.72rem;"><?= htmlspecialchars($qc['sku_code']) ?></small>
+                                    <?php elseif (!empty($qc['product_code'])): ?>
+                                        <small class="text-muted font-monospace" style="font-size: 0.72rem;"><?= htmlspecialchars($qc['product_code']) ?></small>
                                     <?php endif; ?>
                                 </td>
                                 <td class="py-3 text-secondary">
@@ -218,7 +218,7 @@
                     <select name="variant_id" class="form-select form-select-sm" required>
                         <option value="">-- Select Product Variant --</option>
                         <?php foreach ($variants as $v): ?>
-                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['sku_code']) ?>)</option>
+                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['product_code']) ?>)</option>
                         <?php endforeach; ?>
                     </select>
                 </div>

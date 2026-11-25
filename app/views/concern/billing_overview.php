@@ -146,7 +146,7 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
                 <div class="row g-2">
                     <div class="col-12 col-xl-4">
                         <label for="pos_bill_search" class="visually-hidden">Search invoices</label>
-                        <input type="search" id="pos_bill_search" name="q" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>" class="form-control" placeholder="Search product, SKU, invoice, customer..." aria-label="Search POS bills">
+                        <input type="search" id="pos_bill_search" name="q" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>" class="form-control" placeholder="Search product, Product Code, invoice, customer..." aria-label="Search POS bills">
                     </div>
                     <div class="col-6 col-xl-2">
                         <label for="pos_bill_date_from" class="visually-hidden">From date</label>

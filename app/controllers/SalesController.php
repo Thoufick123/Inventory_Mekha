@@ -478,7 +478,7 @@ class SalesController extends Controller {
         self::ensureBaseTables();
         $cid = Auth::concernId();
 
-        $sql = "SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.weight_unit,
+        $sql = "SELECT b.*, v.name AS variant_name, v.product_code, v.size, v.weight_unit,
                        con.name AS concern_name, con.code AS concern_code,
                        pu.name AS production_unit_name, pu.code AS production_unit_code,
                        u.name AS approver_name
@@ -496,11 +496,11 @@ class SalesController extends Controller {
         $batches = DB::fetchAll($sql, $params);
 
         if ($cid) {
-            $variants = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
+            $variants = DB::fetchAll("SELECT id, product_code, name, size FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
             $productionUnits = DB::fetchAll("SELECT id, name, code FROM production_units WHERE concern_id = ? AND is_active = 1", [$cid]);
             $qcInspections = DB::fetchAll("SELECT id, qc_no, variant_id, passed_qty FROM qc_inspections WHERE concern_id = ? AND passed_qty > 0 ORDER BY id DESC LIMIT 50", [$cid]);
         } else {
-            $variants = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE status = 'active'");
+            $variants = DB::fetchAll("SELECT id, product_code, name, size FROM variants WHERE status = 'active'");
             $productionUnits = DB::fetchAll("SELECT id, name, code FROM production_units WHERE is_active = 1");
             $qcInspections = DB::fetchAll("SELECT id, qc_no, variant_id, passed_qty FROM qc_inspections WHERE passed_qty > 0 ORDER BY id DESC LIMIT 50");
         }
@@ -760,7 +760,7 @@ class SalesController extends Controller {
                              FROM sales_invoice_items search_sii
                              JOIN variants search_v ON search_v.id = search_sii.variant_id
                              WHERE search_sii.sales_invoice_id = si.id
-                               AND (search_v.sku_code LIKE ? OR search_v.name LIKE ?)
+                               AND (search_v.product_code LIKE ? OR search_v.name LIKE ?)
                          ))";
             $term = '%' . $search . '%';
             array_push($params, $term, $term, $term, $term, $term, $term);
@@ -867,7 +867,7 @@ class SalesController extends Controller {
 
         if ($cid) {
             $variants  = DB::fetchAll(
-                "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, COALESCE(s.qty, 0) as available_qty
+                "SELECT v.id, v.product_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, COALESCE(s.qty, 0) as available_qty
                  FROM variants v
                  LEFT JOIN stocks s ON v.id = s.variant_id AND s.concern_id = ? AND s.location = 'Main Store'
                  WHERE v.concern_id = ? AND v.status = 'active'
@@ -876,7 +876,7 @@ class SalesController extends Controller {
             );
         } else {
             $variants  = DB::fetchAll(
-                "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, COALESCE(s.qty, 0) as available_qty
+                "SELECT v.id, v.product_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, COALESCE(s.qty, 0) as available_qty
                  FROM variants v
                  LEFT JOIN (SELECT variant_id, SUM(qty) as qty FROM stocks WHERE location = 'Main Store' GROUP BY variant_id) s ON v.id = s.variant_id
                  WHERE v.status = 'active'
@@ -905,7 +905,7 @@ class SalesController extends Controller {
             );
             if ($printInvoice) {
                 $printItems = DB::fetchAll(
-                    "SELECT sii.*, v.sku_code,
+                    "SELECT sii.*, v.product_code,
                             COALESCE(NULLIF(cat.name, ''), v.name) AS item_name,
                             v.name AS variant_name, v.size, b.batch_no
                      FROM sales_invoice_items sii
@@ -971,7 +971,7 @@ class SalesController extends Controller {
             $variantId = (int)$matches[1];
         }
 
-        $sql = "SELECT v.id, v.sku_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, COALESCE(s.qty, 0) AS available_qty
+        $sql = "SELECT v.id, v.product_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, COALESCE(s.qty, 0) AS available_qty
                 FROM variants v
                 LEFT JOIN (
                     SELECT variant_id, concern_id, SUM(qty) AS qty
@@ -987,7 +987,7 @@ class SalesController extends Controller {
             $sql .= " AND v.id = ?";
             $params[] = $variantId;
         } else {
-            $sql .= " AND (v.sku_code = ? OR v.name = ? OR v.sku_code LIKE ? OR v.name LIKE ?)";
+            $sql .= " AND (v.product_code = ? OR v.name = ? OR v.product_code LIKE ? OR v.name LIKE ?)";
             $params[] = $query;
             $params[] = $query;
             $params[] = "%{$query}%";
@@ -1019,7 +1019,7 @@ class SalesController extends Controller {
             'success' => true,
             'variant' => [
                 'id'            => (int)$variant['id'],
-                'sku_code'      => $variant['sku_code'],
+                'product_code'      => $variant['product_code'],
                 'name'          => $variant['name'],
                 'size'          => $variant['size'] ?: '-',
                 'price'         => (int)$variant['is_complementary'] === 1 ? 0.0 : (float)$variant['price'],
@@ -1097,7 +1097,7 @@ class SalesController extends Controller {
 
         $batches = DB::fetchAll(
             "SELECT b.id, b.batch_no, b.batch_qty, b.variant_id, v.attributes, v.is_complementary,
-                    v.name AS product_name, v.sku_code, v.size, v.price, v.mrp,
+                    v.name AS product_name, v.product_code, v.size, v.price, v.mrp,
                     COALESCE(c.gst_rate, cat.default_gst_rate) AS gst_pct,
                     COALESCE(c.hsn_code, '') AS hsn_code,
                     COALESCE(s.qty, 0) AS available_qty,
@@ -1165,8 +1165,8 @@ class SalesController extends Controller {
         }
 
         $custMobile  = trim($_POST['customer_mobile'] ?? '');
-        $custName    = trim($_POST['customer_name'] ?? 'Walk-in Customer');
-        $custAddress = trim($_POST['customer_address'] ?? 'Counter Walk-in / Local Store');
+        $custName    = trim($_POST['customer_name'] ?? '');
+        $custAddress = trim($_POST['customer_address'] ?? '');
         $billingPartyType = $_POST['billing_party_type'] ?? 'customer';
         $companyName = $_POST['company_name'] ?? '';
         $companyAddress = $_POST['company_address'] ?? '';
@@ -1237,6 +1237,23 @@ class SalesController extends Controller {
             $this->flash('error', 'Choose whether this bill is for a customer or company.');
             $this->redirect('/m/billing/create');
             return;
+        }
+        if ($billingPartyType === 'customer') {
+            if (!preg_match('/^[6-9][0-9]{9}$/D', $custMobile)) {
+                $this->flash('error', 'Enter a valid 10-digit customer mobile number.');
+                $this->redirect('/m/billing/create');
+                return;
+            }
+            if ($custName === '' || strlen($custName) > 150) {
+                $this->flash('error', 'Enter the customer name.');
+                $this->redirect('/m/billing/create');
+                return;
+            }
+            if ($custAddress === '' || strlen($custAddress) > 255) {
+                $this->flash('error', 'Enter the customer address.');
+                $this->redirect('/m/billing/create');
+                return;
+            }
         }
         if (!is_string($invoiceDateRaw)
             || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $invoiceDateRaw)
@@ -1654,7 +1671,7 @@ class SalesController extends Controller {
             $customers = DB::fetchAll("SELECT id, name FROM customers WHERE concern_id = ? AND status = 'active'", [$cid]);
             $invoices  = DB::fetchAll("SELECT id, invoice_no FROM sales_invoices WHERE concern_id = ?", [$cid]);
             $variants  = DB::fetchAll(
-                "SELECT v.id, v.sku_code, v.name, v.size, COALESCE(s.qty, 0) AS stock_qty
+                "SELECT v.id, v.product_code, v.name, v.size, COALESCE(s.qty, 0) AS stock_qty
                  FROM variants v
                  LEFT JOIN stocks s ON v.id = s.variant_id AND s.concern_id = ?
                  WHERE v.concern_id = ? AND v.status = 'active'",
@@ -1664,14 +1681,14 @@ class SalesController extends Controller {
             $customers = DB::fetchAll("SELECT id, name FROM customers WHERE status = 'active'");
             $invoices  = DB::fetchAll("SELECT id, invoice_no FROM sales_invoices");
             $variants  = DB::fetchAll(
-                "SELECT v.id, v.sku_code, v.name, v.size, COALESCE(s.qty, 0) AS stock_qty
+                "SELECT v.id, v.product_code, v.name, v.size, COALESCE(s.qty, 0) AS stock_qty
                  FROM variants v
                  LEFT JOIN (SELECT variant_id, SUM(qty) as qty FROM stocks GROUP BY variant_id) s ON v.id = s.variant_id
                  WHERE v.status = 'active'"
             );
         }
 
-        $batchSql = "SELECT b.*, v.name AS variant_name, v.sku_code, v.size 
+        $batchSql = "SELECT b.*, v.name AS variant_name, v.product_code, v.size 
                      FROM batches b 
                      JOIN variants v ON b.variant_id = v.id 
                      WHERE b.status = 'APPROVED'";
@@ -2113,7 +2130,7 @@ class SalesController extends Controller {
 
         $items = DB::fetchAll(
             "SELECT sii.id AS invoice_item_id, sii.variant_id, sii.qty AS sold_qty, sii.unit_price, sii.scanned_codes,
-                    sii.total_price, v.sku_code, v.name AS product_name, v.size,
+                    sii.total_price, v.product_code, v.name AS product_name, v.size,
                     COALESCE(NULLIF(cat.main_category_code, ''), c.code) AS qr_category_code,
                     COALESCE(NULLIF(cat.sub_category_code, ''), sc.code) AS qr_subcategory_code,
                     COALESCE(NULLIF(cat.sub_sub_category_code, ''), ssc.code) AS qr_sub_subcategory_code,
@@ -2251,7 +2268,7 @@ class SalesController extends Controller {
 
         $items = DB::fetchAll(
             "SELECT sii.id AS invoice_item_id, sii.variant_id, sii.qty AS sold_qty, sii.unit_price, sii.scanned_codes,
-                    sii.total_price, v.sku_code, v.name AS product_name, v.size,
+                    sii.total_price, v.product_code, v.name AS product_name, v.size,
                     COALESCE(NULLIF(cat.main_category_code, ''), c.code) AS qr_category_code,
                     COALESCE(NULLIF(cat.sub_category_code, ''), sc.code) AS qr_subcategory_code,
                     COALESCE(NULLIF(cat.sub_sub_category_code, ''), ssc.code) AS qr_sub_subcategory_code,
@@ -2342,7 +2359,7 @@ class SalesController extends Controller {
 
         $outItems = DB::fetchAll(
             "SELECT prei.variant_id AS id, prei.qty, prei.unit_price AS price, prei.scanned_codes,
-                    v.name, v.sku_code, v.size
+                    v.name, v.product_code, v.size
              FROM production_return_exchange_items prei
              JOIN variants v ON v.id = prei.variant_id
              WHERE prei.return_id = ? AND prei.direction = 'OUT'
@@ -2405,7 +2422,7 @@ class SalesController extends Controller {
         $sku = trim((string)($_GET['sku'] ?? ''));
         $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
         if ($invoiceId <= 0 || $sku === '') {
-            $this->renderJson(['success' => false, 'message' => 'Scan or enter a replacement SKU.'], 400);
+            $this->renderJson(['success' => false, 'message' => 'Scan or enter a replacement Product Code.'], 400);
             return;
         }
 
@@ -2423,7 +2440,7 @@ class SalesController extends Controller {
 
         $variantId = (int)DB::fetchValue(
             "SELECT id FROM variants
-             WHERE concern_id = ? AND status = 'active' AND sku_code = ?
+             WHERE concern_id = ? AND status = 'active' AND product_code = ?
              LIMIT 1",
             [$invoiceConcernId, $sku]
         );
@@ -2432,12 +2449,12 @@ class SalesController extends Controller {
             $variantId = (int)($scannedVariant['id'] ?? 0);
         }
         if (!$variantId) {
-            $this->renderJson(['success' => false, 'message' => 'Replacement SKU or product tag was not found for this shop.'], 404);
+            $this->renderJson(['success' => false, 'message' => 'Replacement Product Code or product tag was not found for this shop.'], 404);
             return;
         }
 
         $variant = DB::fetch(
-            "SELECT v.id, v.sku_code, v.name, v.size, v.price,
+            "SELECT v.id, v.product_code, v.name, v.size, v.price,
                     COALESCE(s.qty, 0) AS available_qty
              FROM variants v
              LEFT JOIN (
@@ -2479,8 +2496,8 @@ class SalesController extends Controller {
         ReturnExchangeSchema::ensure();
         $cid = Auth::concernId();
 
-        $sql = "SELECT re.*, c.name AS customer_name, v1.name AS returned_variant_name, v1.sku_code AS returned_sku,
-                       v2.name AS exchange_variant_name, v2.sku_code AS exchange_sku,
+        $sql = "SELECT re.*, c.name AS customer_name, v1.name AS returned_variant_name, v1.product_code AS returned_product_code,
+                       v2.name AS exchange_variant_name, v2.product_code AS exchange_product_code,
                        con.name AS concern_name, con.code AS concern_code, si.invoice_no,
                        pr.id AS production_return_id, pr.status AS production_status
                 FROM returns_exchanges re
@@ -2850,7 +2867,7 @@ class SalesController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT cr.*, c.name AS customer_name, v.name AS variant_name, v.sku_code, v.price,
+        $sql = "SELECT cr.*, c.name AS customer_name, v.name AS variant_name, v.product_code, v.price,
                        con.name AS concern_name, con.code AS concern_code
                 FROM customer_requests cr
                 JOIN customers c ON cr.customer_id = c.id
@@ -2874,7 +2891,7 @@ class SalesController extends Controller {
         $requests = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Request No', 'Date', 'Customer Name', 'SKU Code', 'Variant / Style', 
+            'Request No', 'Date', 'Customer Name', 'Product Code', 'Variant / Style', 
             'Requested Qty', 'Est. Price (₹)', 'Est. Total (₹)', 'Priority', 'Status', 'Notes', 'Concern'
         ];
 
@@ -2890,7 +2907,7 @@ class SalesController extends Controller {
                 $r['request_no'],
                 date('d M Y, h:i A', strtotime($r['created_at'])),
                 $r['customer_name'],
-                $r['sku_code'],
+                $r['product_code'],
                 $r['variant_name'],
                 $qty,
                 '₹' . number_format($prc, 2),
@@ -2933,7 +2950,7 @@ class SalesController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.weight_unit,
+        $sql = "SELECT b.*, v.name AS variant_name, v.product_code, v.size, v.weight_unit,
                        con.name AS concern_name, con.code AS concern_code
                 FROM batches b
                 JOIN variants v ON b.variant_id = v.id
@@ -2956,7 +2973,7 @@ class SalesController extends Controller {
         $batches = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Batch No', 'Creation Date', 'SKU Code', 'Variant Name', 'Size', 
+            'Batch No', 'Creation Date', 'Product Code', 'Variant Name', 'Size', 
             'Batch Qty', 'Mfg Date', 'Expiry Date', 'Status', 'Concern'
         ];
 
@@ -2969,7 +2986,7 @@ class SalesController extends Controller {
             $rows[] = [
                 $b['batch_no'],
                 date('d M Y', strtotime($b['created_at'])),
-                $b['sku_code'],
+                $b['product_code'],
                 $b['variant_name'],
                 $b['size'] ?? '-',
                 $qty,
@@ -3259,8 +3276,8 @@ class SalesController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT re.*, c.name AS customer_name, v1.name AS returned_variant_name, v1.sku_code AS returned_sku,
-                       v2.name AS exchange_variant_name, v2.sku_code AS exchange_sku,
+        $sql = "SELECT re.*, c.name AS customer_name, v1.name AS returned_variant_name, v1.product_code AS returned_product_code,
+                       v2.name AS exchange_variant_name, v2.product_code AS exchange_product_code,
                        con.name AS concern_name, con.code AS concern_code
                 FROM returns_exchanges re
                 JOIN customers c ON re.customer_id = c.id
@@ -3285,8 +3302,8 @@ class SalesController extends Controller {
         $returns = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Return No', 'Date', 'Customer Name', 'Type', 'Returned SKU', 'Returned Item', 
-            'Return Qty', 'Exchange SKU', 'Exchange Item', 'Exchange Qty', 'Refund (₹)', 'Reason', 'Concern'
+            'Return No', 'Date', 'Customer Name', 'Type', 'Returned Product Code', 'Returned Item', 
+            'Return Qty', 'Exchange Product Code', 'Exchange Item', 'Exchange Qty', 'Refund (₹)', 'Reason', 'Concern'
         ];
 
         $rows = [];
@@ -3301,10 +3318,10 @@ class SalesController extends Controller {
                 date('d M Y', strtotime($r['created_at'])),
                 $r['customer_name'],
                 strtoupper($r['type']),
-                $r['returned_sku'],
+                $r['returned_product_code'],
                 $r['returned_variant_name'],
                 $rqty,
-                $r['exchange_sku'] ?: '-',
+                $r['exchange_product_code'] ?: '-',
                 $r['exchange_variant_name'] ?: '-',
                 (float)($r['exchange_qty'] ?? 0),
                 '₹' . number_format($ref, 2),

@@ -49,7 +49,7 @@
                                 <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($sl['program_no'] ?? 'Direct') ?></span></td>
                                 <td>
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($sl['produced_variant_name']) ?></div>
-                                    <small class="badge bg-light text-dark border"><?= htmlspecialchars($sl['sku_code']) ?></small>
+                                    <small class="badge bg-light text-dark border"><?= htmlspecialchars($sl['product_code']) ?></small>
                                 </td>
                                 <td><?= number_format($sl['input_pieces']) ?> Panels</td>
                                 <td><span class="fw-bold text-success fs-6"><?= number_format($sl['stitched_pieces']) ?> Pcs</span></td>
@@ -110,7 +110,7 @@
                     <select name="produced_variant_id" class="form-select" required>
                         <option value="">Select Target Garment</option>
                         <?php foreach ($variants as $v): ?>
-                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['sku_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?></option>
+                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['product_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -234,7 +234,7 @@ function openViewStitchingModal(sl) {
     if (!sl) return;
     document.getElementById('view_stitching_no').innerText = sl.log_no || '-';
     document.getElementById('view_stitching_program').innerText = sl.program_no || 'Ad-hoc Job';
-    document.getElementById('view_stitching_product').innerText = (sl.sku_code ? sl.sku_code + ' - ' : '') + (sl.variant_name || '-');
+    document.getElementById('view_stitching_product').innerText = (sl.product_code ? sl.product_code + ' - ' : '') + (sl.variant_name || '-');
     document.getElementById('view_stitching_input').innerText = (parseInt(sl.input_pieces || 0).toLocaleString()) + ' Panels';
     document.getElementById('view_stitching_stitched').innerText = (parseInt(sl.stitched_pieces || 0).toLocaleString()) + ' Pcs';
     document.getElementById('view_stitching_waste').innerText = (parseInt(sl.wastage_pieces || 0).toLocaleString()) + ' Pcs';

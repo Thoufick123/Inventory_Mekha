@@ -12,10 +12,10 @@ $checks = [
         && strpos($registryView, 'Products / SKU Codes') !== false
         && strpos($registryView, '$r[\'product_codes\']') !== false,
     'Return and exchange item details label each product SKU clearly' =>
-        substr_count($detailView, 'SKU: <?= htmlspecialchars($item[\'sku_code\']) ?>') === 2,
+        substr_count($detailView, 'SKU: <?= htmlspecialchars($item[\'product_code\']) ?>') === 2,
     'Shop return history shows SKU codes for both returned and exchanged products' =>
-        strpos($shopHistoryView, '$r[\'returned_sku\']') !== false
-        && strpos($shopHistoryView, '$r[\'exchange_sku\']') !== false,
+        strpos($shopHistoryView, '$r[\'returned_product_code\']') !== false
+        && strpos($shopHistoryView, '$r[\'exchange_product_code\']') !== false,
 ];
 
 $failed = false;

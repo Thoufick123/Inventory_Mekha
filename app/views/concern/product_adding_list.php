@@ -2,14 +2,46 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h4 class="fw-bold mb-1 text-dark">Product Adding</h4>
-            <p class="text-secondary small mb-0">Review Product Adding bills and Purchase Billing invoices that are ready for stock inward.</p>
+            <p class="text-secondary small mb-0">Review Product Adding bills, Purchase Billing invoices, and manage 3-tier hierarchies, attributes, and HSN codes.</p>
         </div>
-        <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
-            <a href="<?= $createUrl ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background:#4f46e5;">
-                <i class="bi bi-bag-plus"></i>Create Product Purchase
-            </a>
-        <?php endif; ?>
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <ul class="nav nav-pills bg-light p-1 rounded-3 border" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'purchases') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-purchases-btn" data-bs-toggle="pill" data-bs-target="#tab-purchases" type="button" role="tab">
+                        <i class="bi bi-receipt me-1"></i> Product Purchases (<?= count($bills) ?>)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'hierarchy') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-pa-hierarchy-btn" data-bs-toggle="pill" data-bs-target="#tab-pa-hierarchy" type="button" role="tab">
+                        <i class="bi bi-diagram-3 me-1"></i> 3-Tier Hierarchy &amp; Attributes
+                    </button>
+                </li>
+            </ul>
+            <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
+                <a href="<?= $createUrl ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background:#4f46e5;">
+                    <i class="bi bi-bag-plus"></i>Create Product Purchase
+                </a>
+            <?php endif; ?>
+        </div>
     </div>
+
+    <?php if (!empty($flashSuccess)): ?>
+        <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-xs d-flex align-items-center mb-3" role="alert">
+            <i class="bi bi-check-circle-fill fs-5 me-2"></i>
+            <div><?= htmlspecialchars($flashSuccess) ?></div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
+    <?php if (!empty($flashError)): ?>
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-xs d-flex align-items-center mb-3" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
+            <div><?= htmlspecialchars($flashError) ?></div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
+
+    <div class="tab-content">
+        <div class="tab-pane fade <?= (($activeTab ?? 'purchases') === 'purchases') ? 'show active' : '' ?>" id="tab-purchases" role="tabpanel">
 
     <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-5 g-3 mb-4">
         <div class="col">
@@ -175,6 +207,17 @@
                     <?php endif; ?>
                 </tbody>
             </table>
+        </div>
+    </div>
+        </div><!-- /#tab-purchases -->
+
+        <div class="tab-pane fade <?= (($activeTab ?? 'purchases') === 'hierarchy') ? 'show active' : '' ?>" id="tab-pa-hierarchy" role="tabpanel">
+            <?php
+                $hierarchyPermissionModule = 'product_adding';
+                $hierarchyReturnUrl = '/m/product_adding?tab=hierarchy';
+                $hierarchyRoutePrefix = '/m/product_adding';
+                require __DIR__ . '/partials/hierarchy_attributes_hsn.php';
+            ?>
         </div>
     </div>
 </div>

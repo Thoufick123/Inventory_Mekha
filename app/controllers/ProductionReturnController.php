@@ -30,7 +30,7 @@ class ProductionReturnController extends Controller {
         $sql = "SELECT pr.*, c.name AS customer_name, c.phone AS customer_phone,
                        con.name AS concern_name, con.code AS concern_code,
                        (SELECT COUNT(*) FROM production_return_exchange_items WHERE return_id = pr.id) AS item_count,
-                       (SELECT GROUP_CONCAT(DISTINCT CONCAT(v.name, ' [', v.sku_code, ']') ORDER BY v.name SEPARATOR ' | ')
+                       (SELECT GROUP_CONCAT(DISTINCT CONCAT(v.name, ' [', v.product_code, ']') ORDER BY v.name SEPARATOR ' | ')
                         FROM production_return_exchange_items prei
                         JOIN variants v ON v.id = prei.variant_id
                         WHERE prei.return_id = pr.id) AS product_codes,
@@ -672,7 +672,7 @@ class ProductionReturnController extends Controller {
         $cid = Auth::concernId();
 
         $customers = DB::fetchAll("SELECT id, name, phone FROM customers WHERE (concern_id = ? OR ? IS NULL) AND status = 'active' ORDER BY name ASC", [$cid, $cid]);
-        $variants = DB::fetchAll("SELECT id, sku_code, name, size, price FROM variants WHERE (concern_id = ? OR ? IS NULL) AND status = 'active' ORDER BY name ASC", [$cid, $cid]);
+        $variants = DB::fetchAll("SELECT id, product_code, name, size, price FROM variants WHERE (concern_id = ? OR ? IS NULL) AND status = 'active' ORDER BY name ASC", [$cid, $cid]);
 
         $this->render('production/returns/create', [
             'pageTitle'     => 'Create Return / Exchange RMA',
@@ -706,7 +706,7 @@ class ProductionReturnController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT sii.*, v.sku_code, v.name AS variant_name, v.size 
+            "SELECT sii.*, v.product_code, v.name AS variant_name, v.size 
              FROM sales_invoice_items sii
              JOIN variants v ON sii.variant_id = v.id
              WHERE sii.sales_invoice_id = ?",
@@ -1181,7 +1181,7 @@ class ProductionReturnController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT prei.*, v.sku_code, v.name AS variant_name, v.size 
+            "SELECT prei.*, v.product_code, v.name AS variant_name, v.size 
              FROM production_return_exchange_items prei
              JOIN variants v ON prei.variant_id = v.id
              WHERE prei.return_id = ?
@@ -1221,7 +1221,7 @@ class ProductionReturnController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT prei.*, v.sku_code, v.name AS variant_name, v.size 
+            "SELECT prei.*, v.product_code, v.name AS variant_name, v.size 
              FROM production_return_exchange_items prei
              JOIN variants v ON prei.variant_id = v.id
              WHERE prei.return_id = ?

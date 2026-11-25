@@ -44,7 +44,7 @@ class VariantController extends Controller {
         $this->validateCsrf();
         $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
 
-        $sku          = trim($_POST['sku_code'] ?? '');
+        $sku          = trim($_POST['product_code'] ?? '');
         $name         = trim($_POST['name'] ?? '');
         $categoryId   = (int)($_POST['category_id'] ?? 0);
         $subcatId     = (int)($_POST['subcategory_id'] ?? 0);
@@ -67,14 +67,14 @@ class VariantController extends Controller {
         if ($gsm)    $attributes['gsm'] = $gsm;
 
         if (empty($sku) || empty($name) || !$categoryId || !$subcatId) {
-            $this->flash('error', 'SKU, Product Name, Category and Subcategory are required.');
+            $this->flash('error', 'Product Code, Product Name, Category and Subcategory are required.');
             $this->redirect('/m/variants');
         }
 
         try {
             $varModel = new Variant();
             $varId = $varModel->insert([
-                'sku_code'       => $sku,
+                'product_code'       => $sku,
                 'name'           => $name,
                 'category_id'    => $categoryId,
                 'subcategory_id' => $subcatId,
@@ -108,7 +108,7 @@ class VariantController extends Controller {
             $this->redirect('/m/variants');
         }
 
-        $sku          = trim($_POST['sku_code'] ?? $variant['sku_code']);
+        $sku          = trim($_POST['product_code'] ?? $variant['product_code']);
         $name         = trim($_POST['name'] ?? $variant['name']);
         $categoryId   = (int)($_POST['category_id'] ?? $variant['category_id']);
         $subcatId     = (int)($_POST['subcategory_id'] ?? $variant['subcategory_id']);
@@ -130,7 +130,7 @@ class VariantController extends Controller {
 
         try {
             DB::query(
-                "UPDATE variants SET sku_code = ?, name = ?, category_id = ?, subcategory_id = ?, brand_id = ?, size = ?, weight = ?, weight_unit = ?, price = ?, mrp = ?, attributes = ?, status = ? WHERE id = ?",
+                "UPDATE variants SET product_code = ?, name = ?, category_id = ?, subcategory_id = ?, brand_id = ?, size = ?, weight = ?, weight_unit = ?, price = ?, mrp = ?, attributes = ?, status = ? WHERE id = ?",
                 [$sku, $name, $categoryId, $subcatId, $brandId, $size, $weight, $weightUnit, $price, $mrp, !empty($attributes) ? json_encode($attributes) : null, $status, $id]
             );
             $this->flash('success', "Variant '{$name}' ({$sku}) updated successfully.");
@@ -157,7 +157,7 @@ class VariantController extends Controller {
             DB::query("DELETE FROM stocks WHERE variant_id = ?", [$id]);
             DB::query("DELETE FROM variants WHERE id = ?", [$id]);
             DB::commit();
-            $this->flash('success', "Variant '{$variant['name']}' ({$variant['sku_code']}) deleted successfully.");
+            $this->flash('success', "Variant '{$variant['name']}' ({$variant['product_code']}) deleted successfully.");
         } catch (Exception $e) {
             DB::rollBack();
             DB::query("UPDATE variants SET status = 'inactive' WHERE id = ?", [$id]);
@@ -202,14 +202,14 @@ class VariantController extends Controller {
         $variants = DB::fetchAll($sql, $params);
 
         $headers = [
-            'SKU Code', 'Variant Name', 'Brand', 'Category', 'Subcategory', 
+            'Product Code', 'Variant Name', 'Brand', 'Category', 'Subcategory', 
             'Size', 'Weight / Unit', 'Cost Price (₹)', 'Selling MRP (₹)', 'Status', 'Concern'
         ];
 
         $rows = [];
         foreach ($variants as $v) {
             $rows[] = [
-                $v['sku_code'],
+                $v['product_code'],
                 $v['name'],
                 $v['brand_name'] ?: '-',
                 $v['category_name'] ?: 'General',
@@ -225,7 +225,7 @@ class VariantController extends Controller {
 
         $totals = ['Total Variants: ' . count($variants), '', '', '', '', '', '', '', '', '', ''];
         $metadata = [
-            'Report Title' => 'Product Variant & Master SKU Catalog Directory',
+            'Report Title' => 'Product Variant & Master Product Catalog Directory',
             'Scope / Period' => $dateScope['label'],
             'Generated At' => date('d M Y, h:i A'),
             'Total Variants' => count($variants)

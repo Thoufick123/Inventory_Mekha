@@ -95,7 +95,7 @@ abstract class Controller {
                     `stitching_item_id` INT NULL,
                     `size` VARCHAR(50) NULL,
                     `color` VARCHAR(50) NULL,
-                    `sku_code` VARCHAR(100) NULL,
+                    `product_code` VARCHAR(100) NULL,
                     `variant_name` VARCHAR(255) NULL,
                     `inspected_qty` INT NOT NULL DEFAULT 0,
                     `passed_qty` INT NOT NULL DEFAULT 0,

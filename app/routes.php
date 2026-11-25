@@ -79,6 +79,12 @@ $router->post('/m/product_adding/save_roll_spec', [PurchaseController::class, 's
 $router->post('/m/product_adding/suppliers/store', [PurchaseController::class, 'storeSupplierAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/categories/store', [ProductAddingController::class, 'storeHierarchyAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/attributes/store', [ProductAddingController::class, 'storeAttributeAjax'], 'product_adding', 'add');
+$router->post('/m/product_adding/quick-category', [CatalogMappingController::class, 'quickCreateCategory'], 'product_adding', 'add');
+$router->post('/m/product_adding/quick-attribute', [CatalogMappingController::class, 'quickCreateAttribute'], 'product_adding', 'add');
+$router->post('/m/product_adding/delete-hierarchy', [CatalogMappingController::class, 'deleteHierarchy'], 'product_adding', 'delete');
+$router->post('/m/product_adding/create-hsn', [CatalogMappingController::class, 'createHsn'], 'product_adding', 'add');
+$router->post('/m/product_adding/update-hsn', [CatalogMappingController::class, 'updateHsn'], 'product_adding', 'edit');
+$router->post('/m/product_adding/delete-hsn', [CatalogMappingController::class, 'deleteHsn'], 'product_adding', 'delete');
 $router->get('/api/product-adding/subcategories', [ProductAddingController::class, 'subcategories'], 'product_adding', 'view');
 $router->get('/api/product-adding/sub-subcategories', [ProductAddingController::class, 'subSubcategories'], 'product_adding', 'view');
 

@@ -99,11 +99,11 @@ class ProductAddingController extends Controller
         }
         if ($cid) {
             $suppliers = DB::fetchAll("SELECT id, code, name, company_name, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
-            $variants = DB::fetchAll("SELECT id, sku_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
+            $variants = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
         } else {
             $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
-            $variants = DB::fetchAll("SELECT id, concern_id, sku_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
+            $variants = DB::fetchAll("SELECT id, concern_id, product_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
             $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
         }
 
@@ -126,8 +126,8 @@ class ProductAddingController extends Controller
         );
         $productAttributes = DB::fetchAll(
             $cid
-                ? "SELECT concern_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order"
-                : "SELECT concern_id, attribute_type, attribute_value FROM product_attributes ORDER BY attribute_type, sort_order",
+                ? "SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order"
+                : "SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes ORDER BY attribute_type, sort_order",
             $cid ? [$cid] : []
         );
         $this->render('concern/purchase_billing_create', [
@@ -227,6 +227,40 @@ class ProductAddingController extends Controller
         $billSql .= ' ORDER BY pb.id DESC';
         $bills = DB::fetchAll($billSql, $billParams);
 
+        // Fetch 3-Tier Hierarchy, Attributes & HSN Master for Product Adding
+        if ($cid) {
+            $categories = DB::fetchAll('SELECT * FROM categories WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY name ASC', [$cid]);
+            $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id WHERE s.concern_id = ? OR s.concern_id = 1 OR s.concern_id IS NULL ORDER BY s.name ASC', [$cid]);
+            $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id WHERE ss.concern_id = ? OR ss.concern_id = 1 OR ss.concern_id IS NULL ORDER BY ss.name ASC', [$cid]);
+            $attributes = DB::fetchAll('SELECT * FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type ASC, sort_order ASC', [$cid]);
+        } else {
+            $categories = DB::fetchAll('SELECT * FROM categories ORDER BY name ASC');
+            $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id ORDER BY s.name ASC');
+            $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id ORDER BY ss.name ASC');
+            $attributes = DB::fetchAll('SELECT * FROM product_attributes ORDER BY attribute_type ASC, sort_order ASC');
+        }
+
+        $hsnSql = "SELECT hm.id, hm.concern_id, hm.code_type, hm.hsn_code, hm.description, hm.category, hm.gst_rate, hm.rate_note, hm.is_active,
+                          COALESCE(con.name, 'Global') AS concern_name
+                   FROM hsn_masters hm
+                   LEFT JOIN concerns con ON con.id = hm.concern_id
+                   WHERE hm.is_active = 1";
+        $hsnParams = [];
+        if ($cid) {
+            $hsnSql .= ' AND (hm.concern_id = ? OR hm.concern_id IS NULL)';
+            $hsnParams[] = $cid;
+        }
+        $hsnSql .= ' ORDER BY hm.hsn_code ASC, hm.concern_id IS NULL DESC, hm.concern_id ASC';
+        $hsnCodes = DB::fetchAll($hsnSql, $hsnParams);
+
+        $hsnCategories = array_values(array_filter(array_unique(array_column($hsnCodes, 'category'))));
+        sort($hsnCategories);
+
+        $attributeTypes = array_values(array_unique(array_filter(array_column($attributes, 'attribute_type'))));
+        sort($attributeTypes);
+
+        $activeTab = $_GET['tab'] ?? 'purchases';
+
         $this->render('concern/product_adding_list', [
             'pageTitle' => 'Product Adding',
             'currentModule' => 'product_adding',
@@ -234,6 +268,15 @@ class ProductAddingController extends Controller
             'summary' => $summary,
             'bills' => $bills,
             'createUrl' => \App\Core\Controller::url('/m/product_adding/create'),
+            'activeTab' => $activeTab,
+            'categories' => $categories,
+            'subcategories' => $subcategories,
+            'subSubcategories' => $subSubcategories,
+            'attributes' => $attributes,
+            'attributeTypes' => $attributeTypes,
+            'hsnCodes' => $hsnCodes,
+            'hsnCategories' => $hsnCategories,
+            'allConcerns' => Auth::isSuperAdmin() ? Auth::allConcerns() : [],
         ]);
     }
 
@@ -411,6 +454,9 @@ class ProductAddingController extends Controller
         $type = strtolower(trim((string)($_POST['attribute_type'] ?? '')));
         $attributeName = trim((string)($_POST['attribute_name'] ?? ''));
         $value = trim((string)($_POST['attribute_value'] ?? ''));
+        $categoryId = max(0, (int)($_POST['category_id'] ?? 0));
+        $subcategoryId = max(0, (int)($_POST['subcategory_id'] ?? 0));
+        $subSubcategoryId = max(0, (int)($_POST['sub_sub_category_id'] ?? 0));
 
         $respond = static function (bool $success, array $data = [], int $status = 200): void {
             http_response_code($status);
@@ -451,13 +497,19 @@ class ProductAddingController extends Controller
                  WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
                    AND LOWER(TRIM(attribute_type)) = LOWER(TRIM(?))
                    AND LOWER(TRIM(attribute_value)) = LOWER(TRIM(?))
+                   AND (category_id IS NULL OR category_id = ?)
+                   AND (subcategory_id IS NULL OR subcategory_id = ?)
+                   AND (sub_sub_category_id IS NULL OR sub_sub_category_id = ?)
                  LIMIT 1",
-                [$concernId, $type, $value]
+                [$concernId, $type, $value, $categoryId ?: null, $subcategoryId ?: null, $subSubcategoryId ?: null]
             );
             if ($existing) {
                 $respond(true, [
                     'id' => (int)$existing['id'],
                     'concern_id' => $concernId,
+                    'category_id' => $categoryId ?: null,
+                    'subcategory_id' => $subcategoryId ?: null,
+                    'sub_sub_category_id' => $subSubcategoryId ?: null,
                     'attribute_type' => $type,
                     'attribute_name' => (string)$existing['attribute_name'],
                     'attribute_value' => (string)$existing['attribute_value'],
@@ -471,13 +523,19 @@ class ProductAddingController extends Controller
                 [$concernId, $type]
             );
             DB::query(
-                'INSERT INTO product_attributes (concern_id, attribute_type, attribute_name, attribute_value, sort_order)
-                 VALUES (?, ?, ?, ?, ?)',
-                [$concernId, $type, $attributeName, $value, $sortOrder]
+                'INSERT INTO product_attributes (
+                    concern_id, category_id, subcategory_id, sub_sub_category_id,
+                    attribute_type, attribute_name, attribute_value, sort_order
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [$concernId, $categoryId ?: null, $subcategoryId ?: null, $subSubcategoryId ?: null,
+                 $type, $attributeName, $value, $sortOrder]
             );
             $respond(true, [
                 'id' => (int)DB::lastInsertId(),
                 'concern_id' => $concernId,
+                'category_id' => $categoryId ?: null,
+                'subcategory_id' => $subcategoryId ?: null,
+                'sub_sub_category_id' => $subSubcategoryId ?: null,
                 'attribute_type' => $type,
                 'attribute_name' => $attributeName,
                 'attribute_value' => $value,
@@ -574,7 +632,7 @@ class ProductAddingController extends Controller
 
                 $sku = $baseSku;
                 $sequence = 1;
-                while (DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND sku_code = ?", [$cid, $sku])) {
+                while (DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND product_code = ?", [$cid, $sku])) {
                     $sequence++;
                     $sku = $baseSku . '-' . $sequence;
                 }
@@ -585,7 +643,7 @@ class ProductAddingController extends Controller
                     'allocated_qty' => $qty,
                 ];
                 DB::query(
-                    "INSERT INTO variants (concern_id, catalog_id, sku_code, name, category_id, subcategory_id, brand_id, size, weight, weight_unit, attributes, cost_price, price, mrp, is_complementary, creation_date, status, created_at)
+                    "INSERT INTO variants (concern_id, catalog_id, product_code, name, category_id, subcategory_id, brand_id, size, weight, weight_unit, attributes, cost_price, price, mrp, is_complementary, creation_date, status, created_at)
                      VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 0, 'pcs', ?, ?, ?, ?, 0, CURDATE(), 'active', NOW())",
                     [$cid, $catalogId, $sku, $styleName . ' - ' . $size . ($color !== '' ? ' - ' . $color : ''), $categoryId, $subcategoryId, $size, json_encode($attributes), $costPrice, $sellingPrice, $mrp]
                 );
@@ -676,6 +734,9 @@ class ProductAddingController extends Controller
             DB::query("CREATE TABLE IF NOT EXISTS product_attributes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 concern_id INT NOT NULL,
+                category_id INT NULL,
+                subcategory_id INT NULL,
+                sub_sub_category_id INT NULL,
                 attribute_type VARCHAR(50) NOT NULL DEFAULT 'size',
                 attribute_name VARCHAR(100) NOT NULL,
                 attribute_value VARCHAR(100) NOT NULL,
@@ -683,6 +744,16 @@ class ProductAddingController extends Controller
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_pattr_concern (concern_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            $attributeColumns = array_column(DB::fetchAll('DESCRIBE `product_attributes`'), 'Field');
+            if (!in_array('category_id', $attributeColumns, true)) {
+                DB::query('ALTER TABLE `product_attributes` ADD COLUMN `category_id` INT NULL AFTER `concern_id`');
+            }
+            if (!in_array('subcategory_id', $attributeColumns, true)) {
+                DB::query('ALTER TABLE `product_attributes` ADD COLUMN `subcategory_id` INT NULL AFTER `category_id`');
+            }
+            if (!in_array('sub_sub_category_id', $attributeColumns, true)) {
+                DB::query('ALTER TABLE `product_attributes` ADD COLUMN `sub_sub_category_id` INT NULL AFTER `subcategory_id`');
+            }
         } catch (\Throwable $e) {
             error_log('Product Adding schema check error: ' . $e->getMessage());
         }

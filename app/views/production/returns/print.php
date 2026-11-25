@@ -57,7 +57,7 @@
             <?php foreach ($items as $item): ?>
                 <tr>
                     <td><strong><?= $item['direction'] === 'IN' ? 'RETURN' : 'EXCHANGE' ?></strong></td>
-                    <td><?= htmlspecialchars($item['variant_name']) ?> (<?= htmlspecialchars($item['sku_code']) ?>)</td>
+                    <td><?= htmlspecialchars($item['variant_name']) ?> (<?= htmlspecialchars($item['product_code']) ?>)</td>
                     <td><?= htmlspecialchars($item['restock_action'] ?: 'Delivered') ?></td>
                     <td class="text-center"><?= number_format((float)$item['qty'], 2) ?></td>
                     <td class="text-end"><?= number_format((float)$item['unit_price'], 2) ?></td>

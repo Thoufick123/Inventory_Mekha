@@ -30,7 +30,7 @@ $catId = (int)DB::fetchValue("SELECT id FROM categories LIMIT 1");
 $subId = (int)DB::fetchValue("SELECT id FROM subcategories LIMIT 1");
 
 DB::query(
-    "INSERT INTO variants (concern_id, sku_code, name, category_id, subcategory_id, size, weight_unit, price, mrp, status, creation_date, created_at)
+    "INSERT INTO variants (concern_id, product_code, name, category_id, subcategory_id, size, weight_unit, price, mrp, status, creation_date, created_at)
      VALUES (?, ?, 'Inter-Unit Test T-Shirt', ?, ?, 'L', 'pcs', 450.00, 599.00, 'active', CURDATE(), NOW())",
     [$sourceCid, $sku, $catId, $subId]
 );
@@ -75,17 +75,17 @@ echo "3. Verified tenant isolation: Outward destination is locked to Concern #{$
 
 // 4. Inward into Destination Concern
 // Check destination variant before inward
-$destVarBefore = DB::fetch("SELECT * FROM variants WHERE concern_id = ? AND sku_code = ?", [$destCid, $sku]);
+$destVarBefore = DB::fetch("SELECT * FROM variants WHERE concern_id = ? AND product_code = ?", [$destCid, $sku]);
 echo "4. Destination Concern variant before inward: " . ($destVarBefore ? "Found (ID #{$destVarBefore['id']})" : "Not yet existing (will be maintained dynamically)") . "\n";
 
 // Simulate InwardController::store logic for transfer
-$existingDestVar = DB::fetch("SELECT * FROM variants WHERE concern_id = ? AND sku_code = ?", [$destCid, $sku]);
+$existingDestVar = DB::fetch("SELECT * FROM variants WHERE concern_id = ? AND product_code = ?", [$destCid, $sku]);
 if ($existingDestVar) {
     $destVariantId = (int)$existingDestVar['id'];
 } else {
     // Copy variant strictly into Destination Concern
     DB::query(
-        "INSERT INTO variants (concern_id, catalog_id, sku_code, name, category_id, subcategory_id, brand_id, size, weight, weight_unit, attributes, price, mrp, creation_date, status, created_at)
+        "INSERT INTO variants (concern_id, catalog_id, product_code, name, category_id, subcategory_id, brand_id, size, weight, weight_unit, attributes, price, mrp, creation_date, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'active', NOW())",
         [
             $destCid,

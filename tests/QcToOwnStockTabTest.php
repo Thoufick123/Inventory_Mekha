@@ -39,7 +39,7 @@ $csrfToken = 'test-token';
 $stocks = [
     [
         'stock_source' => 'own',
-        'sku_code' => 'COT-B-MI-Free Size',
+        'product_code' => 'COT-B-MI-Free Size',
         'variant_name' => 'cotton (brown) - Free Size',
         'variant_attributes' => json_encode(['color' => 'brown', 'size' => 'Free Size']),
         'size' => 'Free Size',
@@ -57,7 +57,7 @@ $stocks = [
     ],
     [
         'stock_source' => 'own',
-        'sku_code' => 'COT-B-MI-XXL',
+        'product_code' => 'COT-B-MI-XXL',
         'variant_name' => 'cotton (brown) - XXL',
         'variant_attributes' => json_encode(['color' => 'brown', 'size' => 'XXL']),
         'size' => 'XXL',

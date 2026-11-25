@@ -21,16 +21,16 @@ $checks = [
     'POS and A4 invoices show catalog product names and variant product codes' =>
         strpos($salesController, "COALESCE(NULLIF(cat.name, ''), v.name) AS item_name") !== false
         && strpos($salesController, 'LEFT JOIN catalogs cat ON cat.id = v.catalog_id') !== false
-        && strpos($billingView, '<small class="d-block">Code: <?= htmlspecialchars($it[\'sku_code\'] ?: \'-\') ?></small>') !== false
+        && strpos($billingView, '<small class="d-block">Code: <?= htmlspecialchars($it[\'product_code\'] ?: \'-\') ?></small>') !== false
         && strpos($billingView, '<th>Product Code</th>') !== false
-        && strpos($billingView, "htmlspecialchars(\$it['sku_code'] ?: '-')") !== false,
+        && strpos($billingView, "htmlspecialchars(\$it['product_code'] ?: '-')") !== false,
     'POS success modal sends the invoice to the Outward workflow' =>
         strpos($billingView, 'Move to Outward') !== false
         && strpos($billingView, 'pos_invoice_id=\' . (int)$printInvoice[\'id\']') !== false,
     'Outward opens with concern-scoped invoice items prefilled' =>
         strpos($outwardController, 'WHERE si.id = ?') !== false
         && strpos($outwardController, 'AND si.concern_id = ?') !== false
-        && strpos($outwardController, 'GROUP BY sii.variant_id, v.sku_code, v.name, v.size') !== false
+        && strpos($outwardController, 'GROUP BY sii.variant_id, v.product_code, v.name, v.size') !== false
         && strpos($outwardView, 'initialPosInvoiceItems') !== false
         && strpos($outwardView, 'openNewDispatchModal()') !== false,
     'Invoice handoff is one-time and does not deduct POS stock twice' =>

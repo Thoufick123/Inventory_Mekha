@@ -62,7 +62,7 @@ $csrfToken = 'test-token-qr';
 $stocks = [
     [
         'stock_source' => 'own',
-        'sku_code' => 'COT-B-MI-Free Size',
+        'product_code' => 'COT-B-MI-Free Size',
         'variant_name' => 'cotton (brown) - Free Size',
         'variant_attributes' => json_encode(['color' => 'brown', 'hsn' => '6109']),
         'size' => 'Free Size',
@@ -107,7 +107,7 @@ $checks['Rendered row has data-qr-payload and data-style-code'] =
     && strpos($html, 'data-hsn="6109"') !== false;
 
 $checks['Rendered table contains interactive QR button in row'] =
-    preg_match('/<button[^>]*class="[^"]*stock-qr-trigger[^"]*"[^>]*data-sku-code="COT-B-MI-Free Size"/', $html) === 1;
+    preg_match('/<button[^>]*class="[^"]*stock-qr-trigger[^"]*"[^>]*data-product-code="COT-B-MI-Free Size"/', $html) === 1;
 
 $checks['Rendered modal contains Product QR Code section'] =
     strpos($html, 'Product QR Code & Identification') !== false;

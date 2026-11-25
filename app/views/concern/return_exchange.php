@@ -81,13 +81,13 @@
                                 <td class="fw-bold text-dark"><?= htmlspecialchars($r['customer_name']) ?></td>
                                 <td>
                                     <div class="fw-semibold"><?= htmlspecialchars($r['returned_variant_name']) ?></div>
-                                    <small class="badge bg-light text-dark border font-monospace">SKU: <?= htmlspecialchars($r['returned_sku']) ?></small>
+                                    <small class="badge bg-light text-dark border font-monospace">Product Code: <?= htmlspecialchars($r['returned_product_code']) ?></small>
                                 </td>
                                 <td><span class="text-success fw-bold fs-6">+<?= number_format($r['returned_qty'], 2) ?></span></td>
                                 <td>
                                     <?php if ($r['type'] === 'exchange' && $r['exchange_variant_name']): ?>
                                         <div class="text-dark small fw-semibold"><?= htmlspecialchars($r['exchange_variant_name']) ?></div>
-                                        <small class="badge bg-light text-dark border font-monospace">SKU: <?= htmlspecialchars($r['exchange_sku'] ?: '-') ?></small>
+                                        <small class="badge bg-light text-dark border font-monospace">Product Code: <?= htmlspecialchars($r['exchange_product_code'] ?: '-') ?></small>
                                         <small class="text-danger fw-bold">-<?= number_format($r['exchange_qty'], 2) ?></small>
                                     <?php else: ?>
                                         <span class="text-muted small">None (Pure Return)</span>
@@ -355,7 +355,7 @@
                         <strong class="text-dark" id="view_return_variant">-</strong>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between">
-                        <span class="text-muted"><i class="bi bi-upc text-primary me-2"></i>Returned SKU:</span>
+                        <span class="text-muted"><i class="bi bi-upc text-primary me-2"></i>Returned Product Code:</span>
                         <span class="badge bg-light text-dark border font-monospace" id="view_return_sku">-</span>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between" id="view_exchange_row" style="display: none;">
@@ -484,21 +484,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         invoiceItemsBody.innerHTML = invoiceItems.map(function(item, index) {
             const pieceTag = item.tag_code ? String(item.tag_code) : '';
-            const itemCode = pieceTag ? 'Piece Tag: ' + pieceTag : String(item.sku_code || '');
+            const itemCode = pieceTag ? 'Piece Tag: ' + pieceTag : String(item.product_code || '');
             const invoiceScannedCodes = Array.isArray(item.invoice_scanned_codes) ? item.invoice_scanned_codes : [];
             const returnScannedCodes = Array.isArray(item.return_scanned_codes) ? item.return_scanned_codes : [];
             const returnCondition = item.return_condition || 'Good (Restock)';
             const label = escapeHtml(itemCode) + ' · ' + escapeHtml(item.product_name) +
                 (item.size ? ' · Size: ' + escapeHtml(item.size) : '');
-            return '<tr data-invoice-line="' + index + '" data-sku="' + escapeHtml(item.sku_code) + '" data-tag-code="' + escapeHtml(item.tag_code) + '">' +
-                '<td><strong class="d-block">' + label + '</strong><small class="text-muted d-block">SKU: ' + escapeHtml(item.sku_code) + '</small>' +
+            return '<tr data-invoice-line="' + index + '" data-sku="' + escapeHtml(item.product_code) + '" data-tag-code="' + escapeHtml(item.tag_code) + '">' +
+                '<td><strong class="d-block">' + label + '</strong><small class="text-muted d-block">Product Code: ' + escapeHtml(item.product_code) + '</small>' +
                     (invoiceScannedCodes.length ? '<small class="text-muted d-block">Invoice scanned: ' + escapeHtml(invoiceScannedCodes.join(', ')) + '</small>' : '') +
                     '<small class="text-primary d-block shop-return-scanned-code ' + (returnScannedCodes.length ? '' : 'd-none') + '">' +
                         (returnScannedCodes.length ? 'Return scanned: ' + escapeHtml(returnScannedCodes.join(', ')) : '') +
                     '</small></td>' +
                 '<td class="text-center">' + Number(item.sold_qty) + '</td>' +
-                '<td class="text-center"><input type="number" class="form-control form-control-sm text-center shop-return-qty" min="0" max="' + Number(item.sold_qty) + '" step="1" value="' + Number(item.return_qty || 0) + '" aria-label="Return quantity for ' + escapeHtml(item.sku_code) + '"></td>' +
-                '<td><select class="form-select form-select-sm shop-return-condition" aria-label="Condition for ' + escapeHtml(item.sku_code) + '">' +
+                '<td class="text-center"><input type="number" class="form-control form-control-sm text-center shop-return-qty" min="0" max="' + Number(item.sold_qty) + '" step="1" value="' + Number(item.return_qty || 0) + '" aria-label="Return quantity for ' + escapeHtml(item.product_code) + '"></td>' +
+                '<td><select class="form-select form-select-sm shop-return-condition" aria-label="Condition for ' + escapeHtml(item.product_code) + '">' +
                     '<option value="Good (Restock)" ' + (returnCondition === 'Good (Restock)' ? 'selected' : '') + '>Good (Restock)</option>' +
                     '<option value="Damaged (Do Not Restock)" ' + (returnCondition === 'Damaged (Do Not Restock)' ? 'selected' : '') + '>Damaged (Do Not Restock)</option>' +
                 '</select></td>' +
@@ -517,13 +517,13 @@ document.addEventListener('DOMContentLoaded', function() {
         replacementItemsBody.innerHTML = replacementItems.map(function(item, index) {
             const scannedCodes = Array.isArray(item.scanned_codes) ? item.scanned_codes : [];
             return '<tr data-replacement-index="' + index + '">' +
-                '<td><strong class="d-block">' + escapeHtml(item.name) + '</strong><small class="text-muted font-monospace d-block">' + escapeHtml(item.sku_code) + '</small>' +
+                '<td><strong class="d-block">' + escapeHtml(item.name) + '</strong><small class="text-muted font-monospace d-block">' + escapeHtml(item.product_code) + '</small>' +
                     (scannedCodes.length ? '<small class="text-primary font-monospace d-block">Scanned: ' + escapeHtml(scannedCodes.join(', ')) + '</small>' : '') + '</td>' +
                 '<td class="text-center">' + Number(item.available_qty) + '</td>' +
-                '<td class="text-center"><input type="number" class="form-control form-control-sm text-center shop-replacement-qty" min="0" max="' + Number(item.available_qty) + '" step="1" value="' + Number(item.qty) + '" aria-label="Replacement quantity for ' + escapeHtml(item.sku_code) + '"></td>' +
+                '<td class="text-center"><input type="number" class="form-control form-control-sm text-center shop-replacement-qty" min="0" max="' + Number(item.available_qty) + '" step="1" value="' + Number(item.qty) + '" aria-label="Replacement quantity for ' + escapeHtml(item.product_code) + '"></td>' +
                 '<td class="text-end font-monospace">' + formatMoney(item.price) + '</td>' +
                 '<td class="text-end fw-bold font-monospace">' + formatMoney(Number(item.price) * Number(item.qty)) + '</td>' +
-                '<td><button type="button" class="btn btn-sm btn-link text-danger p-0 shop-remove-replacement" aria-label="Remove ' + escapeHtml(item.sku_code) + '"><i class="bi bi-x-circle"></i></button></td>' +
+                '<td><button type="button" class="btn btn-sm btn-link text-danger p-0 shop-remove-replacement" aria-label="Remove ' + escapeHtml(item.product_code) + '"><i class="bi bi-x-circle"></i></button></td>' +
             '</tr>';
         }).join('');
     }
@@ -694,7 +694,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 replacementItems.push({
                     id: Number(variant.id),
-                    sku_code: variant.sku_code,
+                    product_code: variant.product_code,
                     name: variant.name,
                     size: variant.size,
                     price: Number(variant.price),
@@ -745,7 +745,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!scanCode) return;
         const matchingIndexes = [];
         invoiceItems.forEach(function(item, index) {
-            const codes = [item.sku_code, item.tag_code, item.variant_id].concat(
+            const codes = [item.product_code, item.tag_code, item.variant_id].concat(
                 Array.isArray(item.invoice_scanned_codes) ? item.invoice_scanned_codes : []
             );
             if (codes.some(function(code) { return String(code || '').trim().toUpperCase() === scanCode; })) {
@@ -872,7 +872,7 @@ function openViewReturnModal(r) {
     document.getElementById('view_return_no').innerText = r.return_no || '';
     document.getElementById('view_return_customer').innerText = r.customer_name || '-';
     document.getElementById('view_return_variant').innerText = r.returned_variant_name || '-';
-    document.getElementById('view_return_sku').innerText = r.returned_sku || '-';
+    document.getElementById('view_return_sku').innerText = r.returned_product_code || '-';
     document.getElementById('view_return_qty').innerText = '+' + parseFloat(r.returned_qty || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
     document.getElementById('view_return_date').innerText = r.return_date ? r.return_date.substring(0, 10) : '-';
     document.getElementById('view_return_reason').innerText = r.reason || 'None specified';

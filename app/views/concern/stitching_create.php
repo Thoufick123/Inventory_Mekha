@@ -441,7 +441,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <input type="hidden" name="items[${idx}][variant_id]" value="${it.variant_id || ''}">
                     <input type="hidden" name="items[${idx}][size]" value="${escapeHtml(it.size || '')}">
                     <input type="hidden" name="items[${idx}][color]" value="${escapeHtml(it.color || '')}">
-                    <input type="hidden" name="items[${idx}][sku_code]" value="${escapeHtml(it.sku_code || '')}">
+                    <input type="hidden" name="items[${idx}][product_code]" value="${escapeHtml(it.product_code || '')}">
                     <input type="hidden" name="items[${idx}][variant_name]" value="${escapeHtml(it.variant_name || '')}">
                     <input type="hidden" name="items[${idx}][cut_qty]" class="input-cut-qty" value="${it.cut_qty || 0}">
 
@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             ${escapeHtml(it.variant_name || (it.size + ' - ' + it.color))}
                         </div>
                         <div class="text-muted font-monospace" style="font-size: 0.75rem;">
-                            SKU: ${escapeHtml(it.sku_code || 'N/A')}
+                            Product Code: ${escapeHtml(it.product_code || 'N/A')}
                         </div>
                     </div>
                 </td>

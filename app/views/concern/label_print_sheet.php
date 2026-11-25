@@ -214,7 +214,7 @@ $designVal   = $labelData['design'] ?? ($labelData['label_3_val'] ?? ($labelData
 $variantAttributes = $labelData['variant_attributes'] ?? [];
 $variantAttributes = is_array($variantAttributes) ? $variantAttributes : [];
 $priceVal    = (float)($labelData['price'] ?? ($labelData['price_mrp'] ?? 0));
-$tagCode     = $labelData['tag_code'] ?? ($labelData['item_code'] ?? 'SKU');
+$tagCode     = $labelData['tag_code'] ?? ($labelData['item_code'] ?? 'Product Code');
 $qrText      = $qrCodeText ?? ($labelData['qr_payload'] ?? $tagCode);
 $badge       = $labelData['section_badge'] ?? 'STANDARD';
 $viewOnly    = !empty($viewOnly);
@@ -251,6 +251,7 @@ if ($isFinishedGoods && !empty($labelData['variant_id'])) {
     $tagCode = $finishedGoodsCode($labelData);
     $qrText = $tagCode;
 }
+$displaySingleProductCode = !empty($labelData['variant_id']) ? (string)(int)$labelData['variant_id'] : $tagCode;
 $isProduction = ($labelType === 'production') 
     || (($labelData['section_title'] ?? '') === 'PRODUCTION FINISHED GARMENT')
     || (($labelData['stock_tab'] ?? '') === 'production');
@@ -263,7 +264,7 @@ if (!empty($multiLabels)) {
     foreach ($multiLabels as $_lbl) {
         $sz = $_lbl['variant_size'] ?? '—';
         if (!isset($variantSummary[$sz])) {
-            $variantSummary[$sz] = ['sku' => $_lbl['sku_code'] ?? '', 'count' => 0];
+            $variantSummary[$sz] = ['sku' => $_lbl['product_code'] ?? '', 'count' => 0];
         }
         $variantSummary[$sz]['count']++;
     }
@@ -354,10 +355,11 @@ if (!empty($multiLabels)) {
             $pVal      = (float)($lbl['price'] ?? ($lbl['price_mrp'] ?? 0));
             $tCode     = $isLabelFinishedGoods && !empty($lbl['variant_id'])
                 ? $finishedGoodsCode($lbl)
-                : ($lbl['tag_code'] ?? ($lbl['item_code'] ?? 'SKU'));
+                : ($lbl['tag_code'] ?? ($lbl['item_code'] ?? 'Product Code'));
             $iQr       = $isLabelFinishedGoods && !empty($lbl['variant_id'])
                 ? $tCode
                 : ($lbl['qr_payload'] ?? $tCode);
+            $displayCode = !empty($lbl['variant_id']) ? (string)(int)$lbl['variant_id'] : $tCode;
             $vSize     = !empty($lbl['variant_size'])
                 ? $lbl['variant_size']
                 : ($isPurchaseFinishedGoodsLabel
@@ -372,10 +374,6 @@ if (!empty($multiLabels)) {
                     <div class="d-flex align-items-center">
                         <span class="concern-check-icon"><i class="bi bi-check-lg"></i></span>
                         <span class="concern-name-text"><?= htmlspecialchars($cName) ?></span>
-                    </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <span class="size-pill-badge"><?= strtoupper(htmlspecialchars($vSize)) ?></span>
-                        <span class="ref-pill-badge"><?= htmlspecialchars($rNo) ?></span>
                     </div>
                 </div>
                 <div class="label-divider"></div>
@@ -406,7 +404,7 @@ if (!empty($multiLabels)) {
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label">Product Code:</span>
-                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tCode) ?></span>
+                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displayCode) ?></span>
                             </div>
                         <?php elseif ($isProduction): ?>
                             <!-- PRODUCTION: Clean layout without Program or Color, Size instead of Design -->
@@ -420,7 +418,7 @@ if (!empty($multiLabels)) {
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label">Product Code:</span>
-                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tCode) ?></span>
+                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displayCode) ?></span>
                             </div>
                         <?php else: ?>
                             <div class="label-detail-row">
@@ -449,7 +447,7 @@ if (!empty($multiLabels)) {
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label"><?= $isLabelFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
-                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tCode) ?></span>
+                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displayCode) ?></span>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -469,17 +467,11 @@ if (!empty($multiLabels)) {
         ?>
         <?php for ($i = 0; $i < $qty; $i++): ?>
             <div class="label-sticker<?= $isPurchaseFinishedGoods ? ' finished-goods-label' : '' ?>">
-                <!-- Top Header: Concern Name Dynamically & Reference Badge (Image 2 Reference) -->
+                <!-- Top Header: Concern Name Dynamically -->
                 <div class="label-header-bar">
                     <div class="d-flex align-items-center">
                         <span class="concern-check-icon"><i class="bi bi-check-lg"></i></span>
                         <span class="concern-name-text"><?= htmlspecialchars($concernName) ?></span>
-                    </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <?php if ($isProduction || $isPurchaseFinishedGoods): ?>
-                            <span class="size-pill-badge"><?= strtoupper(htmlspecialchars($sSize)) ?></span>
-                        <?php endif; ?>
-                        <span class="ref-pill-badge"><?= htmlspecialchars($refNo) ?></span>
                     </div>
                 </div>
 
@@ -515,7 +507,7 @@ if (!empty($multiLabels)) {
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label">Product Code:</span>
-                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tagCode) ?></span>
+                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displaySingleProductCode) ?></span>
                             </div>
                         <?php elseif ($isProduction): ?>
                             <?php if (!empty($labelData['category_name'])): ?>
@@ -540,7 +532,7 @@ if (!empty($multiLabels)) {
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label">Product Code:</span>
-                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tagCode) ?></span>
+                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displaySingleProductCode) ?></span>
                             </div>
                         <?php else: ?>
                             <div class="label-detail-row">
@@ -569,7 +561,7 @@ if (!empty($multiLabels)) {
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label"><?= $isFinishedGoods ? 'Product Code:' : 'Code:' ?></span>
-                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($tagCode) ?></span>
+                                <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displaySingleProductCode) ?></span>
                             </div>
                         <?php endif; ?>
                     </div>

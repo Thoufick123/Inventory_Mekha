@@ -360,7 +360,7 @@ $fabricCostPerPiece = (float)($batch['fabric_cost_per_piece'] ?? ($totalCutPiece
                                                 <thead class="table-light">
                                                     <tr>
                                                         <th class="ps-3">Variant / Size</th>
-                                                        <th>SKU Code</th>
+                                                        <th>Product Code</th>
                                                         <th class="text-end pe-3">Cut Output</th>
                                                     </tr>
                                                 </thead>
@@ -376,7 +376,7 @@ $fabricCostPerPiece = (float)($batch['fabric_cost_per_piece'] ?? ($totalCutPiece
                                                     <?php else: ?>
                                                         <?php foreach ($variants as $vIdx => $v): 
                                                             $sizeName = htmlspecialchars($v['size'] ?? 'Standard');
-                                                            $sku = htmlspecialchars($v['sku_code'] ?? '');
+                                                            $sku = htmlspecialchars($v['product_code'] ?? '');
                                                             $varName = htmlspecialchars($v['name'] ?? ($roll['fabric_name'] . ' - ' . $sizeName));
                                                             $cutPcs = (int)($v['cut_pieces'] ?? 0);
                                                         ?>
@@ -386,7 +386,7 @@ $fabricCostPerPiece = (float)($batch['fabric_cost_per_piece'] ?? ($totalCutPiece
                                                                     <small class="text-muted font-monospace" style="font-size: 0.72rem;"><?= $sku ?></small>
                                                                     <input type="hidden" name="rolls[<?= $roll['id'] ?>][variants][<?= $vIdx ?>][variant_id]" value="<?= htmlspecialchars((string)($v['id'] ?? '')) ?>">
                                                                     <input type="hidden" name="rolls[<?= $roll['id'] ?>][variants][<?= $vIdx ?>][size]" value="<?= $sizeName ?>">
-                                                                    <input type="hidden" name="rolls[<?= $roll['id'] ?>][variants][<?= $vIdx ?>][sku_code]" value="<?= $sku ?>">
+                                                                    <input type="hidden" name="rolls[<?= $roll['id'] ?>][variants][<?= $vIdx ?>][product_code]" value="<?= $sku ?>">
                                                                     <input type="hidden" name="rolls[<?= $roll['id'] ?>][variants][<?= $vIdx ?>][variant_name]" value="<?= $varName ?>">
                                                                 </td>
                                                                 <td class="align-middle text-muted small font-monospace">

@@ -180,8 +180,8 @@
 <template id="variantOptionsTemplate">
     <option value="">-- Choose Variant Style --</option>
     <?php foreach ($variants as $v): ?>
-        <option value="<?= $v['id'] ?>" data-price="<?= $v['price'] ?>" data-sku="<?= htmlspecialchars($v['sku_code']) ?>">
-            <?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['sku_code']) ?> - <?= htmlspecialchars($v['size'] ?? 'Standard') ?>) - ₹<?= number_format((float)$v['price'], 2) ?>
+        <option value="<?= $v['id'] ?>" data-price="<?= $v['price'] ?>" data-sku="<?= htmlspecialchars($v['product_code']) ?>">
+            <?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['product_code']) ?> - <?= htmlspecialchars($v['size'] ?? 'Standard') ?>) - ₹<?= number_format((float)$v['price'], 2) ?>
         </option>
     <?php endforeach; ?>
 </template>

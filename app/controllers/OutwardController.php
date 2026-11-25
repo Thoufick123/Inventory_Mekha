@@ -116,7 +116,7 @@ class OutwardController extends Controller {
                     `variant_id` INT NOT NULL,
                     `size` VARCHAR(50) NULL,
                     `color` VARCHAR(50) NULL,
-                    `sku_code` VARCHAR(100) NULL,
+                    `product_code` VARCHAR(100) NULL,
                     `qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
                     `unit_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
                     `taxable_value` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -196,11 +196,11 @@ class OutwardController extends Controller {
             }
 
             $posInvoiceItems = DB::fetchAll(
-                "SELECT sii.variant_id, SUM(sii.qty) AS qty, v.sku_code, v.name, v.size
+                "SELECT sii.variant_id, SUM(sii.qty) AS qty, v.product_code, v.name, v.size
                  FROM sales_invoice_items sii
                  JOIN variants v ON v.id = sii.variant_id
                  WHERE sii.sales_invoice_id = ?
-                 GROUP BY sii.variant_id, v.sku_code, v.name, v.size
+                 GROUP BY sii.variant_id, v.product_code, v.name, v.size
                  ORDER BY sii.variant_id",
                 [$posInvoiceId]
             );
@@ -225,7 +225,8 @@ class OutwardController extends Controller {
                        b.batch_no,
                        b.id AS linked_batch_id,
                        COALESCE(v.name, p.program_name, 'KIDS - BABY - DRESS') AS product_name,
-                       v.sku_code, v.size,
+                       v.id AS variant_id,
+                       COALESCE(NULLIF(v.product_code, ''), CAST(v.id AS CHAR)) AS product_code, v.size,
                        p.program_no,
                        pu.name AS production_unit_name, pu.code AS production_unit_code,
                        COALESCE(o.vehicle_number, 'rtt31232') AS display_vehicle,
@@ -284,7 +285,7 @@ class OutwardController extends Controller {
         $availableBatches = DB::fetchAll("
             SELECT b.*,
                    COALESCE(v.name, p.program_name, 'Finished Production Batch') AS product_name,
-                   v.sku_code, v.size, p.program_no, qi.qc_no,
+                   v.product_code, v.size, p.program_no, qi.qc_no,
                    COALESCE((
                        SELECT SUM(LEAST(batch_line.qty, COALESCE((
                            SELECT SUM(s.qty)
@@ -416,7 +417,7 @@ class OutwardController extends Controller {
 
         // Outward dispatch consumes Main Store stock for the variant's concern.
         $stockVariants = DB::fetchAll("
-            SELECT v.id, v.concern_id, v.sku_code, v.name, v.size, v.price, v.mrp,
+            SELECT v.id, v.concern_id, v.product_code, v.name, v.size, v.price, v.mrp,
                    COALESCE((
                        SELECT SUM(s.qty)
                        FROM stocks s
@@ -1348,7 +1349,7 @@ class OutwardController extends Controller {
                    COALESCE((SELECT SUM(qty) FROM outward_items oi WHERE oi.outward_id = o.id), pob.pieces_count, 490) AS pieces_count,
                    b.batch_no,
                    COALESCE(v.name, 'KIDS - BABY - DRESS') AS product_name,
-                   v.sku_code, v.size,
+                   v.product_code, v.size,
                    pu.name AS production_unit_name, pu.location AS production_unit_location
             FROM outwards o
             LEFT JOIN concerns con ON o.concern_id = con.id
@@ -1375,18 +1376,54 @@ class OutwardController extends Controller {
         $destinationLabel = $out['dest_concern_name'] ?: ($out['customer_name'] ?: ($out['warehouse_name'] ?: 'wareouse (WH-01)'));
 
         $itemsList = DB::fetchAll("
-            SELECT oi.qty, v.name AS variant_name, v.sku_code, v.size
+            SELECT oi.variant_id, oi.qty,
+                   v.name AS variant_name, COALESCE(NULLIF(v.product_code, ''), CAST(v.id AS CHAR)) AS product_code,
+                   v.size, v.weight, v.weight_unit,
+                   v.cost_price, v.price, v.mrp, v.attributes, v.creation_date,
+                   cat.name AS category_name, sub.name AS subcategory_name, ssc.name AS sub_subcategory_name,
+                   c.style_code, c.hsn_code, c.gst_rate, c.hierarchy_path
             FROM outward_items oi
             JOIN variants v ON oi.variant_id = v.id
+            LEFT JOIN catalogs c ON c.id = v.catalog_id
+            LEFT JOIN categories cat ON cat.id = v.category_id
+            LEFT JOIN subcategories sub ON sub.id = v.subcategory_id
+            LEFT JOIN sub_subcategories ssc ON ssc.id = COALESCE(v.sub_sub_category_id, c.sub_sub_category_id)
             WHERE oi.outward_id = ?
         ", [$out['id']]);
+
+        foreach ($itemsList as &$it) {
+            $attrs = json_decode((string)($it['attributes'] ?? ''), true);
+            $attrs = is_array($attrs) ? $attrs : [];
+            $it['size'] = trim((string)($it['size'] ?? ''));
+            $it['color'] = trim((string)($attrs['color'] ?? ''));
+            $it['hsn_code'] = trim((string)($it['hsn_code'] ?? '')) ?: trim((string)($attrs['hsn'] ?? ''));
+            if (empty($it['hierarchy_path'])) {
+                $it['hierarchy_path'] = implode(' > ', array_filter([
+                    $it['category_name'] ?? '',
+                    $it['subcategory_name'] ?? '',
+                    $it['sub_subcategory_name'] ?? '',
+                ]));
+            }
+            $custom = $attrs['custom_attributes'] ?? [];
+            if (!is_array($custom)) {
+                $custom = [];
+            }
+            foreach ($attrs as $k => $val) {
+                if (!in_array((string)$k, ['size', 'color', 'hsn', 'weight', 'custom_attributes'], true) && is_scalar($val) && trim((string)$val) !== '') {
+                    $custom[(string)$k] = trim((string)$val);
+                }
+            }
+            $it['custom_attributes'] = $custom;
+            unset($it['attributes']);
+        }
+        unset($it);
 
         echo json_encode([
             'success'            => true,
             'outward_no'         => $out['outward_no'],
             'batch_no'           => $out['batch_no'] ?: 'Finishing Good Outward',
             'product_name'       => $out['product_name'],
-            'sku_code'           => $out['sku_code'] ?? 'GRM-STY-0001-XL',
+            'product_code'           => $out['product_code'] ?? 'GRM-STY-0001-XL',
             'size'               => $out['size'] ?? 'XL',
             'pieces_count'       => (int)$out['pieces_count'],
             'cartons_count'      => (int)$out['cartons_count'],

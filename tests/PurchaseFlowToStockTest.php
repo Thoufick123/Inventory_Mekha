@@ -187,7 +187,7 @@ $fgVariants = [];
 foreach (['S' => 2, 'M' => 2, 'L' => 6] as $size => $allocatedQty) {
     DB::query(
         "INSERT INTO variants (
-            concern_id, catalog_id, sku_code, name, size, attributes, price, mrp, creation_date, status, created_at
+            concern_id, catalog_id, product_code, name, size, attributes, price, mrp, creation_date, status, created_at
         ) VALUES (1, ?, ?, ?, ?, ?, 450.00, 799.00, CURDATE(), 'active', NOW())",
         [
             $fgCatalogId,

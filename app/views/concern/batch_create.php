@@ -215,7 +215,7 @@ foreach ($variantItems as $vi) {
                                 <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
                                     <thead class="table-light text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.05em;">
                                         <tr>
-                                            <th style="width: 28%;">VARIANT & SKU</th>
+                                            <th style="width: 28%;">VARIANT & PRODUCT CODE</th>
                                             <th style="width: 27%;">QC PASSED STOCK</th>
                                             <th style="width: 15%;" class="text-end">UNIT RATE</th>
                                             <th style="width: 15%;" class="text-end">QTY TO PACK *</th>
@@ -233,7 +233,7 @@ foreach ($variantItems as $vi) {
                                                     <div class="fw-bold text-dark fs-6">
                                                         <?= htmlspecialchars($vItem['size'] ?? 'Standard') ?> / <?= htmlspecialchars($vItem['color'] ?? 'Standard') ?>
                                                     </div>
-                                                    <div class="small text-muted font-monospace"><?= htmlspecialchars($vItem['sku_code'] ?? '') ?></div>
+                                                    <div class="small text-muted font-monospace"><?= htmlspecialchars($vItem['product_code'] ?? '') ?></div>
                                                     <div class="small text-secondary" style="font-size:0.75rem;"><?= htmlspecialchars($vItem['name'] ?? '') ?></div>
                                                 </td>
                                                 <td class="align-middle py-3">
@@ -257,7 +257,7 @@ foreach ($variantItems as $vi) {
                                                     <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][variant_id]" value="<?= $vItem['variant_id'] ?>">
                                                     <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][size]" value="<?= htmlspecialchars($vItem['size'] ?? '') ?>">
                                                     <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][color]" value="<?= htmlspecialchars($vItem['color'] ?? '') ?>">
-                                                    <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][sku_code]" value="<?= htmlspecialchars($vItem['sku_code'] ?? '') ?>">
+                                                    <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][product_code]" value="<?= htmlspecialchars($vItem['product_code'] ?? '') ?>">
                                                     <input type="hidden" name="items[<?= $vItem['variant_id'] ?>][unit_price]" value="<?= $vPrice ?>">
 
                                                     <div class="d-inline-flex align-items-center gap-1 justify-content-end">

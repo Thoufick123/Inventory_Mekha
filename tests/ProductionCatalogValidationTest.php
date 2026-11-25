@@ -83,7 +83,7 @@ if (count($existingVars) < 3) {
     DB::query("DELETE FROM variants WHERE catalog_id = ?", [$sampleCatId]);
     foreach (['S', 'M', 'L'] as $sz) {
         DB::query(
-            "INSERT INTO variants (concern_id, catalog_id, sku_code, name, category_id, size, price, mrp, creation_date, status, created_at)
+            "INSERT INTO variants (concern_id, catalog_id, product_code, name, category_id, size, price, mrp, creation_date, status, created_at)
              VALUES (1, ?, ?, ?, ?, ?, 299.00, 399.00, CURDATE(), 'active', NOW())",
             [$sampleCatId, "GRM-STY-0001-{$sz}", "KIDS - BABY - DRESS - {$sz}", $validCatId, $sz]
         );
@@ -98,7 +98,7 @@ assertTest("GST rate is 5.00%", (float)($sample['gst_rate'] ?? 0) === 5.00);
 
 $variants = DB::fetchAll("SELECT * FROM variants WHERE catalog_id = ? AND status = 'active'", [$sample['id']]);
 assertTest("Active variants count equals 3 (S, M, L)", count($variants) === 3);
-assertTest("Variant S SKU matches 'GRM-STY-0001-S'", in_array('GRM-STY-0001-S', array_column($variants, 'sku_code')));
+assertTest("Variant S SKU matches 'GRM-STY-0001-S'", in_array('GRM-STY-0001-S', array_column($variants, 'product_code')));
 
 // ----------------------------------------------------
 // TEST 3: Validation Rules (Store Product Style)
@@ -205,7 +205,7 @@ assertTest("New Style created with ID > 0", $newStyleId > 0);
 // Generate variants
 foreach (['S', 'M', 'L', 'XL', 'XXL'] as $sz) {
     DB::query(
-        "INSERT INTO variants (concern_id, catalog_id, sku_code, name, category_id, subcategory_id, size, status, creation_date, created_at)
+        "INSERT INTO variants (concern_id, catalog_id, product_code, name, category_id, subcategory_id, size, status, creation_date, created_at)
          VALUES (1, ?, ?, ?, ?, ?, ?, 'active', CURDATE(), NOW())",
         [$newStyleId, "{$styleCode}-{$sz}", "MEN CREW T-SHIRT PREMIUM - {$sz}", $catId, $subId, $sz]
     );
@@ -213,7 +213,7 @@ foreach (['S', 'M', 'L', 'XL', 'XXL'] as $sz) {
 
 $createdVars = DB::fetchAll("SELECT * FROM variants WHERE catalog_id = ?", [$newStyleId]);
 assertTest("5 active size variants automatically generated", count($createdVars) === 5);
-assertTest("Variant XXL exists and is active", in_array("{$styleCode}-XXL", array_column($createdVars, 'sku_code')));
+assertTest("Variant XXL exists and is active", in_array("{$styleCode}-XXL", array_column($createdVars, 'product_code')));
 
 // ----------------------------------------------------
 // TEST 5: Multi-Concern Isolation

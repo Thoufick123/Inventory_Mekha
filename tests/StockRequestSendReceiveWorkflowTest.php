@@ -49,16 +49,16 @@ class StockRequestSendReceiveWorkflowTest {
 
         // 2. Ensure ICECREAM variant exists
         echo "\n2. Checking ICECREAM variant from screenshot...\n";
-        $icecream = DB::fetch("SELECT * FROM variants WHERE sku_code = 'SKU-CAT-MEKHA-0003-L'");
+        $icecream = DB::fetch("SELECT * FROM variants WHERE product_code = 'SKU-CAT-MEKHA-0003-L'");
         if (!$icecream) {
             DB::query(
-                "INSERT INTO variants (concern_id, sku_code, name, size, price, mrp, creation_date, status)
+                "INSERT INTO variants (concern_id, product_code, name, size, price, mrp, creation_date, status)
                  VALUES (4, 'SKU-CAT-MEKHA-0003-L', 'ICECREAM', 'L', 200.00, 400.00, CURDATE(), 'active')"
             );
-            $icecream = DB::fetch("SELECT * FROM variants WHERE sku_code = 'SKU-CAT-MEKHA-0003-L'");
+            $icecream = DB::fetch("SELECT * FROM variants WHERE product_code = 'SKU-CAT-MEKHA-0003-L'");
         }
         $this->assert(!empty($icecream), "Variant ICECREAM exists (ID: {$icecream['id']})");
-        $this->assert($icecream['sku_code'] === 'SKU-CAT-MEKHA-0003-L', "SKU code matches Image 2: SKU-CAT-MEKHA-0003-L");
+        $this->assert($icecream['product_code'] === 'SKU-CAT-MEKHA-0003-L', "SKU code matches Image 2: SKU-CAT-MEKHA-0003-L");
 
         // Ensure stock exists in Central Warehouse
         $variantId = (int)$icecream['id'];

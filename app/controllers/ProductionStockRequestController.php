@@ -57,7 +57,7 @@ class ProductionStockRequestController extends Controller {
         );
 
         // 2. Fetch active variants
-        $variants = DB::fetchAll("SELECT id, sku_code, name, size, price, concern_id FROM variants WHERE status = 'active' ORDER BY name ASC");
+        $variants = DB::fetchAll("SELECT id, product_code, name, size, price, concern_id FROM variants WHERE status = 'active' ORDER BY name ASC");
 
         // 3. Precompute stock availability per concern & variant
         $stocksRaw = DB::fetchAll(
@@ -199,7 +199,7 @@ class ProductionStockRequestController extends Controller {
         $cid = Auth::concernId();
 
         $variants = DB::fetchAll(
-            "SELECT id, sku_code, name, size, price FROM variants 
+            "SELECT id, product_code, name, size, price FROM variants 
              WHERE (concern_id = ? OR ? IS NULL) AND status = 'active' ORDER BY name ASC",
             [$cid, $cid]
         );
@@ -403,7 +403,7 @@ class ProductionStockRequestController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT psri.*, v.sku_code, v.name AS variant_name, v.size 
+            "SELECT psri.*, v.product_code, v.name AS variant_name, v.size 
              FROM production_stock_request_items psri
              JOIN variants v ON psri.variant_id = v.id
              WHERE psri.request_id = ?
@@ -898,7 +898,7 @@ class ProductionStockRequestController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT psri.*, v.sku_code, v.name AS variant_name, v.size 
+            "SELECT psri.*, v.product_code, v.name AS variant_name, v.size 
              FROM production_stock_request_items psri
              JOIN variants v ON psri.variant_id = v.id
              WHERE psri.request_id = ?

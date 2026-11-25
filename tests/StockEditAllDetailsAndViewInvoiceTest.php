@@ -94,7 +94,7 @@ class StockEditAllDetailsAndViewInvoiceTest
         $data = json_decode($output, true);
         $this->assert(is_array($data) && ($data['success'] ?? false) === true, 'Endpoint returns valid JSON with success: true');
         $this->assert(isset($data['variant']['name']), 'Response contains variant details with name: ' . ($data['variant']['name'] ?? ''));
-        $this->assert(isset($data['variant']['sku_code']), 'Response contains sku_code: ' . ($data['variant']['sku_code'] ?? ''));
+        $this->assert(isset($data['variant']['product_code']), 'Response contains product_code: ' . ($data['variant']['product_code'] ?? ''));
         $this->assert(isset($data['stock']['qty']), 'Response contains stock quantity: ' . ($data['stock']['qty'] ?? ''));
 
         if (!empty($data['purchase_bill'])) {
@@ -115,12 +115,12 @@ class StockEditAllDetailsAndViewInvoiceTest
         $concernId = (int)$_SESSION['concern_id'];
 
         // Create or find a test variant and stock line to safely modify
-        $testVariant = DB::fetch("SELECT * FROM variants WHERE concern_id = ? AND sku_code LIKE 'TEST-SKU-%' LIMIT 1", [$concernId]);
+        $testVariant = DB::fetch("SELECT * FROM variants WHERE concern_id = ? AND product_code LIKE 'TEST-SKU-%' LIMIT 1", [$concernId]);
         if (!$testVariant) {
             $cat = DB::fetch("SELECT id FROM categories WHERE concern_id = ? LIMIT 1", [$concernId]);
             $sub = DB::fetch("SELECT id FROM subcategories WHERE concern_id = ? LIMIT 1", [$concernId]);
             DB::query(
-                "INSERT INTO variants (concern_id, name, sku_code, size, weight, weight_unit, price, mrp, category_id, subcategory_id, attributes, creation_date, status, created_at)
+                "INSERT INTO variants (concern_id, name, product_code, size, weight, weight_unit, price, mrp, category_id, subcategory_id, attributes, creation_date, status, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     $concernId,
@@ -177,7 +177,7 @@ class StockEditAllDetailsAndViewInvoiceTest
             'variant_id' => (string)$variantId,
             'location' => $location,
             'variant_name' => $updatedName,
-            'sku_code' => $updatedSku,
+            'product_code' => $updatedSku,
             'size' => $updatedSize,
             'color' => $updatedColor,
             'hsn_code' => $updatedHsn,
@@ -209,7 +209,7 @@ class StockEditAllDetailsAndViewInvoiceTest
         // Verify variant in DB
         $reloadedVariant = DB::fetch("SELECT * FROM variants WHERE id = ?", [$variantId]);
         $this->assert($reloadedVariant['name'] === $updatedName, 'Variant name updated to: ' . $reloadedVariant['name']);
-        $this->assert($reloadedVariant['sku_code'] === $updatedSku, 'SKU code updated to: ' . $reloadedVariant['sku_code']);
+        $this->assert($reloadedVariant['product_code'] === $updatedSku, 'SKU code updated to: ' . $reloadedVariant['product_code']);
         $this->assert($reloadedVariant['size'] === $updatedSize, 'Size updated to: ' . $reloadedVariant['size']);
         $this->assert((float)$reloadedVariant['cost_price'] === $updatedCostPrice, 'Cost price updated to: ' . $reloadedVariant['cost_price']);
         $this->assert((float)$reloadedVariant['price'] === $updatedPrice, 'Price updated to: ' . $reloadedVariant['price']);
@@ -306,7 +306,7 @@ class StockEditAllDetailsAndViewInvoiceTest
         $concernId = 4;
         $testSku = 'TEST-COMP-' . time();
         DB::query(
-            "INSERT INTO variants (concern_id, sku_code, name, cost_price, price, mrp, is_complementary, creation_date, status)
+            "INSERT INTO variants (concern_id, product_code, name, cost_price, price, mrp, is_complementary, creation_date, status)
              VALUES (?, ?, ?, 100.00, 150.00, 200.00, 0, CURDATE(), 'active')",
             [$concernId, $testSku, 'Test Bulk Complementary Variant']
         );

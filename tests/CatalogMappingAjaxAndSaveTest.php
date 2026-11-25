@@ -92,7 +92,7 @@ if ($item2) {
         $varName = "{$styleName} - {$size}";
         DB::query(
             "INSERT INTO variants (
-                concern_id, catalog_id, sku_code, name,
+                concern_id, catalog_id, product_code, name,
                 category_id, subcategory_id, size, attributes,
                 price, mrp, creation_date, status, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'active', NOW())",

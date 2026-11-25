@@ -49,7 +49,7 @@
                                 <td class="fw-bold text-dark"><?= htmlspecialchars($r['customer_name']) ?></td>
                                 <td>
                                     <div class="fw-semibold"><?= htmlspecialchars($r['variant_name']) ?></div>
-                                    <small class="badge bg-light text-dark border"><?= htmlspecialchars($r['sku_code']) ?></small>
+                                    <small class="badge bg-light text-dark border"><?= htmlspecialchars($r['product_code']) ?></small>
                                 </td>
                                 <td><span class="fw-bold text-primary"><?= number_format($r['requested_qty'], 2) ?></span></td>
                                 <td>
@@ -112,7 +112,7 @@
                     <select name="variant_id" class="form-select" required>
                         <option value="">Select Variant</option>
                         <?php foreach ($variants as $v): ?>
-                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['sku_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?></option>
+                            <option value="<?= $v['id'] ?>"><?= htmlspecialchars($v['product_code']) ?> &bull; <?= htmlspecialchars($v['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -225,7 +225,7 @@
                         <strong class="text-dark" id="view_request_variant">-</strong>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between">
-                        <span class="text-muted"><i class="bi bi-upc-scan text-primary me-2"></i>SKU Code:</span>
+                        <span class="text-muted"><i class="bi bi-upc-scan text-primary me-2"></i>Product Code:</span>
                         <span class="badge bg-light text-dark border font-monospace" id="view_request_sku">-</span>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between">
@@ -255,7 +255,7 @@ function openViewRequestModal(r) {
     document.getElementById('view_request_no').innerText = r.request_no || '';
     document.getElementById('view_request_customer').innerText = r.customer_name || '-';
     document.getElementById('view_request_variant').innerText = r.variant_name || '-';
-    document.getElementById('view_request_sku').innerText = r.sku_code || '-';
+    document.getElementById('view_request_sku').innerText = r.product_code || '-';
     document.getElementById('view_requested_qty').innerText = parseFloat(r.requested_qty || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
     document.getElementById('view_request_date').innerText = r.expected_date ? r.expected_date.substring(0, 10) : '-';
     document.getElementById('view_request_status').innerText = (r.status || 'pending').toUpperCase();

@@ -997,7 +997,7 @@ class AdminController extends Controller {
 
         $headers = [
             'Concern Code', 'Business Name', 'GSTIN', 'Phone', 'Email', 
-            'Active Modules', 'Assigned Users', 'Total SKUs', 'Status', 'Registered Date'
+            'Active Modules', 'Assigned Users', 'Total Products', 'Status', 'Registered Date'
         ];
 
         $rows = [];

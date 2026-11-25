@@ -72,7 +72,7 @@
                         <th>Status</th>
                         <th>Customer</th>
                         <th>Items Count</th>
-                        <th>Products / SKU Codes</th>
+                        <th>Products / Product Codes</th>
                         <th>Settlement</th>
                         <th>Net Balance</th>
                         <th>Date</th>

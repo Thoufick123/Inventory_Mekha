@@ -40,7 +40,7 @@ class BatchController extends Controller {
                     `variant_id` INT NOT NULL,
                     `size` VARCHAR(50) NULL,
                     `color` VARCHAR(50) NULL,
-                    `sku_code` VARCHAR(100) NULL,
+                    `product_code` VARCHAR(100) NULL,
                     `qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
                     `unit_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
                     `taxable_value` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -73,13 +73,13 @@ class BatchController extends Controller {
             $unfilledBatches = DB::fetchAll("SELECT b.id, b.concern_id, b.variant_id, b.batch_qty, b.taxable_value, b.gst_amount, b.total_amount, b.qr_codes, b.created_at FROM batches b WHERE b.id NOT IN (SELECT DISTINCT batch_id FROM batch_items)");
             foreach ($unfilledBatches as $ub) {
                 if (!empty($ub['variant_id'])) {
-                    $vRow = DB::fetch("SELECT size, sku_code, price FROM variants WHERE id = ?", [$ub['variant_id']]);
+                    $vRow = DB::fetch("SELECT size, product_code, price FROM variants WHERE id = ?", [$ub['variant_id']]);
                     if ($vRow) {
                         DB::query("
-                            INSERT INTO batch_items (concern_id, batch_id, variant_id, size, sku_code, qty, unit_price, taxable_value, gst_amount, total_amount, qr_codes, created_at)
+                            INSERT INTO batch_items (concern_id, batch_id, variant_id, size, product_code, qty, unit_price, taxable_value, gst_amount, total_amount, qr_codes, created_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ", [
-                            $ub['concern_id'], $ub['id'], $ub['variant_id'], $vRow['size'], $vRow['sku_code'],
+                            $ub['concern_id'], $ub['id'], $ub['variant_id'], $vRow['size'], $vRow['product_code'],
                             $ub['batch_qty'], $vRow['price'] ?: 700, $ub['taxable_value'], $ub['gst_amount'], $ub['total_amount'], $ub['qr_codes'], $ub['created_at']
                         ]);
                     }
@@ -106,7 +106,7 @@ class BatchController extends Controller {
         $offset          = ($page - 1) * $perPage;
 
         $sql = "SELECT b.*, 
-                       v.name AS variant_name, v.sku_code, v.size, v.weight_unit, v.price, v.mrp,
+                       v.name AS variant_name, v.product_code, v.size, v.weight_unit, v.price, v.mrp,
                        p.program_no, p.program_name,
                        pu.name AS production_unit_name, pu.code AS production_unit_code,
                        u.name AS approver_name,
@@ -161,7 +161,7 @@ class BatchController extends Controller {
             ['id' => 2, 'name' => 'Main Distribution Central', 'code' => 'WH-02'],
         ];
 
-        $variants = DB::fetchAll("SELECT id, sku_code, name, size FROM variants WHERE status = 'active' LIMIT 100");
+        $variants = DB::fetchAll("SELECT id, product_code, name, size FROM variants WHERE status = 'active' LIMIT 100");
         $programs = DB::fetchAll("SELECT id, program_no, program_name FROM production_programs ORDER BY id DESC LIMIT 50");
         $allConcerns = DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY id ASC");
 
@@ -271,7 +271,7 @@ class BatchController extends Controller {
         // Fetch all variant line items for this QC inspection from qc_inspection_items
         $rawItems = DB::fetchAll("
             SELECT qii.*, 
-                   v.sku_code AS v_sku_code, v.name AS v_name, v.size AS v_size, v.price AS v_price, v.mrp AS v_mrp
+                   v.product_code AS v_product_code, v.name AS v_name, v.size AS v_size, v.price AS v_price, v.mrp AS v_mrp
             FROM qc_inspection_items qii
             LEFT JOIN variants v ON qii.variant_id = v.id
             WHERE qii.qc_id = ?
@@ -288,7 +288,7 @@ class BatchController extends Controller {
                     'variant_id'    => $fallbackVariant['id'],
                     'size'          => $fallbackVariant['size'],
                     'color'         => 'Standard',
-                    'sku_code'      => $fallbackVariant['sku_code'],
+                    'product_code'      => $fallbackVariant['product_code'],
                     'variant_name'  => $fallbackVariant['name'],
                     'inspected_qty' => (int)$selectedQc['inspected_qty'],
                     'passed_qty'    => (int)$selectedQc['passed_qty'],
@@ -330,7 +330,7 @@ class BatchController extends Controller {
             $variantItems[] = [
                 'variant_id'     => $vid,
                 'name'           => $ri['variant_name'] ?: ($ri['v_name'] ?? 'Production Item'),
-                'sku_code'       => $ri['sku_code'] ?: ($ri['v_sku_code'] ?? ''),
+                'product_code'       => $ri['product_code'] ?: ($ri['v_product_code'] ?? ''),
                 'size'           => $ri['size'] ?: ($ri['v_size'] ?? 'Standard'),
                 'color'          => $ri['color'] ?? 'Standard',
                 'total_passed'   => (int)$varTotalPassed,
@@ -416,7 +416,7 @@ class BatchController extends Controller {
                         'variant_id'    => (int)$vId,
                         'size'          => trim((string)($item['size'] ?? '')),
                         'color'         => trim((string)($item['color'] ?? '')),
-                        'sku_code'      => trim((string)($item['sku_code'] ?? '')),
+                        'product_code'      => trim((string)($item['product_code'] ?? '')),
                         'qty'           => $qty,
                         'unit_price'    => $unitPrice,
                         'taxable_value' => $lineTaxable,
@@ -434,7 +434,7 @@ class BatchController extends Controller {
             $vId = (int)$_POST['variant_id'];
             $qty = (float)$_POST['quantity_to_pack'];
             if ($qty > 0) {
-                $vRow = DB::fetch("SELECT size, sku_code, price FROM variants WHERE id = ?", [$vId]);
+                $vRow = DB::fetch("SELECT size, product_code, price FROM variants WHERE id = ?", [$vId]);
                 $unitPrice = (float)($vRow['price'] ?? 700.00);
                 $lineTotal = round($qty * $unitPrice, 2);
                 $lineTaxable = round($lineTotal / 1.05, 2);
@@ -444,7 +444,7 @@ class BatchController extends Controller {
                     'variant_id'    => $vId,
                     'size'          => $vRow['size'] ?? 'Standard',
                     'color'         => 'Standard',
-                    'sku_code'      => $vRow['sku_code'] ?? '',
+                    'product_code'      => $vRow['product_code'] ?? '',
                     'qty'           => $qty,
                     'unit_price'    => $unitPrice,
                     'taxable_value' => $lineTaxable,
@@ -501,14 +501,14 @@ class BatchController extends Controller {
             foreach ($packedItems as $pItem) {
                 DB::query("
                     INSERT INTO batch_items (
-                        concern_id, batch_id, variant_id, size, color, sku_code,
+                        concern_id, batch_id, variant_id, size, color, product_code,
                         qty, unit_price, taxable_value, gst_amount, total_amount, created_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, NOW()
                     )
                 ", [
-                    $cid, $newBatchId, $pItem['variant_id'], $pItem['size'], $pItem['color'], $pItem['sku_code'],
+                    $cid, $newBatchId, $pItem['variant_id'], $pItem['size'], $pItem['color'], $pItem['product_code'],
                     $pItem['qty'], $pItem['unit_price'], $pItem['taxable_value'], $pItem['gst_amount'], $pItem['total_amount']
                 ]);
             }
@@ -601,7 +601,7 @@ class BatchController extends Controller {
     public function label(int|string $id): void {
         $batch = DB::fetch("
             SELECT b.*,
-                   v.name AS variant_name, v.sku_code, v.size, v.weight_unit, v.price, v.mrp,
+                   v.name AS variant_name, v.product_code, v.size, v.weight_unit, v.price, v.mrp,
                    p.program_no, p.program_name,
                    pu.name AS production_unit_name, pu.code AS production_unit_code, pu.location AS production_unit_location
             FROM batches b
@@ -641,7 +641,7 @@ class BatchController extends Controller {
     public function challan(int|string $id): void {
         $batch = DB::fetch("
             SELECT b.*,
-                   v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                   v.name AS variant_name, v.product_code, v.size, v.price, v.mrp,
                    p.program_no, p.program_name,
                    pu.name AS production_unit_name, pu.code AS production_unit_code, pu.location AS production_unit_location
             FROM batches b
@@ -901,7 +901,7 @@ class BatchController extends Controller {
         }
         $cid = Auth::concernId();
         $sql = "
-            SELECT b.*, v.name AS variant_name, v.sku_code, v.size, v.mrp, v.price
+            SELECT b.*, v.name AS variant_name, v.product_code, v.size, v.mrp, v.price
             FROM batches b
             LEFT JOIN variants v ON b.variant_id = v.id
             WHERE (b.id = ? OR b.batch_no = ?)
@@ -921,7 +921,7 @@ class BatchController extends Controller {
         $tags = json_decode($batch['qr_codes'] ?? '[]', true) ?: [];
         if (empty($tags)) {
             $qty = (int)$batch['batch_qty'];
-            $skuClean = preg_replace('/[^A-Z0-9]/', '', strtoupper($batch['sku_code'] ?? 'KBD'));
+            $skuClean = preg_replace('/[^A-Z0-9]/', '', strtoupper($batch['product_code'] ?? 'KBD'));
             $prefix = (strlen($skuClean) >= 3 ? substr($skuClean, 0, 3) : 'KBD') . date('md');
             for ($i = 1; $i <= $qty; $i++) {
                 $tags[] = $prefix . str_pad((string)$i, 2, '0', STR_PAD_LEFT);
@@ -932,7 +932,7 @@ class BatchController extends Controller {
             'success'       => true,
             'batch_no'      => $batch['batch_no'],
             'product_name'  => $batch['variant_name'] ?? 'Production Item',
-            'sku_code'      => $batch['sku_code'] ?? '',
+            'product_code'      => $batch['product_code'] ?? '',
             'size'          => $batch['size'] ?? '',
             'total_pieces'  => count($tags),
             'tags'          => $tags,

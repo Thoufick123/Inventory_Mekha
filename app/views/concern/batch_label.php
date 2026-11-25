@@ -10,7 +10,7 @@ $progNo = htmlspecialchars($batch['program_no'] ?? 'PRG-20261113-0001');
 $productName = htmlspecialchars($batch['program_name'] ?? $batch['variant_name'] ?? 'KIDS - BABY - DRESS');
 $qty = (int)($batch['batch_qty'] ?? 70);
 $boxes = (int)($batch['total_boxes'] ?? 1);
-$sku = htmlspecialchars($batch['sku_code'] ?? 'GRM-STY-0001-L');
+$sku = htmlspecialchars($batch['product_code'] ?? 'GRM-STY-0001-L');
 $size = htmlspecialchars($batch['size'] ?? 'L');
 $fabric = htmlspecialchars($batch['fabric_details'] ?? 'GREEN / BIRDS');
 $status = strtoupper($batch['status'] ?? 'PREPARING');
@@ -210,7 +210,7 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=0&data
                 <tr>
                     <th style="width: 15%;">Fabric</th>
                     <th style="width: 35%;">Color & Design</th>
-                    <th style="width: 25%;">SKU Code</th>
+                    <th style="width: 25%;">Product Code</th>
                     <th style="width: 10%;" class="text-center">Size</th>
                     <th style="width: 15%;" class="text-end">Qty (Pcs)</th>
                 </tr>
@@ -229,7 +229,7 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=0&data
                                 <small class="badge bg-light text-secondary border px-1" style="font-size: 0.68rem;"><?= htmlspecialchars($bi['color'] ?? 'Standard') ?></small>
                             </td>
                             <td class="font-monospace fw-semibold text-dark">
-                                <?= htmlspecialchars($bi['sku_code'] ?? '-') ?>
+                                <?= htmlspecialchars($bi['product_code'] ?? '-') ?>
                             </td>
                             <td class="text-center fw-bold text-dark">
                                 <?= htmlspecialchars($bi['size'] ?? 'Standard') ?>

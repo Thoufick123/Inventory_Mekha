@@ -29,7 +29,7 @@
             <table class="table table-hover align-middle mb-0 table-custom">
                 <thead>
                     <tr>
-                        <th>SKU Code</th>
+                        <th>Product Code</th>
                         <?php if ($isSuperAdmin && empty($selectedCid)): ?>
                             <th>Concern</th>
                         <?php endif; ?>
@@ -52,7 +52,7 @@
                         ?>
                             <tr>
                                 <td>
-                                    <span class="badge bg-dark font-monospace"><?= htmlspecialchars($v['sku_code']) ?></span>
+                                    <span class="badge bg-dark font-monospace"><?= htmlspecialchars($v['product_code']) ?></span>
                                     <div class="text-muted small font-monospace mt-1" style="font-size: 0.68rem;">ID: #<?= (int)$v['id'] ?></div>
                                 </td>
                                 <?php if ($isSuperAdmin && empty($selectedCid)): ?>
@@ -152,8 +152,8 @@
 
                 <div class="row g-3 mb-3">
                     <div class="col-md-4">
-                        <label class="form-label small fw-semibold">SKU Code *</label>
-                        <input type="text" name="sku_code" class="form-control text-uppercase" placeholder="e.g. SKU-TSH-001" required>
+                        <label class="form-label small fw-semibold">Product Code *</label>
+                        <input type="text" name="product_code" class="form-control text-uppercase" placeholder="e.g. SKU-TSH-001" required>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label small fw-semibold">Product Variant Name *</label>
@@ -264,8 +264,8 @@
             <div class="modal-body">
                 <div class="row g-3 mb-3">
                     <div class="col-md-4">
-                        <label class="form-label small fw-semibold">SKU Code *</label>
-                        <input type="text" name="sku_code" id="edit_variant_sku" class="form-control text-uppercase" required>
+                        <label class="form-label small fw-semibold">Product Code *</label>
+                        <input type="text" name="product_code" id="edit_variant_product_code" class="form-control text-uppercase" required>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label small fw-semibold">Variant / Item Name *</label>
@@ -350,7 +350,7 @@
                     </span>
                     <div>
                         <h6 class="modal-title fw-bold text-dark mb-0" id="view_variant_name">Variant Details</h6>
-                        <small class="badge bg-dark font-monospace" id="view_variant_sku"></small>
+                        <small class="badge bg-dark font-monospace" id="view_variant_product_code"></small>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -408,7 +408,7 @@
 function openViewVariantModal(v) {
     if (!v) return;
     document.getElementById('view_variant_name').innerText = v.name || 'Variant';
-    document.getElementById('view_variant_sku').innerText = v.sku_code || '';
+    document.getElementById('view_variant_product_code').innerText = v.product_code || '';
     document.getElementById('view_variant_category').innerText = v.category_name || 'Uncategorized';
     document.getElementById('view_variant_brand').innerText = v.brand_name || 'No Brand';
     document.getElementById('view_variant_size').innerText = v.size || 'N/A';
@@ -433,7 +433,7 @@ function openViewVariantModal(v) {
 function openEditVariantModal(v) {
     if (!v) return;
     document.getElementById('edit_variant_id').value = v.id || '';
-    document.getElementById('edit_variant_sku').value = v.sku_code || '';
+    document.getElementById('edit_variant_product_code').value = v.product_code || '';
     document.getElementById('edit_variant_name').value = v.name || '';
     document.getElementById('edit_variant_category').value = v.category_id || '';
     document.getElementById('edit_variant_brand').value = v.brand_id || '';

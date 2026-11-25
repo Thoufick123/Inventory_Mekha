@@ -60,16 +60,16 @@ class WarehouseService {
 
         // 2. Fetch dispatched items
         $dispatchedItems = DB::fetchAll(
-            "SELECT oi.variant_id, SUM(oi.qty) AS qty, v.sku_code
+            "SELECT oi.variant_id, SUM(oi.qty) AS qty, v.product_code
              FROM outward_items oi
              JOIN variants v ON v.id = oi.variant_id
              WHERE oi.outward_id = ?
-             GROUP BY oi.variant_id, v.sku_code",
+             GROUP BY oi.variant_id, v.product_code",
             [$outwardId]
         );
         if (!$dispatchedItems) {
             $batchItem = DB::fetch(
-                "SELECT b.variant_id, b.batch_qty AS qty, v.sku_code
+                "SELECT b.variant_id, b.batch_qty AS qty, v.product_code
                  FROM production_outward_batches pob
                  JOIN batches b ON b.id = pob.batch_id
                  JOIN variants v ON v.id = b.variant_id
@@ -91,7 +91,7 @@ class WarehouseService {
             $srcVarId = (int)$it['variant_id'];
             $dispatchedByVariant[$srcVarId] = [
                 'qty' => (float)$it['qty'],
-                'sku_code' => (string)$it['sku_code'],
+                'product_code' => (string)$it['product_code'],
             ];
             $totalDispatched += (float)$it['qty'];
         }
@@ -123,8 +123,8 @@ class WarehouseService {
                  JOIN inward_items ii ON ii.inward_id = inw.id
                  JOIN variants iv ON iv.id = ii.variant_id
                  WHERE inw.outward_id = ? AND inw.concern_id = ?
-                   AND (ii.variant_id = ? OR iv.sku_code = ?)",
-                [$outwardId, $destConcernId, $srcVarId, $dispInfo['sku_code']]
+                   AND (ii.variant_id = ? OR iv.product_code = ?)",
+                [$outwardId, $destConcernId, $srcVarId, $dispInfo['product_code']]
             );
 
             $remainingQty = max(
@@ -134,7 +134,7 @@ class WarehouseService {
 
             if ($vQty + $dQty > $remainingQty + 0.0001) {
                 throw new Exception(
-                    "Received quantity for {$dispInfo['sku_code']} exceeds remaining outward balance ({$remainingQty})."
+                    "Received quantity for {$dispInfo['product_code']} exceeds remaining outward balance ({$remainingQty})."
                 );
             }
 
@@ -183,8 +183,8 @@ class WarehouseService {
                 continue;
             }
 
-            $skuCode = (string)($item['sku_code'] ?? DB::fetchValue("SELECT sku_code FROM variants WHERE id = ?", [$targetVarId]));
-            $isFgItem = str_starts_with($skuCode, 'FG-') || !$isProductionBatch;
+            $productCode = (string)($item['product_code'] ?? DB::fetchValue("SELECT product_code FROM variants WHERE id = ?", [$targetVarId]));
+            $isFgItem = str_starts_with($productCode, 'FG-') || !$isProductionBatch;
             $inboundRefModule = $isFgItem ? 'Purchase Inward' : 'Production Inward';
 
             DB::query("

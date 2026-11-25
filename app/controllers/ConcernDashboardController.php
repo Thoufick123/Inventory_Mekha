@@ -23,7 +23,7 @@ class ConcernDashboardController extends Controller {
             $cashBalance = (float)DB::fetchValue("SELECT COALESCE(SUM(balance), 0) FROM cash_accounts WHERE concern_id = ?", [$cid]);
 
             $recentLedger = DB::fetchAll(
-                "SELECT sl.*, v.name AS variant_name, v.sku_code, u.name AS user_name, con.name AS concern_name
+                "SELECT sl.*, v.name AS variant_name, v.product_code, u.name AS user_name, con.name AS concern_name
                  FROM stock_ledger sl
                  JOIN variants v ON sl.variant_id = v.id
                  LEFT JOIN concerns con ON sl.concern_id = con.id
@@ -34,7 +34,7 @@ class ConcernDashboardController extends Controller {
             );
 
             $lowStocks = DB::fetchAll(
-                "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight_unit, con.name AS concern_name
+                "SELECT s.*, v.name AS variant_name, v.product_code, v.size, v.weight_unit, con.name AS concern_name
                  FROM stocks s
                  JOIN variants v ON s.variant_id = v.id
                  LEFT JOIN concerns con ON s.concern_id = con.id
@@ -52,7 +52,7 @@ class ConcernDashboardController extends Controller {
             $cashBalance = (float)DB::fetchValue("SELECT COALESCE(SUM(balance), 0) FROM cash_accounts");
 
             $recentLedger = DB::fetchAll(
-                "SELECT sl.*, v.name AS variant_name, v.sku_code, u.name AS user_name, con.name AS concern_name
+                "SELECT sl.*, v.name AS variant_name, v.product_code, u.name AS user_name, con.name AS concern_name
                  FROM stock_ledger sl
                  JOIN variants v ON sl.variant_id = v.id
                  LEFT JOIN concerns con ON sl.concern_id = con.id
@@ -61,7 +61,7 @@ class ConcernDashboardController extends Controller {
             );
 
             $lowStocks = DB::fetchAll(
-                "SELECT s.*, v.name AS variant_name, v.sku_code, v.size, v.weight_unit, con.name AS concern_name
+                "SELECT s.*, v.name AS variant_name, v.product_code, v.size, v.weight_unit, con.name AS concern_name
                  FROM stocks s
                  JOIN variants v ON s.variant_id = v.id
                  LEFT JOIN concerns con ON s.concern_id = con.id
@@ -95,7 +95,7 @@ class ConcernDashboardController extends Controller {
 
         $range = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT sl.*, v.name AS variant_name, v.sku_code, v.price, u.name AS user_name, con.name AS concern_name
+        $sql = "SELECT sl.*, v.name AS variant_name, v.product_code, v.price, u.name AS user_name, con.name AS concern_name
                 FROM stock_ledger sl
                 JOIN variants v ON sl.variant_id = v.id
                 LEFT JOIN concerns con ON sl.concern_id = con.id
@@ -118,7 +118,7 @@ class ConcernDashboardController extends Controller {
         $records = DB::fetchAll($sql, $params);
 
         $headers = [
-            '#', 'Timestamp', 'Concern', 'SKU Code', 'Item Description', 'Ref Module', 'In (+Qty)', 'Out (-Qty)', 'Recorded By'
+            '#', 'Timestamp', 'Concern', 'Product Code', 'Item Description', 'Ref Module', 'In (+Qty)', 'Out (-Qty)', 'Recorded By'
         ];
 
         $exportData = [];
@@ -136,7 +136,7 @@ class ConcernDashboardController extends Controller {
                 $sl++,
                 date('d M Y H:i', strtotime($r['created_at'])),
                 $r['concern_name'] ?? 'Main Enterprise',
-                $r['sku_code'],
+                $r['product_code'],
                 $r['variant_name'],
                 $r['ref_module'],
                 $inQty > 0 ? number_format($inQty, 2) : '-',

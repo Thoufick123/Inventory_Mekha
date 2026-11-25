@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
             (roll.variants || []).forEach((v, vIdx) => {
                 const varId = v.id || '';
                 const sizeName = v.size || 'Standard';
-                const sku = v.sku_code || '';
+                const sku = v.product_code || '';
                 const varName = v.name || `${roll.fabric_name} - ${sizeName}`;
 
                 rowsHtml += `
@@ -520,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <small class="text-muted font-monospace" style="font-size: 0.72rem;">${sku}</small>
                             <input type="hidden" name="rolls[${roll.id}][variants][${vIdx}][variant_id]" value="${varId}">
                             <input type="hidden" name="rolls[${roll.id}][variants][${vIdx}][size]" value="${sizeName}">
-                            <input type="hidden" name="rolls[${roll.id}][variants][${vIdx}][sku_code]" value="${sku}">
+                            <input type="hidden" name="rolls[${roll.id}][variants][${vIdx}][product_code]" value="${sku}">
                             <input type="hidden" name="rolls[${roll.id}][variants][${vIdx}][variant_name]" value="${varName}">
                         </td>
                         <td class="align-middle text-muted small font-monospace">
@@ -558,7 +558,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <thead class="table-light">
                                 <tr>
                                     <th class="ps-3">Variant / Size</th>
-                                    <th>SKU Code</th>
+                                    <th>Product Code</th>
                                     <th class="text-end pe-3">Cut Output</th>
                                 </tr>
                             </thead>

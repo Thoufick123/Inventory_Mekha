@@ -200,7 +200,7 @@ $canDelete = \App\Core\Auth::can('suppliers', 'delete');
                                     <div class="fw-semibold text-dark small d-flex align-items-center gap-1">
                                         <i class="bi bi-geo-alt-fill text-danger" style="font-size: 0.8rem;"></i>
                                         <span><?= htmlspecialchars($sup['district'] ?: ($sup['city'] ?: '-')) ?></span>
-                                        <span class="badge bg-light text-secondary border ms-1 py-0 px-1" style="font-size: 0.7rem; font-weight: normal;"><?= htmlspecialchars($sup['state'] ?: 'Tamil Nadu') ?></span>
+                                        <span class="badge bg-light text-secondary border ms-1 py-0 px-1" style="font-size: 0.7rem; font-weight: normal;"><?= htmlspecialchars($sup['state'] ?: '-') ?></span>
                                     </div>
                                     <div class="small text-muted text-truncate mt-1" style="max-width: 220px;" title="<?= htmlspecialchars($sup['address'] ?: '') ?>">
                                         <?= htmlspecialchars($sup['address'] ?: '-') ?>
@@ -321,20 +321,8 @@ $canDelete = \App\Core\Auth::can('suppliers', 'delete');
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">State <span class="text-danger">*</span></label>
-                        <select name="state" id="supplierState" class="form-select" required>
-                            <option value="Tamil Nadu" selected>Tamil Nadu</option>
-                            <option value="Kerala">Kerala</option>
-                            <option value="Karnataka">Karnataka</option>
-                            <option value="Andhra Pradesh">Andhra Pradesh</option>
-                            <option value="Telangana">Telangana</option>
-                            <option value="Maharashtra">Maharashtra</option>
-                            <option value="Gujarat">Gujarat</option>
-                            <option value="Delhi">Delhi</option>
-                            <option value="Rajasthan">Rajasthan</option>
-                            <option value="West Bengal">West Bengal</option>
-                            <option value="Other">Other State</option>
-                        </select>
-                        <div class="invalid-feedback">Please select the state.</div>
+                        <input type="text" name="state" id="supplierState" class="form-control" required minlength="2" placeholder="Enter state">
+                        <div class="invalid-feedback">Please enter the state.</div>
                     </div>
                 </div>
             </div>
@@ -414,19 +402,8 @@ $canDelete = \App\Core\Auth::can('suppliers', 'delete');
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">State <span class="text-danger">*</span></label>
-                        <select name="state" id="editSupplierState" class="form-select" required>
-                            <option value="Tamil Nadu">Tamil Nadu</option>
-                            <option value="Kerala">Kerala</option>
-                            <option value="Karnataka">Karnataka</option>
-                            <option value="Andhra Pradesh">Andhra Pradesh</option>
-                            <option value="Telangana">Telangana</option>
-                            <option value="Maharashtra">Maharashtra</option>
-                            <option value="Gujarat">Gujarat</option>
-                            <option value="Delhi">Delhi</option>
-                            <option value="Rajasthan">Rajasthan</option>
-                            <option value="West Bengal">West Bengal</option>
-                            <option value="Other">Other State</option>
-                        </select>
+                        <input type="text" name="state" id="editSupplierState" class="form-control" required minlength="2" placeholder="Enter state">
+                        <div class="invalid-feedback">State is required.</div>
                     </div>
                 </div>
 
@@ -711,7 +688,7 @@ function openViewSupplierModal(sup) {
     const gstin = sup.gstin || '';
     const address = sup.address || '-';
     const district = sup.district || sup.city || '-';
-    const state = sup.state || 'Tamil Nadu';
+    const state = sup.state || '-';
     const status = (sup.status || 'active').toLowerCase();
     const concernName = sup.concern_name || (sup.concern_id ? 'Concern #' + sup.concern_id : '');
 
@@ -846,7 +823,7 @@ function openEditSupplierModal(sup) {
     const elEmail = document.getElementById('editSupplierEmail'); if (elEmail) elEmail.value = sup.email || '';
     const elAddr = document.getElementById('editSupplierAddress'); if (elAddr) elAddr.value = sup.address || '';
     const elDist = document.getElementById('editSupplierDistrict'); if (elDist) elDist.value = sup.district || sup.city || '';
-    const elState = document.getElementById('editSupplierState'); if (elState) elState.value = sup.state || 'Tamil Nadu';
+    const elState = document.getElementById('editSupplierState'); if (elState) elState.value = sup.state || '';
     const elStat = document.getElementById('editSupplierStatus'); if (elStat) elStat.value = sup.status || 'active';
 
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);

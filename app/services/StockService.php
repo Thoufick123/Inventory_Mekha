@@ -145,7 +145,7 @@ class StockService {
         try {
             // 1. Verify variant belongs to concern
             $var = DB::fetch(
-                "SELECT id, name, sku_code, cost_price, price, mrp FROM variants WHERE id = ? AND concern_id = ?",
+                "SELECT id, name, product_code, cost_price, price, mrp FROM variants WHERE id = ? AND concern_id = ?",
                 [$variantId, $concernId]
             );
             if (!$var) {
@@ -162,7 +162,7 @@ class StockService {
             $newQty = $currentQty + $qtyIn - $qtyOut;
 
             if ($newQty < 0) {
-                throw new Exception("Insufficient stock for '{$var['name']}' ({$var['sku_code']}) at '{$location}'. Available: {$currentQty}, Requested: {$qtyOut}");
+                throw new Exception("Insufficient stock for '{$var['name']}' ({$var['product_code']}) at '{$location}'. Available: {$currentQty}, Requested: {$qtyOut}");
             }
 
             // 3. Update or Insert stocks record

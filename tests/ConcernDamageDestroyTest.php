@@ -53,7 +53,7 @@ class ConcernDamageDestroyTest
         // 1. Create a test variant with initial stock
         $sku = 'TEST-DMG-DEL-' . time();
         DB::query(
-            "INSERT INTO variants (concern_id, sku_code, name, cost_price, price, mrp, creation_date, status)
+            "INSERT INTO variants (concern_id, product_code, name, cost_price, price, mrp, creation_date, status)
              VALUES (?, ?, ?, 100.00, 150.00, 200.00, CURDATE(), 'active')",
             [$concernId, $sku, 'Damage Delete Test Product']
         );

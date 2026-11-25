@@ -297,7 +297,7 @@ $dispatchDate = date('d M Y, h:i A', strtotime($outward['dispatched_at'] ?? ($ba
                             <small class="text-muted"><?= htmlspecialchars($it['color'] ? ($it['color'] . ' / ') : '') ?><?= htmlspecialchars($it['size'] ?? '') ?></small>
                         </td>
                         <td>
-                            <span class="font-monospace fw-semibold text-dark" style="font-size:0.8rem;"><?= htmlspecialchars($it['sku_code'] ?? '-') ?></span>
+                            <span class="font-monospace fw-semibold text-dark" style="font-size:0.8rem;"><?= htmlspecialchars($it['product_code'] ?? '-') ?></span>
                         </td>
                         <td class="text-center">
                             <span class="badge bg-light text-dark border px-2 py-0.5"><?= htmlspecialchars($it['size'] ?? 'L') ?></span>
@@ -320,7 +320,7 @@ $dispatchDate = date('d M Y, h:i A', strtotime($outward['dispatched_at'] ?? ($ba
                             <div class="fw-bold text-dark"><?= $programName ?></div>
                             <small class="text-muted"><?= htmlspecialchars($batch['variant_name'] ?? 'Standard') ?></small>
                         </td>
-                        <td><span class="font-monospace fw-semibold"><?= htmlspecialchars($batch['sku_code'] ?? 'KBD-001') ?></span></td>
+                        <td><span class="font-monospace fw-semibold"><?= htmlspecialchars($batch['product_code'] ?? 'KBD-001') ?></span></td>
                         <td class="text-center"><?= htmlspecialchars($batch['size'] ?? 'L') ?></td>
                         <td class="text-end fw-bold font-monospace fs-6"><?= number_format($totalQty, 0) ?></td>
                         <td class="text-end">₹<?= number_format((float)($batch['price'] ?? 700), 2) ?></td>

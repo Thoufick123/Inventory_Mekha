@@ -180,7 +180,7 @@
 
                 <div class="input-group input-group-lg my-2 shadow-sm">
                     <span class="input-group-text bg-white border-end-0 text-primary"><i class="bi bi-qr-code fs-4"></i></span>
-                    <input type="text" class="form-control border-start-0 border-end-0 font-monospace fs-6" id="inputQrScanner" placeholder="<?= \App\Core\Auth::can('inward', 'add') ? 'Scan Variant QR / Barcode / SKU / Master Carton...' : 'View-only access - scanner disabled' ?>" autofocus autocomplete="off" <?= !\App\Core\Auth::can('inward', 'add') ? 'disabled' : '' ?>>
+                    <input type="text" class="form-control border-start-0 border-end-0 font-monospace fs-6" id="inputQrScanner" placeholder="<?= \App\Core\Auth::can('inward', 'add') ? 'Scan Variant QR / Barcode / Product Code / Master Carton...' : 'View-only access - scanner disabled' ?>" autofocus autocomplete="off" <?= !\App\Core\Auth::can('inward', 'add') ? 'disabled' : '' ?>>
                     <button class="btn btn-primary px-4 fw-bold d-flex align-items-center gap-1" type="button" onclick="processManualScan()" <?= !\App\Core\Auth::can('inward', 'add') ? 'disabled' : '' ?>>
                         <i class="bi bi-upc-scan"></i> Scan
                     </button>
@@ -218,7 +218,7 @@
                             <?php foreach ($items as $idx => $it): ?>
                             <tr id="rowVariant-<?= (int)$it['variant_id'] ?>"
                                 data-variant-id="<?= (int)$it['variant_id'] ?>"
-                                data-sku-code="<?= htmlspecialchars((string)$it['sku_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                data-product-code="<?= htmlspecialchars((string)$it['product_code'], ENT_QUOTES, 'UTF-8') ?>"
                                 data-tag-code="<?= htmlspecialchars((string)$it['tag_code'], ENT_QUOTES, 'UTF-8') ?>"
                                 data-product-name="<?= htmlspecialchars((string)$it['variant_name'], ENT_QUOTES, 'UTF-8') ?>"
                                 data-size="<?= htmlspecialchars((string)($it['size'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
@@ -238,14 +238,14 @@
                                         </div>
                                         <div>
                                             <div class="fw-bold text-dark"><?= htmlspecialchars($it['variant_name']) ?></div>
-                                            <div class="font-monospace small text-muted"><?= htmlspecialchars($it['sku_code']) ?></div>
+                                            <div class="font-monospace small text-muted"><?= htmlspecialchars($it['product_code']) ?></div>
                                             <span class="badge bg-light text-muted border" style="font-size: 0.68rem;"><?= htmlspecialchars($it['category_name'] ?: '—') ?></span>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
                                     <div class="font-monospace small text-dark fw-semibold"><?= htmlspecialchars((string)$it['tag_code']) ?: 'QR unavailable' ?></div>
-                                    <div class="small text-muted fw-semibold font-monospace" style="font-size: 0.75rem;">SKU: <?= htmlspecialchars((string)$it['sku_code']) ?></div>
+                                    <div class="small text-muted fw-semibold font-monospace" style="font-size: 0.75rem;">Product Code: <?= htmlspecialchars((string)$it['product_code']) ?></div>
                                 </td>
                                 <td>
                                     <div><span class="badge bg-light text-dark border"><?= htmlspecialchars((string)($it['size'] ?? '') ?: '—') ?></span></div>
@@ -397,7 +397,7 @@
                         <div>
                             <h5 class="fw-bold text-dark mb-0" id="modalProductName">—</h5>
                             <div class="font-monospace small text-muted mt-0.5">
-                                SKU: <span class="fw-bold text-dark" id="modalSkuCode">—</span> · Tag: <span class="fw-bold text-primary font-monospace" id="modalVariantTag">—</span>
+                                Product Code: <span class="fw-bold text-dark" id="modalSkuCode">—</span> · Tag: <span class="fw-bold text-primary font-monospace" id="modalVariantTag">—</span>
                             </div>
                         </div>
                         <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" id="modalCategoryBadge">Finished Garment</span>
@@ -614,7 +614,7 @@ function processManualScan() {
     const feedback = document.getElementById('scanFeedbackAlert');
 
     if (!val) {
-        feedback.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-circle me-1"></i> Please scan or type a piece tag, SKU, or QR code.</span>';
+        feedback.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-circle me-1"></i> Please scan or type a piece tag, Product Code, or QR code.</span>';
         playSound('error');
         return;
     }
@@ -622,7 +622,7 @@ function processManualScan() {
     // Match in reconcile table
     const scanCode = val.toUpperCase();
     const matchedRow = Array.from(document.querySelectorAll('#tableReconcile tbody tr')).find(row => {
-        return [row.dataset.tagCode, row.dataset.skuCode, row.dataset.variantId]
+        return [row.dataset.tagCode, row.dataset.productCode, row.dataset.variantId]
             .some(code => code && code.toUpperCase() === scanCode);
     });
     if (!matchedRow) {
@@ -648,7 +648,7 @@ function processManualScan() {
     targetInput.value = cur + 1;
     recalculateTotals();
     const scanResult = scanMode === 'good' ? '+1 good' : '+1 damaged';
-    feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned ${escapeHtml(matchedRow.dataset.productName)} (${escapeHtml(matchedRow.dataset.skuCode)}). ${scanResult}.</span>`;
+    feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Scanned ${escapeHtml(matchedRow.dataset.productName)} (${escapeHtml(matchedRow.dataset.productCode)}). ${scanResult}.</span>`;
     playSound('success');
     input.value = '';
     input.focus();
@@ -759,8 +759,8 @@ function openPieceModal(outwardId, variantId) {
     if (!row) return;
 
     const productName = row.dataset.productName || 'Garment';
-    const skuCode = row.dataset.skuCode || '—';
-    const tagCode = row.dataset.tagCode || skuCode;
+    const productCode = row.dataset.productCode || '—';
+    const tagCode = row.dataset.tagCode || productCode;
     const size = row.dataset.size || '—';
     const color = row.dataset.color || '—';
     const mrp = parseFloat(row.dataset.mrp) || 0;
@@ -776,7 +776,7 @@ function openPieceModal(outwardId, variantId) {
     const nameEl = document.getElementById('modalProductName');
     if (nameEl) nameEl.textContent = productName;
     const skuEl = document.getElementById('modalSkuCode');
-    if (skuEl) skuEl.textContent = skuCode;
+    if (skuEl) skuEl.textContent = productCode;
     const tagEl = document.getElementById('modalVariantTag');
     if (tagEl) tagEl.textContent = tagCode;
     const catEl = document.getElementById('modalCategoryBadge');

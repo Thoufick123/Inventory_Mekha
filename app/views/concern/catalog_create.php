@@ -212,7 +212,7 @@ if (!$styleConcernId && $isEdit) {
                     <div class="alert alert-info py-2 px-3 rounded-3 d-flex align-items-center justify-content-between mb-3 border-0 bg-primary-subtle text-primary flex-wrap gap-2">
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <i class="bi bi-info-circle-fill fs-5"></i>
-                            <span>Category Default: <strong id="catHsnDisplay">No default HSN/SAC</strong></span>
+                            <span>Category Default: <strong id="catHsnDisplay">No default HSN</strong></span>
                             <button type="button" class="btn btn-sm btn-primary py-0.5 px-2 ms-2 fw-semibold shadow-xs" id="btnApplyCategoryHsn">
                                 <i class="bi bi-check-lg me-1"></i> Apply Category HSN
                             </button>
@@ -231,7 +231,7 @@ if (!$styleConcernId && $isEdit) {
                                 </a>
                             </div>
                             <div class="input-group">
-                                <input type="text" name="hsn_code" id="inputHsnCode" class="form-control font-monospace fw-semibold" placeholder="Type an HSN code or description" value="<?= htmlspecialchars($style['hsn_code'] ?? '') ?>" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#inputGstRate" data-hsn-note-target="#hsnRateNote" autocomplete="off" required>
+                                <input type="text" name="hsn_code" id="inputHsnCode" class="form-control font-monospace fw-semibold" placeholder="Type an HSN code" value="<?= htmlspecialchars($style['hsn_code'] ?? '') ?>" maxlength="8" minlength="4" inputmode="numeric" pattern="[0-9]{4}|[0-9]{6}|[0-9]{8}" title="Enter 4, 6, or 8 numeric digits" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#inputGstRate" data-hsn-note-target="#hsnRateNote" autocomplete="off" required>
                                 <button class="btn btn-outline-secondary" type="button" id="btnClearHsn" title="Clear HSN"><i class="bi bi-x-lg"></i></button>
                             </div>
                             <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">Search and select a textile classification from the shared HSN master.</small>
@@ -582,15 +582,15 @@ if (!$styleConcernId && $isEdit) {
             <div class="modal-body p-3">
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">HSN Code *</label>
-                    <input type="text" name="hsn_code" class="form-control font-monospace" placeholder="e.g. 6109" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#catalogHsnMasterGstRate" autocomplete="off" required>
+                    <input type="text" name="hsn_code" class="form-control font-monospace" placeholder="e.g. 6109" maxlength="8" minlength="4" inputmode="numeric" pattern="[0-9]{4}|[0-9]{6}|[0-9]{8}" title="Enter 4, 6, or 8 numeric digits" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#catalogHsnMasterGstRate" autocomplete="off" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Commodity Description</label>
                     <input type="text" name="description" class="form-control" placeholder="e.g. Cotton T-shirts, knitted garments">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">GST Rate (%) (Optional)</label>
-                    <input type="number" step="0.01" min="0" max="100" name="gst_rate" id="catalogHsnMasterGstRate" class="form-control" placeholder="Leave blank if conditional">
+                    <label class="form-label small fw-semibold">GST Rate (%) <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" min="0" max="100" name="gst_rate" id="catalogHsnMasterGstRate" class="form-control" placeholder="0.00 to 100.00" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">GST Rate Conditions / Notes</label>

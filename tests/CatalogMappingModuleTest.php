@@ -158,7 +158,7 @@ try {
         $varName = "{$styleName} - {$s}";
         DB::query(
             "INSERT INTO variants (
-                concern_id, catalog_id, sku_code, name,
+                concern_id, catalog_id, product_code, name,
                 category_id, subcategory_id, size, attributes,
                 price, mrp, creation_date, status, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 499.00, 599.00, CURDATE(), 'active', NOW())",
@@ -214,7 +214,7 @@ $generatedVariants = DB::fetchAll("SELECT * FROM variants WHERE catalog_id = ? O
 assertTest("Exactly 5 size variants automatically generated (S, M, L, XL, 4XL)", count($generatedVariants) === 5);
 
 $var4XL = DB::fetch("SELECT * FROM variants WHERE catalog_id = ? AND size = '4XL'", [$catalogId]);
-assertTest("Custom size variant '4XL' SKU matches '{$styleCode}-4XL'", !empty($var4XL) && $var4XL['sku_code'] === "{$styleCode}-4XL");
+assertTest("Custom size variant '4XL' SKU matches '{$styleCode}-4XL'", !empty($var4XL) && $var4XL['product_code'] === "{$styleCode}-4XL");
 
 // Check stock ledger
 $stockLedgerEntry = DB::fetch("SELECT * FROM stock_ledger WHERE ref_module = 'catalog_mapping' AND ref_id = ?", [$fgItemId]);

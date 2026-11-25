@@ -35,7 +35,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
     <!-- Export Intelligence Toolbar -->
     <?php
     $exportTitle = 'Export Label Print Jobs (Excel & PDF)';
-    $exportSubtitle = 'Download barcode printing batches, SKU assignments, label runs & production logs';
+    $exportSubtitle = 'Download barcode printing batches, Product Code assignments, label runs & production logs';
     $exportUrl = \App\Core\Controller::url('/m/label_generation/export');
     $prefix = 'lbl_exp';
     include __DIR__ . '/../partials/export_card.php';
@@ -677,7 +677,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                         }
                                         $fgVariantDetailsJson = json_encode($fgVariantDetails, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
                                         $varName = $fg['variant_name'] ?: $fg['item_name'];
-                                        $sku = $fg['sku_code'] ?: ($fg['item_code'] ?: 'FG-' . $fg['id']);
+                                        $sku = $fg['product_code'] ?: ($fg['item_code'] ?: 'FG-' . $fg['id']);
                                         $fgColor = trim((string) ($fgVariantAttributeData['color'] ?? '')) ?: ($fg['color'] ?: 'STANDARD');
                                         $tagCode = QrService::formatFinishedGoodsCode(
                                             (int)$fg['variant_id'],
@@ -734,7 +734,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                             ?>
                                                 <option value="prod_<?= $pfg['id'] ?>"
                                                         data-name="<?= htmlspecialchars($pfg['variant_name']) ?>"
-                                                        data-sku="<?= htmlspecialchars($pfg['sku_code']) ?>"
+                                                        data-sku="<?= htmlspecialchars($pfg['product_code']) ?>"
                                                         data-tag="<?= htmlspecialchars($pfgTag) ?>"
                                                         data-mrp="<?= htmlspecialchars($pfg['variant_mrp']) ?>"
                                                         data-price="<?= htmlspecialchars($pfg['variant_price'] ?? $pfg['variant_mrp']) ?>"
@@ -751,7 +751,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                                         data-qr="<?= htmlspecialchars($pfgTag) ?>"
                                                         data-in-stock="<?= !empty($pfg['is_in_stock']) ? '1' : '0' ?>"
                                                         data-is-production="1">
-                                                    [Stitched] <?= htmlspecialchars($pfg['variant_name']) ?> [<?= htmlspecialchars($pfg['variant_size'] ?: 'Standard') ?>] (<?= htmlspecialchars($pfg['sku_code']) ?>) &bull; <?= (int)$pfg['stitched_pieces'] ?> pcs &bull; Batch #<?= htmlspecialchars($pfg['log_no']) ?> <?= !empty($pfg['is_in_stock']) ? '✓ In Stock' : '' ?>
+                                                    [Stitched] <?= htmlspecialchars($pfg['variant_name']) ?> [<?= htmlspecialchars($pfg['variant_size'] ?: 'Standard') ?>] (<?= htmlspecialchars($pfg['product_code']) ?>) &bull; <?= (int)$pfg['stitched_pieces'] ?> pcs &bull; Batch #<?= htmlspecialchars($pfg['log_no']) ?> <?= !empty($pfg['is_in_stock']) ? '✓ In Stock' : '' ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </optgroup>
@@ -787,7 +787,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                             <option value="">-- Choose Catalog Variant to Map --</option>
                                             <?php foreach ($allVariants as $av): ?>
                                                 <option value="<?= $av['id'] ?>">
-                                                    <?= htmlspecialchars($av['sku_code']) ?> &bull; <?= htmlspecialchars($av['name']) ?> (<?= htmlspecialchars($av['size']) ?>) &bull; MRP ₹<?= number_format($av['mrp'], 2) ?>
+                                                    <?= htmlspecialchars($av['product_code']) ?> &bull; <?= htmlspecialchars($av['name']) ?> (<?= htmlspecialchars($av['size']) ?>) &bull; MRP ₹<?= number_format($av['mrp'], 2) ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
@@ -899,7 +899,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                     <?php else: ?>
                                         <?php $idx = 1; foreach ($purchaseFgItems as $fg): 
                                             $isMapped = !empty($fg['variant_id']);
-                                            $sku = $fg['sku_code'] ?: ($fg['item_code'] ?: 'FG-' . $fg['id']);
+                                            $sku = $fg['product_code'] ?: ($fg['item_code'] ?: 'FG-' . $fg['id']);
                                         ?>
                                             <tr class="fg-row" data-search="<?= strtolower(htmlspecialchars($fg['item_name'] . ' ' . $sku . ' ' . $fg['bill_no'])) ?>">
                                                 <td class="text-muted small"><?= $idx++ ?></td>
@@ -1132,7 +1132,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                             ?>
                                                 <option value="<?= $prod['id'] ?>"
                                                         data-name="<?= htmlspecialchars($prod['variant_name']) ?>"
-                                                        data-sku="<?= htmlspecialchars($prod['sku_code']) ?>"
+                                                        data-sku="<?= htmlspecialchars($prod['product_code']) ?>"
                                                         data-tag="<?= htmlspecialchars($tagCode) ?>"
                                                         data-varid="<?= $prodVariantId ?>"
                                                         data-mrp="<?= htmlspecialchars($prod['variant_mrp']) ?>"
@@ -1146,7 +1146,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                                         data-program="<?= htmlspecialchars($prod['program_no'] ?: 'Standard Program') ?>"
                                                         data-in-stock="<?= !empty($prod['is_in_stock']) ? '1' : '0' ?>"
                                                         data-qr="<?= htmlspecialchars($tagCode) ?>">
-                                                    Batch #<?= htmlspecialchars($prod['log_no']) ?> &bull; <?= htmlspecialchars($prod['variant_name']) ?> [<?= htmlspecialchars($prod['variant_size'] ?: 'Standard') ?>] (<?= htmlspecialchars($prod['sku_code']) ?>) &bull; <?= (int)$prod['stitched_pieces'] ?> pcs <?= !empty($prod['is_in_stock']) ? '&#10003; In Stock' : '' ?>
+                                                    Batch #<?= htmlspecialchars($prod['log_no']) ?> &bull; <?= htmlspecialchars($prod['variant_name']) ?> [<?= htmlspecialchars($prod['variant_size'] ?: 'Standard') ?>] (<?= htmlspecialchars($prod['product_code']) ?>) &bull; <?= (int)$prod['stitched_pieces'] ?> pcs <?= !empty($prod['is_in_stock']) ? '&#10003; In Stock' : '' ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
@@ -1352,7 +1352,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                                 <span class="text-dark small fw-semibold"><?= htmlspecialchars($bItem['variant_name']) ?></span>
                                             </div>
                                             <div class="small text-muted mt-1">
-                                                <span class="badge bg-light text-dark border font-monospace"><?= htmlspecialchars($bItem['sku_code']) ?></span>
+                                                <span class="badge bg-light text-dark border font-monospace"><?= htmlspecialchars($bItem['product_code']) ?></span>
                                                 <span class="ms-1">Color: <?= htmlspecialchars($bItem['variant_color'] ?? ($bItem['color'] ?? '—')) ?></span>
                                             </div>
                                         </td>
@@ -1446,7 +1446,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                         <?php foreach ($recentJobs as $job): 
                             $type = $job['label_type'] ?? 'variant';
                             $title = $job['item_title'] ?: ($job['variant_name'] ?? 'Garment Item');
-                            $code = $job['item_code'] ?: ($job['sku_code'] ?? 'SKU');
+                            $code = $job['item_code'] ?: ($job['product_code'] ?? 'Product Code');
                             $qr = $job['qr_payload'] ?: (!empty($job['category_id']) ? QrService::generatePayload((int)$job['category_id'], (int)$job['subcategory_id'], (int)$job['variant_id']) : 'C?-S?-V?');
                             
                             $badgeClass = 'bg-primary-subtle text-primary border-primary';
@@ -1866,7 +1866,7 @@ function updateFgPreview() {
             const mTitle = document.getElementById('fg_mapped_title');
             if (mTitle) mTitle.textContent = 'Mapped to ' + opt.dataset.name;
             const mSku = document.getElementById('fg_mapped_sku');
-            if (mSku) mSku.textContent = 'Catalog SKU: ' + opt.dataset.sku;
+            if (mSku) mSku.textContent = 'Product Code: ' + opt.dataset.sku;
         } else {
             if (mappedBox) mappedBox.style.display = 'none';
             if (unmappedBox) unmappedBox.style.display = 'block';
@@ -1955,7 +1955,7 @@ function doMapVariant() {
             const opt = itemSel.options[itemSel.selectedIndex];
             opt.dataset.mapped = '1';
             opt.dataset.name = res.variant_name;
-            opt.dataset.sku = res.sku_code;
+            opt.dataset.sku = res.product_code;
             opt.dataset.mrp = res.mrp;
             opt.dataset.size = res.size;
             opt.dataset.varid = String(res.variant_id);
@@ -2186,7 +2186,7 @@ function onBatchSelect() {
             const inStock = item.is_in_stock == 1 || item.is_in_stock === true;
             const size    = item.variant_size || item.size || 'Free';
             const color   = item.variant_color || item.color || '—';
-            const sku     = item.sku_code || '—';
+            const sku     = item.product_code || '—';
             const pcs     = item.stitched_pieces || item.stitching_qty || 0;
             const statusHtml = inStock
                 ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.68rem;"><i class="bi bi-check-circle-fill"></i> In Stock</span>'

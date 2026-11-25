@@ -99,12 +99,12 @@ assertCrud('3. Masters: Product Variants CRUD', function() use ($cid) {
     $subId = (int)$sub['id'];
 
     $sku = 'SKU-TEST-' . rand(1000, 9999);
-    DB::query("INSERT INTO variants (concern_id, category_id, subcategory_id, sku_code, name, size, price, mrp, status, created_at) VALUES (?, ?, ?, ?, 'Test Polo T-Shirt', 'L', 450, 799, 'active', NOW())", [$cid, $catId, $subId, $sku]);
+    DB::query("INSERT INTO variants (concern_id, category_id, subcategory_id, product_code, name, size, price, mrp, status, created_at) VALUES (?, ?, ?, ?, 'Test Polo T-Shirt', 'L', 450, 799, 'active', NOW())", [$cid, $catId, $subId, $sku]);
     $id = (int)DB::lastInsertId();
     if (!$id) throw new Exception("Failed to insert variant");
 
     $v = DB::fetch("SELECT * FROM variants WHERE id = ?", [$id]);
-    if (!$v || $v['sku_code'] !== $sku) throw new Exception("Failed to read variant");
+    if (!$v || $v['product_code'] !== $sku) throw new Exception("Failed to read variant");
 
     DB::query("UPDATE variants SET price = 480, size = 'XL' WHERE id = ?", [$id]);
     $u = DB::fetch("SELECT price, size FROM variants WHERE id = ?", [$id]);

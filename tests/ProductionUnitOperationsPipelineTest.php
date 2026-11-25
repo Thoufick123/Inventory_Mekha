@@ -36,11 +36,11 @@ function assertCondition(bool $condition, string $testName) {
 $concern = DB::fetch("SELECT id FROM concerns WHERE status = 'active' LIMIT 1");
 $cid = $concern ? (int)$concern['id'] : 1;
 
-$variant = DB::fetch("SELECT id, name, sku_code FROM variants WHERE concern_id = ? AND status = 'active' LIMIT 1", [$cid]);
+$variant = DB::fetch("SELECT id, name, product_code FROM variants WHERE concern_id = ? AND status = 'active' LIMIT 1", [$cid]);
 if (!$variant) {
     // Create temporary test variant
     DB::query(
-        "INSERT INTO variants (concern_id, sku_code, name, size, weight_unit, price, status, created_at)
+        "INSERT INTO variants (concern_id, product_code, name, size, weight_unit, price, status, created_at)
          VALUES (?, 'TEST-PIPELINE-SKU', 'Test Pipeline Garment', 'L', 'pcs', 450.00, 'active', NOW())",
         [$cid]
     );

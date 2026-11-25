@@ -50,7 +50,7 @@ $checks = [
         && strpos($returnView, 'STEP 2B: ADD REPLACEMENT PRODUCTS') !== false,
     'Scanning selects the matching invoice item and highlights its row' =>
         strpos($returnView, 'data-tag-code=') !== false
-        && strpos($returnView, "const itemCode = pieceTag ? 'Piece Tag: ' + pieceTag : String(item.sku_code || '')") !== false
+        && strpos($returnView, "const itemCode = pieceTag ? 'Piece Tag: ' + pieceTag : String(item.product_code || '')") !== false
         && strpos($returnView, 'Piece Tag: ') !== false
         && strpos($returnView, 'shop-return-scanned-row') !== false
         && strpos($returnView, 'scrollIntoView({behavior: \'smooth\', block: \'center\'})') !== false,

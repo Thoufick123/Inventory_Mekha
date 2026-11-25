@@ -98,7 +98,7 @@ if (!$item) {
         'style_code' => 'TEST-STY-VAL1',
         'style_name' => 'Test Style Val 1',
         'sizes' => ['S', 'M'],
-        'variant_skus' => ['S' => 'TEST-STY-VAL1-S', 'M' => 'TEST-STY-VAL1-M'],
+        'variant_product_codes' => ['S' => 'TEST-STY-VAL1-S', 'M' => 'TEST-STY-VAL1-M'],
         'variant_names' => ['S' => 'Test S', 'M' => 'Test M'],
         'variant_colors' => ['S' => 'Red', 'M' => 'Red'],
         'variant_qtys' => ['S' => 1, 'M' => 1], // Sum is 2, assuming purchasedQty >= 10

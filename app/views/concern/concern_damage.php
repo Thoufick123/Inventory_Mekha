@@ -70,7 +70,7 @@
                 <?php endif; ?>
                 <div class="col-12 col-md">
                     <label class="form-label small fw-semibold mb-1" for="damageSearch">Search Records</label>
-                    <input id="damageSearch" type="search" name="search" class="form-control form-control-sm" value="<?= htmlspecialchars($search) ?>" placeholder="Damage #, batch, tag, SKU...">
+                    <input id="damageSearch" type="search" name="search" class="form-control form-control-sm" value="<?= htmlspecialchars($search) ?>" placeholder="Damage #, batch, tag, Product Code...">
                 </div>
                 <div class="col-6 col-md-2">
                     <label class="form-label small fw-semibold mb-1" for="damageSource">Source Type</label>
@@ -148,7 +148,7 @@
                                 <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle font-monospace"><?= htmlspecialchars($d['damage_no']) ?></span></td>
                                 <td>
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($d['variant_name']) ?></div>
-                                    <small class="text-muted font-monospace"><?= htmlspecialchars($d['sku_code']) ?> &bull; <?= htmlspecialchars($d['size'] ?: 'Standard') ?></small>
+                                    <small class="text-muted font-monospace"><?= htmlspecialchars($d['product_code']) ?> &bull; <?= htmlspecialchars($d['size'] ?: 'Standard') ?></small>
                                 </td>
                                 <td><span class="badge bg-dark"><i class="bi bi-building me-1"></i><?= htmlspecialchars(preg_replace('/:(AVAILABLE|DAMAGED)$/i', '', (string)$d['location'])) ?></span></td>
                                 <td>
@@ -301,7 +301,7 @@ function openViewConcernDamageModal(d) {
     if (!d) return;
     document.getElementById('view_cdamage_no').textContent = d.damage_no || '';
     document.getElementById('view_cdamage_variant').textContent = d.variant_name || '-';
-    document.getElementById('view_cdamage_sku').textContent = d.sku_code || '-';
+    document.getElementById('view_cdamage_sku').textContent = d.product_code || '-';
     document.getElementById('view_cdamage_loc').textContent = d.location || '-';
     document.getElementById('view_cdamage_qty').textContent = `${Number(d.qty || 0).toLocaleString('en-IN')} pcs`;
     document.getElementById('view_cdamage_user').textContent = d.user_name || 'Staff';

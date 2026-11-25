@@ -116,7 +116,7 @@
                         <tr>
                             <td>
                                 <div class="fw-bold text-dark"><?= htmlspecialchars($item['variant_name']) ?></div>
-                                <small class="text-muted font-monospace"><?= htmlspecialchars($item['sku_code']) ?> (<?= htmlspecialchars($item['size'] ?? 'Standard') ?>)</small>
+                                <small class="text-muted font-monospace"><?= htmlspecialchars($item['product_code']) ?> (<?= htmlspecialchars($item['size'] ?? 'Standard') ?>)</small>
                             </td>
                             <td class="text-center">
                                 <span class="badge bg-light text-dark border"><?= number_format((float)($item['live_source_available'] ?? 0), 2) ?> in store</span>
@@ -202,7 +202,7 @@
                                 <tr>
                                     <td>
                                         <div class="fw-bold small"><?= htmlspecialchars($item['variant_name']) ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($item['sku_code']) ?></small>
+                                        <small class="text-muted"><?= htmlspecialchars($item['product_code']) ?></small>
                                     </td>
                                     <td class="text-center"><?= number_format($remaining, 2) ?></td>
                                     <td class="text-center">
@@ -256,7 +256,7 @@
                                 <tr>
                                     <td>
                                         <div class="fw-bold small"><?= htmlspecialchars($item['variant_name']) ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($item['sku_code']) ?></small>
+                                        <small class="text-muted"><?= htmlspecialchars($item['product_code']) ?></small>
                                     </td>
                                     <td class="text-center fw-bold text-warning"><?= number_format($inTransit, 2) ?></td>
                                     <td>

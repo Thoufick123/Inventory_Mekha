@@ -127,8 +127,8 @@
 <template id="variantOptionsTemplate">
     <option value="">-- Choose Garment Variant --</option>
     <?php foreach ($variants as $v): ?>
-        <option value="<?= $v['id'] ?>" data-sku="<?= htmlspecialchars($v['sku_code']) ?>">
-            <?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['sku_code']) ?> - <?= htmlspecialchars($v['size'] ?? 'Standard') ?>)
+        <option value="<?= $v['id'] ?>" data-sku="<?= htmlspecialchars($v['product_code']) ?>">
+            <?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['product_code']) ?> - <?= htmlspecialchars($v['size'] ?? 'Standard') ?>)
         </option>
     <?php endforeach; ?>
 </template>

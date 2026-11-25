@@ -310,10 +310,10 @@ class InwardController extends Controller {
 
         if ($activeScopeCid) {
             $suppliers = DB::fetchAll("SELECT id, name FROM suppliers WHERE concern_id = ? AND status = 'active'", [$activeScopeCid]);
-            $variants  = DB::fetchAll("SELECT id, sku_code, name, size, weight_unit FROM variants WHERE concern_id = ? AND status = 'active'", [$activeScopeCid]);
+            $variants  = DB::fetchAll("SELECT id, product_code, name, size, weight_unit FROM variants WHERE concern_id = ? AND status = 'active'", [$activeScopeCid]);
         } else {
             $suppliers = DB::fetchAll("SELECT id, name FROM suppliers WHERE status = 'active'");
-            $variants  = DB::fetchAll("SELECT id, sku_code, name, size, weight_unit FROM variants WHERE status = 'active'");
+            $variants  = DB::fetchAll("SELECT id, product_code, name, size, weight_unit FROM variants WHERE status = 'active'");
         }
 
         $this->render('concern/inward', [
@@ -386,7 +386,7 @@ class InwardController extends Controller {
         // Fetch the exact dispatched variants, aggregated by variant ID.
         $items = DB::fetchAll("
             SELECT oi.variant_id, SUM(oi.qty) AS qty,
-                   v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                   v.name AS variant_name, v.product_code, v.size, v.price, v.mrp,
                    v.attributes AS variant_attributes,
                    c.name AS category_name,
                    COALESCE((SELECT SUM(ii.accepted_qty)
@@ -395,26 +395,26 @@ class InwardController extends Controller {
                              JOIN variants iv ON ii.variant_id = iv.id
                              JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
                              WHERE inw.outward_id = oi.outward_id
-                               AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS credited_qty,
+                               AND (ii.variant_id = oi.variant_id OR iv.product_code = v.product_code)), 0) AS credited_qty,
                    COALESCE((SELECT SUM(ii.rejected_qty)
                              FROM inwards inw
                              JOIN inward_items ii ON inw.id = ii.inward_id
                              JOIN variants iv ON ii.variant_id = iv.id
                              JOIN outwards ow ON ow.id = inw.outward_id AND inw.concern_id = ow.destination_concern_id
                              WHERE inw.outward_id = oi.outward_id
-                               AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)), 0) AS damaged_qty
+                               AND (ii.variant_id = oi.variant_id OR iv.product_code = v.product_code)), 0) AS damaged_qty
             FROM outward_items oi
             JOIN variants v ON oi.variant_id = v.id
             LEFT JOIN categories c ON v.category_id = c.id
             WHERE oi.outward_id = ?
-            GROUP BY oi.outward_id, oi.variant_id, v.name, v.sku_code, v.size, v.price, v.mrp, v.attributes, c.name
+            GROUP BY oi.outward_id, oi.variant_id, v.name, v.product_code, v.size, v.price, v.mrp, v.attributes, c.name
         ", [$outwardId]);
 
         if (empty($items)) {
             // Legacy batch outward records may have no outward_items row; use only the batch explicitly linked to this outward.
             $batchRow = DB::fetch("
                 SELECT b.variant_id, b.batch_qty AS qty,
-                       v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                       v.name AS variant_name, v.product_code, v.size, v.price, v.mrp,
                        v.attributes AS variant_attributes, c.name AS category_name,
                        COALESCE((
                            SELECT SUM(ii.accepted_qty)
@@ -424,7 +424,7 @@ class InwardController extends Controller {
                            JOIN outwards ow ON ow.id = inw.outward_id
                            WHERE inw.outward_id = pob.outward_id
                              AND inw.concern_id = ow.destination_concern_id
-                             AND (ii.variant_id = b.variant_id OR iv.sku_code = v.sku_code)
+                             AND (ii.variant_id = b.variant_id OR iv.product_code = v.product_code)
                        ), 0) AS credited_qty,
                        COALESCE((
                            SELECT SUM(ii.rejected_qty)
@@ -434,7 +434,7 @@ class InwardController extends Controller {
                            JOIN outwards ow ON ow.id = inw.outward_id
                            WHERE inw.outward_id = pob.outward_id
                              AND inw.concern_id = ow.destination_concern_id
-                             AND (ii.variant_id = b.variant_id OR iv.sku_code = v.sku_code)
+                             AND (ii.variant_id = b.variant_id OR iv.product_code = v.product_code)
                        ), 0) AS damaged_qty
                 FROM production_outward_batches pob
                 JOIN batches b ON b.id = pob.batch_id
@@ -529,7 +529,7 @@ class InwardController extends Controller {
 
             $item = DB::fetch("
                 SELECT oi.variant_id, SUM(oi.qty) AS qty,
-                       v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                       v.name AS variant_name, v.product_code, v.size, v.price, v.mrp,
                        v.attributes AS variant_attributes,
                        COALESCE((
                            SELECT SUM(ii.accepted_qty)
@@ -539,7 +539,7 @@ class InwardController extends Controller {
                            JOIN outwards ow ON ow.id = inw.outward_id
                            WHERE inw.outward_id = oi.outward_id
                              AND inw.concern_id = ow.destination_concern_id
-                             AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)
+                             AND (ii.variant_id = oi.variant_id OR iv.product_code = v.product_code)
                        ), 0) AS credited_qty,
                        COALESCE((
                            SELECT SUM(ii.rejected_qty)
@@ -549,19 +549,19 @@ class InwardController extends Controller {
                            JOIN outwards ow ON ow.id = inw.outward_id
                            WHERE inw.outward_id = oi.outward_id
                              AND inw.concern_id = ow.destination_concern_id
-                             AND (ii.variant_id = oi.variant_id OR iv.sku_code = v.sku_code)
+                             AND (ii.variant_id = oi.variant_id OR iv.product_code = v.product_code)
                        ), 0) AS damaged_qty
                 FROM outward_items oi
                 JOIN variants v ON oi.variant_id = v.id
                 WHERE oi.outward_id = ? AND oi.variant_id = ?
-                GROUP BY oi.outward_id, oi.variant_id, v.name, v.sku_code, v.size, v.price, v.mrp, v.attributes
+                GROUP BY oi.outward_id, oi.variant_id, v.name, v.product_code, v.size, v.price, v.mrp, v.attributes
             ", [$outwardId, $variantId]);
 
             // Legacy batch records may lack outward_items; only use the exact linked batch variant.
             if (!$item) {
                 $batchRow = DB::fetch("
                     SELECT b.variant_id, b.batch_qty AS qty,
-                           v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                           v.name AS variant_name, v.product_code, v.size, v.price, v.mrp,
                            v.attributes AS variant_attributes,
                            COALESCE((
                                SELECT SUM(ii.accepted_qty)
@@ -571,7 +571,7 @@ class InwardController extends Controller {
                                JOIN outwards ow ON ow.id = inw.outward_id
                                WHERE inw.outward_id = pob.outward_id
                                  AND inw.concern_id = ow.destination_concern_id
-                                 AND (ii.variant_id = b.variant_id OR iv.sku_code = v.sku_code)
+                                 AND (ii.variant_id = b.variant_id OR iv.product_code = v.product_code)
                            ), 0) AS credited_qty,
                            COALESCE((
                                SELECT SUM(ii.rejected_qty)
@@ -581,7 +581,7 @@ class InwardController extends Controller {
                                JOIN outwards ow ON ow.id = inw.outward_id
                                WHERE inw.outward_id = pob.outward_id
                                  AND inw.concern_id = ow.destination_concern_id
-                                 AND (ii.variant_id = b.variant_id OR iv.sku_code = v.sku_code)
+                                 AND (ii.variant_id = b.variant_id OR iv.product_code = v.product_code)
                            ), 0) AS damaged_qty
                     FROM production_outward_batches pob
                     JOIN batches b ON b.id = pob.batch_id
@@ -608,7 +608,7 @@ class InwardController extends Controller {
             $creditedCount = max(0, min($totalPieces, (int)$item['credited_qty']));
             $damagedCount = max(0, min($totalPieces - $creditedCount, (int)$item['damaged_qty']));
             $productName = (string)$item['variant_name'];
-            $skuCode = (string)$item['sku_code'];
+            $productCode = (string)$item['product_code'];
             $size = (string)($item['size'] ?? '');
             $attributes = json_decode((string)($item['variant_attributes'] ?? ''), true);
             $attributes = is_array($attributes) ? $attributes : [];
@@ -629,7 +629,7 @@ class InwardController extends Controller {
                     'tag_code'       => $tagCode,
                     'variant_id'     => $variantId,
                     'product_name'   => $productName,
-                    'sku_code'       => $skuCode,
+                    'product_code'       => $productCode,
                     'size'           => $size,
                     'color'          => $color,
                     'mrp'            => $mrp,
@@ -643,7 +643,7 @@ class InwardController extends Controller {
             echo json_encode([
                 'success'       => true,
                 'product_name'  => $productName,
-                'sku_code'      => $skuCode,
+                'product_code'      => $productCode,
                 'size'          => $size,
                 'color'         => $color,
                 'mrp'           => $mrp,
@@ -680,10 +680,10 @@ class InwardController extends Controller {
             return $sourceVariantId;
         }
 
-        // Check if destination concern already has a variant with this SKU code
+        // Check if destination concern already has a variant with this Product code
         $existing = DB::fetch(
-            "SELECT id FROM variants WHERE concern_id = ? AND sku_code = ?",
-            [$destConcernId, $var['sku_code']]
+            "SELECT id FROM variants WHERE concern_id = ? AND product_code = ?",
+            [$destConcernId, $var['product_code']]
         );
         if ($existing) {
             return (int)$existing['id'];
@@ -775,14 +775,14 @@ class InwardController extends Controller {
 
         DB::query("
             INSERT INTO variants (
-                concern_id, catalog_id, sku_code, name, category_id, subcategory_id,
+                concern_id, catalog_id, product_code, name, category_id, subcategory_id,
                 brand_id, size, weight, weight_unit, attributes, cost_price, price, mrp,
                 creation_date, status, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'active', NOW())
         ", [
             $destConcernId,
             $catalogId,
-            $var['sku_code'],
+            $var['product_code'],
             $var['name'],
             $catId,
             $subId,
@@ -910,16 +910,16 @@ class InwardController extends Controller {
             $destConcernId = (int)$outward['destination_concern_id'];
 
             $dispatchedItems = DB::fetchAll(
-                "SELECT oi.variant_id, SUM(oi.qty) AS qty, v.sku_code
+                "SELECT oi.variant_id, SUM(oi.qty) AS qty, v.product_code
                  FROM outward_items oi
                  JOIN variants v ON v.id = oi.variant_id
                  WHERE oi.outward_id = ?
-                 GROUP BY oi.variant_id, v.sku_code",
+                 GROUP BY oi.variant_id, v.product_code",
                 [$outwardId]
             );
             if (!$dispatchedItems) {
                 $batchItem = DB::fetch(
-                    "SELECT b.variant_id, b.batch_qty AS qty, v.sku_code
+                    "SELECT b.variant_id, b.batch_qty AS qty, v.product_code
                      FROM production_outward_batches pob
                      JOIN batches b ON b.id = pob.batch_id
                      JOIN variants v ON v.id = b.variant_id
@@ -940,7 +940,7 @@ class InwardController extends Controller {
                 $sourceVariantId = (int)$dispatchedItem['variant_id'];
                 $dispatchedByVariant[$sourceVariantId] = [
                     'qty' => (float)$dispatchedItem['qty'],
-                    'sku_code' => (string)$dispatchedItem['sku_code'],
+                    'product_code' => (string)$dispatchedItem['product_code'],
                 ];
                 $totalDispatched += (float)$dispatchedItem['qty'];
             }
@@ -965,8 +965,8 @@ class InwardController extends Controller {
                      JOIN inward_items ii ON ii.inward_id = inw.id
                      JOIN variants iv ON iv.id = ii.variant_id
                      WHERE inw.outward_id = ? AND inw.concern_id = ?
-                       AND (ii.variant_id = ? OR iv.sku_code = ?)",
-                    [$outwardId, $destConcernId, $sourceVariantId, $dispatchedItem['sku_code']]
+                       AND (ii.variant_id = ? OR iv.product_code = ?)",
+                    [$outwardId, $destConcernId, $sourceVariantId, $dispatchedItem['product_code']]
                 );
                 $remainingQty = max(
                     0.0,
@@ -976,7 +976,7 @@ class InwardController extends Controller {
                 );
                 if ($verifiedQty + $damagedQty > $remainingQty + 0.0001) {
                     throw new Exception(
-                        "Received quantity for {$dispatchedItem['sku_code']} exceeds its remaining outward quantity ({$remainingQty})."
+                        "Received quantity for {$dispatchedItem['product_code']} exceeds its remaining outward quantity ({$remainingQty})."
                     );
                 }
 

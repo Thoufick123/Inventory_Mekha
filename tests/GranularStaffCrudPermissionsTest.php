@@ -212,7 +212,7 @@ class GranularStaffCrudPermissionsTest {
         // B. Stocks View
         $this->applyPermissions('stocks', 1, 0, 0, 0);
         $stockHtml = $this->renderViewHtml('concern/stocks.php', [
-            'stocks' => [['id' => 1, 'variant_id' => 10, 'product_name' => 'Silk Shirt', 'sku_code' => 'SLK-01', 'size' => 'M', 'color' => 'Blue', 'location' => 'Main Store', 'quantity' => 25, 'cost_price' => 200, 'mrp' => 500, 'selling_price' => 450, 'is_complementary' => 0]],
+            'stocks' => [['id' => 1, 'variant_id' => 10, 'product_name' => 'Silk Shirt', 'product_code' => 'SLK-01', 'size' => 'M', 'color' => 'Blue', 'location' => 'Main Store', 'quantity' => 25, 'cost_price' => 200, 'mrp' => 500, 'selling_price' => 450, 'is_complementary' => 0]],
             'stockMetrics' => ['total_items' => 1, 'total_units' => 25, 'total_value' => 5000, 'low_stock_count' => 0],
             'search' => '',
             'activeTab' => 'all_stock',
@@ -338,7 +338,7 @@ class GranularStaffCrudPermissionsTest {
         // B. Stocks View
         $this->applyPermissions('stocks', 1, 0, 1, 0);
         $stockHtml = $this->renderViewHtml('concern/stocks.php', [
-            'stocks' => [['id' => 1, 'variant_id' => 10, 'product_name' => 'Silk Shirt', 'sku_code' => 'SLK-01', 'size' => 'M', 'color' => 'Blue', 'location' => 'Main Store', 'quantity' => 25, 'cost_price' => 200, 'mrp' => 500, 'selling_price' => 450, 'is_complementary' => 0]],
+            'stocks' => [['id' => 1, 'variant_id' => 10, 'product_name' => 'Silk Shirt', 'product_code' => 'SLK-01', 'size' => 'M', 'color' => 'Blue', 'location' => 'Main Store', 'quantity' => 25, 'cost_price' => 200, 'mrp' => 500, 'selling_price' => 450, 'is_complementary' => 0]],
             'stockMetrics' => ['total_items' => 1, 'total_units' => 25, 'total_value' => 5000, 'low_stock_count' => 0],
             'search' => '',
             'activeTab' => 'all_stock',
@@ -407,7 +407,7 @@ class GranularStaffCrudPermissionsTest {
         // B. Stocks View
         $this->applyPermissions('stocks', 1, 0, 0, 1);
         $stockHtml = $this->renderViewHtml('concern/stocks.php', [
-            'stocks' => [['id' => 1, 'variant_id' => 10, 'product_name' => 'Silk Shirt', 'sku_code' => 'SLK-01', 'size' => 'M', 'color' => 'Blue', 'location' => 'Main Store', 'quantity' => 25, 'cost_price' => 200, 'mrp' => 500, 'selling_price' => 450, 'is_complementary' => 0]],
+            'stocks' => [['id' => 1, 'variant_id' => 10, 'product_name' => 'Silk Shirt', 'product_code' => 'SLK-01', 'size' => 'M', 'color' => 'Blue', 'location' => 'Main Store', 'quantity' => 25, 'cost_price' => 200, 'mrp' => 500, 'selling_price' => 450, 'is_complementary' => 0]],
             'stockMetrics' => ['total_items' => 1, 'total_units' => 25, 'total_value' => 5000, 'low_stock_count' => 0],
             'search' => '',
             'activeTab' => 'all_stock',
@@ -475,7 +475,7 @@ class GranularStaffCrudPermissionsTest {
 
         $this->applyPermissions('stocks', 1, 1, 1, 1);
         $stockHtml = $this->renderViewHtml('concern/stocks.php', [
-            'stocks' => [['id' => 1, 'variant_id' => 10, 'product_name' => 'Silk Shirt', 'sku_code' => 'SLK-01', 'size' => 'M', 'color' => 'Blue', 'location' => 'Main Store', 'quantity' => 25, 'cost_price' => 200, 'mrp' => 500, 'selling_price' => 450, 'is_complementary' => 0]],
+            'stocks' => [['id' => 1, 'variant_id' => 10, 'product_name' => 'Silk Shirt', 'product_code' => 'SLK-01', 'size' => 'M', 'color' => 'Blue', 'location' => 'Main Store', 'quantity' => 25, 'cost_price' => 200, 'mrp' => 500, 'selling_price' => 450, 'is_complementary' => 0]],
             'stockMetrics' => ['total_items' => 1, 'total_units' => 25, 'total_value' => 5000, 'low_stock_count' => 0],
             'search' => '',
             'activeTab' => 'all_stock',

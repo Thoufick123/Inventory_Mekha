@@ -172,9 +172,9 @@
                                         <div class="fw-bold text-dark">
                                             <?= htmlspecialchars($it['hierarchy_path'] ?: ($it['catalog_name'] ?: 'Production Catalog')) ?>
                                         </div>
-                                        <?php if ($it['sku_code']): ?>
+                                        <?php if ($it['product_code']): ?>
                                             <span class="badge bg-light text-secondary border font-monospace mt-1" style="font-size:0.7rem;">
-                                                SKU: <?= htmlspecialchars($it['sku_code']) ?>
+                                                Product Code: <?= htmlspecialchars($it['product_code']) ?>
                                             </span>
                                         <?php endif; ?>
                                     </td>

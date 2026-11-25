@@ -853,7 +853,7 @@
                         <thead class="table-light">
                             <tr class="fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
                                 <th style="width: 40px;">#</th>
-                                <th style="width: 130px;">SKU / Code</th>
+                                <th style="width: 130px;">Product Code</th>
                                 <th class="text-start">Garment Product Name</th>
                                 <th>Category / Type</th>
                                 <th>Size / Spec</th>
@@ -910,7 +910,7 @@
                                         <td class="text-muted fw-semibold"><?= $fIdx++ ?></td>
                                         <td>
                                             <span class="font-monospace fw-bold text-dark badge bg-light text-dark border">
-                                                <?= htmlspecialchars($f['variant_sku'] ?: ($f['item_code'] ?: ('FG-' . $f['id']))) ?>
+                                                <?= htmlspecialchars($f['variant_product_code'] ?: ($f['item_code'] ?: ('FG-' . $f['id']))) ?>
                                             </span>
                                         </td>
                                         <td class="text-start">

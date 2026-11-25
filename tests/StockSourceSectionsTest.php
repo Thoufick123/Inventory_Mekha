@@ -8,7 +8,7 @@ $csrfToken = 'stock-view-test-token';
 $stocks = [
     [
         'stock_source' => 'own',
-        'sku_code' => 'OWN-S',
+        'product_code' => 'OWN-S',
         'variant_name' => 'Shirt - Red - S',
         'variant_attributes' => json_encode(['color' => 'red', 'custom_attributes' => ['memory' => '4GB']]),
         'size' => 'S',
@@ -26,7 +26,7 @@ $stocks = [
     ],
     [
         'stock_source' => 'purchase',
-        'sku_code' => 'BUY-M',
+        'product_code' => 'BUY-M',
         'variant_name' => 'Shirt - Blue - M',
         'variant_attributes' => json_encode(['color' => 'blue']),
         'size' => 'M',
@@ -45,7 +45,7 @@ $stocks = [
     ],
     [
         'stock_source' => 'other',
-        'sku_code' => 'RET-L',
+        'product_code' => 'RET-L',
         'variant_name' => 'Shirt - Red - L',
         'variant_attributes' => json_encode(['color' => 'red']),
         'size' => 'L',
@@ -132,7 +132,7 @@ $checks = [
         && strpos($html, '₹520.00') !== false,
     'SKU column is removed while QR actions remain available' =>
         strpos($html, '<th>SKU Code</th>') === false
-        && strpos($purchaseRowHtml, 'data-sku-code="BUY-M"') !== false
+        && strpos($purchaseRowHtml, 'data-product-code="BUY-M"') !== false
         && strpos($purchaseRowHtml, 'stock-qr-trigger') !== false,
     'Stock actions include quantity edit and ledger-preserving removal' =>
         strpos($html, 'data-stock-edit') !== false

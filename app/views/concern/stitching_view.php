@@ -137,7 +137,7 @@
                                 <tr>
                                     <td class="ps-3 py-2">
                                         <div class="fw-bold text-dark small"><?= htmlspecialchars($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])) ?></div>
-                                        <div class="text-muted small"><?= htmlspecialchars($it['catalog_name'] ?: 'Catalog') ?> &bull; SKU: <?= htmlspecialchars($it['sku_code'] ?: '-') ?></div>
+                                        <div class="text-muted small"><?= htmlspecialchars($it['catalog_name'] ?: 'Catalog') ?> &bull; Product Code: <?= htmlspecialchars($it['product_code'] ?: '-') ?></div>
                                     </td>
                                     <td class="text-center py-2 font-monospace"><?= (int)$it['cut_qty'] ?></td>
                                     <td class="text-center py-2 font-monospace fw-bold text-success"><?= (int)$it['stitching_qty'] ?></td>

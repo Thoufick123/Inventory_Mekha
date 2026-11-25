@@ -54,16 +54,16 @@ class InwardConcernIsolationTest {
         echo "  Concern B: {$concernB['name']} (#{$cidB})\n\n";
 
         // 2. Ensure test product variant exists for Concern A
-        $varA = DB::fetch("SELECT id, sku_code, name FROM variants WHERE concern_id = ? AND status = 'active' LIMIT 1", [$cidA]);
+        $varA = DB::fetch("SELECT id, product_code, name FROM variants WHERE concern_id = ? AND status = 'active' LIMIT 1", [$cidA]);
         if (!$varA) {
             DB::query(
-                "INSERT INTO variants (concern_id, sku_code, name, price, mrp, status, creation_date, created_at)
+                "INSERT INTO variants (concern_id, product_code, name, price, mrp, status, creation_date, created_at)
                  VALUES (?, 'TEST-VAR-ISO-01', 'Isolation Test T-Shirt', 500, 800, 'active', CURDATE(), NOW())",
                 [$cidA]
             );
-            $varA = DB::fetch("SELECT id, sku_code, name FROM variants WHERE sku_code = 'TEST-VAR-ISO-01'");
+            $varA = DB::fetch("SELECT id, product_code, name FROM variants WHERE product_code = 'TEST-VAR-ISO-01'");
         }
-        $this->assert(!empty($varA['id']), "Test variant exists in Concern A (ID: {$varA['id']}, SKU: {$varA['sku_code']})");
+        $this->assert(!empty($varA['id']), "Test variant exists in Concern A (ID: {$varA['id']}, SKU: {$varA['product_code']})");
         $varAId = (int)$varA['id'];
 
         // Give Concern A some stock to outward
@@ -155,7 +155,7 @@ class InwardConcernIsolationTest {
         echo "\n7. Testing Inward Stock Crediting & Data Isolation:\n";
 
         // Initial stock check in Concern B
-        $destVarBefore = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND sku_code = ?", [$cidB, $varA['sku_code']]);
+        $destVarBefore = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND product_code = ?", [$cidB, $varA['product_code']]);
         $destVarIdBefore = $destVarBefore ? (int)$destVarBefore['id'] : 0;
         $stockBBefore = 0.0;
         if ($destVarIdBefore) {
@@ -170,9 +170,9 @@ class InwardConcernIsolationTest {
         $destVariantId = $resolveMethod->invoke($inwardCtrl, $cidB, $varAId);
         $this->assert($destVariantId > 0, "Variant cleanly replicated/resolved strictly for Concern B (ID: {$destVariantId})");
 
-        $resolvedVar = DB::fetch("SELECT concern_id, sku_code FROM variants WHERE id = ?", [$destVariantId]);
+        $resolvedVar = DB::fetch("SELECT concern_id, product_code FROM variants WHERE id = ?", [$destVariantId]);
         $this->assert((int)$resolvedVar['concern_id'] === $cidB, "Resolved variant belongs strictly to Concern B (#{$cidB})");
-        $this->assert($resolvedVar['sku_code'] === $varA['sku_code'], "Resolved variant maintains identical SKU: {$varA['sku_code']}");
+        $this->assert($resolvedVar['product_code'] === $varA['product_code'], "Resolved variant maintains identical SKU: {$varA['product_code']}");
 
         // Now credit stock as Concern B
         $grnNo = \App\Models\Inward::generateGrnNumber($cidB);

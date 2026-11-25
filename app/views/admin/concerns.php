@@ -411,7 +411,7 @@
                         <div class="row g-2 mb-3">
                             <div class="col-6">
                                 <div class="p-3 rounded-3 bg-light border text-center">
-                                    <span class="text-secondary small d-block">Catalog SKUs</span>
+                                    <span class="text-secondary small d-block">Catalog Products</span>
                                     <span class="fw-bold fs-5 text-dark font-monospace" id="view_concern_variants">0</span>
                                 </div>
                             </div>

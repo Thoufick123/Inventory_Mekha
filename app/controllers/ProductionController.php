@@ -261,17 +261,17 @@ class ProductionController extends Controller {
         if ($cid) {
             $categories = DB::fetchAll("SELECT * FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]);
             $subcategories = DB::fetchAll("SELECT * FROM subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]);
-            $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'", [$cid]);
+            $variants = DB::fetchAll("SELECT id, product_code, name FROM variants WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'", [$cid]);
             $catalogs = DB::fetchAll("SELECT id, name, style_code FROM catalogs WHERE source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY id DESC", [$cid]);
         } else {
             $categories = DB::fetchAll("SELECT * FROM categories WHERE status = 'active' ORDER BY name ASC");
             $subcategories = DB::fetchAll("SELECT * FROM subcategories WHERE status = 'active' ORDER BY name ASC");
-            $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE status = 'active'");
+            $variants = DB::fetchAll("SELECT id, product_code, name FROM variants WHERE status = 'active'");
             $catalogs = DB::fetchAll("SELECT id, name, style_code FROM catalogs WHERE source_module = 'production_catalog' ORDER BY id DESC");
         }
 
         // Fetch Production Programs register for the tab
-        $progSql = "SELECT pp.*, c.name AS catalog_name, v.name AS target_variant_name, v.sku_code,
+        $progSql = "SELECT pp.*, c.name AS catalog_name, v.name AS target_variant_name, v.product_code,
                            con.name AS concern_name, con.code AS concern_code,
                            (SELECT COUNT(*) FROM program_rolls pr WHERE pr.program_id = pp.id) AS rolls_count,
                            (SELECT GROUP_CONCAT(DISTINCT COALESCE(rc.name, pc.name) SEPARATOR ', ')
@@ -628,11 +628,11 @@ class ProductionController extends Controller {
                 $sku = "{$styleCode}-{$size}";
                 $varName = "{$styleName} - {$size}";
 
-                $existVar = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND sku_code = ?", [$cid, $sku]);
+                $existVar = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND product_code = ?", [$cid, $sku]);
                 if (!$existVar) {
                     DB::query(
                         "INSERT INTO variants (
-                            concern_id, catalog_id, sku_code, name, 
+                            concern_id, catalog_id, product_code, name, 
                             category_id, subcategory_id, size, 
                             price, mrp, creation_date, status, created_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, CURDATE(), 'active', NOW())",
@@ -800,7 +800,7 @@ class ProductionController extends Controller {
                 if (!$existVar) {
                     DB::query(
                         "INSERT INTO variants (
-                            concern_id, catalog_id, sku_code, name, 
+                            concern_id, catalog_id, product_code, name, 
                             category_id, subcategory_id, size, 
                             price, mrp, creation_date, status, created_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, CURDATE(), 'active', NOW())",
@@ -1724,7 +1724,7 @@ class ProductionController extends Controller {
     public function quickAddHsnAjax(): void {
         header('Content-Type: application/json');
         $cid = Auth::concernId();
-        $codeType = strtoupper(trim($_POST['code_type'] ?? 'HSN'));
+        $codeType = 'HSN';
         $hsn = trim($_POST['hsn_code'] ?? '');
         $desc = trim($_POST['description'] ?? '');
         $category = trim($_POST['category'] ?? '');
@@ -1732,8 +1732,8 @@ class ProductionController extends Controller {
         $gstInput = trim((string)($_POST['gst_rate'] ?? ''));
         $gst = $gstInput === '' ? null : (is_numeric($gstInput) ? (float)$gstInput : -1.0);
 
-        if (!in_array($codeType, ['HSN', 'SAC'], true) || !preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsn) || strlen($desc) > 255 || strlen($category) > 100 || strlen($rateNote) > 500 || ($gst !== null && ($gst < 0 || $gst > 100))) {
-            echo json_encode(['success' => false, 'message' => 'Use a valid 4-, 6-, or 8-digit HSN/SAC code and GST rate details.']);
+        if (!preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsn) || strlen($desc) > 255 || strlen($category) > 100 || strlen($rateNote) > 500 || ($gst !== null && (!is_finite($gst) || $gst < 0 || $gst > 100))) {
+            echo json_encode(['success' => false, 'message' => 'Use a valid 4-, 6-, or 8-digit HSN code and GST percentage from 0 to 100.']);
             exit;
         }
 
@@ -1805,7 +1805,7 @@ class ProductionController extends Controller {
     public function programsList(): void {
         $this->ensureCatalogSchema();
         $cid = Auth::concernId();
-        $progSql = "SELECT pp.*, c.name AS catalog_name, v.name AS target_variant_name, v.sku_code,
+        $progSql = "SELECT pp.*, c.name AS catalog_name, v.name AS target_variant_name, v.product_code,
                            con.name AS concern_name, con.code AS concern_code,
                            (SELECT COUNT(*) FROM program_rolls pr WHERE pr.program_id = pp.id) AS rolls_count,
                            (SELECT GROUP_CONCAT(DISTINCT COALESCE(rc.name, pc.name) SEPARATOR ', ')
@@ -1860,10 +1860,10 @@ class ProductionController extends Controller {
 
         if ($cid) {
             $catalogs = DB::fetchAll("SELECT * FROM catalogs WHERE concern_id = ? AND source_module = 'production_catalog'", [$cid]);
-            $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
+            $variants = DB::fetchAll("SELECT id, product_code, name FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
         } else {
             $catalogs = DB::fetchAll("SELECT * FROM catalogs WHERE source_module = 'production_catalog'");
-            $variants = DB::fetchAll("SELECT id, sku_code, name FROM variants WHERE status = 'active'");
+            $variants = DB::fetchAll("SELECT id, product_code, name FROM variants WHERE status = 'active'");
         }
 
         $this->render('concern/catalog_program', [
@@ -2658,7 +2658,7 @@ class ProductionController extends Controller {
         }
 
         $sql = "SELECT pp.*, c.name AS catalog_name, c.style_code AS catalog_code,
-                       v.name AS target_variant_name, v.sku_code,
+                       v.name AS target_variant_name, v.product_code,
                        con.name AS concern_name, con.code AS concern_code
                 FROM production_programs pp
                 LEFT JOIN catalogs c ON pp.catalog_id = c.id AND c.source_module = 'production_catalog'
@@ -2730,7 +2730,7 @@ class ProductionController extends Controller {
         }
 
         $sql = "SELECT pp.*, c.name AS catalog_name, c.style_code AS catalog_code,
-                       v.name AS target_variant_name, v.sku_code,
+                       v.name AS target_variant_name, v.product_code,
                        con.name AS concern_name, con.code AS concern_code
                 FROM production_programs pp
                 LEFT JOIN catalogs c ON pp.catalog_id = c.id AND c.source_module = 'production_catalog'
@@ -3486,7 +3486,7 @@ class ProductionController extends Controller {
                 program_roll_id INT NULL,
                 variant_id INT NULL,
                 size VARCHAR(50) NULL,
-                sku_code VARCHAR(100) NULL,
+                product_code VARCHAR(100) NULL,
                 variant_name VARCHAR(255) NULL,
                 cut_pieces INT NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -3804,7 +3804,7 @@ class ProductionController extends Controller {
 
             if ($catId) {
                 $variants = DB::fetchAll(
-                    "SELECT id, sku_code, name, size, weight, price, mrp 
+                    "SELECT id, product_code, name, size, weight, price, mrp 
                      FROM variants 
                      WHERE catalog_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'
                      ORDER BY id ASC",
@@ -3819,7 +3819,7 @@ class ProductionController extends Controller {
                             foreach ($sizesList as $s) {
                                 $variants[] = [
                                     'id'       => null,
-                                    'sku_code' => ($catRecord['style_code'] ?: 'STY') . '-' . strtoupper($s),
+                                    'product_code' => ($catRecord['style_code'] ?: 'STY') . '-' . strtoupper($s),
                                     'name'     => $catRecord['name'] . ' - ' . strtoupper($s),
                                     'size'     => strtoupper($s),
                                     'price'    => 0.00,
@@ -3835,7 +3835,7 @@ class ProductionController extends Controller {
                 foreach ($defaultSizes as $ds) {
                     $variants[] = [
                         'id'       => null,
-                        'sku_code' => ($r['roll_piece_tag'] ?: 'ROLL') . '-' . $ds,
+                        'product_code' => ($r['roll_piece_tag'] ?: 'ROLL') . '-' . $ds,
                         'name'     => ($r['fabric_name'] ?: 'Fabric') . ' (' . ($r['color'] ?: 'Standard') . ') - ' . $ds,
                         'size'     => $ds,
                         'price'    => 0.00,
@@ -4054,7 +4054,7 @@ class ProductionController extends Controller {
                                 'program_roll_id' => (int)$rollId,
                                 'variant_id'      => !empty($vData['variant_id']) ? (int)$vData['variant_id'] : null,
                                 'size'            => trim($vData['size'] ?? ''),
-                                'sku_code'        => trim($vData['sku_code'] ?? ''),
+                                'product_code'        => trim($vData['product_code'] ?? ''),
                                 'variant_name'    => trim($vData['variant_name'] ?? ''),
                                 'cut_pieces'      => $pieces,
                             ];
@@ -4112,14 +4112,14 @@ class ProductionController extends Controller {
             foreach ($validatedItems as $it) {
                 DB::query(
                     "INSERT INTO cutting_items (
-                        cutting_id, program_roll_id, variant_id, size, sku_code, variant_name, cut_pieces, created_at
+                        cutting_id, program_roll_id, variant_id, size, product_code, variant_name, cut_pieces, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
                     [
                         $cuttingId,
                         $it['program_roll_id'],
                         $it['variant_id'],
                         $it['size'],
-                        $it['sku_code'],
+                        $it['product_code'],
                         $it['variant_name'],
                         $it['cut_pieces']
                     ]
@@ -4352,7 +4352,7 @@ class ProductionController extends Controller {
 
             if ($catId) {
                 $variants = DB::fetchAll(
-                    "SELECT id, sku_code, name, size, weight, price, mrp 
+                    "SELECT id, product_code, name, size, weight, price, mrp 
                      FROM variants 
                      WHERE catalog_id = ? AND status = 'active' 
                      ORDER BY id ASC",
@@ -4367,7 +4367,7 @@ class ProductionController extends Controller {
                             foreach ($sizesList as $s) {
                                 $variants[] = [
                                     'id'       => null,
-                                    'sku_code' => ($catRecord['style_code'] ?: 'STY') . '-' . strtoupper($s),
+                                    'product_code' => ($catRecord['style_code'] ?: 'STY') . '-' . strtoupper($s),
                                     'name'     => $catRecord['name'] . ' - ' . strtoupper($s),
                                     'size'     => strtoupper($s),
                                     'price'    => 0.00,
@@ -4393,8 +4393,8 @@ class ProductionController extends Controller {
                         $matchedItemIds[] = $ei['id'];
                         break;
                     }
-                    // Match by sku_code
-                    if (!empty($v['sku_code']) && !empty($ei['sku_code']) && strcasecmp($v['sku_code'], $ei['sku_code']) === 0) {
+                    // Match by product_code
+                    if (!empty($v['product_code']) && !empty($ei['product_code']) && strcasecmp($v['product_code'], $ei['product_code']) === 0) {
                         $v['cut_pieces'] = (int)$ei['cut_pieces'];
                         $matchedItemIds[] = $ei['id'];
                         break;
@@ -4414,7 +4414,7 @@ class ProductionController extends Controller {
                 if (!in_array($ei['id'], $matchedItemIds)) {
                     $variants[] = [
                         'id'         => !empty($ei['variant_id']) ? (int)$ei['variant_id'] : null,
-                        'sku_code'   => $ei['sku_code'] ?? '',
+                        'product_code'   => $ei['product_code'] ?? '',
                         'name'       => $ei['variant_name'] ?: (($r['fabric_name'] ?? 'Fabric') . ' - ' . ($ei['size'] ?? 'Standard')),
                         'size'       => $ei['size'] ?? 'Standard',
                         'cut_pieces' => (int)$ei['cut_pieces'],
@@ -4429,7 +4429,7 @@ class ProductionController extends Controller {
                 foreach ($defaultSizes as $ds) {
                     $variants[] = [
                         'id'         => null,
-                        'sku_code'   => ($r['roll_piece_tag'] ?: 'ROLL') . '-' . $ds,
+                        'product_code'   => ($r['roll_piece_tag'] ?: 'ROLL') . '-' . $ds,
                         'name'       => ($r['fabric_name'] ?: 'Fabric') . ' (' . ($r['color'] ?: 'Standard') . ') - ' . $ds,
                         'size'       => $ds,
                         'cut_pieces' => 0,
@@ -4567,7 +4567,7 @@ class ProductionController extends Controller {
                                 'program_roll_id' => (int)$rollId,
                                 'variant_id'      => !empty($vData['variant_id']) ? (int)$vData['variant_id'] : null,
                                 'size'            => trim($vData['size'] ?? ''),
-                                'sku_code'        => trim($vData['sku_code'] ?? ''),
+                                'product_code'        => trim($vData['product_code'] ?? ''),
                                 'variant_name'    => trim($vData['variant_name'] ?? ''),
                                 'cut_pieces'      => $pieces,
                             ];
@@ -4624,14 +4624,14 @@ class ProductionController extends Controller {
             foreach ($validatedItems as $it) {
                 DB::query(
                     "INSERT INTO cutting_items (
-                        cutting_id, program_roll_id, variant_id, size, sku_code, variant_name, cut_pieces, created_at
+                        cutting_id, program_roll_id, variant_id, size, product_code, variant_name, cut_pieces, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
                     [
                         $id,
                         $it['program_roll_id'],
                         $it['variant_id'],
                         $it['size'],
-                        $it['sku_code'],
+                        $it['product_code'],
                         $it['variant_name'],
                         $it['cut_pieces']
                     ]
@@ -5152,7 +5152,7 @@ class ProductionController extends Controller {
                 variant_id INT NULL,
                 size VARCHAR(50) NULL,
                 color VARCHAR(100) NULL,
-                sku_code VARCHAR(100) NULL,
+                product_code VARCHAR(100) NULL,
                 variant_name VARCHAR(255) NULL,
                 cut_qty INT NOT NULL DEFAULT 0,
                 stitching_qty INT NOT NULL DEFAULT 0,
@@ -5434,7 +5434,7 @@ class ProductionController extends Controller {
                     COALESCE(c_roll.id, c_var.id, c_fallback.id) AS cat_id,
                     COALESCE(c_roll.name, c_var.name, c_fallback.name) AS cat_name,
                     COALESCE(c_roll.style_code, c_var.style_code, c_fallback.style_code) AS cat_code,
-                    v.id AS var_id, v.name AS var_name, v.sku_code AS var_sku, v.size AS var_size,
+                    v.id AS var_id, v.name AS var_name, v.product_code AS var_product_code, v.size AS var_size,
                     v.catalog_id AS var_cat_id, v.mrp AS var_mrp, v.price AS var_sp,
                     COALESCE(pr.color, pbi.color, 'Standard') AS roll_color,
                     COALESCE(pr.fabric_name, pbi.item_name, 'Fabric') AS roll_fabric_name
@@ -5482,8 +5482,8 @@ class ProductionController extends Controller {
 
             if (!$catId || !$catName) {
                 // Check if SKU or variant belongs to any known catalog style
-                if (!empty($it['sku_code'])) {
-                    $skuPrefix = explode('-', $it['sku_code'])[0] ?? '';
+                if (!empty($it['product_code'])) {
+                    $skuPrefix = explode('-', $it['product_code'])[0] ?? '';
                     if ($skuPrefix) {
                         $matchedBySku = DB::fetch(
                             "SELECT id, name, style_code FROM catalogs
@@ -5544,7 +5544,7 @@ class ProductionController extends Controller {
                 'catalog_code'    => $catCode,
                 'size'            => $it['size'] ?: ($it['var_size'] ?: 'Free Size'),
                 'color'           => $it['roll_color'] ?: 'Standard',
-                'sku_code'        => $it['sku_code'] ?: ($it['var_sku'] ?: 'SKU'),
+                'product_code'        => $it['product_code'] ?: ($it['var_product_code'] ?: 'Product Code'),
                 'variant_name'    => $it['variant_name'] ?: ($it['var_name'] ?: ($it['size'] . ' - ' . $it['roll_color'])),
                 'cut_qty'         => $cutQty,
                 'stitching_qty'   => $stitchingQty,
@@ -5811,7 +5811,7 @@ class ProductionController extends Controller {
                         'variant_id'      => !empty($it['variant_id']) ? (int)$it['variant_id'] : null,
                         'size'            => trim($it['size'] ?? ''),
                         'color'           => trim($it['color'] ?? ''),
-                        'sku_code'        => trim($it['sku_code'] ?? ''),
+                        'product_code'        => trim($it['product_code'] ?? ''),
                         'variant_name'    => trim($it['variant_name'] ?? ''),
                         'cut_qty'         => $cutQ,
                         'stitching_qty'   => $stitchQ,
@@ -5876,7 +5876,7 @@ class ProductionController extends Controller {
                 DB::query(
                     "INSERT INTO stitching_items (
                         stitching_id, cutting_item_id, catalog_id, variant_id,
-                        size, color, sku_code, variant_name,
+                        size, color, product_code, variant_name,
                         cut_qty, stitching_qty, per_pc_weight, total_weight,
                         base_price, discount_price, created_at
                     ) VALUES (
@@ -5892,7 +5892,7 @@ class ProductionController extends Controller {
                         $item['variant_id'],
                         $item['size'],
                         $item['color'],
-                        $item['sku_code'],
+                        $item['product_code'],
                         $item['variant_name'],
                         $item['cut_qty'],
                         $item['stitching_qty'],
@@ -6709,7 +6709,7 @@ class ProductionController extends Controller {
                     `stitching_item_id` INT NULL,
                     `size` VARCHAR(50) NULL,
                     `color` VARCHAR(50) NULL,
-                    `sku_code` VARCHAR(100) NULL,
+                    `product_code` VARCHAR(100) NULL,
                     `variant_name` VARCHAR(255) NULL,
                     `inspected_qty` INT NOT NULL DEFAULT 0,
                     `passed_qty` INT NOT NULL DEFAULT 0,
@@ -6890,7 +6890,7 @@ class ProductionController extends Controller {
         $offset       = ($page - 1) * $perPage;
 
         $sql = "SELECT qi.*, 
-                       v.name AS variant_name, v.sku_code, v.size, v.price, v.mrp,
+                       v.name AS variant_name, v.product_code, v.size, v.price, v.mrp,
                        sl.batch_no AS stitching_batch_no, sl.stitching_name,
                        COALESCE(p.program_no, sl.batch_no, qi.batch_no, 'PRG') AS program_no,
                        COALESCE(cat.name, p.program_name, sl.stitching_name, v.name, 'Garment Product') AS product_name,
@@ -6922,7 +6922,7 @@ class ProductionController extends Controller {
         }
 
         if ($search !== '') {
-            $sql .= " AND (qi.qc_no LIKE ? OR p.program_no LIKE ? OR sl.batch_no LIKE ? OR v.name LIKE ? OR v.sku_code LIKE ? OR u.name LIKE ?)";
+            $sql .= " AND (qi.qc_no LIKE ? OR p.program_no LIKE ? OR sl.batch_no LIKE ? OR v.name LIKE ? OR v.product_code LIKE ? OR u.name LIKE ?)";
             $term = "%{$search}%";
             $params[] = $term;
             $params[] = $term;
@@ -7001,7 +7001,7 @@ class ProductionController extends Controller {
                    COALESCE(cat.name, 'Catalog Item') AS catalog_name,
                    cat.hierarchy_path,
                    cat.style_code,
-                   COALESCE(v.sku_code, si.sku_code) AS variant_sku,
+                   COALESCE(v.product_code, si.product_code) AS variant_product_code,
                    COALESCE(v.name, si.variant_name, CONCAT(si.size, ' - ', si.color)) AS variant_full_name
             FROM stitching_items si
             JOIN stitching_logs sl ON si.stitching_id = sl.id
@@ -7073,7 +7073,7 @@ class ProductionController extends Controller {
                        COALESCE(cat.name, 'Catalog Item') AS catalog_name,
                        cat.hierarchy_path,
                        cat.style_code,
-                       COALESCE(v.sku_code, si.sku_code) AS variant_sku,
+                       COALESCE(v.product_code, si.product_code) AS variant_product_code,
                        COALESCE(v.name, si.variant_name, CONCAT(si.size, ' - ', si.color)) AS variant_full_name
                 FROM stitching_items si
                 JOIN stitching_logs sl ON si.stitching_id = sl.id
@@ -7295,7 +7295,7 @@ class ProductionController extends Controller {
                 $variantId       = !empty($it['variant_id']) ? (int)$it['variant_id'] : null;
                 $size            = trim($it['size'] ?? '');
                 $color           = trim($it['color'] ?? '');
-                $sku             = trim($it['sku_code'] ?? '');
+                $sku             = trim($it['product_code'] ?? '');
                 $variantName     = trim($it['variant_name'] ?? '');
                 $inspectedQ      = max(0, (int)($it['total_qty'] ?? 0));
                 $passedQ         = 0;
@@ -7306,7 +7306,7 @@ class ProductionController extends Controller {
 
                 DB::query("
                     INSERT INTO qc_inspection_items (
-                        qc_id, catalog_id, variant_id, stitching_item_id, size, color, sku_code, variant_name,
+                        qc_id, catalog_id, variant_id, stitching_item_id, size, color, product_code, variant_name,
                         inspected_qty, passed_qty, rejected_qty, rework_qty, defect_notes, rework_notes, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 ", [
@@ -7399,7 +7399,7 @@ class ProductionController extends Controller {
         }
 
         $pieces = DB::fetchAll("
-            SELECT qp.*, qii.sku_code, qii.variant_name
+            SELECT qp.*, qii.product_code, qii.variant_name
             FROM qc_piece_items qp
             LEFT JOIN qc_inspection_items qii ON qp.qc_item_id = qii.id
             WHERE qp.qc_id = ?
@@ -7824,7 +7824,7 @@ class ProductionController extends Controller {
 
         $qc = DB::fetch("
             SELECT qi.*, 
-                   v.name AS variant_name, v.sku_code, v.size,
+                   v.name AS variant_name, v.product_code, v.size,
                    sl.batch_no AS stitching_batch_no, sl.stitching_name,
                    pp.program_no, pp.program_name,
                    cat.name AS catalog_name, cat.hierarchy_path,
@@ -8046,7 +8046,7 @@ class ProductionController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT pp.*, c.name AS catalog_name, v.name AS target_variant_name, v.sku_code,
+        $sql = "SELECT pp.*, c.name AS catalog_name, v.name AS target_variant_name, v.product_code,
                        con.name AS concern_name, con.code AS concern_code
                 FROM production_programs pp
                 LEFT JOIN catalogs c ON pp.catalog_id = c.id
@@ -8070,7 +8070,7 @@ class ProductionController extends Controller {
         $programs = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Program No', 'Catalog / Style', 'SKU Code', 'Target Product', 
+            'Program No', 'Catalog / Style', 'Product Code', 'Target Product', 
             'Planned Qty', 'Produced Qty', 'Wastage Qty', 'Status', 'Start Date', 'End Date', 'Concern'
         ];
 
@@ -8088,7 +8088,7 @@ class ProductionController extends Controller {
             $rows[] = [
                 $p['program_no'],
                 $p['catalog_name'] ?: 'Custom Production',
-                $p['sku_code'],
+                $p['product_code'],
                 $p['target_variant_name'],
                 $planned,
                 $produced,
@@ -8130,7 +8130,7 @@ class ProductionController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT cl.*, pp.program_no, v.name AS raw_variant_name, v.sku_code,
+        $sql = "SELECT cl.*, pp.program_no, v.name AS raw_variant_name, v.product_code,
                        con.name AS concern_name, con.code AS concern_code
                 FROM cutting_logs cl
                 LEFT JOIN production_programs pp ON cl.program_id = pp.id
@@ -8154,7 +8154,7 @@ class ProductionController extends Controller {
         $logs = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Log No', 'Date', 'Program Ref', 'Raw Fabric / Variant', 'SKU', 
+            'Log No', 'Date', 'Program Ref', 'Raw Fabric / Variant', 'Product Code', 
             'Input Fabric (Mtr/Kg)', 'Cut Pieces', 'Wastage (Kg)', 'Wastage %', 'Notes', 'Concern'
         ];
 
@@ -8173,7 +8173,7 @@ class ProductionController extends Controller {
                 date('d M Y, h:i A', strtotime($l['created_at'])),
                 $l['program_no'] ?: 'Direct',
                 $l['raw_variant_name'],
-                $l['sku_code'],
+                $l['product_code'],
                 $inp,
                 $cut,
                 $wst,
@@ -8214,7 +8214,7 @@ class ProductionController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT sl.*, pp.program_no, v.name AS produced_variant_name, v.sku_code,
+        $sql = "SELECT sl.*, pp.program_no, v.name AS produced_variant_name, v.product_code,
                        con.name AS concern_name, con.code AS concern_code
                 FROM stitching_logs sl
                 LEFT JOIN production_programs pp ON sl.program_id = pp.id
@@ -8238,7 +8238,7 @@ class ProductionController extends Controller {
         $logs = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Log No', 'Date', 'Program Ref', 'Finished Variant', 'SKU', 
+            'Log No', 'Date', 'Program Ref', 'Finished Variant', 'Product Code', 
             'Input Panels', 'Stitched Pcs', 'Defective Pcs', 'Defect %', 'Notes', 'Concern'
         ];
 
@@ -8257,7 +8257,7 @@ class ProductionController extends Controller {
                 date('d M Y, h:i A', strtotime($l['created_at'])),
                 $l['program_no'] ?: 'Direct',
                 $l['produced_variant_name'],
-                $l['sku_code'],
+                $l['product_code'],
                 $in,
                 $st,
                 $ws,
@@ -8297,7 +8297,7 @@ class ProductionController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT qc.*, v.name AS variant_name, v.sku_code, v.size, u.name AS inspector_name,
+        $sql = "SELECT qc.*, v.name AS variant_name, v.product_code, v.size, u.name AS inspector_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM qc_inspections qc
                 JOIN variants v ON qc.variant_id = v.id
@@ -8321,7 +8321,7 @@ class ProductionController extends Controller {
         $inspections = DB::fetchAll($sql, $params);
 
         $headers = [
-            'QC No', 'Date', 'SKU Code', 'Variant Name', 'Size', 
+            'QC No', 'Date', 'Product Code', 'Variant Name', 'Size', 
             'Inspected Qty', 'Passed Qty', 'Rejected Qty', 'Pass Rate %', 'Location', 'Inspector', 'Concern'
         ];
 
@@ -8338,7 +8338,7 @@ class ProductionController extends Controller {
             $rows[] = [
                 $q['qc_no'],
                 date('d M Y, h:i A', strtotime($q['created_at'])),
-                $q['sku_code'],
+                $q['product_code'],
                 $q['variant_name'],
                 $q['size'] ?? '-',
                 $ins,

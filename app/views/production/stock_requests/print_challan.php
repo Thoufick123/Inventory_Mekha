@@ -65,7 +65,7 @@
                     <td><?= $count++ ?></td>
                     <td>
                         <strong><?= htmlspecialchars($item['variant_name']) ?></strong>
-                        <div style="font-size: 11px; color: #64748b; font-family: monospace;"><?= htmlspecialchars($item['sku_code']) ?> (<?= htmlspecialchars($item['size'] ?? 'Standard') ?>)</div>
+                        <div style="font-size: 11px; color: #64748b; font-family: monospace;"><?= htmlspecialchars($item['product_code']) ?> (<?= htmlspecialchars($item['size'] ?? 'Standard') ?>)</div>
                     </td>
                     <td class="text-center"><?= number_format((float)$item['requested_qty'], 2) ?></td>
                     <td class="text-center" style="font-weight: bold; font-size: 14px;"><?= number_format((float)$item['dispatched_qty'], 2) ?></td>

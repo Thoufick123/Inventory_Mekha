@@ -251,7 +251,7 @@
                                                         <?= htmlspecialchars($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])) ?>
                                                     </div>
                                                     <div class="text-muted font-monospace" style="font-size: 0.75rem;">
-                                                        SKU: <?= htmlspecialchars($it['sku_code'] ?: 'N/A') ?>
+                                                        Product Code: <?= htmlspecialchars($it['product_code'] ?: 'N/A') ?>
                                                     </div>
                                                 </div>
                                             </td>

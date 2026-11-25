@@ -86,7 +86,7 @@ assertTest("Scanning Concern 2 QR while logged into Concern 1 returns NULL (Isol
 $c1QrPayload = "C1-S1-V1";
 $qrLookupFromC1Own = QrService::lookupVariant($c1QrPayload, Auth::concernId());
 assertTest("Scanning Concern 1 QR while logged into Concern 1 resolves variant + live stock", 
-    $qrLookupFromC1Own !== null && $qrLookupFromC1Own['sku_code'] === 'SKU-FAB-180-BLK'
+    $qrLookupFromC1Own !== null && $qrLookupFromC1Own['product_code'] === 'SKU-FAB-180-BLK'
 );
 
 // Switch login to Concern 2 (Apex)
@@ -102,7 +102,7 @@ assertTest("Scanning Concern 1 QR while logged into Concern 2 returns NULL (Isol
 // As Concern 2, own QR resolves
 $qrLookupFromC2Own = QrService::lookupVariant($c2QrPayload, Auth::concernId());
 assertTest("Scanning Concern 2 QR while logged into Concern 2 resolves variant #5", 
-    $qrLookupFromC2Own !== null && $qrLookupFromC2Own['sku_code'] === 'SKU-APX-YRN-30'
+    $qrLookupFromC2Own !== null && $qrLookupFromC2Own['product_code'] === 'SKU-APX-YRN-30'
 );
 
 // ----------------------------------------------------

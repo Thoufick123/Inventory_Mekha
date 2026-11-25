@@ -134,7 +134,7 @@ function performLookup(codeToSearch = null) {
                 container.innerHTML = `
                     <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
                         <div>
-                            <span class="badge bg-dark font-monospace mb-1">${item.sku_code}</span>
+                            <span class="badge bg-dark font-monospace mb-1">${item.product_code}</span>
                             <h4 class="fw-bold text-dark mb-0">${item.name}</h4>
                             <div class="text-muted small mt-1">
                                 Category: <strong>${item.category_name || '-'}</strong> &bull; Subcategory: <strong>${item.subcategory_name || '-'}</strong>

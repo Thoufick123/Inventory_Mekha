@@ -329,9 +329,9 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                             <?php foreach ($variants as $v): ?>
                                 <option value="<?= $v['id'] ?>" 
                                         data-name="<?= htmlspecialchars($v['name']) ?>" 
-                                        data-sku="<?= htmlspecialchars($v['sku_code']) ?>"
+                                        data-sku="<?= htmlspecialchars($v['product_code']) ?>"
                                         data-size="<?= htmlspecialchars($v['size'] ?? '') ?>">
-                                    <?= htmlspecialchars($v['name']) ?> - <?= htmlspecialchars($v['sku_code']) ?> (Size: <?= htmlspecialchars($v['size'] ?? '-') ?>)
+                                    <?= htmlspecialchars($v['name']) ?> - <?= htmlspecialchars($v['product_code']) ?> (Size: <?= htmlspecialchars($v['size'] ?? '-') ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>

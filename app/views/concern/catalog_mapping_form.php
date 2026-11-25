@@ -742,7 +742,7 @@
                 </div>
             </div>
             <div class="card-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center text-muted small">
-                <span><i class="bi bi-pencil-square me-1"></i> Edit SKU codes, names, attributes, and prices; use the trash button to remove a row.</span>
+                <span><i class="bi bi-pencil-square me-1"></i> Edit Product codes, names, attributes, and prices; use the trash button to remove a row.</span>
                 <span class="font-monospace text-primary fw-semibold" id="variantsAllocationNotice">Equal allocation ready across <?= (int)$item['qty'] ?> purchased pieces.</span>
             </div>
         </div>
@@ -1515,7 +1515,7 @@ function renderVariantsTable() {
 
     const staticHeaders = [
         '<th class="matrix-col-index">#</th>',
-        '<th class="matrix-col-sku"><i class="bi bi-upc-scan text-primary me-1"></i> Variant SKU Code *</th>',
+        '<th class="matrix-col-sku"><i class="bi bi-upc-scan text-primary me-1"></i> Variant Product Code *</th>',
         '<th class="matrix-col-name"><i class="bi bi-tag text-primary me-1"></i> Product Variant Name *</th>',
         '<th class="matrix-col-qr text-center"><i class="bi bi-qr-code text-primary me-1"></i> Hierarchy QR Key</th>',
         '<th class="matrix-col-color"><i class="bi bi-palette text-primary me-1"></i> Color</th>',
@@ -1647,7 +1647,7 @@ function renderVariantsTable() {
             <tr id="variant_row_${key}" data-combo-signature="${escapeHtml(combo.signature)}">
                 <td class="matrix-col-index text-muted small">${idx + 1}</td>
                 <td class="matrix-col-sku">
-                    <input type="text" name="variant_skus[${key}]" class="form-control form-control-sm font-monospace fw-bold text-primary variant-sku-input" value="${escapeHtml(sku)}" required>
+                    <input type="text" name="variant_product_codes[${key}]" class="form-control form-control-sm font-monospace fw-bold text-primary variant-sku-input" value="${escapeHtml(sku)}" required>
                     <input type="hidden" name="variant_sizes[${key}]" value="${escapeHtml(size)}">
                 </td>
                 <td class="matrix-col-name">

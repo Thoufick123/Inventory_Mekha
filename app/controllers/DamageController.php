@@ -25,7 +25,7 @@ class DamageController extends Controller {
         $location = is_scalar($rawLocation) ? trim((string)$rawLocation) : '';
         $status = is_scalar($rawStatus) ? strtoupper(trim((string)$rawStatus)) : '';
 
-        $sql = "SELECT cd.*, v.name AS variant_name, v.sku_code, v.size, v.price AS unit_price, v.mrp,
+        $sql = "SELECT cd.*, v.name AS variant_name, v.product_code, v.size, v.price AS unit_price, v.mrp,
                        c.name AS category_name, u.name AS user_name,
                        COALESCE(cd.status, 'LOGGED') AS current_status,
                        EXISTS(
@@ -62,7 +62,7 @@ class DamageController extends Controller {
             $params[] = $cid;
         }
         if ($search !== '') {
-            $sql .= " AND (cd.damage_no LIKE ? OR v.sku_code LIKE ? OR v.name LIKE ? OR cd.reason LIKE ?)";
+            $sql .= " AND (cd.damage_no LIKE ? OR v.product_code LIKE ? OR v.name LIKE ? OR cd.reason LIKE ?)";
             $like = '%' . $search . '%';
             array_push($params, $like, $like, $like, $like);
         }
@@ -173,7 +173,7 @@ class DamageController extends Controller {
                 'item' => [
                     'variant_id' => (int)$variant['id'],
                     'tag_code' => $tagCode,
-                    'sku_code' => (string)$variant['sku_code'],
+                    'product_code' => (string)$variant['product_code'],
                     'variant_name' => (string)$variant['name'],
                     'category_name' => (string)($variant['category_name'] ?? 'General'),
                     'size' => (string)($variant['size'] ?? ''),
@@ -308,7 +308,7 @@ class DamageController extends Controller {
             }
 
             $variant = DB::fetch(
-                "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name
+                "SELECT v.id, v.name, v.product_code, v.size, v.price, v.mrp, c.name AS category_name
                  FROM variants v
                  LEFT JOIN categories c ON c.id = v.category_id
                  WHERE v.id = ? AND v.concern_id = ?",
@@ -322,7 +322,7 @@ class DamageController extends Controller {
         $variantId = QrService::parseVariantId($tagCode);
         if ($variantId) {
             $variant = DB::fetch(
-                "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name
+                "SELECT v.id, v.name, v.product_code, v.size, v.price, v.mrp, c.name AS category_name
                  FROM variants v
                  LEFT JOIN categories c ON c.id = v.category_id
                  WHERE v.id = ? AND v.concern_id = ?",
@@ -336,7 +336,7 @@ class DamageController extends Controller {
         $parsed = QrService::parsePayload($tagCode);
         if ($parsed) {
             $variant = DB::fetch(
-                "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, c.name AS category_name
+                "SELECT v.id, v.name, v.product_code, v.size, v.price, v.mrp, c.name AS category_name
                  FROM variants v
                  LEFT JOIN categories c ON c.id = v.category_id
                  WHERE v.id = ? AND v.concern_id = ? AND v.category_id = ? AND v.subcategory_id = ?",
@@ -348,7 +348,7 @@ class DamageController extends Controller {
         }
 
         $variants = DB::fetchAll(
-            "SELECT v.id, v.name, v.sku_code, v.size, v.price, v.mrp, v.attributes,
+            "SELECT v.id, v.name, v.product_code, v.size, v.price, v.mrp, v.attributes,
                     (SELECT pbi.color
                      FROM purchase_bill_items pbi
                      WHERE pbi.concern_id = v.concern_id
@@ -366,7 +366,7 @@ class DamageController extends Controller {
         );
         $matches = [];
         foreach ($variants as $variant) {
-            if (strtoupper(trim((string)$variant['sku_code'])) === $tagCode) {
+            if (strtoupper(trim((string)$variant['product_code'])) === $tagCode) {
                 $matches[(int)$variant['id']] = $variant;
                 continue;
             }
@@ -695,7 +695,7 @@ class DamageController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT cd.*, v.name AS variant_name, v.sku_code, v.size, v.price, u.name AS user_name,
+        $sql = "SELECT cd.*, v.name AS variant_name, v.product_code, v.size, v.price, u.name AS user_name,
                        con.name AS concern_name, con.code AS concern_code
                 FROM concern_damages cd
                 JOIN variants v ON cd.variant_id = v.id
@@ -719,7 +719,7 @@ class DamageController extends Controller {
         $damages = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Damage No', 'Date', 'SKU Code', 'Variant Name', 'Size', 
+            'Damage No', 'Date', 'Product Code', 'Variant Name', 'Size', 
             'Damaged Qty', 'Unit Cost (₹)', 'Est. Loss (₹)', 'Location', 'Reason', 'Logged By', 'Concern'
         ];
 
@@ -733,7 +733,7 @@ class DamageController extends Controller {
             $rows[] = [
                 $d['damage_no'],
                 date('d M Y, h:i A', strtotime($d['created_at'])),
-                $d['sku_code'],
+                $d['product_code'],
                 $d['variant_name'],
                 $d['size'] ?? '-',
                 (float)$d['qty'],

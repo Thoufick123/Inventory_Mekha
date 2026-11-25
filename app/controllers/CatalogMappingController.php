@@ -148,102 +148,24 @@ class CatalogMappingController extends Controller
     }
 
     /**
-     * Main View: List Purchased Finished Goods & 3-Tier Hierarchy / Attributes
+     * Main View: 3-Tier Category Hierarchy, Product Attributes & HSN Master
      */
     public function index(): void
     {
         $this->ensureSchema();
         $cid = Auth::concernId();
 
-        $statusFilter = trim($_GET['status'] ?? 'all');
-        $search = trim($_GET['search'] ?? '');
-        $catFilter = !empty($_GET['category_id']) ? (int) $_GET['category_id'] : null;
-
-        // Query Finished Goods from Purchase Billing
-        $sql = "SELECT pbi.*, 
-                       pb.bill_no, pb.bill_date, pb.payment_status,
-                       s.name AS supplier_name,
-                       cm.id AS mapping_id, cm.status AS mapping_status, cm.selected_sizes, cm.selected_color,
-                       c.name AS catalog_name, c.style_code AS catalog_style_code, c.short_code AS catalog_short_code,
-                       c.hierarchy_path, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate,
-                       cat.name AS category_name, sub.name AS subcategory_name, subsub.name AS subsub_name,
-                       v.sku_code AS variant_sku, v.name AS variant_name
-                FROM purchase_bill_items pbi
-                JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
-                LEFT JOIN suppliers s ON pb.supplier_id = s.id
-                LEFT JOIN catalog_mappings cm ON cm.purchase_bill_item_id = pbi.id
-                LEFT JOIN catalogs c ON COALESCE(cm.catalog_id, pbi.catalog_id) = c.id
-                LEFT JOIN categories cat ON c.category_id = cat.id
-                LEFT JOIN subcategories sub ON c.subcategory_id = sub.id
-                LEFT JOIN sub_subcategories subsub ON c.sub_sub_category_id = subsub.id
-                LEFT JOIN variants v ON pbi.variant_id = v.id
-                WHERE pbi.section_type = 'finished_goods'";
-
-        $params = [];
-        if ($cid) {
-            $sql .= ' AND pbi.concern_id = ?';
-            $params[] = $cid;
-        }
-
-        if ($statusFilter === 'unmapped') {
-            $sql .= " AND (cm.id IS NULL OR cm.status = 'unmapped') AND (pbi.catalog_id IS NULL AND pbi.variant_id IS NULL)";
-        } elseif ($statusFilter === 'mapped') {
-            $sql .= " AND ((cm.id IS NOT NULL AND cm.status = 'mapped') OR (pbi.catalog_id IS NOT NULL OR pbi.variant_id IS NOT NULL))";
-        }
-
-        if (!empty($search)) {
-            $sql .= ' AND (pbi.item_name LIKE ? OR pbi.item_code LIKE ? OR pb.bill_no LIKE ? OR s.name LIKE ? OR c.name LIKE ? OR c.style_code LIKE ?)';
-            $term = "%{$search}%";
-            $params = array_merge($params, [$term, $term, $term, $term, $term, $term]);
-        }
-
-        if ($catFilter) {
-            $sql .= ' AND (c.category_id = ? OR cm.category_id = ?)';
-            $params[] = $catFilter;
-            $params[] = $catFilter;
-        }
-
-        $sql .= ' ORDER BY pbi.id DESC';
-        $items = DB::fetchAll($sql, $params);
-
-        // Fetch Metrics
-        $totalItems = count($items);
-        $mappedCount = 0;
-        $unmappedCount = 0;
-        $totalPieces = 0;
-
-        foreach ($items as &$it) {
-            $isMapped = (!empty($it['mapping_id']) && $it['mapping_status'] === 'mapped') ||
-                (!empty($it['catalog_id']) && !empty($it['variant_id']));
-
-            // If item has no mapping record and no catalog_id, it is unmapped
-            if (empty($it['mapping_id']) && empty($it['catalog_id'])) {
-                $isMapped = false;
-            }
-
-            $it['is_mapped'] = $isMapped;
-            if ($isMapped) {
-                $mappedCount++;
-            } else {
-                $unmappedCount++;
-            }
-            $totalPieces += (float) ($it['qty'] ?? 0);
-        }
-        unset($it);
-
-        // Load 3-Tier Hierarchy for Tab 2 and Dropdowns
+        // Load 3-Tier Hierarchy, Attributes & HSN Master
         if ($cid) {
             $categories = DB::fetchAll('SELECT * FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY name ASC', [$cid]);
             $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id WHERE (s.concern_id = ? OR s.concern_id = 1 OR s.concern_id IS NULL) ORDER BY s.name ASC', [$cid]);
             $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id WHERE (ss.concern_id = ? OR ss.concern_id = 1 OR ss.concern_id IS NULL) ORDER BY ss.name ASC', [$cid]);
             $attributes = DB::fetchAll('SELECT * FROM product_attributes WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY attribute_type ASC, sort_order ASC', [$cid]);
-            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name FROM catalogs WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status != 'inactive' ORDER BY id DESC", [$cid]);
         } else {
             $categories = DB::fetchAll('SELECT * FROM categories ORDER BY name ASC');
             $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id ORDER BY s.name ASC');
             $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id ORDER BY ss.name ASC');
             $attributes = DB::fetchAll('SELECT * FROM product_attributes ORDER BY attribute_type ASC, sort_order ASC');
-            $catalogs = DB::fetchAll('SELECT id, style_code, short_code, name FROM catalogs ORDER BY id DESC');
         }
 
         $hsnSql = "SELECT hm.id, hm.concern_id, hm.code_type, hm.hsn_code, hm.description, hm.category, hm.gst_rate, hm.rate_note, hm.is_active,
@@ -262,14 +184,12 @@ class CatalogMappingController extends Controller
         $hsnCategories = array_values(array_filter(array_unique(array_column($hsnCodes, 'category'))));
         sort($hsnCategories);
 
-        $activeTab = $_GET['tab'] ?? 'mappings';
         $attributeTypes = array_values(array_unique(array_filter(array_column($attributes, 'attribute_type'))));
         sort($attributeTypes);
 
         $this->render('concern/catalog_mapping', [
             'pageTitle' => 'Catalog Mapping',
             'currentModule' => 'catalog_mapping',
-            'items' => $items,
             'categories' => $categories,
             'subcategories' => $subcategories,
             'subSubcategories' => $subSubcategories,
@@ -277,19 +197,6 @@ class CatalogMappingController extends Controller
             'hsnCodes' => $hsnCodes,
             'hsnCategories' => $hsnCategories,
             'attributeTypes' => $attributeTypes,
-            'catalogs' => $catalogs,
-            'metrics' => [
-                'total' => $totalItems,
-                'mapped' => $mappedCount,
-                'unmapped' => $unmappedCount,
-                'pieces' => $totalPieces,
-            ],
-            'filters' => [
-                'status' => $statusFilter,
-                'search' => $search,
-                'category_id' => $catFilter,
-            ],
-            'activeTab' => $activeTab,
             'selectedCid' => $cid,
             'allConcerns' => Auth::isSuperAdmin() ? Auth::allConcerns() : [],
         ]);
@@ -348,7 +255,7 @@ class CatalogMappingController extends Controller
         $catalogId = (int) ($item['mapped_catalog_id'] ?? 0);
         if ($catalogId > 0) {
             $savedVariants = DB::fetchAll(
-                "SELECT sku_code, name, size, weight, price, mrp, attributes
+                "SELECT product_code, name, size, weight, price, mrp, attributes
                  FROM variants
                  WHERE concern_id = ? AND catalog_id = ? AND status = 'active'
                  ORDER BY id ASC",
@@ -382,7 +289,7 @@ class CatalogMappingController extends Controller
                     }
                 }
                 $existingVariantRows[] = [
-                    'sku' => (string) ($variant['sku_code'] ?? ''),
+                    'sku' => (string) ($variant['product_code'] ?? ''),
                     'name' => (string) ($variant['name'] ?? ''),
                     'size' => (string) ($variant['size'] ?? ''),
                     'color' => (string) ($variantAttributes['color'] ?? ''),
@@ -657,7 +564,7 @@ class CatalogMappingController extends Controller
             $hierarchyPath = implode(' > ', array_filter($pathParts));
 
             // Validate variant inputs before inserting or updating catalog
-            $variantSkus = $_POST['variant_skus'] ?? [];
+            $variantSkus = $_POST['variant_product_codes'] ?? [];
             $variantNames = $_POST['variant_names'] ?? [];
             $variantSizes = $_POST['variant_sizes'] ?? [];
             $variantColors = $_POST['variant_colors'] ?? [];
@@ -858,7 +765,7 @@ class CatalogMappingController extends Controller
                 if (!$existVar) {
                     DB::query(
                         "INSERT INTO variants (
-                            concern_id, catalog_id, sku_code, name,
+                            concern_id, catalog_id, product_code, name,
                             category_id, subcategory_id, size, weight, weight_unit, attributes,
                             price, mrp, creation_date, status, created_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'kg', ?, ?, ?, CURDATE(), 'active', NOW())",
@@ -874,7 +781,7 @@ class CatalogMappingController extends Controller
                     $createdVariantQtys[$newVarId] = $varQty;
                 } else {
                     DB::query(
-                        "UPDATE variants SET sku_code = ?, name = ?, weight = ?, weight_unit = 'kg', price = ?, mrp = ?, attributes = ?, status = 'active' WHERE id = ?",
+                        "UPDATE variants SET product_code = ?, name = ?, weight = ?, weight_unit = 'kg', price = ?, mrp = ?, attributes = ?, status = 'active' WHERE id = ?",
                         [$sku, $varName, $varWeight, $varPrice, $varMrp, $varAttrJson, $existVar['id']]
                     );
                     if (!$primaryVariantId)
@@ -1509,9 +1416,10 @@ class CatalogMappingController extends Controller
     {
         $this->ensureSchema();
         $this->validateCsrf();
-        if (!Auth::can('catalog_mapping', 'add') && !Auth::isSuperAdmin()) {
+        $returnUrl = $_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy';
+        if (!Auth::can('catalog_mapping', 'add') && !Auth::can('product_adding', 'add') && !Auth::isSuperAdmin()) {
             $this->flash('error', 'Unauthorized to add HSN codes.');
-            $this->redirect('/production/catalog-mapping?tab=hierarchy');
+            $this->redirect($returnUrl);
             return;
         }
 
@@ -1526,6 +1434,11 @@ class CatalogMappingController extends Controller
 
         if (!preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsnCode)) {
             $this->flash('error', 'HSN code must contain only digits and be 4, 6, or 8 digits.');
+            $this->redirect($returnUrl);
+            return;
+        }
+        if ($rawGst === '') {
+            $this->flash('error', 'GST percentage is required and must be between 0.00 and 100.00.');
             $this->redirect($returnUrl);
             return;
         }
@@ -1597,9 +1510,10 @@ class CatalogMappingController extends Controller
     {
         $this->ensureSchema();
         $this->validateCsrf();
-        if (!Auth::can('catalog_mapping', 'edit') && !Auth::isSuperAdmin()) {
+        $returnUrl = $_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy';
+        if (!Auth::can('catalog_mapping', 'edit') && !Auth::can('product_adding', 'edit') && !Auth::isSuperAdmin()) {
             $this->flash('error', 'Unauthorized to edit HSN codes.');
-            $this->redirect('/production/catalog-mapping?tab=hierarchy');
+            $this->redirect($returnUrl);
             return;
         }
 
@@ -1702,9 +1616,10 @@ class CatalogMappingController extends Controller
     {
         $this->ensureSchema();
         $this->validateCsrf();
-        if (!Auth::can('catalog_mapping', 'delete') && !Auth::isSuperAdmin()) {
+        $returnUrl = $_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy';
+        if (!Auth::can('catalog_mapping', 'delete') && !Auth::can('product_adding', 'delete') && !Auth::isSuperAdmin()) {
             $this->flash('error', 'Unauthorized to delete HSN codes.');
-            $this->redirect('/production/catalog-mapping?tab=hierarchy');
+            $this->redirect($returnUrl);
             return;
         }
 

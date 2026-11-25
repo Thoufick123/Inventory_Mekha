@@ -61,7 +61,7 @@ if (strpos($html, 'Add to Stock') !== false) {
 
 // 2. Test Label Generation for a Stitched Item
 echo "[TEST 2] Testing LabelController::generate() for Production Label...\n";
-$stitchingItem = DB::fetch("SELECT * FROM stitching_items WHERE stitching_id = 3 AND sku_code = 'FLO-B-FL-XS' LIMIT 1");
+$stitchingItem = DB::fetch("SELECT * FROM stitching_items WHERE stitching_id = 3 AND product_code = 'FLO-B-FL-XS' LIMIT 1");
 if (!$stitchingItem) {
     echo "ERROR: Stitching item FLO-B-FL-XS not found in database.\n";
     exit(1);
@@ -114,7 +114,7 @@ if (!empty($_SESSION['flash'])) {
 }
 
 // Check if variant was created
-$var = DB::fetch("SELECT * FROM variants WHERE concern_id = 2 AND sku_code = 'FLO-B-FL-XS'");
+$var = DB::fetch("SELECT * FROM variants WHERE concern_id = 2 AND product_code = 'FLO-B-FL-XS'");
 if ($var) {
     echo "  PASS: Variant successfully created/linked in variants table! ID: {$var['id']}, Name: {$var['name']}\n";
 } else {

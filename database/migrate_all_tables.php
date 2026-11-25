@@ -579,7 +579,7 @@ DB::query("CREATE TABLE IF NOT EXISTS `batch_items` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `batch_id` INT NOT NULL,
     `variant_id` INT NOT NULL,
-    `sku_code` VARCHAR(100) NULL,
+    `product_code` VARCHAR(100) NULL,
     `variant_name` VARCHAR(255) NULL,
     `size` VARCHAR(50) NULL,
     `color` VARCHAR(50) NULL,
@@ -740,6 +740,41 @@ if (in_array('catalog_id', $pbiCols, true) && in_array('section_type', $pbiCols,
     ");
 }
 echo "  + Classified legacy active catalogs as Product Adding\n";
+
+// 24. RENAME sku_code -> product_code
+echo "\n24. Migrating sku_code columns to product_code...\n";
+$skuTables = [
+    ['table' => 'variants', 'def' => 'VARCHAR(50) NOT NULL'],
+    ['table' => 'batch_items', 'def' => 'VARCHAR(100) NULL'],
+    ['table' => 'cutting_items', 'def' => 'VARCHAR(100) NULL'],
+    ['table' => 'qc_inspection_items', 'def' => 'VARCHAR(100) NULL'],
+    ['table' => 'stitching_items', 'def' => 'VARCHAR(100) NULL'],
+];
+foreach ($skuTables as $st) {
+    $tbl = $st['table'];
+    try {
+        $cols = array_column(DB::fetchAll("SHOW COLUMNS FROM `{$tbl}`"), 'Field');
+        if (in_array('sku_code', $cols, true) && !in_array('product_code', $cols, true)) {
+            DB::query("ALTER TABLE `{$tbl}` CHANGE COLUMN `sku_code` `product_code` {$st['def']}");
+            echo "  + Renamed `{$tbl}.sku_code` -> `product_code`\n";
+        }
+    } catch (\Throwable $e) {}
+}
+try {
+    $vCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `variants`"), 'Field');
+    if (!in_array('sub_sub_category_id', $vCols, true)) {
+        DB::query("ALTER TABLE `variants` ADD COLUMN `sub_sub_category_id` INT NULL AFTER `subcategory_id`, ADD INDEX `idx_var_subsubcat` (`sub_sub_category_id`)");
+        echo "  + Added `sub_sub_category_id` to `variants`\n";
+    }
+    DB::query("UPDATE variants SET product_code = CAST(id AS CHAR) WHERE product_code != CAST(id AS CHAR)");
+} catch (\Throwable $e) {}
+try {
+    $hasIdx = DB::fetchValue("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'variants' AND INDEX_NAME = 'uk_concern_sku'");
+    if ($hasIdx) {
+        DB::query("ALTER TABLE `variants` DROP INDEX `uk_concern_sku`, ADD UNIQUE KEY `uk_concern_product_code` (`concern_id`, `product_code`)");
+        echo "  + Renamed `variants.uk_concern_sku` -> `uk_concern_product_code`\n";
+    }
+} catch (\Throwable $e) {}
 
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";

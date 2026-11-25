@@ -38,6 +38,8 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     </small>
                 </div>
             </div>
+
+            <div id="pos_inline_error" class="alert alert-danger d-none py-2 px-3 mb-3 small" role="alert" aria-live="polite"></div>
         </div>
 
         <div class="d-flex align-items-center gap-2">
@@ -90,10 +92,10 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         <div style="background: #2563eb; color: #ffffff; width: 48px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0;" id="qr_icon_box" title="Barcode / QR input">
                             <i class="bi bi-qr-code" id="active_input_icon"></i>
                         </div>
-                        <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="<?= \App\Core\Auth::can('billing', 'create') ? 'Point QR scanner or type SKU / name' : 'View only access - billing terminal disabled' ?>" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" <?= \App\Core\Auth::can('billing', 'create') ? 'autofocus' : 'disabled' ?>>
+                        <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="<?= \App\Core\Auth::can('billing', 'create') ? 'Point QR scanner or type Product Code / name' : 'View only access - billing terminal disabled' ?>" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" <?= \App\Core\Auth::can('billing', 'create') ? 'autofocus' : 'disabled' ?>>
                         <datalist id="pos_catalog_list">
                             <?php foreach ($variants as $v): ?>
-                                <option value="<?= htmlspecialchars($v['sku_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format(!empty($v['is_complementary']) ? 0 : $v['price'], 0) ?><?= !empty($v['is_complementary']) ? ' · Complimentary' : '' ?>)</option>
+                                <option value="<?= htmlspecialchars($v['product_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format(!empty($v['is_complementary']) ? 0 : $v['price'], 0) ?><?= !empty($v['is_complementary']) ? ' · Complimentary' : '' ?>)</option>
                             <?php endforeach; ?>
                         </datalist>
                         <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;" <?= !\App\Core\Auth::can('billing', 'create') ? 'disabled' : '' ?>>
@@ -152,9 +154,6 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                             <span id="customer_history_badge" class="badge rounded-pill px-2 py-1 fw-bold bg-success-subtle text-success border border-success-subtle d-none" style="font-size: 0.74rem;">
                                 <i class="bi bi-check-circle me-1"></i><span id="customer_history_badge_text">Saved</span>
                             </span>
-                            <button type="button" class="btn btn-sm px-2 py-1 fw-bold rounded-pill" id="btn_walkin" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 0.74rem;">
-                                <i class="bi bi-person"></i> Walk-in
-                            </button>
                         </div>
                     </div>
 
@@ -624,7 +623,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <tr>
                                     <td>
                                         <strong class="d-block"><?= htmlspecialchars($it['item_name']) ?></strong>
-                                        <small class="d-block">Code: <?= htmlspecialchars($it['sku_code'] ?: '-') ?></small>
+                                        <small class="d-block">Code: <?= htmlspecialchars($it['product_code'] ?: '-') ?></small>
                                         <small>Size: <?= htmlspecialchars($it['size'] ?: '-') ?></small>
                                         <?php if (!empty($it['scanned_code_display'])): ?>
                                             <small class="d-block">Scanned code: <?= htmlspecialchars($it['scanned_code_display']) ?></small>
@@ -747,7 +746,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                         <small>Batch <?= htmlspecialchars($it['batch_no']) ?></small>
                                     <?php endif; ?>
                                 </td>
-                                <td><?= htmlspecialchars($it['sku_code'] ?: '-') ?></td>
+                                <td><?= htmlspecialchars($it['product_code'] ?: '-') ?></td>
                                 <td><?= htmlspecialchars($it['size'] ?: '-') ?></td>
                                 <td class="number"><?= number_format((float)$it['qty'], 0) ?></td>
                                 <td class="number">₹<?= number_format((float)$it['unit_price'], 2) ?></td>
@@ -834,7 +833,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                             <div class="card h-100 p-2.5 text-center border scanner-opt-card" id="card_opt_manual">
                                 <i class="bi bi-keyboard fs-3 text-secondary mb-1"></i>
                                 <span class="fw-bold small text-dark d-block" style="font-size: 0.8rem;">Manual</span>
-                                <small class="text-muted" style="font-size: 0.68rem;">Type SKU / Code</small>
+                                <small class="text-muted" style="font-size: 0.68rem;">Type Product Code</small>
                             </div>
                         </div>
                     </div>
@@ -996,6 +995,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const cartItemsJson = document.getElementById('cart_items_json');
     const btnCompleteSale = document.getElementById('btn_complete_sale');
     const checkoutHelperHint = document.getElementById('checkout_helper_hint');
+    const posInlineError = document.getElementById('pos_inline_error');
     const inputPaymentMethod = document.getElementById('input_payment_method');
     const onlineClassificationWrap = document.getElementById('online_classification_wrap');
     const toggleOnline = document.getElementById('toggle_online');
@@ -1036,7 +1036,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const custLookupDropdown = document.getElementById('cust_lookup_dropdown');
     const custHistoryBadge = document.getElementById('customer_history_badge');
     const custHistoryBadgeText = document.getElementById('customer_history_badge_text');
-    const btnWalkin = document.getElementById('btn_walkin');
     const billingPartyType = document.getElementById('billing_party_type');
     const billingPartyButtons = document.getElementById('billing_party_buttons');
     const companyDetailsWrap = document.getElementById('company_details_wrap');
@@ -1050,6 +1049,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const customerContactFields = document.getElementById('customer_contact_fields');
     const posScannerCard = document.getElementById('pos_scanner_card');
     const posBillingForm = document.getElementById('pos_billing_form');
+
+    function showPosInlineError(message, focusElement = null) {
+        if (posInlineError) {
+            posInlineError.textContent = message;
+            posInlineError.classList.remove('d-none');
+            posInlineError.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (focusElement) {
+            focusElement.focus();
+        }
+    }
+
+    function clearPosInlineError() {
+        if (posInlineError) {
+            posInlineError.textContent = '';
+            posInlineError.classList.add('d-none');
+        }
+    }
 
     function updateCompanyDetailsAvailability() {
         const enabled = billingPartyType.value === 'company';
@@ -1084,17 +1101,6 @@ document.addEventListener('DOMContentLoaded', function() {
         custLookupDropdown.classList.add('d-none');
     }
 
-    // 1. Walk-in Customer Auto-Fill
-    if (btnWalkin) {
-        btnWalkin.addEventListener('click', function() {
-            custMobile.value = '9999999999';
-            custName.value = 'Walk-in Retail Customer';
-            custAddress.value = 'Counter Walk-in / Local Store';
-            clearCustomerBadge();
-            hideCustomerDropdown();
-        });
-    }
-
     function updateBillingPartyFields() {
         const isCompany = billingPartyType && billingPartyType.value === 'company';
         billingPartyButtons.querySelectorAll('[data-billing-party]').forEach(button => {
@@ -1112,7 +1118,6 @@ document.addEventListener('DOMContentLoaded', function() {
         customerContactFields.querySelectorAll('input').forEach(input => {
             input.disabled = isCompany;
         });
-        if (btnWalkin) btnWalkin.classList.toggle('d-none', isCompany);
 
         clearCustomerBadge();
         hideCustomerDropdown();
@@ -1505,19 +1510,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (availableQty <= 0) {
                         playPosBeep('error');
                         if (scannerStatus) scannerStatus.textContent = 'Out of stock at Main Store.';
-                        alert('No available stock for this product at Main Store.');
+                        showPosInlineError('No available stock for this product at Main Store.');
                         return;
                     }
                     if (v.gst_pct === null || !Number.isFinite(Number(v.gst_pct))) {
-                        alert('Set and verify this product\'s GST rate in the catalog before billing it.');
+                        showPosInlineError('Set and verify this product\'s GST rate in the catalog before billing it.');
                         return;
                     }
                     let qtyToAdd = 1;
                     if (scannerSettings.qtyRule === 'prompt') {
-                        const ans = prompt("Enter quantity for '" + v.name + "' (" + v.sku_code + "):", "1");
-                        if (ans === null) return;
-                        qtyToAdd = parseInt(ans) || 1;
-                        if (qtyToAdd <= 0) qtyToAdd = 1;
+                        qtyToAdd = 1;
+                        showPosInlineError('Quantity prompt mode is disabled. The scanned item was added with quantity 1.');
                     }
 
                     const currentQty = getVariantCartQuantity(v.id);
@@ -1530,7 +1533,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 ? 'Only ' + remainingQty + ' more available.'
                                 : 'Available stock already in cart.';
                         }
-                        alert('Available at Main Store: ' + availableQty + '. Already in cart: ' + currentQty + '. You can add only ' + remainingQty + ' more.');
+                        showPosInlineError('Available at Main Store: ' + availableQty + '. Already in cart: ' + currentQty + '. You can add only ' + remainingQty + ' more.');
                         return;
                     }
 
@@ -1548,7 +1551,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         cart.push({
                             id: v.id,
                             name: v.name,
-                            sku_code: v.sku_code,
+                            product_code: v.product_code,
                             scanned_codes: [query],
                             size: v.size,
                             hsn_code: v.hsn_code || '',
@@ -1569,7 +1572,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     if (scannerStatus) {
-                        scannerStatus.textContent = 'Added: ' + v.sku_code + ' (+' + qtyToAdd + ')';
+                        scannerStatus.textContent = 'Added: ' + v.product_code + ' (+' + qtyToAdd + ')';
                         setTimeout(() => { scannerStatus.textContent = 'Ready for next scan...'; }, 2000);
                     }
 
@@ -1587,7 +1590,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             camStatusDisplay.innerHTML = '<span class="text-danger fw-bold"><i class="bi bi-x-circle"></i> Not found: ' + query + '</span>';
                         }
                     } else {
-                        alert(data.message || 'Product not found in this concern catalog.');
+                        showPosInlineError(data.message || 'Product not found in this concern catalog.');
                     }
                     if (scannerStatus) scannerStatus.textContent = 'Item not found.';
                     if (scannerSettings.autoFocus && !fromCamera) {
@@ -1601,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (fromCamera) {
                     if (camStatusDisplay) camStatusDisplay.textContent = 'Could not add scanned product: ' + message;
                 } else {
-                    alert('Could not add scanned product: ' + message);
+                    showPosInlineError('Could not add scanned product: ' + message);
                 }
                 if (scannerStatus) scannerStatus.textContent = message;
             });
@@ -1694,7 +1697,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td class="text-muted fw-bold">${index + 1}</td>
                     <td>
                         <strong class="text-dark d-block">${escapeHtml(item.name)}</strong>
-                        <small class="text-muted font-monospace">${escapeHtml(item.sku_code)} &bull; Size: ${escapeHtml(item.size)}${item.is_complementary ? ' &bull; Complimentary' : ''}${item.batch_no ? ' &bull; Batch: ' + escapeHtml(item.batch_no) : ''}</small>
+                        <small class="text-muted font-monospace">${escapeHtml(item.product_code)} &bull; Size: ${escapeHtml(item.size)}${item.is_complementary ? ' &bull; Complimentary' : ''}${item.batch_no ? ' &bull; Batch: ' + escapeHtml(item.batch_no) : ''}</small>
                         ${scannedCodes.length ? `<small class="text-primary d-block font-monospace">Scanned code: ${escapeHtml(scannedCodes.join(', '))}</small>` : ''}
                     </td>
                     <td><span class="badge bg-light text-dark border font-monospace">${escapeHtml(item.hsn_code)}</span></td>
@@ -1751,7 +1754,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const maxQty = maxQuantityForCartLine(idx);
                     const requestedQty = Math.max(1, parseInt(this.value, 10) || 1);
                     if (requestedQty > maxQty) {
-                        alert('Only ' + maxQty + ' units are available for this item at Main Store.');
+                        showPosInlineError('Only ' + maxQty + ' units are available for this item at Main Store.');
                     }
                     cart[idx].qty = Math.min(requestedQty, maxQty);
                     if (cart[idx].qty < 1) {
@@ -1973,8 +1976,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const shippingAmount = shippingRaw === '' ? 0 : Number(shippingRaw);
         if ((shippingRaw !== '' && !/^\d+(?:\.\d{1,2})?$/.test(shippingRaw))
             || !Number.isFinite(shippingAmount) || shippingAmount < 0 || shippingAmount > 9999999999.99) {
-            alert('Enter a valid non-negative shipping amount.');
-            if (shippingAmountInput) shippingAmountInput.focus();
+            showPosInlineError('Enter a valid non-negative shipping amount.', shippingAmountInput);
             return false;
         }
 
@@ -1982,19 +1984,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const currentNet = parseFloat(displayNetPayable.textContent.replace('₹', '')) || 0;
         const advancePaid = Math.max(0, parseFloat(advancePaidInput ? advancePaidInput.value : '0') || 0);
         if (paymentStatus === 'partial' && (advancePaid <= 0 || advancePaid >= currentNet)) {
-            alert('For Partially Paid / COD, advance paid must be greater than zero and less than the invoice total.');
-            if (advancePaidInput) advancePaidInput.focus();
+            showPosInlineError('For Partially Paid / COD, advance paid must be greater than zero and less than the invoice total.', advancePaidInput);
             return false;
         }
         if (paymentStatus === 'unpaid' && advancePaid > 0) {
-            alert('Unpaid / COD invoices cannot have an advance payment.');
+            showPosInlineError('Unpaid / COD invoices cannot have an advance payment.');
             return false;
         }
         if (currentPaymentMethod === 'cash' && paymentStatus === 'paid') {
             const cashGiven = calculateCashGiven();
             if (cashGiven > 0 && cashGiven < currentNet) {
-                alert('Customer gave less than the invoice total. Choose Partially Paid / COD and enter the advance amount.');
-                if (paymentStatusSelect) paymentStatusSelect.focus();
+                showPosInlineError('Customer gave less than the invoice total. Choose Partially Paid / COD and enter the advance amount.', paymentStatusSelect);
                 return false;
             }
         }
@@ -2003,6 +2003,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (posBillingForm) {
         posBillingForm.addEventListener('submit', function(e) {
+            if (billingPartyType.value === 'customer') {
+                if (!/^[6-9][0-9]{9}$/.test(custMobile.value.trim())) {
+                    e.preventDefault();
+                    showPosInlineError('Enter a valid 10-digit customer mobile number.', custMobile);
+                    return false;
+                }
+                if (!custName.value.trim()) {
+                    e.preventDefault();
+                    showPosInlineError('Enter the customer name.', custName);
+                    return false;
+                }
+                if (!custAddress.value.trim()) {
+                    e.preventDefault();
+                    showPosInlineError('Enter the customer address.', custAddress);
+                    return false;
+                }
+            } else if (!companyName.value.trim()) {
+                e.preventDefault();
+                showPosInlineError('Enter the company name.', companyName);
+                return false;
+            }
             if (!validatePaymentDetails()) e.preventDefault();
         });
     }
@@ -2012,19 +2033,31 @@ document.addEventListener('DOMContentLoaded', function() {
         btnCompleteSale.addEventListener('click', function(e) {
             if (cart.length === 0) {
                 e.preventDefault();
-                alert('⚠️ Billing Cart is Empty!\n\nPlease scan a garment QR code or type an SKU before completing the sale.');
-                if (qrInput) qrInput.focus();
+                showPosInlineError('Billing cart is empty. Scan a garment QR code or type an SKU before completing the sale.', qrInput);
                 return false;
             }
 
-            // Customer validation
-            if (!custMobile.value.trim() || !custName.value.trim()) {
-                const autoWalkin = confirm('Customer details are empty.\n\nClick OK to bill as "Walk-in Retail Customer", or Cancel to type customer info.');
-                if (autoWalkin && btnWalkin) {
-                    btnWalkin.click();
-                } else {
+            // Customer or company details are mandatory.
+            if (billingPartyType.value === 'customer') {
+                if (!/^[6-9][0-9]{9}$/.test(custMobile.value.trim())) {
                     e.preventDefault();
-                    if (custMobile) custMobile.focus();
+                    showPosInlineError('Enter a valid 10-digit customer mobile number.', custMobile);
+                    return false;
+                }
+                if (!custName.value.trim()) {
+                    e.preventDefault();
+                    showPosInlineError('Enter the customer name.', custName);
+                    return false;
+                }
+                if (!custAddress.value.trim()) {
+                    e.preventDefault();
+                    showPosInlineError('Enter the customer address.', custAddress);
+                    return false;
+                }
+            } else {
+                if (!companyName.value.trim()) {
+                    e.preventDefault();
+                    showPosInlineError('Enter the company name.', companyName);
                     return false;
                 }
             }
@@ -2047,7 +2080,7 @@ function printReceiptArea(format) {
 
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) {
-        window.alert('Please allow pop-ups to print this receipt.');
+        showPosInlineError('Please allow pop-ups to print this receipt.');
         return;
     }
 

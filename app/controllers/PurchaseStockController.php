@@ -158,7 +158,7 @@ class PurchaseStockController extends Controller {
             "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.inward_status, pb.payment_status,
                     s.name AS supplier_name, s.company_name AS supplier_company,
                     c.name AS concern_name, c.code AS concern_code,
-                    v.sku_code AS variant_sku, v.name AS variant_name, v.size AS variant_size, v.mrp AS variant_mrp,
+                    v.product_code AS variant_product_code, v.name AS variant_name, v.size AS variant_size, v.mrp AS variant_mrp,
                     cat.name AS category_name,
                     subcat.name AS subcategory_name,
                     COALESCE(NULLIF(variant_catalog.main_category_code, ''), cat.code) AS main_category_code,
@@ -718,7 +718,7 @@ class PurchaseStockController extends Controller {
                 ]);
             }
         } else {
-            fputcsv($out, ['SKU / Code', 'Garment Product', 'Category', 'Specification / Size', 'Color', 'MRP (INR)', 'Purchase Price (INR)', 'Available Qty', 'Total Value (INR)', 'Bill No', 'Bill Date', 'Supplier', 'Inward Status']);
+            fputcsv($out, ['Product Code', 'Garment Product', 'Category', 'Specification / Size', 'Color', 'MRP (INR)', 'Purchase Price (INR)', 'Available Qty', 'Total Value (INR)', 'Bill No', 'Bill Date', 'Supplier', 'Inward Status']);
             foreach ($items as $f) {
                 fputcsv($out, [
                     $f['item_code'] ?: '-',
