@@ -47,23 +47,14 @@
                             <small class="text-muted" style="font-size: 0.75rem;">Identifies this specific cutting batch in production.</small>
                         </div>
 
-                        <!-- Batch Number & Status Row -->
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold text-dark mb-1">Batch Number</label>
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text bg-light text-muted"><i class="bi bi-upc-scan"></i></span>
-                                    <input type="text" class="form-control bg-light font-monospace fw-bold text-dark" 
-                                           value="<?= htmlspecialchars($batchNo) ?>" readonly tabindex="-1">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold text-dark mb-1">Status</label>
-                                <select name="status" class="form-select form-select-sm">
-                                    <option value="in_progress" selected>In Progress</option>
-                                    <option value="planned">Planned</option>
-                                    <option value="completed">Completed</option>
-                                </select>
+                        <!-- Batch Number Row -->
+                        <div class="mb-3">
+                            <input type="hidden" name="status" value="in_progress">
+                            <label class="form-label small fw-semibold text-dark mb-1">Batch Number</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light text-muted"><i class="bi bi-upc-scan"></i></span>
+                                <input type="text" class="form-control bg-light font-monospace fw-bold text-dark" 
+                                       value="<?= htmlspecialchars($batchNo) ?>" readonly tabindex="-1">
                             </div>
                         </div>
 
@@ -139,7 +130,6 @@
                                 </span>
                                 2. Fabric Wastage & Cost Analytics
                             </h6>
-                            <small class="text-muted" style="font-size: 0.75rem;">Calculate multi-roll fabric wastage, rate per kg & exact wastage costs</small>
                         </div>
                         <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1.5 fs-7 fw-bold" id="badgeFabricRateTop">
                             ₹0.00 / kg
@@ -181,14 +171,12 @@
                         <div class="card bg-danger-subtle border border-danger-subtle rounded-3 p-3 mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <label class="form-label small fw-bold text-danger mb-0">Total Wastage Fabric Weight (kg)</label>
-                                <span class="small fw-bold text-danger" id="spanWastageTotalCost">Total Cost: ₹0.00</span>
                             </div>
                             <div class="input-group input-group-lg my-1">
-                                <input type="number" step="1" min="0" class="form-control fw-bolder text-danger fs-3 bg-white border-danger" 
-                                       id="inputWastageWeight" name="wastage_qty" value="0" placeholder="0" required>
+                                <input type="number" step="0.01" min="0" class="form-control fw-bolder text-danger fs-3 bg-white border-danger" 
+                                       id="inputWastageWeight" name="wastage_qty" value="0" placeholder="0.00" required>
                                 <span class="input-group-text bg-danger text-white fw-bold fs-5">kg</span>
                             </div>
-                            <small class="text-muted" style="font-size: 0.75rem;">Total end cuts, scraps & defective cloth remaining across all selected rolls.</small>
                             <small class="text-danger small d-none mt-1 fw-semibold" id="wastageExceedMsg">
                                 <i class="bi bi-exclamation-circle me-1"></i> Wastage weight cannot exceed total assigned roll weight!
                             </small>
@@ -264,7 +252,6 @@
                                 </span>
                                 3. Dynamic Variant Cutting Breakdown
                             </h6>
-                            <small class="text-muted" style="font-size: 0.75rem;">Variants dynamically generated for each selected fabric roll based on its specific catalog hierarchy</small>
                         </div>
                         <span class="badge bg-success px-3 py-1.5 fs-6 fw-bold shadow-sm" id="badgeTotalCutPcs">
                             0 Cut pcs
@@ -446,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         badgeFabricRateTop.textContent = '₹0.00 / kg';
         badgeWastageCostTop.textContent = 'Wastage Cost: ₹0.00';
-        spanWastageTotalCost.textContent = 'Total Cost: ₹0.00';
+        if (spanWastageTotalCost) spanWastageTotalCost.textContent = 'Total Cost: ₹0.00';
 
         statFabricRate.textContent = '₹0.00 / kg';
         statWastageCost.textContent = '₹0.00';
@@ -600,18 +587,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Wastage weight listener (Strictly Integer)
+    // Wastage weight listener (Decimal allowed)
     inputWastageWeight.addEventListener('keydown', function(e) {
-        if (e.key === '.' || e.key === ',' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+        if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
             e.preventDefault();
         }
     });
 
     inputWastageWeight.addEventListener('input', function() {
-        let val = this.value;
-        if (val.includes('.') || val.includes(',')) {
-            this.value = Math.floor(parseFloat(val)) || 0;
-        }
         recalcAnalytics();
     });
 
@@ -620,7 +603,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const totalRollWeight = parseFloat(inputTotalRollWeight.value) || 0;
         const totalRollPrice = parseFloat(inputTotalRollPrice.value) || 0;
-        let wastageWeight = parseInt(inputWastageWeight.value, 10);
+        let wastageWeight = parseFloat(inputWastageWeight.value);
         if (isNaN(wastageWeight) || wastageWeight < 0) {
             wastageWeight = 0;
         }
@@ -649,7 +632,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update displays
         badgeFabricRateTop.textContent = `₹${fabricRate.toFixed(2)} / kg`;
         badgeWastageCostTop.textContent = `Wastage Cost: ₹${wastageCost.toFixed(2)}`;
-        spanWastageTotalCost.textContent = `Total Cost: ₹${wastageCost.toFixed(2)}`;
+        if (spanWastageTotalCost) spanWastageTotalCost.textContent = `Total Cost: ₹${wastageCost.toFixed(2)}`;
 
         statFabricRate.textContent = `₹${fabricRate.toFixed(2)} / kg`;
         statWastageCost.textContent = `₹${wastageCost.toFixed(2)}`;

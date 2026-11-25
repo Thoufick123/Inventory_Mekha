@@ -20,7 +20,6 @@
             </div>
             <div>
                 <h4 class="fw-bold mb-0 text-dark">Create Production Program</h4>
-                <p class="text-secondary small mb-0">Set program name, assign multiple raw material rolls with individual 3-tier catalog category hierarchies, and configure schedule dates.</p>
             </div>
         </div>
         <div>
@@ -85,7 +84,6 @@
                                 <i class="bi bi-layers-fill text-primary"></i>
                                 <h6 class="mb-0 fw-bold text-dark">2. Raw Material Rolls & Per-Roll Catalog Hierarchy</h6>
                             </div>
-                            <small class="text-secondary" style="font-size: 0.78rem;">Assign fabric rolls and configure 3-tier catalog categories for each roll.</small>
                         </div>
                         <div class="d-flex align-items-center gap-1.5">
                             <button type="button" class="btn btn-sm btn-outline-success rounded-3 fw-semibold" id="btnFocusScanner">
@@ -106,7 +104,6 @@
                                     <span class="fw-bold small text-dark">Scan Fabric Roll Barcode / QR Tag</span>
                                     <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5" style="font-size: 0.68rem;">Auto-Add Ready</span>
                                 </div>
-                                <small class="text-muted" style="font-size: 0.72rem;">Hardware Gun & Camera Scanner (e.g. FB1126141, ROLL #1)</small>
                             </div>
                             <div class="input-group">
                                 <span class="input-group-text bg-white border-end-0 text-success"><i class="bi bi-qr-code-scan"></i></span>
@@ -144,7 +141,6 @@
                             <i class="bi bi-calendar-range-fill text-primary"></i>
                             <h6 class="mb-0 fw-bold text-dark">3. Programming Timeline & Scheduling</h6>
                         </div>
-                        <small class="text-secondary" style="font-size: 0.78rem;">Specify the manufacturing start and completion target dates.</small>
                     </div>
                     <div class="card-body p-4">
                         <div class="mb-3">
@@ -408,7 +404,7 @@ function createRollCardHtml(index, preselectedRollId = null) {
                     </div>
                 </div>
 
-                <div>
+                <div class="d-none">
                     <label class="form-label small text-muted mb-1">Product Style / Catalog Style</label>
                     <select name="rolls[${index}][catalog_id]" class="form-select form-select-sm select-roll-catalog">
                         ${catlgOptionsHtml}

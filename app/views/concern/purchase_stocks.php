@@ -1,5 +1,9 @@
 <div class="container-fluid px-0">
-    <?php $canEditPurchaseStock = !empty($canEditPurchaseStock); ?>
+    <?php
+        $canEditPurchaseStock = !empty($canEditPurchaseStock);
+        $canAddPurchaseStock = !empty($canAddPurchaseStock);
+        $canDeletePurchaseStock = !empty($canDeletePurchaseStock);
+    ?>
     <style>
         .compact-purchase-stock-table > :not(caption) > * > * {
             padding: 0.25rem 0.5rem;
@@ -32,6 +36,11 @@
             <a href="<?= \App\Core\Controller::url('/m/label_generation?tab=' . match($activeTab) { 'rolls' => 'purchase_raw', 'garment_other' => 'purchase_raw', 'finished_goods' => 'purchase_fg', default => 'purchase_raw' }) ?>" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
                 <i class="bi bi-qr-code"></i> Print Labels
             </a>
+            <?php if ($canAddPurchaseStock): ?>
+            <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
+                <i class="bi bi-plus-lg"></i> Add Stock
+            </button>
+            <?php endif; ?>
             <?php if (\App\Core\Auth::can('purchase_billing', 'create')): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn btn-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
                 <i class="bi bi-bag-plus"></i> Record Purchase
@@ -262,7 +271,7 @@
                                     $labelColor = $cr['last_item_color'] ?: 'STANDARD';
                                     $labelDesign = trim($cr['last_item_pattern'] ?: ($cr['last_item_specification'] ?: 'PLAIN'));
                                     $labelPrice = (float)($cr['last_item_unit_price'] ?: ($cr['last_item_mrp'] ?: 0));
-                                    $labelHeader = 'ROLL #' . ($cr['last_item_code'] ?: $cr['last_item_id']);
+                                    $labelHeader = '';
                                     $labelRef = $cr['last_bill_no'] ?: ('PO-' . ($cr['last_item_bill_id'] ?? ''));
                                     $labelConcern = \App\Core\Auth::concern()['name'] ?? 'GRM Inventory';
                                     $qrPayload = \App\Services\QrService::generateTagCode(
@@ -313,6 +322,15 @@
                                         </td>
                                         <td class="py-1 px-2">
                                             <div class="d-flex justify-content-center gap-1">
+                                            <button type="button" class="btn btn-outline-info btn-sm p-1"
+                                                data-section-type="rolls"
+                                                data-concern-id="<?= (int)$cr['concern_id'] ?>"
+                                                data-color="<?= htmlspecialchars($cr['source_color'], ENT_QUOTES, 'UTF-8') ?>"
+                                                data-design="<?= htmlspecialchars($cr['source_design_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                onclick="viewPurchaseStock(this)"
+                                                title="View roll stock details &amp; batches">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
                                             <button type="button" class="btn btn-outline-primary btn-sm p-1"
                                                 data-qr="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-label-concern="<?= htmlspecialchars($labelConcern, ENT_QUOTES, 'UTF-8') ?>"
@@ -343,6 +361,18 @@
                                                     onclick="editConsolidatedRoll(this)"
                                                     title="Edit consolidated fabric stock">
                                                     <i class="bi bi-pencil-square"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                            <?php if ($canDeletePurchaseStock): ?>
+                                                <button type="button" class="btn btn-outline-danger btn-sm p-1"
+                                                    data-section-type="rolls"
+                                                    data-concern-id="<?= (int)$cr['concern_id'] ?>"
+                                                    data-source-color="<?= htmlspecialchars($cr['source_color'], ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-source-design="<?= htmlspecialchars($cr['source_design_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-label="<?= htmlspecialchars($cr['design_name'] . ' (' . $cr['color'] . ')', ENT_QUOTES, 'UTF-8') ?>"
+                                                    onclick="confirmDeletePurchaseStock(this)"
+                                                    title="Delete fabric roll stock">
+                                                    <i class="bi bi-trash3"></i>
                                                 </button>
                                             <?php endif; ?>
                                             </div>
@@ -799,6 +829,14 @@
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
+                                                <button type="button" class="btn btn-outline-info btn-sm p-1"
+                                                    data-section-type="garment_other"
+                                                    data-item-id="<?= (int)$g['id'] ?>"
+                                                    data-concern-id="<?= (int)$g['concern_id'] ?>"
+                                                    onclick="viewPurchaseStock(this)"
+                                                    title="View stock item details">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
                                                 <button type="button" class="btn btn-outline-primary btn-sm p-1"
                                                     data-qr="<?= htmlspecialchars($labelCode, ENT_QUOTES, 'UTF-8') ?>"
                                                     data-label-concern="<?= htmlspecialchars($labelConcern, ENT_QUOTES, 'UTF-8') ?>"
@@ -830,6 +868,16 @@
                                                         data-total-value="<?= htmlspecialchars((string)$g['total_price'], ENT_QUOTES, 'UTF-8') ?>"
                                                         onclick="editPurchaseStockItem(this)">
                                                         <i class="bi bi-pencil-square"></i>
+                                                    </button>
+                                                <?php endif; ?>
+                                                <?php if ($canDeletePurchaseStock): ?>
+                                                    <button type="button" class="btn btn-outline-danger btn-sm p-1" title="Delete this stock item"
+                                                        data-section-type="garment_other"
+                                                        data-item-id="<?= (int)$g['id'] ?>"
+                                                        data-concern-id="<?= (int)$g['concern_id'] ?>"
+                                                        data-label="<?= htmlspecialchars($g['item_name'] ?? 'Supply Item', ENT_QUOTES, 'UTF-8') ?>"
+                                                        onclick="confirmDeletePurchaseStock(this)">
+                                                        <i class="bi bi-trash3"></i>
                                                     </button>
                                                 <?php endif; ?>
                                             </div>
@@ -970,6 +1018,14 @@
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
+                                                <button type="button" class="btn btn-outline-info btn-sm p-1"
+                                                    data-section-type="finished_goods"
+                                                    data-item-id="<?= (int)$f['id'] ?>"
+                                                    data-concern-id="<?= (int)$f['concern_id'] ?>"
+                                                    onclick="viewPurchaseStock(this)"
+                                                    title="View finished good stock details">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
                                                 <?php if (!empty($f['label_generation_complete']) && !empty($f['variant_id'])): ?>
                                                     <button type="button" class="btn btn-outline-primary btn-sm p-1"
                                                         data-qr="<?= htmlspecialchars($labelCode, ENT_QUOTES, 'UTF-8') ?>"
@@ -1004,6 +1060,16 @@
                                                         data-total-value="<?= htmlspecialchars((string)$tot, ENT_QUOTES, 'UTF-8') ?>"
                                                         onclick="editPurchaseStockItem(this)">
                                                         <i class="bi bi-pencil-square"></i>
+                                                    </button>
+                                                <?php endif; ?>
+                                                <?php if ($canDeletePurchaseStock): ?>
+                                                    <button type="button" class="btn btn-outline-danger btn-sm p-1" title="Delete this stock item"
+                                                        data-section-type="finished_goods"
+                                                        data-item-id="<?= (int)$f['id'] ?>"
+                                                        data-concern-id="<?= (int)$f['concern_id'] ?>"
+                                                        data-label="<?= htmlspecialchars($f['item_name'] ?? 'Finished Good', ENT_QUOTES, 'UTF-8') ?>"
+                                                        onclick="confirmDeletePurchaseStock(this)">
+                                                        <i class="bi bi-trash3"></i>
                                                     </button>
                                                 <?php endif; ?>
                                             </div>
@@ -1162,7 +1228,12 @@ function showRollQr(button) {
     const payload = button.dataset.qr || '';
     document.getElementById('rollQrConcern').textContent = button.dataset.labelConcern || 'GRM Inventory';
     document.getElementById('rollQrRef').textContent = button.dataset.labelRef || '';
-    document.getElementById('rollQrTitle').textContent = button.dataset.labelTitle || '';
+    const titleEl = document.getElementById('rollQrTitle');
+    const labelTitle = (button.dataset.labelTitle || '').trim();
+    if (titleEl) {
+        titleEl.textContent = labelTitle;
+        titleEl.style.display = labelTitle ? 'block' : 'none';
+    }
     document.getElementById('rollQrField1Label').textContent = (button.dataset.labelField1Label || 'Fabric') + ':';
     document.getElementById('rollQrFabric').textContent = button.dataset.labelFabric || '';
     document.getElementById('rollQrColor').textContent = button.dataset.labelColor || '';
@@ -1317,4 +1388,270 @@ function switchRollView(mode) {
         }
     }
 }
+
+function viewPurchaseStock(button) {
+    const modalEl = document.getElementById('viewPurchaseStockModal');
+    const bodyEl = document.getElementById('viewPurchaseStockBody');
+    if (!modalEl || !bodyEl || !button) return;
+
+    const sectionType = button.dataset.sectionType || 'rolls';
+    const concernId = button.dataset.concernId || '';
+    const params = new URLSearchParams({ section_type: sectionType, concern_id: concernId });
+    if (sectionType === 'rolls') {
+        params.set('color', button.dataset.color || '');
+        params.set('design', button.dataset.design || '');
+    } else {
+        params.set('item_id', button.dataset.itemId || '');
+    }
+
+    bodyEl.innerHTML = '<div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading stock details...</div>';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+    fetch('<?= \App\Core\Controller::url('/m/purchase_stocks/view') ?>?' + params.toString(), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data || !data.success) {
+            bodyEl.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtmlHtml((data && data.message) || 'Failed to load stock details.')}</div>`;
+            return;
+        }
+        const item = data.item || {};
+        if (data.section_type === 'rolls') {
+            const batches = Array.isArray(data.batches) ? data.batches : [];
+            let batchRows = batches.length ? batches.map(b => `
+                <tr>
+                    <td class="font-monospace small">${escapeHtmlHtml(b.bill_no || '-')}</td>
+                    <td class="small">${escapeHtmlHtml(b.supplier_name || 'Direct Entry')}</td>
+                    <td class="small text-end">${parseFloat(b.qty || 0).toFixed(2)} ${escapeHtmlHtml(b.unit || 'Rolls')}</td>
+                    <td class="small text-end">${parseFloat(b.net_weight || 0).toFixed(2)} kg</td>
+                    <td class="small text-end">₹${parseFloat(b.unit_price || 0).toFixed(2)}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="5" class="text-center text-muted small py-2">No individual batch records found.</td></tr>';
+
+            bodyEl.innerHTML = `
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Design / Pattern</div><div class="fw-bold">${escapeHtmlHtml(item.design_name || '-')}</div></div></div>
+                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Color / Shade</div><div class="fw-bold text-uppercase">${escapeHtmlHtml(item.color || '-')}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Accumulated Stock</div><div class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Total Fabric Weight</div><div class="fw-bold">${parseFloat(item.net_weight || 0).toFixed(2)} kg</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Total Valuation</div><div class="fw-bold text-success">₹${parseFloat(item.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
+                </div>
+                <h6 class="fw-bold small text-uppercase text-muted mb-2">Inward Batch History (${batches.length})</h6>
+                <div class="table-responsive border rounded">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead class="table-light small"><tr><th>Bill #</th><th>Supplier</th><th class="text-end">Qty</th><th class="text-end">Weight</th><th class="text-end">Rate</th></tr></thead>
+                        <tbody>${batchRows}</tbody>
+                    </table>
+                </div>
+            `;
+        } else {
+            bodyEl.innerHTML = `
+                <div class="row g-3">
+                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Item Name</div><div class="fw-bold">${escapeHtmlHtml(item.item_name || '-')}</div></div></div>
+                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Item Code / SKU</div><div class="fw-bold font-monospace">${escapeHtmlHtml(item.item_code || '-')}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Color / Spec</div><div class="fw-semibold">${escapeHtmlHtml((item.color || '-') + ' / ' + (item.specification || '-'))}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Quantity</div><div class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Pieces')}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Unit Price / MRP</div><div class="fw-bold">₹${parseFloat(item.unit_price || 0).toFixed(2)} / ₹${parseFloat(item.mrp || 0).toFixed(2)}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Total Value</div><div class="fw-bold text-success">₹${parseFloat(item.total_price || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Bill #</div><div class="fw-semibold font-monospace">${escapeHtmlHtml(item.bill_no || '-')}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Supplier</div><div class="fw-semibold">${escapeHtmlHtml(item.supplier_name || 'Direct Entry')}</div></div></div>
+                </div>
+            `;
+        }
+    })
+    .catch(() => {
+        bodyEl.innerHTML = '<div class="alert alert-danger mb-0">Network error while loading stock details.</div>';
+    });
+}
+
+function escapeHtmlHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+}
+
+function openCreatePurchaseStockModal(defaultTab) {
+    const modalEl = document.getElementById('createPurchaseStockModal');
+    const secSel = document.getElementById('create_stock_section_type');
+    if (!modalEl || !secSel) return;
+    if (defaultTab && ['rolls', 'garment_other', 'finished_goods'].includes(defaultTab)) {
+        secSel.value = defaultTab;
+    }
+    toggleCreateStockFields();
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+function toggleCreateStockFields() {
+    const sec = document.getElementById('create_stock_section_type')?.value || 'rolls';
+    const rollFields = document.querySelectorAll('.create-roll-only');
+    const mrpField = document.querySelectorAll('.create-fg-only');
+    const unitInp = document.getElementById('create_stock_unit');
+    rollFields.forEach(el => el.classList.toggle('d-none', sec !== 'rolls'));
+    mrpField.forEach(el => el.classList.toggle('d-none', sec !== 'finished_goods'));
+    if (unitInp && (!unitInp.value || unitInp.value === 'Rolls' || unitInp.value === 'Pieces')) {
+        unitInp.value = sec === 'rolls' ? 'Rolls' : 'Pieces';
+    }
+}
+
+function recalcCreateStockTotal() {
+    const qty = parseFloat(document.getElementById('create_stock_qty')?.value || 0) || 0;
+    const price = parseFloat(document.getElementById('create_stock_price')?.value || 0) || 0;
+    const totalEl = document.getElementById('create_stock_total');
+    if (totalEl) totalEl.value = (qty * price).toFixed(2);
+}
+
+function confirmDeletePurchaseStock(button) {
+    const modalEl = document.getElementById('deletePurchaseStockModal');
+    if (!modalEl || !button) return;
+    document.getElementById('del_stock_section_type').value = button.dataset.sectionType || 'rolls';
+    document.getElementById('del_stock_concern_id').value = button.dataset.concernId || '';
+    document.getElementById('del_stock_item_id').value = button.dataset.itemId || '';
+    document.getElementById('del_stock_source_color').value = button.dataset.sourceColor || '';
+    document.getElementById('del_stock_source_design').value = button.dataset.sourceDesign || '';
+    document.getElementById('del_stock_label').textContent = button.dataset.label || 'this stock item';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
 </script>
+
+<!-- View Stock Details Modal -->
+<div class="modal fade" id="viewPurchaseStockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-eye text-info me-1"></i> Purchase Stock Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewPurchaseStockBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Stock Modal -->
+<?php if ($canAddPurchaseStock): ?>
+<div class="modal fade" id="createPurchaseStockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <form action="<?= \App\Core\Controller::url('/m/purchase_stocks/create') ?>" method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                <div class="modal-header py-2">
+                    <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-plus-circle text-success me-1"></i> Add Purchase Stock</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <?php if (\App\Core\Auth::isSuperAdmin() && !empty($allConcerns)): ?>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Concern <span class="text-danger">*</span></label>
+                            <select name="concern_id" class="form-select form-select-sm" required>
+                                <option value="">-- Select Concern --</option>
+                                <?php foreach ($allConcerns as $con): ?>
+                                    <option value="<?= (int)$con['id'] ?>" <?= ($selectedCid == $con['id']) ? 'selected' : '' ?>><?= htmlspecialchars($con['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endif; ?>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Stock Category <span class="text-danger">*</span></label>
+                            <select name="section_type" id="create_stock_section_type" class="form-select form-select-sm" onchange="toggleCreateStockFields()">
+                                <option value="rolls">1. Fabric Rolls</option>
+                                <option value="garment_other">2. Other Garments &amp; Trims</option>
+                                <option value="finished_goods">3. Purchased Finished Goods</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Supplier (Optional)</label>
+                            <select name="supplier_id" class="form-select form-select-sm">
+                                <option value="">-- Direct / Opening Stock --</option>
+                                <?php foreach ($suppliers as $sup): ?>
+                                    <option value="<?= (int)$sup['id'] ?>"><?= htmlspecialchars($sup['company_name'] ?: $sup['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Item / Fabric Name <span class="text-danger">*</span></label>
+                            <input type="text" name="item_name" class="form-control form-control-sm" placeholder="e.g. Cotton / Button / Shirt" required>
+                        </div>
+                        <div class="col-md-4 create-roll-only">
+                            <label class="form-label small fw-semibold">Design / Pattern <span class="text-danger">*</span></label>
+                            <input type="text" name="pattern" class="form-control form-control-sm text-uppercase" placeholder="e.g. MICKY">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Color / Shade</label>
+                            <input type="text" name="color" class="form-control form-control-sm text-uppercase" placeholder="e.g. RED">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Item Code / SKU</label>
+                            <input type="text" name="item_code" class="form-control form-control-sm font-monospace" placeholder="Auto or custom code">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Specification</label>
+                            <input type="text" name="specification" class="form-control form-control-sm" placeholder="Size / GSM / Spec">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">HSN Code</label>
+                            <input type="text" name="hsn_code" class="form-control form-control-sm font-monospace" placeholder="e.g. 5112">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Quantity <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0.01" name="qty" id="create_stock_qty" class="form-control form-control-sm" value="1" required oninput="recalcCreateStockTotal()">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Unit <span class="text-danger">*</span></label>
+                            <input type="text" name="unit" id="create_stock_unit" class="form-control form-control-sm" value="Rolls" required>
+                        </div>
+                        <div class="col-md-3 create-roll-only">
+                            <label class="form-label small fw-semibold">Total Weight (kg)</label>
+                            <input type="number" step="0.01" min="0" name="net_weight" class="form-control form-control-sm" value="0.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Unit Rate (₹)</label>
+                            <input type="number" step="0.01" min="0" name="unit_price" id="create_stock_price" class="form-control form-control-sm" value="0.00" oninput="recalcCreateStockTotal()">
+                        </div>
+                        <div class="col-md-3 create-fg-only d-none">
+                            <label class="form-label small fw-semibold">MRP (₹)</label>
+                            <input type="number" step="0.01" min="0" name="mrp" class="form-control form-control-sm" value="0.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Total Value (₹)</label>
+                            <input type="number" step="0.01" min="0" name="total_value" id="create_stock_total" class="form-control form-control-sm fw-bold" value="0.00">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-sm fw-semibold"><i class="bi bi-check-lg me-1"></i> Save Stock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Delete Stock Modal -->
+<?php if ($canDeletePurchaseStock): ?>
+<div class="modal fade" id="deletePurchaseStockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="<?= \App\Core\Controller::url('/m/purchase_stocks/delete') ?>" method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                <input type="hidden" name="section_type" id="del_stock_section_type">
+                <input type="hidden" name="concern_id" id="del_stock_concern_id">
+                <input type="hidden" name="item_id" id="del_stock_item_id">
+                <input type="hidden" name="source_color" id="del_stock_source_color">
+                <input type="hidden" name="source_design_name" id="del_stock_source_design">
+                <div class="modal-header py-2 bg-danger-subtle">
+                    <h5 class="modal-title fs-6 fw-bold text-danger"><i class="bi bi-trash3 me-1"></i> Remove Stock Entry</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-1">Are you sure you want to remove <strong id="del_stock_label"></strong> from Purchase Stocks?</p>
+                    <small class="text-muted">Supplier purchase bill history will be preserved; direct stock entries will be deleted.</small>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger btn-sm fw-semibold">Delete Stock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>

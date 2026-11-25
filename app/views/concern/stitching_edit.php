@@ -29,9 +29,6 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $batch['id']) ?>" class="btn btn-outline-secondary shadow-sm fw-semibold">
-                <i class="bi bi-eye me-1"></i> View Batch
-            </a>
             <a href="<?= \App\Core\Controller::url('/production/stitching') ?>" class="btn btn-light border shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
             </a>
@@ -66,34 +63,21 @@
                                    value="<?= htmlspecialchars(strtoupper($batch['stitching_name'] ?? '')) ?>"
                                    oninput="this.value = this.value.toUpperCase();" required>
                             <div class="invalid-feedback">Please enter a Stitching Name.</div>
-                            <div class="form-text small text-muted">Identifies this stitching production batch.</div>
                         </div>
 
-                        <!-- Batch Number & Status -->
-                        <div class="row g-3 mb-3">
-                            <div class="col-sm-6">
-                                <label class="form-label fw-semibold text-dark mb-1">Batch Number</label>
-                                <input type="text" class="form-control bg-light fw-bold text-secondary font-monospace" 
-                                       value="<?= htmlspecialchars($batch['display_batch_no']) ?>" readonly>
-                            </div>
-                            <div class="col-sm-6">
-                                <label class="form-label fw-semibold text-dark mb-1">Status</label>
-                                <select name="status" class="form-select fw-semibold">
-                                    <option value="in_progress" <?= $batch['status'] === 'in_progress' ? 'selected' : '' ?>>In Progress</option>
-                                    <option value="planned" <?= $batch['status'] === 'planned' ? 'selected' : '' ?>>Planned</option>
-                                    <option value="completed" <?= $batch['status'] === 'completed' ? 'selected' : '' ?>>Completed</option>
-                                </select>
-                            </div>
+                        <!-- Batch Number -->
+                        <div class="mb-3">
+                            <input type="hidden" name="status" value="<?= htmlspecialchars($batch['status'] ?? 'in_progress') ?>">
+                            <label class="form-label fw-semibold text-dark mb-1">Batch Number</label>
+                            <input type="text" class="form-control bg-light fw-bold text-secondary font-monospace" 
+                                   value="<?= htmlspecialchars($batch['display_batch_no']) ?>" readonly>
                         </div>
 
                         <!-- Source Cutting Batch Card -->
                         <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label fw-semibold text-dark mb-0">
-                                    <i class="bi bi-scissors text-danger me-1"></i> Source Cutting Batch
-                                </label>
-                                <span class="badge bg-light text-primary border px-2 py-1">Source Batch</span>
-                            </div>
+                            <label class="form-label fw-semibold text-dark mb-1">
+                                <i class="bi bi-scissors text-danger me-1"></i> Source Cutting Batch
+                            </label>
                             <input type="text" class="form-control bg-light text-dark fw-semibold" 
                                    value="<?= htmlspecialchars(($batch['cutting_name'] ? $batch['cutting_name'] . ' (' . ($batch['cutting_batch_no'] ?: 'CUT') . ')' : ($batch['cutting_batch_no'] ?: 'Cutting Batch'))) ?>" readonly>
 
@@ -161,41 +145,34 @@
                                     <i class="bi bi-grid-3x3-gap text-primary"></i>
                                     2. Stitching Quantities, Weights & Pricing
                                 </h6>
-                                <div class="text-muted small">Variant components grouped with distinct catalog identities</div>
                             </div>
-                            <div class="d-flex flex-wrap align-items-center gap-1.5">
-                                <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" id="btnCopyCutQty" title="Copy cut quantities to stitching quantities">
-                                    <i class="bi bi-files"></i> Copy Cut Qty
-                                </button>
-                                
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1.5 px-2" id="badgeCutPcs">
+                            <div class="d-flex flex-wrap align-items-center gap-2 justify-content-md-end">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1.5 px-2.5" id="badgeCutPcs">
                                     <?= (int)$batch['cut_pieces'] ?> Cut pcs
                                 </span>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle py-1.5 px-2" id="badgeStitchedPcs">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle py-1.5 px-2.5" id="badgeStitchedPcs">
                                     <?= (int)$batch['stitched_pieces'] ?> Stitched pcs
                                 </span>
-                                <span class="badge bg-light text-secondary border py-1.5 px-2" id="badgeCutWt">
+                                <span class="badge bg-light text-secondary border py-1.5 px-2.5" id="badgeCutWt">
                                     Cut Wt: <?= number_format((float)$batch['cut_weight'], 2) ?> kg
                                 </span>
-                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle py-1.5 px-2" id="badgeStitchWt">
+                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle py-1.5 px-2.5" id="badgeStitchWt">
                                     Stitch Wt: <?= number_format((float)$batch['stitch_weight'], 2) ?> kg
                                 </span>
-                                <span class="badge bg-success text-white py-1.5 px-2" id="badgeWeightMatched">
-                                    <i class="bi bi-check2-circle"></i> Weight Matched
+                                <span class="badge bg-success text-white py-1.5 px-2.5" id="badgeWeightMatched">
+                                    <i class="bi bi-check2-circle me-1"></i>Weight Matched
                                 </span>
                             </div>
                         </div>
                     </div>
 
                     <!-- BULK CATALOG PRICING TOOLBAR -->
-                    <div id="pricingToolbar" class="bg-light px-3 py-2 border-bottom">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-auto">
-                                <span class="small fw-bold text-secondary d-flex align-items-center gap-1">
-                                    <i class="bi bi-tags-fill text-primary"></i> Catalog Pricing:
-                                </span>
-                            </div>
-                            <div class="col-md-4 col-sm-6">
+                    <div id="pricingToolbar" class="bg-light px-3 py-2.5 border-bottom">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="small fw-bold text-secondary d-flex align-items-center gap-1 text-nowrap">
+                                <i class="bi bi-tags-fill text-primary"></i> Catalog Pricing:
+                            </span>
+                            <div class="flex-grow-1" style="min-width: 180px; max-width: 280px;">
                                 <select id="bulkCatalogSelect" class="form-select form-select-sm">
                                     <option value="">-- All Catalogs in Batch --</option>
                                     <?php foreach ($catalogs as $cat): ?>
@@ -203,23 +180,21 @@
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="col-sm-2 col-6">
+                            <div style="width: 110px;">
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">₹</span>
                                     <input type="number" step="0.01" id="bulkBasePrice" class="form-control" placeholder="Base ₹">
                                 </div>
                             </div>
-                            <div class="col-sm-2 col-6">
+                            <div style="width: 110px;">
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">₹</span>
                                     <input type="number" step="0.01" id="bulkDiscPrice" class="form-control" placeholder="Disc ₹">
                                 </div>
                             </div>
-                            <div class="col-auto">
-                                <button type="button" class="btn btn-sm btn-dark fw-semibold" id="btnApplyBulkPricing">
-                                    Set Prices to Table
-                                </button>
-                            </div>
+                            <button type="button" class="btn btn-sm btn-dark fw-semibold text-nowrap px-3" id="btnApplyBulkPricing">
+                                Set Prices to Table
+                            </button>
                         </div>
                     </div>
 
@@ -401,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Copy Cut Qty button
-    btnCopyCutQty.addEventListener('click', function () {
+    btnCopyCutQty?.addEventListener('click', function () {
         const rows = tbody.querySelectorAll('tr');
         rows.forEach(tr => {
             const cutVal = tr.querySelector('.input-cut-qty').value;

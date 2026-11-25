@@ -46,42 +46,36 @@
             <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
                 <div class="text-muted small fw-semibold text-uppercase">Total Batches</div>
                 <div class="fs-4 fw-bold text-dark mt-1"><?= number_format($totalBatches) ?></div>
-                <div class="small text-muted mt-1"><i class="bi bi-layers text-primary"></i> Production Lots</div>
             </div>
         </div>
         <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
                 <div class="text-muted small fw-semibold text-uppercase">Cut Pieces Received</div>
                 <div class="fs-4 fw-bold text-primary mt-1"><?= number_format($totalCutPcs) ?></div>
-                <div class="small text-muted mt-1">From cutting batches</div>
             </div>
         </div>
         <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
                 <div class="text-muted small fw-semibold text-uppercase">Stitched Units</div>
                 <div class="fs-4 fw-bold text-success mt-1"><?= number_format($totalStitchedPcs) ?></div>
-                <div class="small text-muted mt-1">Finished garments</div>
             </div>
         </div>
         <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
                 <div class="text-muted small fw-semibold text-uppercase">Stitch Fabric Weight</div>
                 <div class="fs-4 fw-bold text-info-emphasis mt-1"><?= number_format($totalStitchWeight, 2) ?> <span class="fs-6 fw-normal text-muted">kg</span></div>
-                <div class="small text-muted mt-1">Finished stock wt</div>
             </div>
         </div>
         <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
                 <div class="text-muted small fw-semibold text-uppercase">Scrap Sold</div>
                 <div class="fs-4 fw-bold text-danger mt-1"><?= number_format($totalScrapSold, 2) ?></div>
-                <div class="small text-muted mt-1">Thread & strip waste</div>
             </div>
         </div>
         <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
                 <div class="text-muted small fw-semibold text-uppercase">Scrap Revenue</div>
                 <div class="fs-4 fw-bold text-dark mt-1">₹<?= number_format($totalScrapRevenue, 2) ?></div>
-                <div class="small text-success mt-1"><i class="bi bi-cash-stack"></i> Liquidated</div>
             </div>
         </div>
     </div>

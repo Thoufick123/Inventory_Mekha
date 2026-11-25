@@ -349,26 +349,447 @@ class PurchaseStockController extends Controller {
         $allConcerns = $isSuperAdmin ? DB::fetchAll("SELECT id, name, code FROM concerns ORDER BY name ASC") : [];
         $canEditRollStock = $isSuperAdmin || Auth::can('purchase_stocks', 'edit');
         $canEditPurchaseStock = $canEditRollStock;
+        $canAddPurchaseStock = $isSuperAdmin || Auth::can('purchase_stocks', 'add');
+        $canDeletePurchaseStock = $isSuperAdmin || Auth::can('purchase_stocks', 'delete');
 
         $this->render('concern/purchase_stocks', [
-            'pageTitle'         => 'Purchase Stocks & Inventory',
-            'currentModule'     => 'purchase_stocks',
-            'activeTab'         => $activeTab,
-            'rolls'             => $rolls,
-            'consolidatedRolls' => $consolidatedRolls,
-            'rollViewMode'      => $rollViewMode,
-            'garmentOther'      => $garmentOther,
-            'finishedGoods'     => $finishedGoods,
-            'metrics'           => $metrics,
-            'suppliers'         => $suppliers,
-            'allConcerns'       => $allConcerns,
-            'selectedCid'       => $selectedCid,
-            'canEditRollStock'  => $canEditRollStock,
-            'canEditPurchaseStock' => $canEditPurchaseStock,
-            'search'            => $search,
-            'supplierFilter'    => $supplierFilter,
-            'statusFilter'      => $statusFilter,
+            'pageTitle'              => 'Purchase Stocks & Inventory',
+            'currentModule'          => 'purchase_stocks',
+            'activeTab'              => $activeTab,
+            'rolls'                  => $rolls,
+            'consolidatedRolls'      => $consolidatedRolls,
+            'rollViewMode'           => $rollViewMode,
+            'garmentOther'           => $garmentOther,
+            'finishedGoods'          => $finishedGoods,
+            'metrics'                => $metrics,
+            'suppliers'              => $suppliers,
+            'allConcerns'            => $allConcerns,
+            'selectedCid'            => $selectedCid,
+            'canEditRollStock'       => $canEditRollStock,
+            'canEditPurchaseStock'   => $canEditPurchaseStock,
+            'canAddPurchaseStock'    => $canAddPurchaseStock,
+            'canDeletePurchaseStock' => $canDeletePurchaseStock,
+            'search'                 => $search,
+            'supplierFilter'         => $supplierFilter,
+            'statusFilter'           => $statusFilter,
         ]);
+    }
+
+    public function viewItem(): void {
+        ModuleGuard::enforce('purchase_stocks', 'view');
+
+        $sectionType = trim((string)($_GET['section_type'] ?? 'rolls'));
+        $concernId = Auth::isSuperAdmin()
+            ? (int)($_GET['concern_id'] ?? 0)
+            : (int)Auth::concernId();
+
+        if ($sectionType === 'rolls') {
+            $color = strtoupper(trim((string)($_GET['color'] ?? '')));
+            $design = strtoupper(trim((string)($_GET['design'] ?? '')));
+            if (!$concernId || $color === '' || $design === '') {
+                $this->renderJson(['success' => false, 'message' => 'Invalid roll specification.'], 400);
+                return;
+            }
+
+            RollRegistryService::syncSpecs($concernId);
+            $rows = RollRegistryService::getConsolidatedStock($concernId);
+            $matched = null;
+            foreach ($rows as $row) {
+                if (
+                    strtoupper(trim((string)($row['source_color'] ?? $row['color'] ?? ''))) === $color &&
+                    strtoupper(trim((string)($row['source_design_name'] ?? $row['design_name'] ?? ''))) === $design
+                ) {
+                    $matched = $row;
+                    break;
+                }
+            }
+            if (!$matched) {
+                $this->renderJson(['success' => false, 'message' => 'Fabric roll stock not found.'], 404);
+                return;
+            }
+
+            $batches = DB::fetchAll(
+                "SELECT pbi.id, pbi.item_code, pbi.item_name, pbi.qty, pbi.net_weight, pbi.unit, pbi.unit_price, pbi.total_price,
+                        pb.bill_no, pb.bill_date, COALESCE(s.company_name, s.name, 'Direct Entry') AS supplier_name
+                 FROM purchase_bill_items pbi
+                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
+                 LEFT JOIN suppliers s ON pb.supplier_id = s.id
+                 WHERE pbi.concern_id = ?
+                   AND pbi.section_type = 'rolls'
+                   AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'
+                   AND UPPER(TRIM(pbi.color)) = ?
+                   AND UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) = ?
+                 ORDER BY pbi.id DESC",
+                [$concernId, $color, $design]
+            );
+
+            $this->renderJson([
+                'success' => true,
+                'section_type' => 'rolls',
+                'item' => $matched,
+                'batches' => $batches,
+            ]);
+            return;
+        }
+
+        $itemId = (int)($_GET['item_id'] ?? 0);
+        if (!$itemId || !in_array($sectionType, ['garment_other', 'finished_goods'], true)) {
+            $this->renderJson(['success' => false, 'message' => 'Invalid stock item requested.'], 400);
+            return;
+        }
+
+        $sql = "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.payment_status,
+                       COALESCE(s.company_name, s.name, 'Direct Entry') AS supplier_name,
+                       c.name AS concern_name
+                FROM purchase_bill_items pbi
+                JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
+                LEFT JOIN suppliers s ON pb.supplier_id = s.id
+                LEFT JOIN concerns c ON pbi.concern_id = c.id
+                WHERE pbi.id = ? AND pbi.section_type = ?";
+        $params = [$itemId, $sectionType];
+        if ($concernId) {
+            $sql .= " AND pbi.concern_id = ?";
+            $params[] = $concernId;
+        }
+
+        $row = DB::fetch($sql, $params);
+        if (!$row) {
+            $this->renderJson(['success' => false, 'message' => 'Purchase stock item not found.'], 404);
+            return;
+        }
+
+        PurchaseStockItemOverrideService::initTable();
+        $rows = PurchaseStockItemOverrideService::applyToItems([$row]);
+        $item = $rows[0];
+
+        $this->renderJson([
+            'success' => true,
+            'section_type' => $sectionType,
+            'item' => $item,
+        ]);
+    }
+
+    public function createStock(): void {
+        ModuleGuard::enforce('purchase_stocks', 'add');
+        $this->validateCsrf();
+
+        $concernId = Auth::isSuperAdmin()
+            ? (int)($_POST['concern_id'] ?? 0)
+            : (int)Auth::concernId();
+
+        $sectionType = trim((string)($_POST['section_type'] ?? 'rolls'));
+        if (!in_array($sectionType, ['rolls', 'garment_other', 'finished_goods'], true)) {
+            $sectionType = 'rolls';
+        }
+
+        $returnUrl = '/m/purchase_stocks?tab=' . rawurlencode($sectionType);
+        if (Auth::isSuperAdmin() && $concernId) {
+            $returnUrl .= '&concern_id=' . $concernId;
+        }
+
+        if (!$concernId) {
+            $this->flash('error', 'Please select a concern before creating stock.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        $supplierId = (int)($_POST['supplier_id'] ?? 0);
+        if ($supplierId <= 0) {
+            $supplierId = null;
+        } else {
+            $validSup = DB::fetchValue("SELECT id FROM suppliers WHERE id = ? AND concern_id = ?", [$supplierId, $concernId]);
+            if (!$validSup) {
+                $supplierId = null;
+            }
+        }
+
+        $itemName = trim((string)($_POST['item_name'] ?? ''));
+        $itemCode = trim((string)($_POST['item_code'] ?? ''));
+        $pattern = strtoupper(trim((string)($_POST['pattern'] ?? '')));
+        $color = strtoupper(trim((string)($_POST['color'] ?? '')));
+        $specification = trim((string)($_POST['specification'] ?? ''));
+        $hsnCode = trim((string)($_POST['hsn_code'] ?? ''));
+        $unit = trim((string)($_POST['unit'] ?? ($sectionType === 'rolls' ? 'Rolls' : 'Pieces')));
+
+        $qty = (float)($_POST['qty'] ?? 0);
+        $netWeight = (float)($_POST['net_weight'] ?? 0);
+        $unitPrice = (float)($_POST['unit_price'] ?? 0);
+        $mrp = (float)($_POST['mrp'] ?? 0);
+        $totalPrice = isset($_POST['total_value']) && is_numeric($_POST['total_value'])
+            ? (float)$_POST['total_value']
+            : ($qty * $unitPrice);
+
+        if ($sectionType === 'rolls') {
+            if ($itemName === '' && $pattern !== '') {
+                $itemName = $pattern . ' Fabric';
+            }
+            if ($pattern === '' && $itemName !== '') {
+                $pattern = strtoupper($itemName);
+            }
+            if ($color === '' || $pattern === '') {
+                $this->flash('error', 'Color / Shade and Design / Pattern are required for Fabric Rolls.');
+                $this->redirect($returnUrl);
+                return;
+            }
+            if ($itemCode === '') {
+                $itemCode = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $itemName ?: 'ROLL'), 0, 12));
+            }
+        } else {
+            if ($itemName === '') {
+                $this->flash('error', 'Item name is required.');
+                $this->redirect($returnUrl);
+                return;
+            }
+        }
+
+        if ($qty <= 0 || $unitPrice < 0 || $netWeight < 0 || $mrp < 0 || $totalPrice < 0) {
+            $this->flash('error', 'Quantity must be greater than 0 and prices/weights cannot be negative.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        if ($hsnCode !== '' && !preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsnCode)) {
+            $this->flash('error', 'HSN code must be 4, 6, or 8 digits.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            $billNo = 'STK-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            DB::query(
+                "INSERT INTO purchase_bills (concern_id, supplier_id, bill_no, bill_date, total_amount, tax_amount, net_amount, payment_status, inward_status, notes, created_by)
+                 VALUES (?, ?, ?, CURDATE(), ?, 0.00, ?, 'Paid', 'completed', 'Direct Purchase Stock Entry', ?)",
+                [$concernId, $supplierId, $billNo, $totalPrice, $totalPrice, Auth::id()]
+            );
+            $billId = (int)DB::lastInsertId();
+
+            DB::query(
+                "INSERT INTO purchase_bill_items (concern_id, purchase_bill_id, section_type, item_name, item_code, hsn_code, color, pattern, specification, qty, net_weight, unit, unit_price, mrp, total_price, inward_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')",
+                [
+                    $concernId,
+                    $billId,
+                    $sectionType,
+                    $itemName,
+                    $itemCode ?: null,
+                    $hsnCode ?: null,
+                    $color ?: null,
+                    $pattern ?: null,
+                    $specification ?: null,
+                    $qty,
+                    $netWeight,
+                    $unit ?: ($sectionType === 'rolls' ? 'Rolls' : 'Pieces'),
+                    $unitPrice,
+                    $mrp,
+                    $totalPrice,
+                ]
+            );
+            $itemId = (int)DB::lastInsertId();
+
+            DB::commit();
+
+            if ($sectionType === 'rolls') {
+                RollRegistryService::syncSpecs($concernId);
+            }
+
+            AuditLog::log('CREATE', 'purchase_bill_items', $itemId, null, [
+                'concern_id' => $concernId,
+                'bill_no' => $billNo,
+                'section_type' => $sectionType,
+                'item_name' => $itemName,
+                'qty' => $qty,
+                'total_price' => $totalPrice,
+            ]);
+
+            $this->flash('success', "Stock entry ({$billNo}) created and added to Purchase Stocks.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->flash('error', 'Failed to create stock entry: ' . $e->getMessage());
+        }
+
+        $this->redirect($returnUrl);
+    }
+
+    public function deleteStock(): void {
+        ModuleGuard::enforce('purchase_stocks', 'delete');
+        $this->validateCsrf();
+
+        $sectionType = trim((string)($_POST['section_type'] ?? 'rolls'));
+        $concernId = Auth::isSuperAdmin()
+            ? (int)($_POST['concern_id'] ?? 0)
+            : (int)Auth::concernId();
+
+        $returnUrl = '/m/purchase_stocks?tab=' . rawurlencode(in_array($sectionType, ['rolls', 'garment_other', 'finished_goods'], true) ? $sectionType : 'rolls');
+        if (Auth::isSuperAdmin() && $concernId) {
+            $returnUrl .= '&concern_id=' . $concernId;
+        }
+
+        if (!$concernId) {
+            $this->flash('error', 'Select a concern before deleting stock.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        PurchaseDamageService::initTable();
+        PurchaseStockItemOverrideService::initTable();
+
+        if ($sectionType === 'rolls') {
+            $sourceColor = strtoupper(trim((string)($_POST['source_color'] ?? '')));
+            $sourceDesign = strtoupper(trim((string)($_POST['source_design_name'] ?? '')));
+            if ($sourceColor === '' || $sourceDesign === '') {
+                $this->flash('error', 'Invalid fabric roll specification selected for deletion.');
+                $this->redirect($returnUrl);
+                return;
+            }
+
+            $matchingItems = DB::fetchAll(
+                "SELECT pbi.id, pbi.purchase_bill_id, pb.bill_no
+                 FROM purchase_bill_items pbi
+                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
+                 WHERE pbi.concern_id = ?
+                   AND pbi.section_type = 'rolls'
+                   AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'
+                   AND UPPER(TRIM(pbi.color)) = ?
+                   AND UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) = ?",
+                [$concernId, $sourceColor, $sourceDesign]
+            );
+
+            $itemIds = array_map(static fn($r) => (int)$r['id'], $matchingItems);
+            if (!empty($itemIds)) {
+                $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
+                $allocatedCount = (int)DB::fetchValue(
+                    "SELECT COUNT(*) FROM program_rolls pr
+                     JOIN production_programs pp ON pr.program_id = pp.id
+                     WHERE pp.status != 'cancelled' AND pr.purchase_bill_item_id IN ({$placeholders})",
+                    $itemIds
+                );
+                if ($allocatedCount > 0) {
+                    $this->flash('error', 'Cannot delete this roll stock because some rolls are already allocated to active production programs.');
+                    $this->redirect($returnUrl);
+                    return;
+                }
+                $damagedCount = (int)DB::fetchValue(
+                    "SELECT COUNT(*) FROM purchase_damage_quarantine
+                     WHERE item_type = 'rolls' AND purchase_bill_item_id IN ({$placeholders})",
+                    $itemIds
+                );
+                if ($damagedCount > 0) {
+                    $this->flash('error', 'Cannot delete this roll stock because it has linked damage quarantine records.');
+                    $this->redirect($returnUrl);
+                    return;
+                }
+            }
+
+            DB::beginTransaction();
+            try {
+                RollRegistryService::initTable();
+                DB::query(
+                    "DELETE FROM fabric_roll_spec_overrides WHERE concern_id = ? AND source_color = ? AND source_design_name = ?",
+                    [$concernId, $sourceColor, $sourceDesign]
+                );
+
+                foreach ($matchingItems as $mi) {
+                    $iid = (int)$mi['id'];
+                    $bid = (int)$mi['purchase_bill_id'];
+                    DB::query(
+                        "DELETE FROM purchase_stock_item_overrides WHERE concern_id = ? AND purchase_bill_item_id = ? AND section_type = 'rolls'",
+                        [$concernId, $iid]
+                    );
+                    if (str_starts_with((string)$mi['bill_no'], 'STK-')) {
+                        DB::query("DELETE FROM purchase_bill_items WHERE id = ?", [$iid]);
+                        $rem = (int)DB::fetchValue("SELECT COUNT(*) FROM purchase_bill_items WHERE purchase_bill_id = ?", [$bid]);
+                        if ($rem === 0) {
+                            DB::query("DELETE FROM purchase_bills WHERE id = ?", [$bid]);
+                        }
+                    } else {
+                        DB::query("UPDATE purchase_bill_items SET inward_status = 'pending' WHERE id = ?", [$iid]);
+                    }
+                }
+
+                DB::commit();
+                RollRegistryService::syncSpecs($concernId);
+
+                AuditLog::log('DELETE', 'fabric_roll_specs', 0, [
+                    'concern_id' => $concernId,
+                    'color' => $sourceColor,
+                    'design_name' => $sourceDesign,
+                ], null);
+
+                $this->flash('success', "Fabric roll stock ({$sourceDesign} - {$sourceColor}) removed from Purchase Stocks.");
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                $this->flash('error', 'Failed to delete roll stock: ' . $e->getMessage());
+            }
+
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        if (!$itemId || !in_array($sectionType, ['garment_other', 'finished_goods'], true)) {
+            $this->flash('error', 'Invalid stock item selected for deletion.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        $row = DB::fetch(
+            "SELECT pbi.id, pbi.purchase_bill_id, pbi.item_name, pb.bill_no
+             FROM purchase_bill_items pbi
+             JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
+             WHERE pbi.id = ? AND pbi.concern_id = ? AND pbi.section_type = ?",
+            [$itemId, $concernId, $sectionType]
+        );
+        if (!$row) {
+            $this->flash('error', 'Purchase stock item not found in the selected concern.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        if ($sectionType === 'garment_other') {
+            $damagedCount = (int)DB::fetchValue(
+                "SELECT COUNT(*) FROM purchase_damage_quarantine WHERE concern_id = ? AND purchase_bill_item_id = ? AND item_type = 'garment_other'",
+                [$concernId, $itemId]
+            );
+            if ($damagedCount > 0) {
+                $this->flash('error', 'Cannot delete this stock item because it has linked damage quarantine records.');
+                $this->redirect($returnUrl);
+                return;
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::query(
+                "DELETE FROM purchase_stock_item_overrides WHERE concern_id = ? AND purchase_bill_item_id = ? AND section_type = ?",
+                [$concernId, $itemId, $sectionType]
+            );
+
+            if (str_starts_with((string)$row['bill_no'], 'STK-')) {
+                DB::query("DELETE FROM purchase_bill_items WHERE id = ?", [$itemId]);
+                $rem = (int)DB::fetchValue("SELECT COUNT(*) FROM purchase_bill_items WHERE purchase_bill_id = ?", [(int)$row['purchase_bill_id']]);
+                if ($rem === 0) {
+                    DB::query("DELETE FROM purchase_bills WHERE id = ?", [(int)$row['purchase_bill_id']]);
+                }
+            } else {
+                DB::query("UPDATE purchase_bill_items SET inward_status = 'pending' WHERE id = ?", [$itemId]);
+            }
+
+            DB::commit();
+
+            AuditLog::log('DELETE', 'purchase_bill_items', $itemId, [
+                'concern_id' => $concernId,
+                'section_type' => $sectionType,
+                'item_name' => $row['item_name'],
+            ], null);
+
+            $this->flash('success', "Stock item '{$row['item_name']}' removed from Purchase Stocks.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->flash('error', 'Failed to delete stock item: ' . $e->getMessage());
+        }
+
+        $this->redirect($returnUrl);
     }
 
     public function updateConsolidatedRoll(): void {
