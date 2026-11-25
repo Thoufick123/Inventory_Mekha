@@ -287,7 +287,7 @@
                     </div>
 
                     <!-- Shared source and destination for the combined manifest -->
-                    <div class="col-md-6 <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>">
+                    <div class="col-md-6 <?= (!empty($posInvoiceTransfer) && empty($posInvoiceTransfer['is_company'])) ? 'd-none' : '' ?>">
                         <label class="form-label small fw-bold text-dark">
                             <i class="bi bi-geo-alt-fill text-danger me-1"></i> Current Concern (Dispatched From) *
                         </label>
@@ -303,11 +303,11 @@
                         </small>
                     </div>
 
-                    <div class="col-md-6 <?= !empty($posInvoiceTransfer) ? 'd-none' : '' ?>">
+                    <div class="col-md-6 <?= (!empty($posInvoiceTransfer) && empty($posInvoiceTransfer['is_company'])) ? 'd-none' : '' ?>">
                         <label class="form-label small fw-bold text-dark">
                             <i class="bi bi-truck text-primary me-1"></i> Destination Concern (Outward To Concern) *
                         </label>
-                        <select name="destination_concern_id" id="dispatchConcernSelect" class="form-select form-select-sm fw-semibold border-primary" <?= empty($posInvoiceTransfer) ? 'required' : '' ?>>
+                        <select name="destination_concern_id" id="dispatchConcernSelect" class="form-select form-select-sm fw-semibold border-primary" <?= (empty($posInvoiceTransfer) || !empty($posInvoiceTransfer['is_company'])) ? 'required' : '' ?>>
                             <option value="">-- Select Outward Destination Concern --</option>
                             <?php foreach ($allConcerns as $con): ?>
                                 <option value="<?= $con['id'] ?>" data-concern-id="<?= (int)$con['id'] ?>" <?= ((int)$currentConcernId === (int)$con['id']) ? 'disabled hidden' : '' ?>>

@@ -156,7 +156,9 @@ class OutwardController extends Controller {
         if ($posInvoiceId > 0) {
             $invoiceScopeId = $cid ?: $selectedConcernId;
             $invoiceSql = "
-                SELECT si.id, si.concern_id, si.invoice_no, si.customer_id, c.name AS customer_name
+                SELECT si.id, si.concern_id, si.invoice_no, si.customer_id,
+                       si.notes, si.billing_company_name,
+                       COALESCE(si.billing_company_name, c.name) AS customer_name
                 FROM sales_invoices si
                 JOIN customers c ON c.id = si.customer_id
                 WHERE si.id = ?";
@@ -179,6 +181,9 @@ class OutwardController extends Controller {
             if (!$selectedConcernId) {
                 $selectedConcernId = (int)$posInvoiceTransfer['concern_id'];
             }
+            $posInvoiceTransfer['is_company'] =
+                !empty($posInvoiceTransfer['billing_company_name'])
+                || stripos((string)$posInvoiceTransfer['notes'], 'Billing For: company') !== false;
 
             $existingInvoiceOutward = DB::fetch(
                 "SELECT id, outward_no FROM outwards WHERE sales_invoice_id = ? LIMIT 1",
@@ -512,6 +517,21 @@ class OutwardController extends Controller {
             if ($posInvoiceId > 0 && $batchId > 0) {
                 throw new Exception('A POS invoice handoff cannot include a production batch.');
             }
+            if ($posInvoiceId > 0) {
+                $posInvoiceForRoute = DB::fetch(
+                    "SELECT id, concern_id, notes, billing_company_name
+                     FROM sales_invoices
+                     WHERE id = ? LIMIT 1",
+                    [$posInvoiceId]
+                );
+                $isCompanyInvoice = $posInvoiceForRoute && (
+                    !empty($posInvoiceForRoute['billing_company_name'])
+                    || stripos((string)$posInvoiceForRoute['notes'], 'Billing For: company') !== false
+                );
+                if ($isCompanyInvoice && $destinationConcernId <= 0) {
+                    throw new Exception('Please select a destination concern for this company bill.');
+                }
+            }
             if ($posInvoiceId === 0 && $destinationConcernId <= 0) {
                 throw new Exception('Please select a destination concern.');
             }
@@ -706,7 +726,7 @@ class OutwardController extends Controller {
             $warehouseName = $destination
                 ? (string)$destination['name']
                 : (string)(DB::fetchValue("SELECT name FROM customers WHERE id = ?", [$customerId]) ?: '');
-            $transferType = $customerId ? 'customer' : 'concern';
+            $transferType = $destination ? 'concern' : ($customerId ? 'customer' : 'concern');
 
             DB::query("
                 INSERT INTO outwards (
@@ -790,6 +810,19 @@ class OutwardController extends Controller {
         $customerId      = !empty($_POST['customer_id']) ? (int)$_POST['customer_id'] : null;
 
         // STRICT CONCERN SELECTION: If dispatching to a concern, destination concern is mandatory
+        if ($posInvoiceId > 0) {
+            $posInvoiceRoute = DB::fetch(
+                "SELECT id, notes, billing_company_name FROM sales_invoices WHERE id = ?",
+                [$posInvoiceId]
+            );
+            $isCompanyPosInvoice = $posInvoiceRoute && (
+                !empty($posInvoiceRoute['billing_company_name'])
+                || stripos((string)$posInvoiceRoute['notes'], 'Billing For: company') !== false
+            );
+            if ($isCompanyPosInvoice && !$destConcernId) {
+                throw new Exception('Please select a destination concern for this company bill.');
+            }
+        }
         if ($dispatchMode === 'batch' || ($posInvoiceId === 0 && empty($customerId))) {
             if (!$destConcernId) {
                 throw new Exception('Please select a valid Destination Concern for this outward dispatch.');
@@ -1059,7 +1092,9 @@ class OutwardController extends Controller {
                 }
 
                 $boxes = max(1, (int)($_POST['total_boxes'] ?? 1));
-                $transferType = ($dispatchMode === 'customer' || !empty($customerId)) ? 'customer' : 'concern';
+                $transferType = $destConcernId
+                    ? 'concern'
+                    : (($dispatchMode === 'customer' || !empty($customerId)) ? 'customer' : 'concern');
                 $puId = (int)DB::fetchValue("SELECT id FROM production_units WHERE concern_id = ? LIMIT 1", [$cid]) ?: 1;
 
                 DB::query("

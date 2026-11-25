@@ -250,7 +250,7 @@ class CatalogMappingController extends Controller
                           COALESCE(con.name, 'Global') AS concern_name
                    FROM hsn_masters hm
                    LEFT JOIN concerns con ON con.id = hm.concern_id
-                   WHERE hm.is_active = 1";
+                   WHERE hm.is_active = 1 AND hm.code_type = 'HSN'";
         $hsnParams = [];
         if ($cid) {
             $hsnSql .= ' AND (hm.concern_id = ? OR hm.concern_id IS NULL)';
@@ -1503,7 +1503,7 @@ class CatalogMappingController extends Controller
     }
 
     /**
-     * Create HSN/SAC master code
+     * Create HSN master code
      */
     public function createHsn(): void
     {
@@ -1515,21 +1515,22 @@ class CatalogMappingController extends Controller
             return;
         }
 
-        $codeType = strtoupper(trim($_POST['code_type'] ?? 'HSN'));
-        if (!in_array($codeType, ['HSN', 'SAC'], true)) {
-            $codeType = 'HSN';
-        }
+        $codeType = 'HSN';
 
         $hsnCode = trim($_POST['hsn_code'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $category = trim($_POST['category'] ?? '');
         $rawGst = trim($_POST['gst_rate'] ?? '');
         $gstRate = $rawGst !== '' ? (float) $rawGst : null;
-        $rateNote = trim($_POST['rate_note'] ?? '');
         $returnUrl = $_POST['return_url'] ?? '/production/catalog-mapping?tab=hierarchy';
 
-        if (empty($hsnCode)) {
-            $this->flash('error', 'HSN/SAC Code is required.');
+        if (!preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsnCode)) {
+            $this->flash('error', 'HSN code must contain only digits and be 4, 6, or 8 digits.');
+            $this->redirect($returnUrl);
+            return;
+        }
+        if ($rawGst !== '' && (!is_numeric($rawGst) || !is_finite((float)$rawGst) || (float)$rawGst < 0 || (float)$rawGst > 100)) {
+            $this->flash('error', 'GST percentage must be between 0.00 and 100.00.');
             $this->redirect($returnUrl);
             return;
         }
@@ -1559,11 +1560,10 @@ class CatalogMappingController extends Controller
                     throw new Exception("The {$codeType} code '{$hsnCode}' already exists for this scope.");
                 } else {
                     // Reactivate and update
-                    DB::query("UPDATE hsn_masters SET is_active = 1, description = ?, category = ?, gst_rate = ?, rate_note = ? WHERE id = ?", [
+                    DB::query("UPDATE hsn_masters SET is_active = 1, description = ?, category = ?, gst_rate = ? WHERE id = ?", [
                         $description ?: null,
                         $category ?: null,
                         $gstRate,
-                        $rateNote ?: null,
                         $existing['id']
                     ]);
                     $this->flash('success', "{$codeType} code '{$hsnCode}' reactivated and updated successfully.");
@@ -1573,14 +1573,13 @@ class CatalogMappingController extends Controller
             }
 
             DB::query("INSERT INTO hsn_masters (concern_id, code_type, hsn_code, description, category, gst_rate, rate_note, is_active)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, 1)", [
+                       VALUES (?, ?, ?, ?, ?, ?, NULL, 1)", [
                 $concernId,
                 $codeType,
                 $hsnCode,
                 $description ?: null,
                 $category ?: null,
-                $gstRate,
-                $rateNote ?: null
+                $gstRate
             ]);
 
             $this->flash('success', "{$codeType} Code '{$hsnCode}' created successfully.");
@@ -1592,7 +1591,7 @@ class CatalogMappingController extends Controller
     }
 
     /**
-     * Update HSN/SAC master code
+     * Update HSN master code
      */
     public function updateHsn(): void
     {
@@ -1635,20 +1634,21 @@ class CatalogMappingController extends Controller
             }
         }
 
-        $codeType = strtoupper(trim($_POST['code_type'] ?? $hsn['code_type']));
-        if (!in_array($codeType, ['HSN', 'SAC'], true)) {
-            $codeType = 'HSN';
-        }
+        $codeType = 'HSN';
         $hsnCode = trim($_POST['hsn_code'] ?? $hsn['hsn_code']);
         $description = trim($_POST['description'] ?? '');
         $category = trim($_POST['category'] ?? '');
         $rawGst = trim($_POST['gst_rate'] ?? '');
         $gstRate = $rawGst !== '' ? (float) $rawGst : null;
-        $rateNote = trim($_POST['rate_note'] ?? '');
         $isActive = isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1;
 
-        if (empty($hsnCode)) {
-            $this->flash('error', 'HSN/SAC Code cannot be empty.');
+        if (!preg_match('/^\d{4}(?:\d{2}){0,2}$/', $hsnCode)) {
+            $this->flash('error', 'HSN code must contain only digits and be 4, 6, or 8 digits.');
+            $this->redirect($returnUrl);
+            return;
+        }
+        if ($rawGst !== '' && (!is_numeric($rawGst) || !is_finite((float)$rawGst) || (float)$rawGst < 0 || (float)$rawGst > 100)) {
+            $this->flash('error', 'GST percentage must be between 0.00 and 100.00.');
             $this->redirect($returnUrl);
             return;
         }
@@ -1675,7 +1675,7 @@ class CatalogMappingController extends Controller
             }
 
             DB::query("UPDATE hsn_masters 
-                       SET concern_id = ?, code_type = ?, hsn_code = ?, description = ?, category = ?, gst_rate = ?, rate_note = ?, is_active = ?
+                       SET concern_id = ?, code_type = ?, hsn_code = ?, description = ?, category = ?, gst_rate = ?, is_active = ?
                        WHERE id = ?", [
                 $concernId,
                 $codeType,
@@ -1683,7 +1683,6 @@ class CatalogMappingController extends Controller
                 $description ?: null,
                 $category ?: null,
                 $gstRate,
-                $rateNote ?: null,
                 $isActive,
                 $id
             ]);
@@ -1697,7 +1696,7 @@ class CatalogMappingController extends Controller
     }
 
     /**
-     * Delete or Deactivate HSN/SAC master code
+     * Delete or deactivate an HSN master code.
      */
     public function deleteHsn(): void
     {

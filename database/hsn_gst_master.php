@@ -17,7 +17,8 @@ function ensureHsnGstMaster(): void
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX `idx_hsn_concern` (`concern_id`),
         INDEX `idx_hsn_code` (`hsn_code`),
-        INDEX `idx_hsn_active_type` (`is_active`, `code_type`)
+        INDEX `idx_hsn_active_type` (`is_active`, `code_type`),
+        INDEX `idx_hsn_lookup` (`concern_id`, `code_type`, `hsn_code`, `is_active`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $columns = array_column(DB::fetchAll('DESCRIBE `hsn_masters`'), 'Field');
@@ -34,6 +35,14 @@ function ensureHsnGstMaster(): void
         DB::query('ALTER TABLE `hsn_masters` ADD COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1 AFTER `rate_note`');
     }
     DB::query('ALTER TABLE `hsn_masters` MODIFY COLUMN `gst_rate` DECIMAL(5,2) NULL DEFAULT NULL');
+
+    $indexes = array_column(DB::fetchAll('SHOW INDEX FROM `hsn_masters`'), 'Key_name');
+    if (!in_array('idx_hsn_active_type', $indexes, true)) {
+        DB::query('ALTER TABLE `hsn_masters` ADD INDEX `idx_hsn_active_type` (`is_active`, `code_type`)');
+    }
+    if (!in_array('idx_hsn_lookup', $indexes, true)) {
+        DB::query('ALTER TABLE `hsn_masters` ADD INDEX `idx_hsn_lookup` (`concern_id`, `code_type`, `hsn_code`, `is_active`)');
+    }
 
     DB::query(
         "UPDATE `hsn_masters`
@@ -66,6 +75,24 @@ function ensureHsnGstMaster(): void
              VALUES (NULL, ?, ?, ?, ?, ?, ?)",
             [$row['code_type'], $row['hsn_code'], $row['description'], $row['category'], $row['gst_rate'], $row['rate_note']]
         );
+    }
+
+    $canonicalKeys = [];
+    foreach (hsnGstMasterRows() as $row) {
+        $canonicalKeys[$row['code_type'] . ':' . $row['hsn_code']] = true;
+    }
+    foreach (DB::fetchAll(
+        "SELECT `id`, `code_type`, `hsn_code`
+         FROM `hsn_masters`
+         WHERE `concern_id` IS NULL AND `is_active` = 1"
+    ) as $globalRow) {
+        $key = $globalRow['code_type'] . ':' . $globalRow['hsn_code'];
+        if (!isset($canonicalKeys[$key])) {
+            DB::query(
+                'UPDATE `hsn_masters` SET `is_active` = 0 WHERE `id` = ?',
+                [$globalRow['id']]
+            );
+        }
     }
 }
 

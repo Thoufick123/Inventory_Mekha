@@ -760,7 +760,9 @@ CREATE TABLE IF NOT EXISTS `hsn_masters` (
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_hsn_concern` (`concern_id`),
-  KEY `idx_hsn_code` (`hsn_code`)
+  KEY `idx_hsn_code` (`hsn_code`),
+  KEY `idx_hsn_active_type` (`is_active`,`code_type`),
+  KEY `idx_hsn_lookup` (`concern_id`,`code_type`,`hsn_code`,`is_active`)
 ) ENGINE=InnoDB AUTO_INCREMENT=101 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

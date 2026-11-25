@@ -69,7 +69,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
             <!-- ============================================== -->
             <!-- LEFT COLUMN: SCANNER & FAST SHORTCUTS (IMAGE 1)-->
             <!-- ============================================== -->
-            <div class="col-lg-4 col-md-5">
+            <div class="col-12">
                 <!-- Scan Product QR Code Card -->
                 <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-3" id="pos_scanner_card" style="border: 1px solid #e2e8f0 !important;">
                     <!-- Header with Title & Scanner Options Buttons -->
@@ -79,9 +79,6 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                             <h6 class="fw-bold text-dark mb-0">Scan Product QR Code</h6>
                         </div>
                         <div class="d-flex align-items-center gap-1.5">
-                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1 d-flex align-items-center gap-1 shadow-sm" id="btnLaunchCamModal" style="font-size: 0.76rem;" title="Scan with camera">
-                                <i class="bi bi-camera-fill"></i> Camera
-                            </button>
                             <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 d-flex align-items-center gap-1 shadow-sm text-secondary" id="btnOpenScannerOptions" style="font-size: 0.76rem;" title="Configure scanner options & audio">
                                 <i class="bi bi-sliders2"></i> Scanner Options
                             </button>
@@ -131,54 +128,13 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         </span>
                     </div>
 
-                    <!-- Fast POS Shortcuts Box (Inside Card, Exactly matching Image 1) -->
-                    <div class="p-2 px-3 mt-3 rounded-3 d-flex align-items-center gap-2" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                        <i class="bi bi-keyboard text-secondary fs-5 flex-shrink-0"></i>
-                        <div style="font-size: 0.77rem; color: #475569; line-height: 1.35;">
-                            <span class="fw-bold text-dark">Fast POS Shortcuts:</span> Press <kbd class="bg-primary text-white px-1 rounded" style="font-size: 0.72rem;">F2</kbd> to Complete Sale &bull; Piece serial QR barcodes are automatically verified one by one.
-                        </div>
-                    </div>
-
-                    <!-- Subtle Collapsible Catalog Quick-Pick & Camera for testing/non-scanner environments -->
-                    <div class="pt-2 mt-2 border-top">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <a class="text-decoration-none text-muted small fw-semibold d-flex align-items-center gap-1" data-bs-toggle="collapse" href="#collapseQuickPick" role="button" aria-expanded="false" style="font-size: 0.74rem;">
-                                <i class="bi bi-grid-3x3-gap"></i> Quick Catalog Pick <i class="bi bi-chevron-down" style="font-size: 0.65rem;"></i>
-                            </a>
-                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted" id="btnToggleCam" style="font-size: 0.74rem;">
-                                <i class="bi bi-camera me-1"></i> Live Camera
-                            </button>
-                        </div>
-                        
-                        <div id="cam_scanner_box" class="d-none mt-2 border rounded p-2 bg-light text-center">
-                            <div id="qr_reader" style="width: 100%; max-height: 200px;"></div>
-                            <small class="text-muted d-block mt-1">Point live camera at printed garment QR code.</small>
-                        </div>
-
-                        <div class="collapse show mt-2" id="collapseQuickPick">
-                            <div class="d-flex flex-wrap gap-1" style="max-height: 140px; overflow-y: auto;">
-                                <?php if (empty($variants)): ?>
-                                    <span class="text-muted small">No product variants in catalog.</span>
-                                <?php else: ?>
-                                    <?php foreach (array_slice($variants, 0, 10) as $var): ?>
-                                        <button type="button" class="btn btn-sm btn-light border text-start d-flex justify-content-between align-items-center p-1 px-2 btn-quick-var" 
-                                                data-sku="<?= htmlspecialchars($var['sku_code']) ?>"
-                                                style="font-size: 0.78rem; border-radius: 8px; flex: 1 1 calc(50% - 4px);">
-                                            <span class="text-truncate fw-semibold text-dark me-1"><?= htmlspecialchars($var['sku_code']) ?></span>
-                                            <span class="text-primary fw-bold font-monospace">₹<?= number_format(!empty($var['is_complementary']) ? 0 : $var['price'], 0) ?></span>
-                                        </button>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
             <!-- ============================================== -->
             <!-- RIGHT COLUMN: CUSTOMER, CART & PAYMENT (IMAGE 1 & 2) -->
             <!-- ============================================== -->
-            <div class="col-lg-8 col-md-7">
+            <div class="col-12">
                 <!-- Customer & Billed By Card (Image 1) -->
                 <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-3" style="border: 1px solid #e2e8f0 !important;">
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
@@ -203,7 +159,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     </div>
 
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label text-secondary small fw-bold mb-1">BILLING FOR</label>
                             <div class="d-flex gap-2" id="billing_party_buttons" role="group" aria-label="Billing party type">
                                 <button type="button" class="btn btn-primary flex-fill active" data-billing-party="customer">
@@ -221,23 +177,23 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     </div>
 
                     <div class="row g-2 mb-3 d-none" id="company_details_wrap">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="company_name" class="form-label text-secondary small fw-bold mb-1">COMPANY NAME *</label>
                             <input type="text" name="company_name" id="company_name" class="form-control" maxlength="150" required disabled>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="company_address" class="form-label text-secondary small fw-bold mb-1">ADDRESS</label>
                             <input type="text" name="company_address" id="company_address" class="form-control" maxlength="255" disabled>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="company_phone" class="form-label text-secondary small fw-bold mb-1">PHONE</label>
                             <input type="tel" name="company_phone" id="company_phone" class="form-control" maxlength="30" disabled>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="company_email" class="form-label text-secondary small fw-bold mb-1">EMAIL</label>
                             <input type="email" name="company_email" id="company_email" class="form-control" maxlength="100" disabled>
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-4">
                             <label for="company_gstin" class="form-label text-secondary small fw-bold mb-1">GSTIN</label>
                             <input type="text" name="company_gstin" id="company_gstin" class="form-control text-uppercase" maxlength="15" disabled>
                         </div>
@@ -246,7 +202,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     <!-- Customer details and invoice GST controls -->
                     <div id="customer_contact_fields">
                     <div class="row g-2 mb-2">
-                        <div class="col-md-6 position-relative">
+                        <div class="col-md-4 position-relative">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-phone text-muted me-1"></i> MOBILE NUMBER *
                             </label>
@@ -254,16 +210,13 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                             <!-- Customer Previous Orders & Autocomplete Dropdown -->
                             <div id="cust_lookup_dropdown" class="position-absolute bg-white border rounded-3 shadow-lg p-1 d-none" style="top: 100%; left: 0; right: 0; z-index: 1060; max-height: 220px; overflow-y: auto; margin-top: 4px;"></div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-person text-muted me-1"></i> CUSTOMER NAME *
                             </label>
                             <input type="text" name="customer_name" id="cust_name" class="form-control" placeholder="Customer full name *" required style="border-radius: 8px; font-size: 0.88rem;">
                         </div>
-                    </div>
-
-                    <div class="row g-2 mb-2">
-                        <div class="col-12">
+                        <div class="col-md-4">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-geo-alt text-muted me-1"></i> CUSTOMER ADDRESS *
                             </label>
@@ -273,16 +226,13 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     </div>
 
                     <div class="row g-2 mb-2">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="billed_by_staff" class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-person-badge text-muted me-1"></i> BILLED BY STAFF
                             </label>
                             <input type="text" id="billed_by_staff" class="form-control bg-light text-muted" value="<?= htmlspecialchars($staffName) ?>" readonly style="border-radius: 8px; font-size: 0.88rem;">
                         </div>
-                    </div>
-
-                    <div class="row g-2">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-receipt text-muted me-1"></i> GST TYPE
                             </label>
@@ -292,7 +242,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <option value="exempt">None / Exempt (0%)</option>
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label text-secondary small fw-bold mb-1" style="font-size: 0.78rem;">
                                 <i class="bi bi-percent text-muted me-1"></i> GST MODE
                             </label>
@@ -551,7 +501,6 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                 <?php if (\App\Core\Auth::can('billing', 'create')): ?>
                 <button type="submit" id="btn_complete_sale" class="btn btn-secondary w-100 py-3 rounded-4 fw-bold fs-6 shadow-sm d-flex align-items-center justify-content-center gap-2 mb-1" style="border: none; transition: all 0.2s; background: #94a3b8; color: #ffffff;">
                     <i class="bi bi-printer fs-5"></i> Complete Sale & Print Invoice 
-                    <span class="badge bg-white bg-opacity-25 px-2 py-1 font-monospace">F2</span>
                 </button>
                 <div id="checkout_helper_hint" class="text-center small py-1 mb-2" style="font-size: 0.76rem;">
                     <span class="text-muted"><i class="bi bi-info-circle me-1"></i> Scan or select products above to begin billing.</span>
@@ -840,9 +789,11 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                 <button type="button" class="btn btn-primary fw-bold shadow-sm" onclick="printReceiptArea('pos')" style="border-radius: 9999px; background: #4f46e5;">
                     <i class="bi bi-printer me-1"></i> POS Format
                 </button>
-                <a href="<?= \App\Core\Controller::url('/production/outward?pos_invoice_id=' . (int)$printInvoice['id']) ?>" class="btn btn-success fw-bold shadow-sm" style="border-radius: 9999px;">
-                    <i class="bi bi-box-arrow-up-right me-1"></i> Move to Outward
-                </a>
+                <?php if (stripos((string)($printInvoice['notes'] ?? ''), 'Billing For: company') !== false || !empty($printInvoice['billing_company_name'])): ?>
+                    <a href="<?= \App\Core\Controller::url('/production/outward?pos_invoice_id=' . (int)$printInvoice['id']) ?>" class="btn btn-success fw-bold shadow-sm" style="border-radius: 9999px;">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Move to Outward
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -877,13 +828,6 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <i class="bi bi-upc-scan fs-3 text-primary mb-1"></i>
                                 <span class="fw-bold small text-dark d-block" style="font-size: 0.8rem;">Barcode Gun</span>
                                 <small class="text-muted" style="font-size: 0.68rem;">USB / Wireless</small>
-                            </div>
-                        </div>
-                        <div class="col-4">
-                            <div class="card h-100 p-2.5 text-center border scanner-opt-card" id="card_opt_cam">
-                                <i class="bi bi-camera-video fs-3 text-info mb-1"></i>
-                                <span class="fw-bold small text-dark d-block" style="font-size: 0.8rem;">Camera</span>
-                                <small class="text-muted" style="font-size: 0.68rem;">Webcam / Mobile</small>
                             </div>
                         </div>
                         <div class="col-4">
@@ -950,63 +894,6 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
             <div class="modal-footer border-0 pt-0 pb-4 px-4">
                 <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" id="btnSaveScannerOptions" style="background: #4f46e5;">Save Options</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ======================================================== -->
-<!-- MODAL: LIVE CAMERA BARCODE & QR SCANNER                   -->
-<!-- ======================================================== -->
-<div class="modal fade" id="modalCameraScanner" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" style="max-width: 540px;">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 18px; overflow: hidden; background: #0f172a;">
-            <div class="modal-header border-0 pb-2 pt-3 px-4 text-white" style="background: #020617;">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-camera-video-fill text-info fs-5"></i>
-                    <div>
-                        <h6 class="modal-title fw-bold text-white mb-0">Live Camera Scanner</h6>
-                        <small class="text-white-50" style="font-size: 0.72rem;">Align QR code or 1D barcode inside the viewfinder</small>
-                    </div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <select id="modal_cam_select" class="form-select form-select-sm bg-dark text-white border-secondary" style="font-size: 0.75rem; width: 145px; border-radius: 8px;">
-                        <option value="">Default Camera</option>
-                    </select>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="btnCloseCameraModal"></button>
-                </div>
-            </div>
-            <div class="modal-body p-3">
-                <!-- Camera Viewport Box with Laser Line -->
-                <div class="position-relative border border-secondary rounded-3 overflow-hidden bg-black text-center" style="min-height: 280px; max-height: 320px; display: flex; align-items: center; justify-content: center;">
-                    <div id="modal_qr_reader" style="width: 100%; height: 100%;"></div>
-                    <div class="scanner-laser-line" id="cam_laser_line"></div>
-                </div>
-
-                <!-- Live Status & Feedback -->
-                <div class="d-flex justify-content-between align-items-center px-2 pt-2.5 text-white-50" style="font-size: 0.76rem;">
-                    <span id="cam_status_display"><i class="bi bi-broadcast text-warning me-1"></i> Initializing camera...</span>
-                    <span id="cam_session_scanned" class="badge bg-success bg-opacity-25 text-success border border-success">0 items scanned</span>
-                </div>
-
-                <!-- Recently Scanned Items List in Modal -->
-                <div class="mt-2 p-2 rounded-3" style="background: rgba(255,255,255,0.06); max-height: 95px; overflow-y: auto;">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <small class="text-white-50" style="font-size: 0.7rem; text-transform: uppercase;">Session Scans:</small>
-                        <small class="text-white-50" id="cam_last_scan_time" style="font-size: 0.68rem;"></small>
-                    </div>
-                    <div class="d-flex flex-wrap gap-1" id="cam_scanned_chips">
-                        <span class="text-white-50 small fst-italic" style="font-size: 0.74rem;">Ready for first scan...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer border-0 p-3 d-flex justify-content-between" style="background: #020617;">
-                <div class="text-white-50 small" style="font-size: 0.74rem;">
-                    <i class="bi bi-volume-up text-success me-1"></i> Beep sound active
-                </div>
-                <button type="button" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold" data-bs-dismiss="modal" style="background: #4f46e5;">
-                    <i class="bi bi-check-lg me-1"></i> Done Scanning
-                </button>
             </div>
         </div>
     </div>
@@ -1413,7 +1300,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // SCANNER OPTIONS & HARDWARE CONFIGURATION
     // -----------------------------------------------------------------
     let scannerSettings = {
-        mode: 'gun', // 'gun', 'camera', 'manual'
+        mode: 'gun', // 'gun', 'manual'
         sound: true,
         qtyRule: 'auto', // 'auto', 'prompt'
         autoFocus: true
@@ -1423,6 +1310,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const saved = localStorage.getItem('invento_pos_scanner_settings');
         if (saved) {
             scannerSettings = Object.assign(scannerSettings, JSON.parse(saved));
+            if (scannerSettings.mode === 'camera') scannerSettings.mode = 'gun';
         }
     } catch(e) {}
 
@@ -1459,11 +1347,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const iconMode = document.getElementById('icon_active_mode');
         const activeIcon = document.getElementById('active_input_icon');
 
-        if (scannerSettings.mode === 'camera') {
-            if (lblMode) lblMode.textContent = 'Camera Mode';
-            if (iconMode) iconMode.className = 'bi bi-camera-video text-info';
-            if (activeIcon) activeIcon.className = 'bi bi-camera-video';
-        } else if (scannerSettings.mode === 'manual') {
+        if (scannerSettings.mode === 'manual') {
             if (lblMode) lblMode.textContent = 'Manual Typing';
             if (iconMode) iconMode.className = 'bi bi-keyboard text-secondary';
             if (activeIcon) activeIcon.className = 'bi bi-keyboard';
@@ -1506,11 +1390,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (qtyAuto) qtyAuto.checked = true;
         }
 
-        ['gun', 'cam', 'manual'].forEach(k => {
+        ['gun', 'manual'].forEach(k => {
             const card = document.getElementById('card_opt_' + k);
             if (card) {
-                if ((k === 'cam' && scannerSettings.mode === 'camera') ||
-                    (k === 'gun' && scannerSettings.mode === 'gun') ||
+                if ((k === 'gun' && scannerSettings.mode === 'gun') ||
                     (k === 'manual' && scannerSettings.mode === 'manual')) {
                     card.classList.add('active');
                 } else {
@@ -1530,21 +1413,13 @@ document.addEventListener('DOMContentLoaded', function() {
         scannerSettings.mode = mode;
         saveSettings();
         updateScannerUI();
-        if (mode === 'camera') {
-            const optModalEl = document.getElementById('modalScannerOptions');
-            if (optModalEl && window.bootstrap) {
-                const optModal = bootstrap.Modal.getInstance(optModalEl);
-                if (optModal) optModal.hide();
-            }
-            openCameraScannerModal();
-        }
     };
 
-    ['gun', 'cam', 'manual'].forEach(k => {
+    ['gun', 'manual'].forEach(k => {
         const card = document.getElementById('card_opt_' + k);
         if (card) {
             card.addEventListener('click', () => {
-                selectScannerDevice(k === 'cam' ? 'camera' : (k === 'gun' ? 'gun' : 'manual'));
+                selectScannerDevice(k === 'gun' ? 'gun' : 'manual');
             });
         }
     });
@@ -1606,158 +1481,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (modalEl && window.bootstrap) {
                 const inst = bootstrap.Modal.getInstance(modalEl);
                 if (inst) inst.hide();
-            }
-        });
-    }
-
-    // -----------------------------------------------------------------
-    // CAMERA SCANNER MODAL (Html5Qrcode)
-    // -----------------------------------------------------------------
-    let modalQrScanner = null;
-    let cameraSessionCount = 0;
-    let lastCameraScanCode = null;
-    let lastCameraScanTime = 0;
-
-    const btnLaunchCamModal = document.getElementById('btnLaunchCamModal');
-    const modalCameraScannerEl = document.getElementById('modalCameraScanner');
-    const modalCamSelect = document.getElementById('modal_cam_select');
-    const camStatusDisplay = document.getElementById('cam_status_display');
-    const camSessionScanned = document.getElementById('cam_session_scanned');
-    const camScannedChips = document.getElementById('cam_scanned_chips');
-    const camLastScanTime = document.getElementById('cam_last_scan_time');
-
-    window.openCameraScannerModal = function() {
-        if (modalCameraScannerEl && window.bootstrap) {
-            bootstrap.Modal.getOrCreateInstance(modalCameraScannerEl).show();
-        }
-    };
-
-    if (btnLaunchCamModal) {
-        btnLaunchCamModal.addEventListener('click', openCameraScannerModal);
-    }
-
-    function startModalCamera(cameraId = null) {
-        if (typeof Html5Qrcode === 'undefined') {
-            if (camStatusDisplay) camStatusDisplay.innerHTML = '<span class="text-danger">Camera scanner library not available.</span>';
-            return;
-        }
-
-        if (camStatusDisplay) camStatusDisplay.innerHTML = '<i class="bi bi-camera text-info me-1"></i> Starting camera viewfinder...';
-
-        if (modalQrScanner) {
-            modalQrScanner.stop().catch(() => {}).then(() => {
-                initScannerInstance(cameraId);
-            });
-        } else {
-            initScannerInstance(cameraId);
-        }
-    }
-
-    function initScannerInstance(cameraId) {
-        try {
-            modalQrScanner = new Html5Qrcode("modal_qr_reader");
-            const config = {
-                fps: 12,
-                qrbox: { width: 240, height: 240 }
-            };
-
-            const cameraConfig = cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "environment" };
-
-            modalQrScanner.start(
-                cameraConfig,
-                config,
-                (decodedText) => {
-                    handleCameraCodeDetected(decodedText);
-                },
-                () => {}
-            ).then(() => {
-                if (camStatusDisplay) camStatusDisplay.innerHTML = '<i class="bi bi-broadcast text-success me-1"></i> Camera scanning active';
-            }).catch(err => {
-                if (camStatusDisplay) camStatusDisplay.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-octagon me-1"></i> Camera error: ' + (err.message || err) + '</span>';
-            });
-        } catch(e) {
-            console.error('Camera init error', e);
-        }
-    }
-
-    function handleCameraCodeDetected(code) {
-        if (!code) return;
-        code = code.trim();
-        const now = Date.now();
-        if (code === lastCameraScanCode && (now - lastCameraScanTime < 1800)) {
-            return;
-        }
-        lastCameraScanCode = code;
-        lastCameraScanTime = now;
-
-        if (camStatusDisplay) {
-            camStatusDisplay.innerHTML = '<span class="text-warning fw-bold"><i class="bi bi-lightning-fill"></i> Scanned: ' + code + '</span>';
-        }
-
-        addProductByQuery(code, true);
-    }
-
-    function logCameraScanChip(variant, isSuccess = true) {
-        if (!camScannedChips) return;
-        if (camScannedChips.querySelector('.fst-italic')) {
-            camScannedChips.innerHTML = '';
-        }
-
-        cameraSessionCount++;
-        if (camSessionScanned) camSessionScanned.textContent = cameraSessionCount + ' items scanned';
-        if (camLastScanTime) camLastScanTime.textContent = 'Last: ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-        const chip = document.createElement('span');
-        if (isSuccess && variant) {
-            chip.className = 'badge bg-success bg-opacity-25 text-white border border-success d-inline-flex align-items-center gap-1';
-            chip.style.fontSize = '0.72rem';
-            chip.innerHTML = `<i class="bi bi-check2"></i> ${variant.sku_code} (₹${parseFloat(variant.price || 0).toFixed(0)})`;
-        } else {
-            chip.className = 'badge bg-danger bg-opacity-25 text-danger border border-danger d-inline-flex align-items-center gap-1';
-            chip.style.fontSize = '0.72rem';
-            chip.innerHTML = `<i class="bi bi-x"></i> Not Found`;
-        }
-        camScannedChips.prepend(chip);
-
-        setTimeout(() => {
-            if (camStatusDisplay) camStatusDisplay.innerHTML = '<i class="bi bi-broadcast text-success me-1"></i> Ready for next barcode...';
-        }, 1500);
-    }
-
-    if (modalCameraScannerEl) {
-        modalCameraScannerEl.addEventListener('shown.bs.modal', function() {
-            if (typeof Html5Qrcode !== 'undefined') {
-                Html5Qrcode.getCameras().then(devices => {
-                    if (devices && devices.length && modalCamSelect) {
-                        modalCamSelect.innerHTML = '';
-                        devices.forEach((dev, idx) => {
-                            const opt = document.createElement('option');
-                            opt.value = dev.id;
-                            opt.text = dev.label || ('Camera ' + (idx + 1));
-                            modalCamSelect.appendChild(opt);
-                        });
-                    }
-                    startModalCamera(modalCamSelect ? modalCamSelect.value : null);
-                }).catch(() => {
-                    startModalCamera(null);
-                });
-            }
-        });
-
-        if (modalCamSelect) {
-            modalCamSelect.addEventListener('change', function() {
-                startModalCamera(this.value);
-            });
-        }
-
-        modalCameraScannerEl.addEventListener('hidden.bs.modal', function() {
-            if (modalQrScanner) {
-                modalQrScanner.stop().catch(() => {}).then(() => {
-                    modalQrScanner = null;
-                });
-            }
-            if (scannerSettings.autoFocus && qrInput) {
-                qrInput.focus();
             }
         });
     }
@@ -1895,14 +1618,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Quick add garment buttons
-    document.querySelectorAll('.btn-quick-var').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const sku = this.getAttribute('data-sku');
-            addProductByQuery(sku);
-        });
-    });
-
     // 4. Render Cart Function
     function calculateLineAmounts(item) {
         const gstType = gstTypeSelect ? gstTypeSelect.value : 'both';
@@ -1963,7 +1678,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btnCompleteSale.style.cursor = 'pointer';
             btnCompleteSale.style.boxShadow = '0 4px 6px -1px rgba(79, 70, 229, 0.2), 0 2px 4px -2px rgba(79, 70, 229, 0.2)';
             if (checkoutHelperHint) {
-                checkoutHelperHint.innerHTML = '<span class="text-success fw-semibold"><i class="bi bi-check-circle me-1"></i> Ready to checkout. Press F2 or click above.</span>';
+                checkoutHelperHint.innerHTML = '<span class="text-success fw-semibold"><i class="bi bi-check-circle me-1"></i> Ready to checkout. Click Complete Sale to continue.</span>';
             }
 
             cart.forEach((item, index) => {
@@ -2292,12 +2007,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 8. Complete Sale Validation & F2 Keyboard Shortcut
+    // 8. Complete Sale Validation
     if (btnCompleteSale) {
         btnCompleteSale.addEventListener('click', function(e) {
             if (cart.length === 0) {
                 e.preventDefault();
-                alert('⚠️ Billing Cart is Empty!\n\nPlease scan a garment QR code, type an SKU, or select an item from the Quick Catalog Pick on the left before completing the sale.');
+                alert('⚠️ Billing Cart is Empty!\n\nPlease scan a garment QR code or type an SKU before completing the sale.');
                 if (qrInput) qrInput.focus();
                 return false;
             }
@@ -2318,24 +2033,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.preventDefault();
                 return false;
             }
-        });
-    }
-
-    window.addEventListener('keydown', function(e) {
-        if (e.key === 'F2') {
-            e.preventDefault();
-            if (btnCompleteSale) {
-                btnCompleteSale.click();
-            }
-        }
-    });
-
-    // 9. Camera Scanner Toggle Link
-    const btnToggleCam = document.getElementById('btnToggleCam');
-    if (btnToggleCam) {
-        btnToggleCam.addEventListener('click', function(e) {
-            e.preventDefault();
-            openCameraScannerModal();
         });
     }
 
