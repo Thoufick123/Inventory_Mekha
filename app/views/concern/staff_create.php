@@ -246,17 +246,6 @@ foreach ($modules as $m) {
                                 </h6>
                                 <small class="text-secondary">Configure specific View, Create, Edit, and Delete operational rights across selected concern modules.</small>
                             </div>
-                            <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                <button type="button" class="btn btn-outline-primary btn-xs py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllMatrixPerms(true)">
-                                    <i class="bi bi-check-square me-1"></i> Full Access (All)
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-xs py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllMatrixReadOnly()">
-                                    <i class="bi bi-eye me-1"></i> Read-Only (View All)
-                                </button>
-                                <button type="button" class="btn btn-outline-danger btn-xs py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllMatrixPerms(false)">
-                                    <i class="bi bi-x-square me-1"></i> Clear All
-                                </button>
-                            </div>
                         </div>
 
                         <!-- DYNAMIC CONCERN TABS (Shown separately for each selected concern) -->
