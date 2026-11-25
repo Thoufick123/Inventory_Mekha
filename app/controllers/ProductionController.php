@@ -7277,7 +7277,12 @@ class ProductionController extends Controller {
             [$stitchingBatchId, $cid]
         );
         if ($existingQc) {
-            $this->flash('warning', "Stitching Batch {$batch['display_batch_no']} already has QC {$existingQc['qc_no']}. It cannot create another stock entry.");
+            $existingStatus = strtoupper((string)($existingQc['status'] ?? 'PENDING'));
+            if ($existingStatus !== 'COMPLETED') {
+                $this->redirect("/production/qc/inspect?id=" . (int)$existingQc['id']);
+                return;
+            }
+            $this->flash('warning', "Stitching Batch {$batch['display_batch_no']} already has completed QC {$existingQc['qc_no']}. It cannot create another stock entry.");
             $this->redirect("/production/qc/details?id=" . (int)$existingQc['id']);
             return;
         }
