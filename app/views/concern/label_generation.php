@@ -1123,6 +1123,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                                     <th>SKU</th>
                                                     <th class="text-center">Pcs</th>
                                                     <th class="text-center">Status</th>
+                                                    <th class="text-end pe-2">Print</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="prod_batch_variant_tbody"></tbody>
@@ -2405,6 +2406,7 @@ function onBatchSelect() {
                 : (isLabelsGenerated 
                     ? '<span class="badge bg-info-subtle text-info border border-info" style="font-size:0.68rem;"><i class="bi bi-tag-fill"></i> Labeled</span>'
                     : '<span class="badge bg-warning-subtle text-warning border border-warning" style="font-size:0.68rem;"><i class="bi bi-clock-history"></i> Pending</span>');
+            const itemId  = item.id || item.stitching_item_id || 0;
             const tr = document.createElement('tr');
             tr.innerHTML =
                 '<td class="text-muted small">' + (idx+1) + '</td>' +
@@ -2412,10 +2414,31 @@ function onBatchSelect() {
                 '<td class="small">' + color + '</td>' +
                 '<td class="small font-monospace">' + sku + '</td>' +
                 '<td class="text-center"><span class="badge bg-success font-monospace">' + pcs + ' pcs</span></td>' +
-                '<td class="text-center">' + statusHtml + '</td>';
+                '<td class="text-center">' + statusHtml + '</td>' +
+                '<td class="text-end pe-2 text-nowrap">' +
+                    '<button type="button" class="btn btn-sm btn-outline-primary py-0 px-1.5 me-1 fw-semibold" style="font-size:0.72rem;" onclick="printSingleProductionVariant(' + itemId + ', 1)" title="Print 1 label for this variant"><i class="bi bi-printer me-1"></i>1</button>' +
+                    '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1.5" style="font-size:0.72rem;" onclick="selectProdItemAndSwitchMode(' + itemId + ')" title="Choose custom label copies (Way 2)"><i class="bi bi-sliders"></i></button>' +
+                '</td>';
             tbody.appendChild(tr);
         });
     }
+}
+
+function printSingleProductionVariant(itemId, qty = 1) {
+    if (!itemId) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= \App\Core\Controller::url('/m/label_generation/generate') ?>';
+    form.target = '_blank';
+    form.innerHTML = `
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+        <input type="hidden" name="label_type" value="production">
+        <input type="hidden" name="item_id" value="${parseInt(itemId, 10)}">
+        <input type="hidden" name="qty" value="${Math.max(1, parseInt(qty, 10) || 1)}">
+    `;
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
 }
 
 // Way 1 form validation
