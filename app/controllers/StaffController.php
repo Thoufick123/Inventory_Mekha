@@ -203,6 +203,13 @@ class StaffController extends Controller {
             $groupedModules[$grp][] = $m;
         }
 
+        // Concern enabled modules mapping for permissions scoping
+        $concernModules = [];
+        $cmRows = DB::fetchAll("SELECT concern_id, module_id FROM concern_modules WHERE enabled = 1");
+        foreach ($cmRows as $cm) {
+            $concernModules[(int)$cm['concern_id']][] = (int)$cm['module_id'];
+        }
+
         $openAddModal = !empty($_GET['action']) && $_GET['action'] === 'add';
 
         $this->render('concern/staff', [
@@ -218,6 +225,7 @@ class StaffController extends Controller {
             'modules'          => $modules,
             'groupedModules'   => $groupedModules,
             'groupOrder'       => $groupOrder,
+            'concernModules'   => $concernModules,
             'showConcernModal' => $showConcernModal,
             'openAddModal'     => $openAddModal,
             'filters'          => [

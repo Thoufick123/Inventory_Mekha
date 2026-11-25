@@ -489,28 +489,6 @@
                             </h6>
                             <small class="text-secondary">Configure View, Create (Add), Edit, and Delete access for each module.</small>
                         </div>
-                        <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                            <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllEditMatrixPerms(true)">
-                                <i class="bi bi-check-all me-1"></i> Full Access
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllEditMatrixReadOnly()">
-                                <i class="bi bi-eye me-1"></i> View Only
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setAllEditMatrixPerms(false)">
-                                <i class="bi bi-x-square me-1"></i> Clear All
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Column Quick Toggles -->
-                    <div class="d-flex align-items-center justify-content-between p-2.5 bg-light rounded-3 mb-3 border flex-wrap gap-2">
-                        <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                            <span class="fw-bold text-secondary text-uppercase" style="font-size: 0.71rem;"><i class="bi bi-toggles text-primary me-1"></i>Column:</span>
-                            <button type="button" class="btn btn-sm btn-outline-primary py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setEditColumnMatrixPerm('view', true)">All View</button>
-                            <button type="button" class="btn btn-sm btn-outline-success py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setEditColumnMatrixPerm('add', true)">All Create</button>
-                            <button type="button" class="btn btn-sm btn-outline-warning text-dark py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setEditColumnMatrixPerm('edit', true)">All Edit</button>
-                            <button type="button" class="btn btn-sm btn-outline-danger py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setEditColumnMatrixPerm('delete', true)">All Delete</button>
-                        </div>
                         <span class="badge bg-white text-secondary border px-2.5 py-1" id="edit_matrix_status_badge" style="font-size: 0.74rem;">
                             <i class="bi bi-shield-check me-1 text-primary"></i> Module access loaded
                         </span>
@@ -568,7 +546,7 @@
                                             </td>
                                         </tr>
                                         <?php foreach ($groupedModules[$grpName] as $m): $mid = (int)$m['id']; ?>
-                                            <tr id="edit_matrix_row_<?= $mid ?>" class="matrix-mod-row" data-mid="<?= $mid ?>">
+                                            <tr id="edit_matrix_row_<?= $mid ?>" class="matrix-mod-row" data-mid="<?= $mid ?>" data-group="<?= htmlspecialchars($grpName) ?>">
                                                 <td class="ps-3 py-2">
                                                     <div class="d-flex align-items-center gap-2">
                                                         <i class="bi <?= htmlspecialchars($m['icon'] ?: 'bi-app') ?> text-primary fs-6"></i>
@@ -690,6 +668,7 @@
 
 <!-- Scripts -->
 <script>
+window.concernModules = <?= json_encode($concernModules ?? []) ?>;
 document.addEventListener('DOMContentLoaded', function() {
     <?php if ($showConcernModal): ?>
         const modalEl = document.getElementById('modalSelectConcern');
@@ -857,6 +836,33 @@ function openEditStaffModal(stf) {
     setVal('edit_staff_phone', stf.phone || '');
     setVal('edit_staff_designation', stf.designation || '');
     setVal('edit_staff_status', stf.status === 'inactive' ? 'inactive' : 'active');
+
+    // Filter matrix rows to only display modules provisioned for this staff member's concern
+    const staffCid = parseInt(stf.concern_id) || <?= (int)($selectedCid ?? 0) ?>;
+    const allowedMods = (window.concernModules && window.concernModules[staffCid]) ? window.concernModules[staffCid] : [];
+    
+    const groupCount = {};
+    document.querySelectorAll('.matrix-mod-row').forEach(row => {
+        const mid = parseInt(row.getAttribute('data-mid'));
+        const grp = row.getAttribute('data-group');
+        // If concernModules is mapped for this concern, filter; otherwise keep visible
+        if (allowedMods.length > 0) {
+            if (allowedMods.includes(mid)) {
+                row.style.display = '';
+                groupCount[grp] = (groupCount[grp] || 0) + 1;
+            } else {
+                row.style.display = 'none';
+            }
+        } else {
+            row.style.display = '';
+            groupCount[grp] = (groupCount[grp] || 0) + 1;
+        }
+    });
+
+    document.querySelectorAll('.matrix-group-header').forEach(header => {
+        const grp = header.getAttribute('data-group');
+        header.style.display = (groupCount[grp] && groupCount[grp] > 0) ? '' : 'none';
+    });
 
     // Reset matrix table checkboxes
     document.querySelectorAll('.edit-matrix-perm-check').forEach(cb => cb.checked = false);
