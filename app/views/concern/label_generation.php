@@ -2659,11 +2659,9 @@ function viewLabelJob(jobId) {
         }
         bodyEl.innerHTML = `
             <div class="row g-3">
-                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Job ID</div><div class="fw-bold font-monospace">#${parseInt(job.id || 0, 10)}</div></div></div>
                 <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Batch / Item Code</div><div class="fw-bold font-monospace">${escapeLabelHtml(job.item_code || '-')}</div></div></div>
                 <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Total Copies</div><div class="fw-bold text-primary">${parseInt(job.qty || 0, 10)} Prints</div></div></div>
-                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">Title</div><div class="fw-semibold">${escapeLabelHtml(job.item_title || '-')}</div></div></div>
-                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">QR Reference</div><div class="font-monospace text-primary">${escapeLabelHtml(job.qr_payload || '-')}</div></div></div>
+                <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">QR Reference</div><div class="font-monospace text-primary">${escapeLabelHtml(job.qr_payload || '-')}</div></div></div>
             </div>
             ${varTable}
         `;
@@ -2696,9 +2694,8 @@ function openDeleteLabelJobModal(button) {
 <div class="modal fade" id="viewLabelJobModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header py-2">
-                <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-eye text-info me-1"></i> Label Job Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header py-2 border-bottom-0">
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="viewLabelJobBody"></div>
         </div>
