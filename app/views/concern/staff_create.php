@@ -274,24 +274,6 @@ foreach ($modules as $m) {
                             </ul>
                         </div>
 
-                        <!-- Column Quick Toggles -->
-                        <div class="d-flex align-items-center justify-content-between p-2.5 bg-light rounded-3 mb-3 border flex-wrap gap-2">
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <span class="fw-bold text-secondary text-uppercase d-flex align-items-center gap-1" style="font-size: 0.71rem;">
-                                    <i class="bi bi-toggles text-primary"></i> Column Toggles:
-                                </span>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setColumnMatrixPerm('view', true)">All View</button>
-                                <button type="button" class="btn btn-sm btn-outline-success py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setColumnMatrixPerm('add', true)">All Create</button>
-                                <button type="button" class="btn btn-sm btn-outline-warning text-dark py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setColumnMatrixPerm('edit', true)">All Edit</button>
-                                <button type="button" class="btn btn-sm btn-outline-danger py-0.5 px-2.5 rounded-pill fw-semibold" style="font-size: 0.74rem;" onclick="setColumnMatrixPerm('delete', true)">All Delete</button>
-                            </div>
-                            <div>
-                                <span class="text-muted small" id="perm_sync_role_text" style="font-size: 0.74rem;">
-                                    <i class="bi bi-shield-check me-1"></i> Configure module access and permissions below.
-                                </span>
-                            </div>
-                        </div>
-
                         <!-- Container for dynamic serialized permissions inputs -->
                         <div id="dynamic_perms_inputs"></div>
 
