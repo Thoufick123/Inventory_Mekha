@@ -73,14 +73,40 @@ foreach ($modules as $m) {
                                 <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
                                     <i class="bi bi-shield-check"></i>
                                 </span>
-                                <select name="role_id" id="staff_create_role_id" class="form-select border-start-0" required onchange="applyRolePermissions(this.value)" style="border-radius: 0 8px 8px 0;">
-                                    <option value="">-- Select Role --</option>
+                                <input type="text" name="role_name" id="staff_role_input" class="form-control border-start-0 border-end-0" placeholder="Type or select role..." list="role_datalist" value="<?php
+                                    $curRoleVal = '';
+                                    if (!empty($oldInput['role_name'])) {
+                                        $curRoleVal = $oldInput['role_name'];
+                                    } elseif (!empty($oldInput['role_id'])) {
+                                        foreach ($roles as $r) {
+                                            if ((int)$r['id'] === (int)$oldInput['role_id']) {
+                                                $curRoleVal = $r['name'];
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    echo htmlspecialchars($curRoleVal);
+                                ?>" required autocomplete="off" oninput="onRoleInputChanged(this.value)">
+                                <input type="hidden" name="role_id" id="staff_create_role_id" value="<?= htmlspecialchars($oldInput['role_id'] ?? '') ?>">
+                                <button class="btn btn-outline-secondary dropdown-toggle border-start-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 0 8px 8px 0;">
+                                    <span class="visually-hidden">Toggle Dropdown</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                                    <li><h6 class="dropdown-header text-uppercase small" style="font-size: 0.68rem;">Existing System Roles</h6></li>
                                     <?php foreach ($roles as $r): ?>
-                                        <option value="<?= $r['id'] ?>" <?= ((int)($oldInput['role_id'] ?? 0) === (int)$r['id']) ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($r['name']) ?>
-                                        </option>
+                                        <li>
+                                            <button class="dropdown-item d-flex justify-content-between align-items-center" type="button" onclick="selectRoleCombobox('<?= (int)$r['id'] ?>', '<?= htmlspecialchars(addslashes($r['name'])) ?>')">
+                                                <span><?= htmlspecialchars($r['name']) ?></span>
+                                                <span class="badge bg-light text-muted border font-monospace ms-2" style="font-size: 0.68rem;">Role #<?= $r['id'] ?></span>
+                                            </button>
+                                        </li>
                                     <?php endforeach; ?>
-                                </select>
+                                </ul>
+                                <datalist id="role_datalist">
+                                    <?php foreach ($roles as $r): ?>
+                                        <option value="<?= htmlspecialchars($r['name']) ?>" data-id="<?= (int)$r['id'] ?>"></option>
+                                    <?php endforeach; ?>
+                                </datalist>
                             </div>
                         </div>
                     </div>
@@ -799,6 +825,37 @@ function updatePhoneCounter(input) {
         } else {
             badge.className = 'badge bg-light text-muted border font-monospace';
         }
+    }
+}
+
+function selectRoleCombobox(roleId, roleName) {
+    const roleInput = document.getElementById('staff_role_input');
+    const roleIdInput = document.getElementById('staff_create_role_id');
+    if (roleInput) roleInput.value = roleName;
+    if (roleIdInput) roleIdInput.value = roleId;
+    applyRolePermissions(roleId);
+}
+
+function onRoleInputChanged(val) {
+    const roleIdInput = document.getElementById('staff_create_role_id');
+    const term = (val || '').trim().toLowerCase();
+    
+    // Check if entered text matches an existing role in the datalist
+    let foundId = '';
+    const datalist = document.getElementById('role_datalist');
+    if (datalist) {
+        for (const opt of datalist.options) {
+            if (opt.value.trim().toLowerCase() === term) {
+                foundId = opt.getAttribute('data-id') || '';
+                break;
+            }
+        }
+    }
+    if (roleIdInput) {
+        roleIdInput.value = foundId;
+    }
+    if (foundId) {
+        applyRolePermissions(foundId);
     }
 }
 

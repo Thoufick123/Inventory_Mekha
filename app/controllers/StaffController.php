@@ -336,6 +336,7 @@ class StaffController extends Controller {
         $password    = trim($_POST['password'] ?? '');
         $phone       = trim($_POST['phone'] ?? '');
         $designation = trim($_POST['designation'] ?? '');
+        $roleNameInput = trim($_POST['role_name'] ?? '');
         $status      = ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
         $department  = trim($_POST['department'] ?? 'General');
         $salaryType  = trim($_POST['salary_type'] ?? 'monthly');
@@ -344,9 +345,45 @@ class StaffController extends Controller {
         $address     = trim($_POST['address'] ?? '');
         $selectedRole = !empty($_POST['role_id']) ? (int)$_POST['role_id'] : null;
 
-        // If designation is empty but role is selected, populate designation with role name
-        if ($designation === '' && $selectedRole) {
-            $designation = (string)DB::fetchValue("SELECT name FROM roles WHERE id = ?", [$selectedRole]);
+        // Resolve role from editable role input or role_id
+        if (!$selectedRole && $roleNameInput !== '') {
+            $matchedRole = DB::fetch(
+                "SELECT id, name FROM roles WHERE LOWER(name) = LOWER(?) AND (concern_id = ? OR concern_id IS NULL) LIMIT 1",
+                [$roleNameInput, $cid]
+            );
+            if ($matchedRole) {
+                $selectedRole = (int)$matchedRole['id'];
+            } else {
+                // Create custom role for this concern
+                try {
+                    DB::query("INSERT INTO roles (concern_id, name, description, created_at) VALUES (?, ?, ?, NOW())", [
+                        $cid,
+                        $roleNameInput,
+                        'Custom role created from staff registration'
+                    ]);
+                    $selectedRole = (int)DB::lastInsertId();
+                    
+                    // Provision default view rights for active concern modules
+                    $stmtRolePerm = DB::pdo()->prepare(
+                        "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 0, 0, 0)"
+                    );
+                    $availMods = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'cash'");
+                    foreach ($availMods as $am) {
+                        $stmtRolePerm->execute([$selectedRole, (int)$am['id']]);
+                    }
+                } catch (\Throwable $e) {
+                    error_log('Error creating role on the fly: ' . $e->getMessage());
+                }
+            }
+        }
+
+        // If designation is empty but role is selected or typed, populate designation
+        if ($designation === '') {
+            if ($roleNameInput !== '') {
+                $designation = $roleNameInput;
+            } elseif ($selectedRole) {
+                $designation = (string)DB::fetchValue("SELECT name FROM roles WHERE id = ?", [$selectedRole]);
+            }
         }
 
         // If email is empty but username is given, generate a consistent internal login email
