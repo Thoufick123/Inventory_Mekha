@@ -2611,6 +2611,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 
+function escapeLabelHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+}
+
 function viewLabelJob(jobId) {
     const modalEl = document.getElementById('viewLabelJobModal');
     const bodyEl = document.getElementById('viewLabelJobBody');
@@ -2625,7 +2629,7 @@ function viewLabelJob(jobId) {
     .then(r => r.json())
     .then(data => {
         if (!data || !data.success) {
-            bodyEl.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml((data && data.message) || 'Failed to load job.')}</div>`;
+            bodyEl.innerHTML = `<div class="alert alert-danger mb-0">${escapeLabelHtml((data && data.message) || 'Failed to load job.')}</div>`;
             return;
         }
         const job = data.job || {};
@@ -2640,11 +2644,11 @@ function viewLabelJob(jobId) {
                         <tbody>
                             ${variants.map(v => `
                                 <tr>
-                                    <td class="small fw-semibold">${escapeHtml(v.variant_name || '-')}</td>
-                                    <td class="small">${escapeHtml(v.size || '-')}</td>
+                                    <td class="small fw-semibold">${escapeLabelHtml(v.variant_name || '-')}</td>
+                                    <td class="small">${escapeLabelHtml(v.size || '-')}</td>
                                     <td class="small">₹${parseFloat(v.base_price || 0).toFixed(2)}</td>
                                     <td class="small text-success fw-semibold">₹${parseFloat(v.discount_price || 0).toFixed(2)}</td>
-                                    <td class="small font-monospace text-primary">${escapeHtml(v.qr_code || '-')}</td>
+                                    <td class="small font-monospace text-primary">${escapeLabelHtml(v.qr_code || '-')}</td>
                                     <td class="small text-end fw-bold">${parseInt(v.stitching_qty || 0, 10)}</td>
                                 </tr>
                             `).join('')}
@@ -2656,10 +2660,10 @@ function viewLabelJob(jobId) {
         bodyEl.innerHTML = `
             <div class="row g-3">
                 <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Job ID</div><div class="fw-bold font-monospace">#${parseInt(job.id || 0, 10)}</div></div></div>
-                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Batch / Item Code</div><div class="fw-bold font-monospace">${escapeHtml(job.item_code || '-')}</div></div></div>
+                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Batch / Item Code</div><div class="fw-bold font-monospace">${escapeLabelHtml(job.item_code || '-')}</div></div></div>
                 <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Total Copies</div><div class="fw-bold text-primary">${parseInt(job.qty || 0, 10)} Prints</div></div></div>
-                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">Title</div><div class="fw-semibold">${escapeHtml(job.item_title || '-')}</div></div></div>
-                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">QR Reference</div><div class="font-monospace text-primary">${escapeHtml(job.qr_payload || '-')}</div></div></div>
+                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">Title</div><div class="fw-semibold">${escapeLabelHtml(job.item_title || '-')}</div></div></div>
+                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">QR Reference</div><div class="font-monospace text-primary">${escapeLabelHtml(job.qr_payload || '-')}</div></div></div>
             </div>
             ${varTable}
         `;
