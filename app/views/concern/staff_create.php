@@ -52,7 +52,7 @@ foreach ($modules as $m) {
                 <form action="<?= \App\Core\Controller::url('/m/staff/store') ?>" method="POST" class="card-body p-4" autocomplete="off">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
 
-                    <!-- ROW 1: Full Name & Assign Role -->
+                    <!-- ROW 1: Full Name & Assign System Role -->
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-secondary mb-1">
@@ -65,50 +65,6 @@ foreach ($modules as $m) {
                                 <input type="text" name="name" id="staff_create_name" class="form-control border-start-0" placeholder="e.g. Rahul Sharma" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary mb-1">
-                                Assign Role <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-white border-end-0 text-muted font-monospace fw-semibold" style="border-radius: 8px 0 0 8px;">@</span>
-                                <input type="text" name="username" id="staff_create_username" class="form-control border-start-0 font-monospace" placeholder="admin" value="<?= htmlspecialchars($oldInput['username'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ROW 2: Email Address & Phone Number -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary mb-1">
-                                Email Address
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
-                                    <i class="bi bi-envelope"></i>
-                                </span>
-                                <input type="email" name="email" id="staff_create_email" class="form-control border-start-0" placeholder="rahul@example.com" value="<?= htmlspecialchars($oldInput['email'] ?? '') ?>" autocomplete="off" style="border-radius: 0 8px 8px 0;">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small fw-bold text-secondary mb-0">
-                                    <i class="bi bi-telephone text-primary me-1"></i> Phone Number
-                                </label>
-                                <span id="phone_digit_counter" class="badge bg-light text-muted border font-monospace" style="font-size: 0.72rem;">0 / 10 digits</span>
-                            </div>
-                            <div class="input-group">
-                                <span class="input-group-text bg-white border-end-0 text-muted font-semibold" style="border-radius: 8px 0 0 8px;">+91</span>
-                                <input type="tel" name="phone" id="staff_create_phone" maxlength="10" class="form-control border-start-0 border-end-0 font-monospace" placeholder="10-digit mobile number" value="<?= htmlspecialchars($oldInput['phone'] ?? '') ?>" oninput="updatePhoneCounter(this)" autocomplete="off">
-                                <span class="input-group-text bg-white border-start-0 text-muted" style="border-radius: 0 8px 8px 0;">#</span>
-                            </div>
-                            <div class="form-text text-muted small mt-1" style="font-size: 0.73rem;">
-                                Only 10-digit numeric mobile numbers (starting with 6-9). Letters and duplicate numbers are rejected.
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ROW 3: Assign System Role & Password -->
-                    <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-secondary mb-1">
                                 Assign System Role <span class="text-danger">*</span>
@@ -127,6 +83,21 @@ foreach ($modules as $m) {
                                 </select>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- ROW 2: Email Address & Password -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                Email Address <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
+                                    <i class="bi bi-envelope"></i>
+                                </span>
+                                <input type="email" name="email" id="staff_create_email" class="form-control border-start-0" placeholder="rahul@example.com" value="<?= htmlspecialchars($oldInput['email'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
+                            </div>
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-secondary mb-1">
                                 Password <span class="text-danger">*</span>
@@ -143,11 +114,39 @@ foreach ($modules as $m) {
                         </div>
                     </div>
 
+                    <!-- ROW 3: Phone Number & Employment Status -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-bold text-secondary mb-0">
+                                    <i class="bi bi-telephone text-primary me-1"></i> Phone Number
+                                </label>
+                                <span id="phone_digit_counter" class="badge bg-light text-muted border font-monospace" style="font-size: 0.72rem;">0 / 10 digits</span>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted font-semibold" style="border-radius: 8px 0 0 8px;">+91</span>
+                                <input type="tel" name="phone" id="staff_create_phone" maxlength="10" class="form-control border-start-0 border-end-0 font-monospace" placeholder="10-digit mobile number" value="<?= htmlspecialchars($oldInput['phone'] ?? '') ?>" oninput="updatePhoneCounter(this)" autocomplete="off">
+                                <span class="input-group-text bg-white border-start-0 text-muted" style="border-radius: 0 8px 8px 0;">#</span>
+                            </div>
+                            <div class="form-text text-muted small mt-1" style="font-size: 0.73rem;">
+                                Only 10-digit numeric mobile numbers (starting with 6-9). Letters and duplicate numbers are rejected.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                Employment Status
+                            </label>
+                            <select name="status" class="form-select" style="border-radius: 8px;">
+                                <option value="active" <?= ($oldInput['status'] ?? 'active') === 'active' ? 'selected' : '' ?>>Active (Can login & operate)</option>
+                                <option value="inactive" <?= ($oldInput['status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Inactive (Disabled)</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- ROW 4: Select Department / Operational Concern -->
                     <div class="mb-4 p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
                         <input type="hidden" name="concern_id" id="staff_concern_id" value="">
                         <input type="hidden" name="designation" id="staff_create_designation" value="">
-                        <input type="hidden" name="status" value="active">
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                             <label class="small fw-bold text-dark text-uppercase mb-0 d-flex align-items-center gap-1.5" style="font-size: 0.78rem; letter-spacing: 0.05em;">
                                 <i class="bi bi-buildings-fill text-primary"></i> Select Department / Operational Concern *
