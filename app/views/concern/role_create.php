@@ -37,7 +37,7 @@
             </div>
             <div class="card-body p-4">
                 <div class="row g-3 mb-3">
-                    <div class="col-md-5">
+                    <div class="col-md-4">
                         <label class="form-label small fw-bold text-secondary mb-1">
                             Role Name <span class="text-danger">*</span>
                         </label>
@@ -48,7 +48,7 @@
                             <input type="text" name="name" id="role_input_name" class="form-control border-start-0" placeholder="e.g. Warehouse Manager or Cutting Master" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required oninput="generateRoleSlug(this.value)" style="border-radius: 0 8px 8px 0;">
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label small fw-bold text-secondary mb-1">
                             Role Identifier (Slug) <span class="text-danger">*</span>
                         </label>
@@ -61,6 +61,21 @@
                         </div>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label small fw-bold text-secondary mb-1">
+                            Target Concern <span class="text-danger">*</span>
+                        </label>
+                        <select name="concern_id" id="role_concern_id" class="form-select" required onchange="filterRoleMatrixByConcern(this.value)" style="border-radius: 8px;">
+                            <?php foreach ($allConcerns as $c): ?>
+                                <option value="<?= $c['id'] ?>" <?= ((int)$selectedCid === (int)$c['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text text-muted small mt-1" style="font-size: 0.73rem;">
+                            Matrix auto-scopes to this concern's provisioned modules.
+                        </div>
+                    </div>
+                    <div class="col-md-2">
                         <label class="form-label small fw-bold text-secondary mb-1">
                             Status <span class="text-danger">*</span>
                         </label>
@@ -196,7 +211,7 @@
 
                                 <!-- SUBMODULE ROWS -->
                                 <?php foreach ($grpMods as $m): $mid = (int)$m['id']; ?>
-                                    <tr class="module-row group-child-<?= md5($groupName) ?>" data-mid="<?= $mid ?>" data-name="<?= htmlspecialchars(strtolower($m['name'])) ?>" data-code="<?= htmlspecialchars(strtolower($m['code'])) ?>">
+                                    <tr class="module-row group-child-<?= md5($groupName) ?>" data-mid="<?= $mid ?>" data-group="<?= htmlspecialchars(strtolower($groupName)) ?>" data-name="<?= htmlspecialchars(strtolower($m['name'])) ?>" data-code="<?= htmlspecialchars(strtolower($m['code'])) ?>">
                                         <td class="ps-4">
                                             <div class="d-flex align-items-center gap-2.5">
                                                 <div style="width: 28px; height: 28px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;" class="text-secondary">
@@ -247,6 +262,36 @@
 </div>
 
 <script>
+window.concernModules = <?= json_encode($concernModules ?? []) ?>;
+
+function filterRoleMatrixByConcern(cid) {
+    const concernId = parseInt(cid) || 0;
+    const allowed = (window.concernModules && window.concernModules[concernId]) ? window.concernModules[concernId] : [];
+    
+    let visibleCount = 0;
+    const groupCount = {};
+    document.querySelectorAll('.module-row').forEach(row => {
+        const mid = parseInt(row.getAttribute('data-mid'));
+        const grp = row.getAttribute('data-group');
+        if (!concernId || allowed.includes(mid)) {
+            row.style.display = '';
+            visibleCount++;
+            groupCount[grp] = (groupCount[grp] || 0) + 1;
+        } else {
+            row.style.display = 'none';
+            // Uncheck hidden modules
+            row.querySelectorAll('.matrix-check').forEach(cb => cb.checked = false);
+        }
+    });
+
+    document.querySelectorAll('.role-group-header').forEach(header => {
+        const grp = header.getAttribute('data-group');
+        header.style.display = (groupCount[grp] && groupCount[grp] > 0) ? '' : 'none';
+    });
+
+    updatePermCounter();
+}
+
 function generateRoleSlug(name) {
     const slugInput = document.getElementById('role_input_slug');
     if (!slugInput) return;
@@ -264,7 +309,12 @@ document.addEventListener('DOMContentLoaded', () => {
             slugInput.dataset.manualEdited = 'true';
         });
     }
-    updatePermCounter();
+    const concernSelect = document.getElementById('role_concern_id');
+    if (concernSelect && concernSelect.value) {
+        filterRoleMatrixByConcern(concernSelect.value);
+    } else {
+        updatePermCounter();
+    }
 });
 
 function onPermChanged(mid) {
@@ -333,11 +383,17 @@ function setMatrixAll(check) {
 }
 
 function updatePermCounter() {
-    const checked = document.querySelectorAll('.matrix-check-view:checked, .matrix-check-create:checked, .matrix-check-edit:checked, .matrix-check-delete:checked').length;
+    let visibleTotal = 0;
+    let checked = 0;
+    document.querySelectorAll('.module-row').forEach(row => {
+        if (row.style.display !== 'none') {
+            visibleTotal += 4;
+            checked += row.querySelectorAll('.matrix-check-view:checked, .matrix-check-create:checked, .matrix-check-edit:checked, .matrix-check-delete:checked').length;
+        }
+    });
     const badge = document.getElementById('active_perm_counter');
     if (badge) {
-        const total = <?= count($modules) * 4 ?>;
-        badge.textContent = checked + ' / ' + total + ' Active Permissions';
+        badge.textContent = checked + ' / ' + visibleTotal + ' Active Permissions';
     }
 }
 

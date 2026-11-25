@@ -1407,7 +1407,40 @@ class StaffController extends Controller {
         ModuleGuard::enforce('staff', 'create');
         $this->ensureSchema();
         $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
-        $modules = DB::fetchAll("SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC");
+
+        // Determine active concern context
+        $selectedCid = null;
+        if (!empty($_GET['concern_id'])) {
+            $selectedCid = (int)$_GET['concern_id'];
+            $_SESSION['staff_selected_concern_id'] = $selectedCid;
+        } elseif (!empty($_SESSION['staff_selected_concern_id'])) {
+            $selectedCid = (int)$_SESSION['staff_selected_concern_id'];
+        } else {
+            $selectedCid = Auth::concernId();
+        }
+
+        // If no concern selected, default to the first active concern
+        if (!$selectedCid && !empty($allConcerns)) {
+            $selectedCid = (int)$allConcerns[0]['id'];
+        }
+
+        // Fetch only operational concern modules (exclude super_admin_only, dashboard, cash)
+        $modules = DB::fetchAll(
+            "SELECT * FROM modules 
+             WHERE is_super_admin_only = 0 
+               AND code != 'cash' 
+               AND code != 'concern_dashboard' 
+               AND (group_name IS NULL OR group_name != 'Dashboard')
+               AND (group_name IS NULL OR group_name != 'Super Admin')
+             ORDER BY group_name ASC, sort_order ASC, id ASC"
+        );
+
+        // Fetch enabled concern_modules mapping
+        $concernModules = [];
+        $cmRows = DB::fetchAll("SELECT concern_id, module_id FROM concern_modules WHERE enabled = 1");
+        foreach ($cmRows as $cm) {
+            $concernModules[(int)$cm['concern_id']][] = (int)$cm['module_id'];
+        }
         
         $oldInput = $_SESSION['_old_input'] ?? [];
         unset($_SESSION['_old_input']);
@@ -1417,6 +1450,8 @@ class StaffController extends Controller {
             'currentModule'    => 'staff',
             'currentSubModule' => 'roles',
             'allConcerns'      => $allConcerns,
+            'selectedCid'      => $selectedCid,
+            'concernModules'   => $concernModules,
             'modules'          => $modules,
             'oldInput'         => $oldInput,
         ]);
