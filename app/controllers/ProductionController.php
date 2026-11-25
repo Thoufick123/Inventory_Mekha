@@ -3593,7 +3593,8 @@ class ProductionController extends Controller {
                 "SELECT DISTINCT ci.cutting_id, cat.id AS catalog_id, cat.style_code, cat.name AS catalog_name
                  FROM cutting_items ci
                  LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
-                 JOIN catalogs cat ON cat.id = COALESCE(NULLIF(ci.catalog_id, 0), pr.catalog_id)
+                 LEFT JOIN variants v ON ci.variant_id = v.id
+                 JOIN catalogs cat ON cat.id = COALESCE(NULLIF(pr.catalog_id, 0), v.catalog_id)
                  WHERE ci.cutting_id IN ({$placeholders})
                  ORDER BY cat.id ASC",
                 $batchIds
