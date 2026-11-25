@@ -132,6 +132,37 @@ abstract class Controller {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
 
+            // Self-healing: ensure sku_code -> product_code and variants.sub_sub_category_id on live/remote DBs
+            $skuTables = [
+                ['table' => 'variants', 'def' => 'VARCHAR(50) NOT NULL'],
+                ['table' => 'batch_items', 'def' => 'VARCHAR(100) NULL'],
+                ['table' => 'cutting_items', 'def' => 'VARCHAR(100) NULL'],
+                ['table' => 'qc_inspection_items', 'def' => 'VARCHAR(100) NULL'],
+                ['table' => 'stitching_items', 'def' => 'VARCHAR(100) NULL'],
+            ];
+            foreach ($skuTables as $st) {
+                $tbl = $st['table'];
+                try {
+                    $tCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `{$tbl}`"), 'Field');
+                    if (in_array('sku_code', $tCols, true) && !in_array('product_code', $tCols, true)) {
+                        DB::query("ALTER TABLE `{$tbl}` CHANGE COLUMN `sku_code` `product_code` {$st['def']}");
+                        if ($tbl === 'variants') {
+                            DB::query("UPDATE `variants` SET `product_code` = CAST(`id` AS CHAR)");
+                        }
+                    }
+                } catch (\Throwable $e) {}
+            }
+            try {
+                $varCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `variants`"), 'Field');
+                if (!in_array('sub_sub_category_id', $varCols, true)) {
+                    DB::query("ALTER TABLE `variants` ADD COLUMN `sub_sub_category_id` INT NULL AFTER `subcategory_id`, ADD INDEX `idx_var_subsubcat` (`sub_sub_category_id`)");
+                }
+                $hasSkuIdx = DB::fetchValue("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'variants' AND INDEX_NAME = 'uk_concern_sku'");
+                if ($hasSkuIdx) {
+                    DB::query("ALTER TABLE `variants` DROP INDEX `uk_concern_sku`, ADD UNIQUE KEY `uk_concern_product_code` (`concern_id`, `product_code`)");
+                }
+            } catch (\Throwable $e) {}
+
             // Self-healing columns for inwards, inward_items, batches, qc_inspections, outwards
             $inCols = array_column(DB::fetchAll("DESCRIBE `inwards`"), 'Field');
             if (!in_array('production_unit_id', $inCols)) DB::query("ALTER TABLE `inwards` ADD COLUMN `production_unit_id` INT NULL AFTER `concern_id`");
