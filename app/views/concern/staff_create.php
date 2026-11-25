@@ -54,7 +54,7 @@ foreach ($modules as $m) {
 
                     <!-- 1. BUSINESS CONCERN ASSIGNMENT -->
                     <div class="mb-4 p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                        <input type="hidden" name="concern_id" id="staff_concern_id" value="<?= (int)($selectedCid ?: ($allConcerns[0]['id'] ?? 0)) ?>">
+                        <input type="hidden" name="concern_id" id="staff_concern_id" value="">
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                             <label class="small fw-bold text-dark text-uppercase mb-0 d-flex align-items-center gap-1.5" style="font-size: 0.78rem; letter-spacing: 0.05em;">
                                 <i class="bi bi-buildings-fill text-primary"></i> 1. Authorized Business Concerns *
@@ -81,10 +81,8 @@ foreach ($modules as $m) {
                         <div class="row g-2 mb-1" id="create_concern_checkboxes_grid">
                             <?php foreach ($allConcerns as $c): ?>
                                 <?php 
-                                    $isPrimary = ($selectedCid ? ($selectedCid == $c['id']) : false); 
                                     $isChecked = !empty($oldInput['concern_ids']) 
-                                        ? in_array((int)$c['id'], array_map('intval', (array)$oldInput['concern_ids']), true) 
-                                        : $isPrimary;
+                                        && in_array((int)$c['id'], array_map('intval', (array)$oldInput['concern_ids']), true);
                                 ?>
                                 <div class="col-md-6" data-name="<?= htmlspecialchars($c['name']) ?>" data-code="<?= htmlspecialchars($c['code']) ?>">
                                     <div class="p-2.5 border rounded-3 bg-white d-flex align-items-center gap-2.5 concern-check-card" id="box_cid_<?= $c['id'] ?>" style="transition: all 0.18s ease; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT') { const cb = document.getElementById('create_cid_<?= $c['id'] ?>'); if(cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); } }">
