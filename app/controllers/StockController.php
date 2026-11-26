@@ -275,7 +275,7 @@ class StockController extends Controller {
             $sql .= " AND s.concern_id = ?";
             $params[] = $cid;
         }
-        $sql .= " ORDER BY FIELD(stock_source, 'own', 'purchase', 'other'), s.qty DESC";
+        $sql .= " ORDER BY FIELD(stock_source, 'own', 'purchase', 'other'), COALESCE(cat.name, v.name) ASC, " . self::sizeOrderSql('v.size') . ", s.qty DESC";
         $stocks = DB::fetchAll($sql, $params);
         foreach ($stocks as &$stock) {
             $variantAttributes = json_decode((string)($stock['variant_attributes'] ?? ''), true);

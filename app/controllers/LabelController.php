@@ -1355,7 +1355,7 @@ class LabelController extends Controller {
                      LEFT JOIN variants v ON si.variant_id = v.id
                      LEFT JOIN brands b ON v.brand_id = b.id
                      WHERE si.stitching_id = ?" . ($cid ? " AND (sl.concern_id = ? OR sl.concern_id = 1 OR sl.concern_id IS NULL)" : "") . "
-                     ORDER BY si.id ASC",
+                     ORDER BY si.catalog_id ASC, " . self::sizeOrderSql('si.size') . ", si.id ASC",
                     $cid ? [$batchId, $cid] : [$batchId]
                 );
 
