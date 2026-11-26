@@ -589,7 +589,7 @@ if ($isEdit && !empty($existingItems)) {
             <div class="card-body p-4">
                 <div class="row g-3 mb-3">
                     <?php if (empty($selectedCid)): ?>
-                        <div class="col-md-3">
+                        <div class="col-lg-3 col-md-6">
                             <label class="form-label small fw-semibold">Target Concern <span class="text-danger">*</span></label>
                             <select name="concern_id" id="billConcernId" class="form-select" required>
                                 <option value="">-- Choose Concern --</option>
@@ -603,8 +603,13 @@ if ($isEdit && !empty($existingItems)) {
                         </div>
                     <?php endif; ?>
 
+<<<<<<< HEAD
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold mb-1">Supplier <span class="text-danger">*</span></label>
+=======
+                    <div class="<?= empty($selectedCid) ? 'col-lg-4 col-md-6' : 'col-md-4' ?>">
+                        <label class="form-label small fw-semibold">Supplier <span class="text-danger">*</span></label>
+>>>>>>> 0723abdf94a6320bd8a3406e9ac1bda9910f065a
                         <?php
                             $selectedSupplierLabel = '';
                             if ($isEdit && !empty($bill['supplier_id'])) {
@@ -632,7 +637,7 @@ if ($isEdit && !empty($existingItems)) {
                                        placeholder="Type supplier name..."
                                        autocomplete="off"
                                        value="<?= htmlspecialchars($selectedSupplierLabel) ?>">
-                                <div id="supplierAutocompleteMenu" class="dropdown-menu w-100 shadow-sm" style="max-height: 240px; overflow-y: auto;"></div>
+                                <div id="supplierAutocompleteMenu" class="dropdown-menu shadow-sm" style="min-width: 100%; width: max-content; max-width: min(440px, 90vw); max-height: 260px; overflow-y: auto; overflow-x: hidden; z-index: 1055;"></div>
                             </div>
                             <button type="button" class="btn btn-outline-secondary text-nowrap px-2" id="viewSupplierBtn" title="View Suppliers">
                                 <i class="bi bi-eye"></i> View
@@ -718,6 +723,7 @@ if ($isEdit && !empty($existingItems)) {
                             <option value="Include GST" <?= $defaultGlobalTaxMode === 'Include GST' ? 'selected' : '' ?>>Include GST</option>
                         </select>
                     </div>
+<<<<<<< HEAD
                     <div class="col-md-2">
                         <label class="form-label small fw-semibold mb-1">GST Type</label>
                         <select id="globalGstType" class="form-select form-select-sm" onchange="syncGlobalTaxControlsToAllRows()">
@@ -727,6 +733,11 @@ if ($isEdit && !empty($existingItems)) {
                             <option value="SGST" <?= $defaultGlobalGstType === 'SGST' ? 'selected' : '' ?>>SGST</option>
                             <option value="IGST" <?= $defaultGlobalGstType === 'IGST' ? 'selected' : '' ?>>IGST</option>
                         </select>
+=======
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-dark">Stock Status</label>
+                        <div class="form-control form-control-sm bg-white text-muted text-truncate" title="Pending - use Label Generation to add stock">Pending - use Label Generation to add stock</div>
+>>>>>>> 0723abdf94a6320bd8a3406e9ac1bda9910f065a
                     </div>
                     <div class="col-md-1" id="globalTaxInputTypeWrap" style="<?= $defaultGlobalGstType === 'Exempted' ? 'display:none;' : '' ?>">
                         <label class="form-label small fw-semibold mb-1">Mode</label>
@@ -1456,12 +1467,13 @@ if ($isEdit && !empty($existingItems)) {
             matches.forEach(function (sup) {
                 const item = document.createElement('button');
                 item.type = 'button';
-                item.className = 'dropdown-item d-flex justify-content-between align-items-center py-2';
+                item.className = 'dropdown-item d-flex flex-column align-items-start py-2';
+                item.style.whiteSpace = 'normal';
                 const left = document.createElement('span');
                 left.className = 'fw-semibold text-dark';
                 left.textContent = formatSupplierLabel(sup);
                 const right = document.createElement('small');
-                right.className = 'text-muted ms-2';
+                right.className = 'text-muted';
                 right.textContent = [sup.phone, sup.district].filter(Boolean).join(' • ');
                 item.appendChild(left);
                 item.appendChild(right);

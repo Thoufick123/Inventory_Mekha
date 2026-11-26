@@ -21,38 +21,18 @@
         </div>
     </div>
 
-    <!-- Concern Scope & Filter Toolbar -->
+    <!-- Multi-Concern Report Selection Toolbar -->
     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-3" style="border: 1px solid #e2e8f0 !important;">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <label for="admin_concern_filter" class="fw-bold text-dark small mb-0 d-flex align-items-center gap-1">
-                    <i class="bi bi-buildings text-primary"></i> Single Concern Filter:
-                </label>
-                <select id="admin_concern_filter" class="form-select form-select-sm" style="min-width: 270px; border-radius: 8px; font-weight: 500;" onchange="onConcernFilterChange(this.value)">
-                    <option value="" <?= empty($selectedConcernIds) ? 'selected' : '' ?>>-- All Concerns (Consolidated) --</option>
-                    <?php foreach ($allConcerns as $c): ?>
-                        <option value="<?= $c['id'] ?>" <?= (count($selectedConcernIds) === 1 && in_array($c['id'], $selectedConcernIds)) ? 'selected' : '' ?>>
-                            [<?= htmlspecialchars($c['code']) ?>] <?= htmlspecialchars($c['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <?php if (!empty($selectedConcernIds)): ?>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearConcernFilter()" title="Clear Concern Filter">
-                        <i class="bi bi-x-circle me-1"></i> Show All
-                    </button>
-                <?php endif; ?>
-            </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <span class="small fw-bold text-dark d-flex align-items-center gap-1">
+                <i class="bi bi-check2-square text-primary"></i> Select Concerns for Same Report:
+            </span>
             <div class="text-secondary small d-flex align-items-center gap-2">
                 <i class="bi bi-info-circle text-primary"></i>
                 <span>Select any <strong>2 or more concerns</strong> below to download them together in the <strong>same report at the same time</strong>.</span>
             </div>
         </div>
-
-        <!-- Quick Multi-Concern Checkboxes (Pick 2 or more concerns for same report) -->
-        <div class="d-flex align-items-center gap-2 flex-wrap mt-3 pt-2 border-top">
-            <span class="small fw-bold text-dark d-flex align-items-center gap-1 me-1">
-                <i class="bi bi-check2-square text-primary"></i> Select Concerns for Same Report:
-            </span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <?php foreach ($allConcerns as $c): ?>
                 <label class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2 py-1 px-3 rounded-pill shadow-xs" style="font-size: 0.82rem; cursor: pointer;">
                     <input type="checkbox" class="form-check-input m-0 concern-pill-check" 
@@ -268,32 +248,6 @@ function getActiveDateParams() {
     const toDate = toDateElem ? toDateElem.value : '';
 
     return { period, singleDate, fromDate, toDate };
-}
-
-// Concern Filter Dropdown Change
-function onConcernFilterChange(val) {
-    const dates = getActiveDateParams();
-    let url = '<?= \App\Core\Controller::url('/admin/reports') ?>?';
-    if (val) {
-        url += 'concern_id=' + encodeURIComponent(val) + '&';
-    }
-    url += 'period=' + encodeURIComponent(dates.period) +
-           '&single_date=' + encodeURIComponent(dates.singleDate) +
-           '&from_date=' + encodeURIComponent(dates.fromDate) +
-           '&to_date=' + encodeURIComponent(dates.toDate);
-
-    window.location.href = url;
-}
-
-function clearConcernFilter() {
-    const dates = getActiveDateParams();
-    let url = '<?= \App\Core\Controller::url('/admin/reports') ?>?' +
-           'period=' + encodeURIComponent(dates.period) +
-           '&single_date=' + encodeURIComponent(dates.singleDate) +
-           '&from_date=' + encodeURIComponent(dates.fromDate) +
-           '&to_date=' + encodeURIComponent(dates.toDate);
-
-    window.location.href = url;
 }
 
 // Download report for a single concern (1-click)
