@@ -1071,6 +1071,125 @@ class SalesController extends Controller {
                 'channel_name' => $channelName,
                 'is_order_channel' => $isOrderChannel,
             ],
+            'channels' => $this->ensurePosCustomerChannels($cid),
+        ]);
+    }
+
+    public function listCustomerChannels(): void {
+        ModuleGuard::enforce('billing', 'view');
+        $cid = Auth::concernId();
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 0;
+        }
+        $channels = $cid ? $this->ensurePosCustomerChannels($cid) : [];
+        $this->renderJson(['success' => true, 'channels' => $channels]);
+    }
+
+    public function updateCustomerChannel(): void {
+        ModuleGuard::enforce('billing', 'edit');
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 0;
+        }
+        if (!$cid) {
+            $this->renderJson(['success' => false, 'message' => 'Active concern not found.'], 400);
+            return;
+        }
+
+        $channelId = (int)($_POST['channel_id'] ?? 0);
+        $channelName = trim((string)($_POST['channel_name'] ?? ''));
+        $isOrderChannel = !empty($_POST['is_order_channel']) ? 1 : 0;
+
+        if (!$channelId || $channelName === '' || strlen($channelName) > 80) {
+            $this->renderJson(['success' => false, 'message' => 'Valid channel ID and name (max 80 chars) are required.'], 400);
+            return;
+        }
+
+        $existing = DB::fetch(
+            "SELECT * FROM pos_customer_channels WHERE id = ? AND concern_id = ?",
+            [$channelId, $cid]
+        );
+        if (!$existing) {
+            $this->renderJson(['success' => false, 'message' => 'Customer channel not found.'], 404);
+            return;
+        }
+
+        $dup = DB::fetchValue(
+            "SELECT id FROM pos_customer_channels WHERE concern_id = ? AND LOWER(channel_name) = LOWER(?) AND id != ? LIMIT 1",
+            [$cid, $channelName, $channelId]
+        );
+        if ($dup) {
+            $this->renderJson(['success' => false, 'message' => 'Another channel with that name already exists.'], 400);
+            return;
+        }
+
+        // Preserve is_order_channel behavior for core built-in channels if needed
+        if (in_array($existing['channel_key'], ['website', 'whatsapp'], true)) {
+            $isOrderChannel = 1;
+        } elseif ($existing['channel_key'] === 'direct') {
+            $isOrderChannel = 0;
+        }
+
+        DB::query(
+            "UPDATE pos_customer_channels SET channel_name = ?, is_order_channel = ? WHERE id = ? AND concern_id = ?",
+            [$channelName, $isOrderChannel, $channelId, $cid]
+        );
+
+        AuditLog::log('UPDATE', 'pos_customer_channels', $channelId, $existing, [
+            'channel_name' => $channelName,
+            'is_order_channel' => $isOrderChannel,
+        ]);
+
+        $updated = DB::fetch("SELECT id, channel_key, channel_name, is_order_channel, is_default FROM pos_customer_channels WHERE id = ?", [$channelId]);
+        $this->renderJson([
+            'success' => true,
+            'channel' => $updated,
+            'channels' => $this->ensurePosCustomerChannels($cid),
+        ]);
+    }
+
+    public function deleteCustomerChannel(): void {
+        ModuleGuard::enforce('billing', 'delete');
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 0;
+        }
+        if (!$cid) {
+            $this->renderJson(['success' => false, 'message' => 'Active concern not found.'], 400);
+            return;
+        }
+
+        $channelId = (int)($_POST['channel_id'] ?? 0);
+        if (!$channelId) {
+            $this->renderJson(['success' => false, 'message' => 'Invalid channel ID.'], 400);
+            return;
+        }
+
+        $existing = DB::fetch(
+            "SELECT * FROM pos_customer_channels WHERE id = ? AND concern_id = ?",
+            [$channelId, $cid]
+        );
+        if (!$existing) {
+            $this->renderJson(['success' => false, 'message' => 'Customer channel not found.'], 404);
+            return;
+        }
+
+        if (in_array($existing['channel_key'], ['direct', 'website', 'whatsapp'], true)) {
+            $this->renderJson(['success' => false, 'message' => 'Built-in default channels cannot be deleted.'], 400);
+            return;
+        }
+
+        DB::query("DELETE FROM pos_customer_channels WHERE id = ? AND concern_id = ?", [$channelId, $cid]);
+        AuditLog::log('DELETE', 'pos_customer_channels', $channelId, $existing, null);
+
+        $this->renderJson([
+            'success' => true,
+            'deleted_key' => $existing['channel_key'],
+            'channels' => $this->ensurePosCustomerChannels($cid),
         ]);
     }
 

@@ -180,21 +180,22 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <select name="customer_channel" id="pos_customer_channel" class="form-select fw-semibold">
                                     <?php
                                         $channelsList = !empty($customerChannels) ? $customerChannels : [
-                                            ['channel_key' => 'direct', 'channel_name' => 'Direct Customer', 'is_order_channel' => 0],
-                                            ['channel_key' => 'website', 'channel_name' => 'Website Customer', 'is_order_channel' => 1],
-                                            ['channel_key' => 'whatsapp', 'channel_name' => 'WhatsApp Customer', 'is_order_channel' => 1],
+                                            ['id' => 0, 'channel_key' => 'direct', 'channel_name' => 'Direct Customer', 'is_order_channel' => 0, 'is_default' => 1],
+                                            ['id' => 0, 'channel_key' => 'website', 'channel_name' => 'Website Customer', 'is_order_channel' => 1, 'is_default' => 0],
+                                            ['id' => 0, 'channel_key' => 'whatsapp', 'channel_name' => 'WhatsApp Customer', 'is_order_channel' => 1, 'is_default' => 0],
                                         ];
                                         foreach ($channelsList as $ch):
                                     ?>
                                         <option value="<?= htmlspecialchars($ch['channel_key']) ?>"
+                                                data-channel-id="<?= (int)($ch['id'] ?? 0) ?>"
                                                 data-order-channel="<?= !empty($ch['is_order_channel']) ? '1' : '0' ?>"
                                                 <?= ($ch['channel_key'] === 'direct') ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($ch['channel_name']) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <?php if (\App\Core\Auth::can('billing', 'add')): ?>
-                                <button type="button" class="btn btn-outline-primary fw-semibold text-nowrap" id="btn_add_customer_channel" data-bs-toggle="modal" data-bs-target="#modalAddCustomerChannel">
+                                <?php if (\App\Core\Auth::can('billing', 'add') || \App\Core\Auth::can('billing', 'edit') || \App\Core\Auth::can('billing', 'delete')): ?>
+                                <button type="button" class="btn btn-outline-primary fw-semibold text-nowrap" id="btn_add_customer_channel" data-bs-toggle="modal" data-bs-target="#modalAddCustomerChannel" title="Manage Customer Channels (Add, View, Edit, Delete)">
                                     <i class="bi bi-plus-lg"></i> New
                                 </button>
                                 <?php endif; ?>
@@ -2136,70 +2137,225 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCustomerChannelFields();
     renderCart();
 
-    const saveNewChannelBtn = document.getElementById('btn_save_customer_channel');
-    if (saveNewChannelBtn && customerChannelSelect) {
-        saveNewChannelBtn.addEventListener('click', function () {
-            const nameInput = document.getElementById('new_channel_name');
-            const orderCheck = document.getElementById('new_channel_is_order');
-            const errBox = document.getElementById('new_channel_error');
-            const channelName = (nameInput ? nameInput.value : '').trim();
+    let customerChannelsData = <?= json_encode(array_values($channelsList), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    const channelCsrf = '<?= htmlspecialchars($csrfToken ?? \App\Core\Csrf::token(), ENT_QUOTES, 'UTF-8') ?>';
+    const canEditChannel = <?= \App\Core\Auth::can('billing', 'edit') ? 'true' : 'false' ?>;
+    const canDeleteChannel = <?= \App\Core\Auth::can('billing', 'delete') ? 'true' : 'false' ?>;
+    const editChannelIdInput = document.getElementById('edit_channel_id');
+    const channelNameInput = document.getElementById('new_channel_name');
+    const channelOrderCheck = document.getElementById('new_channel_is_order');
+    const channelErrBox = document.getElementById('new_channel_error');
+    const saveChannelBtn = document.getElementById('btn_save_customer_channel');
+    const cancelEditChannelBtn = document.getElementById('btn_cancel_edit_channel');
+    const channelFormTitle = document.getElementById('channel_form_mode_title');
+    const channelTbody = document.getElementById('customer_channels_tbody');
+    const channelModalEl = document.getElementById('modalAddCustomerChannel');
+
+    function syncCustomerChannelDropdown(channels, selectKey = null) {
+        if (!customerChannelSelect || !Array.isArray(channels)) return;
+        customerChannelsData = channels;
+        const previousVal = selectKey !== null ? selectKey : customerChannelSelect.value;
+        customerChannelSelect.innerHTML = '';
+        channels.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch.channel_key;
+            opt.textContent = ch.channel_name;
+            opt.dataset.channelId = ch.id || 0;
+            opt.dataset.orderChannel = Number(ch.is_order_channel) === 1 ? '1' : '0';
+            customerChannelSelect.appendChild(opt);
+        });
+        if (previousVal && Array.from(customerChannelSelect.options).some(o => o.value === previousVal)) {
+            customerChannelSelect.value = previousVal;
+        } else {
+            customerChannelSelect.value = 'direct';
+        }
+        updateCustomerChannelFields();
+        renderCustomerChannelsTable();
+    }
+
+    function resetChannelForm() {
+        if (editChannelIdInput) editChannelIdInput.value = '';
+        if (channelNameInput) channelNameInput.value = '';
+        if (channelOrderCheck) channelOrderCheck.checked = false;
+        if (channelErrBox) channelErrBox.classList.add('d-none');
+        if (channelFormTitle) channelFormTitle.textContent = 'Add New Customer Channel / Field';
+        if (saveChannelBtn) saveChannelBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save Field';
+        if (cancelEditChannelBtn) cancelEditChannelBtn.classList.add('d-none');
+    }
+
+    function renderCustomerChannelsTable() {
+        if (!channelTbody) return;
+        const currentKey = customerChannelSelect ? customerChannelSelect.value : 'direct';
+        if (!Array.isArray(customerChannelsData) || customerChannelsData.length === 0) {
+            channelTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted small py-3">No channels saved.</td></tr>';
+            return;
+        }
+        channelTbody.innerHTML = '';
+        customerChannelsData.forEach(ch => {
+            const isSystem = ['direct', 'website', 'whatsapp'].includes(ch.channel_key);
+            const isSelected = currentKey === ch.channel_key;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <span class="fw-semibold text-dark">${escapeHtml(ch.channel_name)}</span>
+                    ${isSystem ? '<span class="badge bg-light text-secondary border ms-1" style="font-size:0.65rem;">Built-in</span>' : ''}
+                    ${isSelected ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size:0.65rem;">Selected</span>' : ''}
+                </td>
+                <td class="text-center">
+                    ${Number(ch.is_order_channel) === 1
+                        ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:0.70rem;">Shipping &amp; Advance/Pending</span>'
+                        : '<span class="badge bg-light text-muted border" style="font-size:0.70rem;">Direct Bill</span>'}
+                </td>
+                <td class="text-end text-nowrap">
+                    <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 me-1 btn-select-channel" title="Use this channel"><i class="bi bi-check2"></i></button>
+                    ${canEditChannel ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1 btn-edit-channel" title="Edit channel"><i class="bi bi-pencil-square"></i></button>' : ''}
+                    ${(!isSystem && canDeleteChannel) ? '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 btn-delete-channel" title="Delete channel"><i class="bi bi-trash3"></i></button>' : ''}
+                </td>
+            `;
+            tr.querySelector('.btn-select-channel')?.addEventListener('click', function () {
+                if (customerChannelSelect) {
+                    customerChannelSelect.value = ch.channel_key;
+                    updateCustomerChannelFields();
+                    renderCustomerChannelsTable();
+                }
+                if (channelModalEl && window.bootstrap) {
+                    bootstrap.Modal.getOrCreateInstance(channelModalEl).hide();
+                }
+            });
+            tr.querySelector('.btn-edit-channel')?.addEventListener('click', function () {
+                if (editChannelIdInput) editChannelIdInput.value = ch.id || '';
+                if (channelNameInput) {
+                    channelNameInput.value = ch.channel_name || '';
+                    channelNameInput.focus();
+                }
+                if (channelOrderCheck) {
+                    channelOrderCheck.checked = Number(ch.is_order_channel) === 1;
+                    channelOrderCheck.disabled = isSystem;
+                }
+                if (channelFormTitle) channelFormTitle.textContent = 'Edit Customer Channel: ' + ch.channel_name;
+                if (saveChannelBtn) saveChannelBtn.innerHTML = '<i class="bi bi-save me-1"></i> Update Field';
+                if (cancelEditChannelBtn) cancelEditChannelBtn.classList.remove('d-none');
+                if (channelErrBox) channelErrBox.classList.add('d-none');
+            });
+            tr.querySelector('.btn-delete-channel')?.addEventListener('click', function () {
+                if (!confirm('Delete customer channel "' + ch.channel_name + '"?')) return;
+                const delBtn = this;
+                delBtn.disabled = true;
+                fetch('<?= \App\Core\Controller::url('/m/billing/channels/delete') ?>', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: new URLSearchParams({ csrf_token: channelCsrf, channel_id: String(ch.id || 0) }).toString()
+                })
+                .then(r => r.json())
+                .then(data => {
+                    delBtn.disabled = false;
+                    if (!data || !data.success) {
+                        if (channelErrBox) {
+                            channelErrBox.textContent = (data && data.message) || 'Could not delete customer channel.';
+                            channelErrBox.classList.remove('d-none');
+                        }
+                        return;
+                    }
+                    const nextKey = customerChannelSelect && customerChannelSelect.value === ch.channel_key ? 'direct' : null;
+                    resetChannelForm();
+                    syncCustomerChannelDropdown(data.channels || [], nextKey);
+                })
+                .catch(() => {
+                    delBtn.disabled = false;
+                    if (channelErrBox) {
+                        channelErrBox.textContent = 'Network error while deleting customer channel.';
+                        channelErrBox.classList.remove('d-none');
+                    }
+                });
+            });
+            channelTbody.appendChild(tr);
+        });
+    }
+
+    if (channelModalEl) {
+        channelModalEl.addEventListener('show.bs.modal', function () {
+            resetChannelForm();
+            if (channelOrderCheck) channelOrderCheck.disabled = false;
+            renderCustomerChannelsTable();
+        });
+    }
+    if (cancelEditChannelBtn) {
+        cancelEditChannelBtn.addEventListener('click', function () {
+            resetChannelForm();
+            if (channelOrderCheck) channelOrderCheck.disabled = false;
+        });
+    }
+
+    if (saveChannelBtn && customerChannelSelect) {
+        saveChannelBtn.addEventListener('click', function () {
+            const editId = (editChannelIdInput ? editChannelIdInput.value : '').trim();
+            const channelName = (channelNameInput ? channelNameInput.value : '').trim();
             if (!channelName) {
-                if (errBox) {
-                    errBox.textContent = 'Please enter a customer channel / field name.';
-                    errBox.classList.remove('d-none');
+                if (channelErrBox) {
+                    channelErrBox.textContent = 'Please enter a customer channel / field name.';
+                    channelErrBox.classList.remove('d-none');
                 }
                 return;
             }
-            if (errBox) errBox.classList.add('d-none');
-            saveNewChannelBtn.disabled = true;
+            if (channelErrBox) channelErrBox.classList.add('d-none');
+            saveChannelBtn.disabled = true;
 
-            const body = new URLSearchParams({
-                csrf_token: '<?= htmlspecialchars($csrfToken ?? \App\Core\Csrf::token(), ENT_QUOTES, 'UTF-8') ?>',
+            const isEditMode = editId !== '' && Number(editId) > 0;
+            const endpoint = isEditMode
+                ? '<?= \App\Core\Controller::url('/m/billing/channels/update') ?>'
+                : '<?= \App\Core\Controller::url('/m/billing/channels/add') ?>';
+            const params = {
+                csrf_token: channelCsrf,
                 channel_name: channelName,
-                is_order_channel: (orderCheck && orderCheck.checked) ? '1' : '0'
-            });
+                is_order_channel: (channelOrderCheck && channelOrderCheck.checked) ? '1' : '0'
+            };
+            if (isEditMode) params.channel_id = editId;
 
-            fetch('<?= \App\Core\Controller::url('/m/billing/channels/add') ?>', {
+            fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: body.toString()
+                body: new URLSearchParams(params).toString()
             })
             .then(r => r.json())
             .then(data => {
-                saveNewChannelBtn.disabled = false;
+                saveChannelBtn.disabled = false;
                 if (!data || !data.success || !data.channel) {
-                    if (errBox) {
-                        errBox.textContent = (data && data.message) || 'Could not save customer channel.';
-                        errBox.classList.remove('d-none');
+                    if (channelErrBox) {
+                        channelErrBox.textContent = (data && data.message) || 'Could not save customer channel.';
+                        channelErrBox.classList.remove('d-none');
                     }
                     return;
                 }
-                const ch = data.channel;
-                let opt = Array.from(customerChannelSelect.options).find(o => o.value === ch.channel_key);
-                if (!opt) {
-                    opt = document.createElement('option');
+                resetChannelForm();
+                if (channelOrderCheck) channelOrderCheck.disabled = false;
+                if (Array.isArray(data.channels)) {
+                    syncCustomerChannelDropdown(data.channels, data.channel.channel_key);
+                } else {
+                    const ch = data.channel;
+                    let opt = Array.from(customerChannelSelect.options).find(o => o.value === ch.channel_key);
+                    if (!opt) {
+                        opt = document.createElement('option');
+                        customerChannelSelect.appendChild(opt);
+                    }
                     opt.value = ch.channel_key;
                     opt.textContent = ch.channel_name;
-                    opt.dataset.orderChannel = ch.is_order_channel ? '1' : '0';
-                    customerChannelSelect.appendChild(opt);
-                }
-                customerChannelSelect.value = ch.channel_key;
-                updateCustomerChannelFields();
-                if (nameInput) nameInput.value = '';
-                if (orderCheck) orderCheck.checked = false;
-                const modalEl = document.getElementById('modalAddCustomerChannel');
-                if (modalEl && window.bootstrap) {
-                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                    opt.dataset.channelId = ch.id || 0;
+                    opt.dataset.orderChannel = Number(ch.is_order_channel) === 1 ? '1' : '0';
+                    customerChannelSelect.value = ch.channel_key;
+                    updateCustomerChannelFields();
                 }
             })
             .catch(() => {
-                saveNewChannelBtn.disabled = false;
-                if (errBox) {
-                    errBox.textContent = 'Network error while saving customer channel.';
-                    errBox.classList.remove('d-none');
+                saveChannelBtn.disabled = false;
+                if (channelErrBox) {
+                    channelErrBox.textContent = 'Network error while saving customer channel.';
+                    channelErrBox.classList.remove('d-none');
                 }
             });
         });
@@ -2234,33 +2390,56 @@ function printReceiptArea(format) {
 }
 </script>
 
-<!-- Modal: Add New Customer Channel / Field -->
+<!-- Modal: Manage Customer Channels / Fields (View, Create, Edit, Delete) -->
 <div class="modal fade" id="modalAddCustomerChannel" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
             <div class="modal-header py-3 border-bottom">
-                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-plus-circle text-primary me-1"></i> Add Customer Channel / Field</h6>
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-diagram-3 text-primary me-1"></i> Manage Customer Channels / Sources</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
                 <div id="new_channel_error" class="alert alert-danger py-2 px-3 small d-none"></div>
-                <div class="mb-3">
-                    <label for="new_channel_name" class="form-label small fw-bold text-secondary">Customer Type / Channel Name <span class="text-danger">*</span></label>
-                    <input type="text" id="new_channel_name" class="form-control" maxlength="80" placeholder="e.g. Instagram Order, Phone Order, Walk-in VIP">
+                <div class="p-3 rounded-3 border bg-light mb-3">
+                    <div class="small fw-bold text-dark mb-2" id="channel_form_mode_title">Add New Customer Channel / Field</div>
+                    <input type="hidden" id="edit_channel_id" value="">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-7">
+                            <label for="new_channel_name" class="form-label small fw-semibold text-secondary mb-1">Customer Type / Channel Name <span class="text-danger">*</span></label>
+                            <input type="text" id="new_channel_name" class="form-control form-control-sm" maxlength="80" placeholder="e.g. Instagram Order, Phone Order, Walk-in VIP">
+                        </div>
+                        <div class="col-md-5 d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="btn_cancel_edit_channel">Cancel Edit</button>
+                            <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btn_save_customer_channel">
+                                <i class="bi bi-check-lg me-1"></i> Save Field
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" id="new_channel_is_order">
+                        <label class="form-check-label small fw-semibold text-dark" for="new_channel_is_order">
+                            Enable Shipping, Payment Status, Advance Paid &amp; Pending fields
+                        </label>
+                        <div class="form-text small text-muted">Turn on for remote orders (like Website / WhatsApp). Leave off for direct walk-in bills.</div>
+                    </div>
                 </div>
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="new_channel_is_order">
-                    <label class="form-check-label small fw-semibold text-dark" for="new_channel_is_order">
-                        Enable Shipping, Payment Status, Advance Paid &amp; Pending fields
-                    </label>
-                    <div class="form-text small text-muted">Turn on for remote orders (like Website / WhatsApp). Leave off for direct walk-in bills.</div>
+
+                <div class="small fw-bold text-uppercase text-muted mb-2">Saved Customer Channels</div>
+                <div class="table-responsive border rounded-3" style="max-height: 260px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0 table-sm">
+                        <thead class="table-light small">
+                            <tr>
+                                <th>Channel Name</th>
+                                <th class="text-center">Field Mode</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customer_channels_tbody"></tbody>
+                    </table>
                 </div>
             </div>
             <div class="modal-footer py-2 border-top">
-                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btn_save_customer_channel">
-                    <i class="bi bi-check-lg me-1"></i> Save Field
-                </button>
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
