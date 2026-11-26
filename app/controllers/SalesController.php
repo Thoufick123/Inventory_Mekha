@@ -931,16 +931,256 @@ class SalesController extends Controller {
             }
         }
 
+        $customerChannels = $this->ensurePosCustomerChannels((int)($cid ?: 1));
+
         $this->render('concern/billing', [
-            'pageTitle'     => 'POS Billing Terminal',
-            'currentModule' => 'billing',
-            'concernName'   => $concernName,
-            'staffName'     => $staffName,
-            'invoices'      => $invoices,
-            'variants'      => $variants,
-            'selectedCid'   => $cid,
-            'printInvoice'  => $printInvoice,
-            'printItems'    => $printItems,
+            'pageTitle'        => 'POS Billing Terminal',
+            'currentModule'    => 'billing',
+            'concernName'      => $concernName,
+            'staffName'        => $staffName,
+            'invoices'         => $invoices,
+            'variants'         => $variants,
+            'selectedCid'      => $cid,
+            'printInvoice'     => $printInvoice,
+            'printItems'       => $printItems,
+            'customerChannels' => $customerChannels,
+        ]);
+    }
+
+    private function ensurePosCustomerChannels(int $concernId): array {
+        static $schemaChecked = false;
+        if (!$schemaChecked && !DB::pdo()->inTransaction()) {
+            $schemaChecked = true;
+            try {
+                DB::query("
+                    CREATE TABLE IF NOT EXISTS `pos_customer_channels` (
+                        `id` INT AUTO_INCREMENT PRIMARY KEY,
+                        `concern_id` INT NOT NULL,
+                        `channel_key` VARCHAR(64) NOT NULL,
+                        `channel_name` VARCHAR(100) NOT NULL,
+                        `is_order_channel` TINYINT(1) NOT NULL DEFAULT 0,
+                        `is_default` TINYINT(1) NOT NULL DEFAULT 0,
+                        `created_by` INT NULL,
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY `uk_pcc_concern_key` (`concern_id`, `channel_key`),
+                        INDEX `idx_pcc_concern` (`concern_id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+            } catch (\Throwable $e) {}
+            try {
+                $cols = array_column(DB::fetchAll("SHOW COLUMNS FROM `sales_invoices`"), 'Field');
+                if (!in_array('customer_channel', $cols, true)) {
+                    DB::query("ALTER TABLE `sales_invoices` ADD COLUMN `customer_channel` VARCHAR(100) NULL DEFAULT 'Direct Customer' AFTER `payment_status`");
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        try {
+            $existingCount = (int)DB::fetchValue("SELECT COUNT(*) FROM pos_customer_channels WHERE concern_id = ?", [$concernId]);
+            if ($existingCount === 0) {
+                $defaults = [
+                    ['direct', 'Direct Customer', 0, 1],
+                    ['website', 'Website Customer', 1, 0],
+                    ['whatsapp', 'WhatsApp Customer', 1, 0],
+                ];
+                foreach ($defaults as [$key, $name, $isOrder, $isDef]) {
+                    DB::query(
+                        "INSERT INTO pos_customer_channels (concern_id, channel_key, channel_name, is_order_channel, is_default)
+                         VALUES (?, ?, ?, ?, ?)",
+                        [$concernId, $key, $name, $isOrder, $isDef]
+                    );
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            $rows = DB::fetchAll(
+                "SELECT id, channel_key, channel_name, is_order_channel, is_default
+                 FROM pos_customer_channels
+                 WHERE concern_id = ?
+                 ORDER BY is_default DESC, id ASC",
+                [$concernId]
+            );
+            if (!empty($rows)) {
+                return $rows;
+            }
+        } catch (\Throwable $e) {}
+
+        return [
+            ['id' => 0, 'channel_key' => 'direct', 'channel_name' => 'Direct Customer', 'is_order_channel' => 0, 'is_default' => 1],
+            ['id' => 0, 'channel_key' => 'website', 'channel_name' => 'Website Customer', 'is_order_channel' => 1, 'is_default' => 0],
+            ['id' => 0, 'channel_key' => 'whatsapp', 'channel_name' => 'WhatsApp Customer', 'is_order_channel' => 1, 'is_default' => 0],
+        ];
+    }
+
+    public function storeCustomerChannel(): void {
+        ModuleGuard::enforce('billing', 'add');
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 0;
+        }
+        if (!$cid) {
+            $this->renderJson(['success' => false, 'message' => 'Active concern not found.'], 400);
+            return;
+        }
+
+        $channelName = trim((string)($_POST['channel_name'] ?? ''));
+        $isOrderChannel = !empty($_POST['is_order_channel']) ? 1 : 0;
+
+        if ($channelName === '' || strlen($channelName) > 80) {
+            $this->renderJson(['success' => false, 'message' => 'Enter a valid customer channel / field name (max 80 chars).'], 400);
+            return;
+        }
+
+        $this->ensurePosCustomerChannels($cid);
+        $channelKey = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '_', $channelName), '_'));
+        if ($channelKey === '') {
+            $channelKey = 'custom_' . time();
+        }
+        $channelKey = substr($channelKey, 0, 60);
+
+        $existing = DB::fetch(
+            "SELECT id, channel_key, channel_name, is_order_channel
+             FROM pos_customer_channels
+             WHERE concern_id = ? AND (channel_key = ? OR LOWER(channel_name) = LOWER(?))
+             LIMIT 1",
+            [$cid, $channelKey, $channelName]
+        );
+        if ($existing) {
+            $this->renderJson(['success' => true, 'channel' => $existing, 'existing' => true]);
+            return;
+        }
+
+        DB::query(
+            "INSERT INTO pos_customer_channels (concern_id, channel_key, channel_name, is_order_channel, is_default, created_by)
+             VALUES (?, ?, ?, ?, 0, ?)",
+            [$cid, $channelKey, $channelName, $isOrderChannel, Auth::id()]
+        );
+        $newId = (int)DB::lastInsertId();
+
+        $this->renderJson([
+            'success' => true,
+            'channel' => [
+                'id' => $newId,
+                'channel_key' => $channelKey,
+                'channel_name' => $channelName,
+                'is_order_channel' => $isOrderChannel,
+            ],
+            'channels' => $this->ensurePosCustomerChannels($cid),
+        ]);
+    }
+
+    public function listCustomerChannels(): void {
+        ModuleGuard::enforce('billing', 'view');
+        $cid = Auth::concernId();
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 0;
+        }
+        $channels = $cid ? $this->ensurePosCustomerChannels($cid) : [];
+        $this->renderJson(['success' => true, 'channels' => $channels]);
+    }
+
+    public function updateCustomerChannel(): void {
+        ModuleGuard::enforce('billing', 'edit');
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 0;
+        }
+        if (!$cid) {
+            $this->renderJson(['success' => false, 'message' => 'Active concern not found.'], 400);
+            return;
+        }
+
+        $channelId = (int)($_POST['channel_id'] ?? 0);
+        $channelName = trim((string)($_POST['channel_name'] ?? ''));
+        $isOrderChannel = !empty($_POST['is_order_channel']) ? 1 : 0;
+
+        if (!$channelId || $channelName === '' || strlen($channelName) > 80) {
+            $this->renderJson(['success' => false, 'message' => 'Valid channel ID and name (max 80 chars) are required.'], 400);
+            return;
+        }
+
+        $existing = DB::fetch(
+            "SELECT * FROM pos_customer_channels WHERE id = ? AND concern_id = ?",
+            [$channelId, $cid]
+        );
+        if (!$existing) {
+            $this->renderJson(['success' => false, 'message' => 'Customer channel not found.'], 404);
+            return;
+        }
+
+        $dup = DB::fetchValue(
+            "SELECT id FROM pos_customer_channels WHERE concern_id = ? AND LOWER(channel_name) = LOWER(?) AND id != ? LIMIT 1",
+            [$cid, $channelName, $channelId]
+        );
+        if ($dup) {
+            $this->renderJson(['success' => false, 'message' => 'Another channel with that name already exists.'], 400);
+            return;
+        }
+
+        DB::query(
+            "UPDATE pos_customer_channels SET channel_name = ?, is_order_channel = ? WHERE id = ? AND concern_id = ?",
+            [$channelName, $isOrderChannel, $channelId, $cid]
+        );
+
+        AuditLog::log('UPDATE', 'pos_customer_channels', $channelId, $existing, [
+            'channel_name' => $channelName,
+            'is_order_channel' => $isOrderChannel,
+        ]);
+
+        $updated = DB::fetch("SELECT id, channel_key, channel_name, is_order_channel, is_default FROM pos_customer_channels WHERE id = ?", [$channelId]);
+        $this->renderJson([
+            'success' => true,
+            'channel' => $updated,
+            'channels' => $this->ensurePosCustomerChannels($cid),
+        ]);
+    }
+
+    public function deleteCustomerChannel(): void {
+        ModuleGuard::enforce('billing', 'delete');
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        if (!$cid && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 0;
+        }
+        if (!$cid) {
+            $this->renderJson(['success' => false, 'message' => 'Active concern not found.'], 400);
+            return;
+        }
+
+        $channelId = (int)($_POST['channel_id'] ?? 0);
+        if (!$channelId) {
+            $this->renderJson(['success' => false, 'message' => 'Invalid channel ID.'], 400);
+            return;
+        }
+
+        $existing = DB::fetch(
+            "SELECT * FROM pos_customer_channels WHERE id = ? AND concern_id = ?",
+            [$channelId, $cid]
+        );
+        if (!$existing) {
+            $this->renderJson(['success' => false, 'message' => 'Customer channel not found.'], 404);
+            return;
+        }
+
+        $totalCount = (int)DB::fetchValue("SELECT COUNT(*) FROM pos_customer_channels WHERE concern_id = ?", [$cid]);
+        if ($totalCount <= 1) {
+            $this->renderJson(['success' => false, 'message' => 'At least one customer channel must remain.'], 400);
+            return;
+        }
+
+        DB::query("DELETE FROM pos_customer_channels WHERE id = ? AND concern_id = ?", [$channelId, $cid]);
+        AuditLog::log('DELETE', 'pos_customer_channels', $channelId, $existing, null);
+
+        $this->renderJson([
+            'success' => true,
+            'deleted_key' => $existing['channel_key'],
+            'channels' => $this->ensurePosCustomerChannels($cid),
         ]);
     }
 
@@ -1168,6 +1408,17 @@ class SalesController extends Controller {
         $custName    = trim($_POST['customer_name'] ?? '');
         $custAddress = trim($_POST['customer_address'] ?? '');
         $billingPartyType = $_POST['billing_party_type'] ?? 'customer';
+        $customerChannelKey = trim((string)($_POST['customer_channel'] ?? 'direct'));
+        $channelsList = $this->ensurePosCustomerChannels((int)$cid);
+        $customerChannelName = 'Direct Customer';
+        $isOrderChannel = false;
+        foreach ($channelsList as $chRow) {
+            if (strcasecmp((string)$chRow['channel_key'], $customerChannelKey) === 0 || strcasecmp((string)$chRow['channel_name'], $customerChannelKey) === 0) {
+                $customerChannelName = (string)$chRow['channel_name'];
+                $isOrderChannel = !empty($chRow['is_order_channel']);
+                break;
+            }
+        }
         $companyName = $_POST['company_name'] ?? '';
         $companyAddress = $_POST['company_address'] ?? '';
         $companyPhone = $_POST['company_phone'] ?? '';
@@ -1178,9 +1429,9 @@ class SalesController extends Controller {
         $gstType     = $_POST['gst_type'] ?? 'both'; // 'both', 'igst', 'exempt'
         $gstPriceMode = $_POST['gst_price_mode'] ?? 'exclude';
         $payMethod   = $_POST['payment_method'] ?? 'cash';
-        $paymentStatus = $_POST['payment_status'] ?? 'paid';
-        $isOnline    = $payMethod !== 'cash' || !empty($_POST['is_online']);
-        $shippingRaw = $_POST['shipping_amount'] ?? '0';
+        $paymentStatus = $isOrderChannel ? ($_POST['payment_status'] ?? 'paid') : 'paid';
+        $isOnline    = $payMethod !== 'cash' || !empty($_POST['is_online']) || $isOrderChannel;
+        $shippingRaw = $isOrderChannel ? ($_POST['shipping_amount'] ?? '0') : '0';
 
         if (!is_string($payMethod) || !in_array($payMethod, ['cash', 'bank_transfer', 'upi', 'credit', 'card', 'split'], true)) {
             $this->flash('error', 'Choose a valid payment method.');
@@ -1519,14 +1770,14 @@ class SalesController extends Controller {
             // 3. Generate Sequential Invoice Number
             $invoiceNo = NumberSeries::getNext($cid, 'INVOICE');
             $invDate = $invoiceDateRaw;
-            $notes = "POS Terminal Sale. Billing For: {$billingPartyType}. GST Type: {$gstType}. GST Price Mode: {$gstPriceMode}. Payment Status: {$paymentStatus}" . ($isOnline ? " [Online Channel]" : "");
+            $notes = "POS Terminal Sale. Billing For: {$billingPartyType}. Channel: {$customerChannelName}. GST Type: {$gstType}. GST Price Mode: {$gstPriceMode}. Payment Status: {$paymentStatus}" . ($isOnline ? " [Online Channel]" : "");
 
             DB::query(
-                "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, net_amount, shipping_amount, paid_amount, payment_method, payment_status, is_direct_bill, billing_company_name, billing_company_address, billing_company_phone, billing_company_email, billing_company_gstin, notes, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, net_amount, shipping_amount, paid_amount, payment_method, payment_status, customer_channel, is_direct_bill, billing_company_name, billing_company_address, billing_company_phone, billing_company_email, billing_company_gstin, notes, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
                 [
                     $cid, $invoiceNo, $customerId, $invDate, $taxableSubtotal, $taxTotal, $discountTotal, $netPayable,
-                    $shippingAmount, $paidAmount, $payMethod, $paymentStatus, $isDirectBill ? 1 : 0,
+                    $shippingAmount, $paidAmount, $payMethod, $paymentStatus, $customerChannelName, $isDirectBill ? 1 : 0,
                     $billingPartyType === 'company' ? $companyName : null,
                     $billingPartyType === 'company' ? $companyAddress : null,
                     $billingPartyType === 'company' ? $companyPhone : null,

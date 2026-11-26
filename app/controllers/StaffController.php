@@ -118,14 +118,29 @@ class StaffController extends Controller {
             $selectedCid = Auth::concernId();
         }
 
-        // Only show roles belonging to this specific concern or global roles (Super Admin)
+        // Show only roles actively assigned to existing staff in the selected concern (excluding system default roles)
         if ($selectedCid) {
             $allRoles = DB::fetchAll(
-                "SELECT id, name FROM roles WHERE concern_id = ? OR concern_id IS NULL ORDER BY (concern_id IS NULL) DESC, id ASC",
+                "SELECT MIN(r.id) AS id, MAX(r.name) AS name
+                 FROM staff s
+                 JOIN users u ON s.user_id = u.id
+                 JOIN roles r ON u.role_id = r.id
+                 WHERE s.concern_id = ?
+                   AND r.name NOT IN ('Super Admin', 'Concern Administrator')
+                 GROUP BY LOWER(TRIM(r.name))
+                 ORDER BY MIN(r.id) ASC",
                 [$selectedCid]
             );
         } else {
-            $allRoles = DB::fetchAll("SELECT id, name FROM roles ORDER BY (concern_id IS NULL) DESC, id ASC");
+            $allRoles = DB::fetchAll(
+                "SELECT MIN(r.id) AS id, MAX(r.name) AS name
+                 FROM staff s
+                 JOIN users u ON s.user_id = u.id
+                 JOIN roles r ON u.role_id = r.id
+                 WHERE r.name NOT IN ('Super Admin', 'Concern Administrator')
+                 GROUP BY LOWER(TRIM(r.name))
+                 ORDER BY MIN(r.id) ASC"
+            );
         }
         $allDepartments = DB::fetchAll("SELECT DISTINCT department FROM staff WHERE department IS NOT NULL AND department != '' ORDER BY department ASC");
 
@@ -174,7 +189,8 @@ class StaffController extends Controller {
             $params[] = $term;
         }
         if ($roleFilter) {
-            $sql .= " AND u.role_id = ?";
+            $sql .= " AND (u.role_id = ? OR LOWER(TRIM(r.name)) = LOWER(TRIM((SELECT name FROM roles WHERE id = ? LIMIT 1))))";
+            $params[] = $roleFilter;
             $params[] = $roleFilter;
         }
         if ($deptFilter !== '') {
@@ -261,7 +277,24 @@ class StaffController extends Controller {
             $activeConcern = DB::fetch("SELECT id, name, code FROM concerns WHERE id = ?", [$selectedCid]);
         }
 
-        $roles = DB::fetchAll("SELECT id, name, description FROM roles ORDER BY id ASC");
+        if ($selectedCid) {
+            $roles = DB::fetchAll(
+                "SELECT MIN(id) AS id, MAX(name) AS name, MAX(description) AS description
+                 FROM roles
+                 WHERE concern_id = ? AND name NOT IN ('Super Admin', 'Concern Administrator')
+                 GROUP BY LOWER(TRIM(name))
+                 ORDER BY MIN(id) ASC",
+                [$selectedCid]
+            );
+        } else {
+            $roles = DB::fetchAll(
+                "SELECT MIN(id) AS id, MAX(name) AS name, MAX(description) AS description
+                 FROM roles
+                 WHERE name NOT IN ('Super Admin', 'Concern Administrator')
+                 GROUP BY LOWER(TRIM(name))
+                 ORDER BY MIN(id) ASC"
+            );
+        }
 
         // Operational modules matching sidebar (Images 1 & 2)
         $modules = DB::fetchAll(
@@ -1591,7 +1624,7 @@ class StaffController extends Controller {
             DB::commit();
 
             $this->flash('success', "Role '{$name}' created and permissions provisioned successfully.");
-            $this->redirect('/m/staff/roles?tab=matrix&matrix_role_id=' . $newRoleId);
+            $this->redirect('/m/staff/roles');
         } catch (\Throwable $e) {
             DB::rollBack();
             error_log('StaffController storeRole error: ' . $e->getMessage());
