@@ -117,224 +117,16 @@ class PurchaseController extends Controller {
         if (empty($filesToUpload)) {
             return $existingPaths;
         }
-        if (!CloudinaryService::isConfigured()) {
-            throw new \RuntimeException('Cloudinary is not configured. Configure Cloudinary before uploading bill attachments.');
-        }
 
         foreach ($filesToUpload as $file) {
-            $uploaded = CloudinaryService::uploadFile($file['tmp_name'], $file['name'], 'invento/bills');
-            if (empty($uploaded['secure_url'])) {
-                throw new \RuntimeException('An attachment could not be stored in Cloudinary. The purchase bill was not saved.');
+            $storedPath = CloudinaryService::saveUploadedFile($file, 'bills', ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
+            if (empty($storedPath)) {
+                throw new \RuntimeException('An attachment could not be stored. The purchase bill was not saved.');
             }
-            $existingPaths[] = $uploaded['secure_url'];
+            $existingPaths[] = $storedPath;
         }
 
         return array_values(array_unique($existingPaths));
-    }
-
-    // 1. SUPPLIERS
-    public function suppliers(): void {
-        ModuleGuard::enforce('suppliers', 'view');
-        $cid = Auth::concernId();
-
-        $sql = "SELECT s.*, con.name AS concern_name, con.code AS concern_code
-                FROM suppliers s
-                LEFT JOIN concerns con ON s.concern_id = con.id";
-        $params = [];
-        if ($cid) {
-            $sql .= " WHERE s.concern_id = ?";
-            $params[] = $cid;
-        }
-        $sql .= " ORDER BY s.id DESC";
-        $suppliers = DB::fetchAll($sql, $params);
-
-        $allConcerns = [];
-        if (Auth::isSuperAdmin()) {
-            $allConcerns = DB::fetchAll("SELECT id, name, code FROM concerns ORDER BY id ASC");
-        }
-
-        $this->render('concern/suppliers', [
-            'pageTitle'     => 'Supplier Master',
-            'currentModule' => 'suppliers',
-            'suppliers'     => $suppliers,
-            'selectedCid'   => $cid,
-            'allConcerns'   => $allConcerns,
-        ]);
-    }
-
-    public function exportSuppliers(): void {
-        ModuleGuard::enforce('suppliers', 'view');
-
-        $isSuperAdmin = Auth::isSuperAdmin();
-        $cid = $isSuperAdmin
-            ? (int)($_GET['concern_id'] ?? 0)
-            : Auth::concernId();
-        if (!$cid && !$isSuperAdmin) {
-            $cid = Auth::concernId() ?: 1;
-        }
-
-        $format = is_scalar($_GET['format'] ?? null)
-            ? strtolower(trim((string)$_GET['format']))
-            : 'excel';
-        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
-        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
-        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
-        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
-
-        $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
-
-        $sql = "SELECT s.*, con.name AS concern_name, con.code AS concern_code
-                FROM suppliers s
-                LEFT JOIN concerns con ON s.concern_id = con.id";
-        $params = [];
-        $where = [];
-        if ($cid) {
-            $where[] = "s.concern_id = ?";
-            $params[] = $cid;
-        }
-        if ($dateScope['start_date'] && $dateScope['end_date']) {
-            $where[] = "DATE(s.created_at) BETWEEN ? AND ?";
-            $params[] = $dateScope['start_date'];
-            $params[] = $dateScope['end_date'];
-        }
-        if (!empty($where)) {
-            $sql .= " WHERE " . implode(" AND ", $where);
-        }
-        $sql .= " ORDER BY s.id DESC";
-        $suppliers = DB::fetchAll($sql, $params);
-
-        $headers = [
-            '#', 'Supplier Code', 'Supplier Name', 'Company / Mill Name',
-            'Phone', 'Email', 'GSTIN', 'Address', 'City / District',
-            'State', 'Status', 'Registered Date'
-        ];
-
-        $rows = [];
-        $idx = 1;
-        foreach ($suppliers as $s) {
-            $code = $s['code'] ?: 'SUP-' . str_pad((string)$s['id'], 3, '0', STR_PAD_LEFT);
-            $rows[] = [
-                $idx++,
-                $code,
-                $s['name'],
-                $s['company_name'] ?: '—',
-                $s['phone'] ?: '—',
-                $s['email'] ?: '—',
-                $s['gstin'] ?: 'Unregistered',
-                $s['address'] ?: '—',
-                trim(($s['city'] ?? '') . ' ' . ($s['district'] ?? '')) ?: '—',
-                $s['state'] ?: '—',
-                strtoupper($s['status'] ?? 'active'),
-                !empty($s['created_at']) ? date('d M Y, h:i A', strtotime($s['created_at'])) : '—',
-            ];
-        }
-
-        $concernName = 'GRM Enterprise';
-        if ($cid) {
-            $con = DB::fetch("SELECT name FROM concerns WHERE id = ?", [$cid]);
-            if ($con && !empty($con['name'])) {
-                $concernName = $con['name'];
-            }
-        }
-
-        $metadata = [
-            'Generated On' => date('d M Y, h:i A'),
-            'Concern'      => $concernName,
-            'Period'       => $dateScope['label'] ?? 'All Time',
-            'Total Vendors'=> count($rows),
-        ];
-
-        $filename = 'Suppliers_Directory_' . date('Ymd_His');
-
-        if ($format === 'pdf') {
-            \App\Services\ExportService::renderPdfView('Supplier Directory Master Report', $metadata, $headers, $rows, []);
-        } elseif ($format === 'csv') {
-            \App\Services\ExportService::downloadCsv($filename, $headers, $rows, []);
-        } else {
-            \App\Services\ExportService::downloadExcel($filename, 'Supplier Directory Master Report', $metadata, $headers, $rows, []);
-        }
-    }
-
-    public function storeSupplier(): void {
-        ModuleGuard::enforce('suppliers', 'create');
-        $this->validateCsrf();
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
-
-        $name     = trim($_POST['name'] ?? '');
-        $company  = trim($_POST['company_name'] ?? '');
-        $phone    = preg_replace('/\D/', '', trim($_POST['phone'] ?? ''));
-        $email    = trim($_POST['email'] ?? '');
-        $gstin    = strtoupper(trim($_POST['gstin'] ?? ''));
-        $address  = trim($_POST['address'] ?? '');
-        $district = trim($_POST['district'] ?? '');
-        $state    = trim($_POST['state'] ?? '');
-
-        // Full Validation Rules
-        $errors = [];
-
-        if (!$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ?", [$cid])) {
-            $errors[] = 'Target Concern: Please select a valid business concern.';
-        }
-
-        if (mb_strlen($name) < 2 || mb_strlen($name) > 150) {
-            $errors[] = 'Contact Person / Name: Must be between 2 and 150 characters.';
-        }
-
-        if (mb_strlen($company) < 2 || mb_strlen($company) > 150) {
-            $errors[] = 'Company / Mill Name: Must be between 2 and 150 characters.';
-        }
-
-        if (empty($phone) || !preg_match('/^[6-9]\d{9}$/', $phone)) {
-            $errors[] = 'Phone: Enter a valid 10-digit Indian mobile number (starting with 6, 7, 8, or 9).';
-        }
-
-        if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Email: Enter a valid email address (e.g. vendor@mill.com).';
-        }
-
-        if (!empty($gstin) && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i', $gstin)) {
-            $errors[] = 'GSTIN: Must follow standard 15-character GST format (e.g. 33AAAAA0000A1Z5).';
-        }
-
-        if (mb_strlen($address) < 3) {
-            $errors[] = 'Address: Street / Area details are required (at least 3 characters).';
-        }
-
-        if (mb_strlen($district) < 2) {
-            $errors[] = 'District: District is required (e.g. Karur, Tirupur, Coimbatore).';
-        }
-
-        if (mb_strlen($state) < 2) {
-            $errors[] = 'State: State is required.';
-        }
-
-        // Check for duplicates within this concern
-        if ($cid) {
-            if (!empty($phone) && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND phone = ? LIMIT 1", [$cid, $phone])) {
-                $errors[] = "A supplier with this phone number ({$phone}) is already registered in this concern.";
-            }
-            if (!empty($gstin) && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND gstin = ? LIMIT 1", [$cid, $gstin])) {
-                $errors[] = "A supplier with GSTIN ({$gstin}) is already registered in this concern.";
-            }
-        }
-
-        if (!empty($errors)) {
-            $this->flash('error', implode("\n", $errors));
-            $this->redirect('/m/suppliers');
-            return;
-        }
-
-        $code = 'SUP-' . str_pad((string)(DB::fetchValue("SELECT COUNT(*) FROM suppliers WHERE concern_id = ?", [$cid]) + 1), 3, '0', STR_PAD_LEFT);
-        $emailValue = !empty($email) ? $email : null;
-
-        DB::query(
-            "INSERT INTO suppliers (concern_id, code, name, company_name, phone, email, gstin, address, city, district, state, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
-            [$cid, $code, $name, $company, $phone, $emailValue, $gstin, $address, $district, $district, $state]
-        );
-
-        $this->flash('success', "Supplier '{$name}' ({$company}) registered successfully with code {$code}!");
-        $this->redirect('/m/suppliers');
     }
 
     public function storeSupplierAjax(): void {
@@ -410,119 +202,116 @@ class PurchaseController extends Controller {
         ]);
     }
 
-    public function updateSupplier(): void {
-        ModuleGuard::enforce('suppliers', 'edit');
+    public function updateSupplierAjax(): void {
         $this->validateCsrf();
+
         $id = (int)($_POST['supplier_id'] ?? 0);
         $cid = Auth::concernId();
+        $existing = $cid
+            ? DB::fetch("SELECT * FROM suppliers WHERE id = ? AND concern_id = ?", [$id, $cid])
+            : DB::fetch("SELECT * FROM suppliers WHERE id = ?", [$id]);
 
-        $supplier = null;
-        if ($cid) {
-            $supplier = DB::fetch("SELECT * FROM suppliers WHERE id = ? AND concern_id = ?", [$id, $cid]);
-        } else {
-            $supplier = DB::fetch("SELECT * FROM suppliers WHERE id = ?", [$id]);
-            $cid = (int)($supplier['concern_id'] ?? ($_POST['concern_id'] ?? 0));
-        }
-
-        if (!$supplier) {
-            $this->flash('error', 'Supplier record not found or access denied.');
-            $this->redirect('/m/suppliers');
+        if (!$existing) {
+            $this->renderJson(['success' => false, 'message' => 'Supplier not found or access denied.'], 404);
             return;
         }
 
-        $name     = trim($_POST['name'] ?? '');
-        $company  = trim($_POST['company_name'] ?? '');
-        $phone    = preg_replace('/\D/', '', trim($_POST['phone'] ?? ''));
-        $email    = trim($_POST['email'] ?? '');
-        $gstin    = strtoupper(trim($_POST['gstin'] ?? ''));
-        $address  = trim($_POST['address'] ?? '');
-        $district = trim($_POST['district'] ?? '');
-        $state    = trim($_POST['state'] ?? '');
-        $status   = trim($_POST['status'] ?? 'active');
-        if (!in_array($status, ['active', 'inactive'], true)) {
-            $status = 'active';
-        }
+        $targetCid = (int)$existing['concern_id'];
+        $name = trim((string)($_POST['name'] ?? ''));
+        $company = trim((string)($_POST['company_name'] ?? ''));
+        $phone = preg_replace('/\D/', '', trim((string)($_POST['phone'] ?? '')));
+        $email = trim((string)($_POST['email'] ?? ''));
+        $gstin = strtoupper(trim((string)($_POST['gstin'] ?? '')));
+        $address = trim((string)($_POST['address'] ?? ''));
+        $district = trim((string)($_POST['district'] ?? ''));
+        $state = trim((string)($_POST['state'] ?? ''));
 
         $errors = [];
         if (mb_strlen($name) < 2 || mb_strlen($name) > 150) {
-            $errors[] = 'Contact Person / Name: Must be between 2 and 150 characters.';
+            $errors[] = 'Contact person name must be between 2 and 150 characters.';
         }
         if (mb_strlen($company) < 2 || mb_strlen($company) > 150) {
-            $errors[] = 'Company / Mill Name: Must be between 2 and 150 characters.';
+            $errors[] = 'Company or mill name must be between 2 and 150 characters.';
         }
-        if (empty($phone) || !preg_match('/^[6-9]\d{9}$/', $phone)) {
-            $errors[] = 'Phone: Enter a valid 10-digit Indian mobile number (starting with 6, 7, 8, or 9).';
+        if (!preg_match('/^[6-9]\d{9}$/', $phone)) {
+            $errors[] = 'Enter a valid 10-digit Indian mobile number.';
         }
-        if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Email: Enter a valid email address.';
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Enter a valid email address.';
         }
-        if (!empty($gstin) && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i', $gstin)) {
-            $errors[] = 'GSTIN: Must follow standard 15-character GST format.';
+        if ($gstin !== '' && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Za-z]{1}Z[0-9A-Za-z]{1}$/', $gstin)) {
+            $errors[] = 'Enter a valid 15-character GSTIN.';
         }
         if (mb_strlen($address) < 3) {
-            $errors[] = 'Address: Street / Area details are required.';
+            $errors[] = 'Address must contain at least 3 characters.';
         }
-        if (mb_strlen($district) < 2) {
-            $errors[] = 'District: District is required.';
+        if (mb_strlen($district) < 2 || mb_strlen($state) < 2) {
+            $errors[] = 'Enter a valid district and state.';
         }
-        if (mb_strlen($state) < 2) {
-            $errors[] = 'State: State is required.';
+        if (!$errors && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND phone = ? AND id != ? LIMIT 1", [$targetCid, $phone, $id])) {
+            $errors[] = 'A supplier with this phone number is already registered in this concern.';
         }
-
-        if ($cid) {
-            if (!empty($phone) && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND phone = ? AND id != ? LIMIT 1", [$cid, $phone, $id])) {
-                $errors[] = "A supplier with phone number ({$phone}) is already registered in this concern.";
-            }
-            if (!empty($gstin) && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND gstin = ? AND id != ? LIMIT 1", [$cid, $gstin, $id])) {
-                $errors[] = "A supplier with GSTIN ({$gstin}) is already registered in this concern.";
-            }
+        if (!$errors && $gstin !== '' && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND gstin = ? AND id != ? LIMIT 1", [$targetCid, $gstin, $id])) {
+            $errors[] = 'A supplier with this GSTIN is already registered in this concern.';
         }
-
-        if (!empty($errors)) {
-            $this->flash('error', implode("\n", $errors));
-            $this->redirect('/m/suppliers');
+        if ($errors) {
+            $this->renderJson(['success' => false, 'message' => implode(' ', $errors)], 422);
             return;
         }
 
-        $emailValue = !empty($email) ? $email : null;
         DB::query(
-            "UPDATE suppliers SET name = ?, company_name = ?, phone = ?, email = ?, gstin = ?, address = ?, city = ?, district = ?, state = ?, status = ? WHERE id = ?",
-            [$name, $company, $phone, $emailValue, $gstin, $address, $district, $district, $state, $status, $id]
+            "UPDATE suppliers SET name = ?, company_name = ?, phone = ?, email = ?, gstin = ?, address = ?, city = ?, district = ?, state = ? WHERE id = ?",
+            [$name, $company, $phone, $email !== '' ? $email : null, $gstin !== '' ? $gstin : null, $address, $district, $district, $state, $id]
         );
 
-        $this->flash('success', "Supplier '{$name}' ({$company}) updated successfully!");
-        $this->redirect('/m/suppliers');
+        $this->renderJson([
+            'success' => true,
+            'supplier' => [
+                'id' => $id,
+                'code' => $existing['code'],
+                'name' => $name,
+                'company_name' => $company,
+                'phone' => $phone,
+                'email' => $email,
+                'gstin' => $gstin,
+                'address' => $address,
+                'district' => $district,
+                'state' => $state,
+            ],
+        ]);
     }
 
-    public function deleteSupplier(): void {
-        ModuleGuard::enforce('suppliers', 'delete');
+    public function deleteSupplierAjax(): void {
         $this->validateCsrf();
+
         $id = (int)($_POST['supplier_id'] ?? 0);
         $cid = Auth::concernId();
-
-        $supplier = null;
-        if ($cid) {
-            $supplier = DB::fetch("SELECT * FROM suppliers WHERE id = ? AND concern_id = ?", [$id, $cid]);
-        } else {
-            $supplier = DB::fetch("SELECT * FROM suppliers WHERE id = ?", [$id]);
-        }
+        $supplier = $cid
+            ? DB::fetch("SELECT * FROM suppliers WHERE id = ? AND concern_id = ?", [$id, $cid])
+            : DB::fetch("SELECT * FROM suppliers WHERE id = ?", [$id]);
 
         if (!$supplier) {
-            $this->flash('error', 'Supplier record not found or access denied.');
-            $this->redirect('/m/suppliers');
+            $this->renderJson(['success' => false, 'message' => 'Supplier not found or access denied.'], 404);
             return;
         }
 
         $hasBills = (int)DB::fetchValue("SELECT COUNT(*) FROM purchase_bills WHERE supplier_id = ?", [$id]);
         if ($hasBills > 0) {
             DB::query("UPDATE suppliers SET status = 'inactive' WHERE id = ?", [$id]);
-            $this->flash('success', "Supplier '{$supplier['name']}' has {$hasBills} recorded purchase bills. Status updated to 'Inactive' to preserve financial audit history.");
-        } else {
-            DB::query("DELETE FROM suppliers WHERE id = ?", [$id]);
-            $this->flash('success', "Supplier '{$supplier['name']}' deleted successfully.");
+            $this->renderJson([
+                'success' => true,
+                'deactivated' => true,
+                'message' => "Supplier '{$supplier['name']}' has {$hasBills} purchase bills and was marked inactive.",
+            ]);
+            return;
         }
 
-        $this->redirect('/m/suppliers');
+        DB::query("DELETE FROM suppliers WHERE id = ?", [$id]);
+        $this->renderJson([
+            'success' => true,
+            'deactivated' => false,
+            'message' => "Supplier '{$supplier['name']}' deleted successfully.",
+        ]);
     }
 
     public function exportBills(): void {
@@ -614,10 +403,12 @@ class PurchaseController extends Controller {
 
     // 2. PURCHASE BILLING
     public function billing(): void {
+        PurchaseBillSourceService::ensureSchema();
         $cid = Auth::concernId();
 
         $sql = "SELECT pb.*, s.name AS supplier_name, con.name AS concern_name, con.code AS concern_code,
                        (SELECT COUNT(*) FROM purchase_bill_items pbi WHERE pbi.purchase_bill_id = pb.id) AS items_count,
+                       COALESCE((SELECT SUM(pbi.qty) FROM purchase_bill_items pbi WHERE pbi.purchase_bill_id = pb.id), 0) AS total_qty,
                        (SELECT GROUP_CONCAT(DISTINCT pbi.section_type ORDER BY pbi.section_type SEPARATOR ',') 
                         FROM purchase_bill_items pbi 
                         WHERE pbi.purchase_bill_id = pb.id) AS bill_types
@@ -630,7 +421,7 @@ class PurchaseController extends Controller {
             $params[] = $cid;
         }
         $sql .= " ORDER BY pb.id DESC";
-        $bills = DB::fetchAll($sql, $params);
+        $bills = PurchaseBillSourceService::attachInvoiceSyncStatus(DB::fetchAll($sql, $params), $cid);
 
         if ($cid) {
             $suppliers = DB::fetchAll("SELECT id, name, company_name FROM suppliers WHERE concern_id = ? AND status = 'active'", [$cid]);
@@ -655,11 +446,11 @@ class PurchaseController extends Controller {
         $cid = Auth::concernId();
 
         if ($cid) {
-            $suppliers = DB::fetchAll("SELECT id, code, name, company_name, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
+            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $variants  = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $hsnList   = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
         } else {
-            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
+            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
             $variants  = DB::fetchAll("SELECT id, concern_id, product_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
             $hsnList   = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
         }
@@ -685,6 +476,10 @@ class PurchaseController extends Controller {
             'savedRollSpecs' => $savedRollSpecs,
             'savedColors'    => $savedColors,
             'savedDesigns'   => $savedDesigns,
+            'quickSupplierSaveUrl' => \App\Core\Controller::url('/m/purchase_billing/suppliers/store'),
+            'quickSupplierUpdateUrl' => \App\Core\Controller::url('/m/purchase_billing/suppliers/update'),
+            'quickSupplierDeleteUrl' => \App\Core\Controller::url('/m/purchase_billing/suppliers/delete'),
+            'allowQuickSupplier'   => Auth::isSuperAdmin() || Auth::can('purchase_billing', 'add'),
             'invoiceCheckUrl' => \App\Core\Controller::url('/m/purchase_billing/check_invoice'),
         ]);
     }
@@ -739,11 +534,11 @@ class PurchaseController extends Controller {
         $items = DB::fetchAll("SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC", [$id]);
 
         if ($cid) {
-            $suppliers = DB::fetchAll("SELECT id, code, name, company_name, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
+            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $variants  = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $hsnList   = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
         } else {
-            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
+            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
             $variants  = DB::fetchAll("SELECT id, concern_id, product_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
             $hsnList   = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
         }
@@ -758,17 +553,41 @@ class PurchaseController extends Controller {
         $savedColors    = RollRegistryService::getSavedColors($targetCid);
         $savedDesigns   = RollRegistryService::getSavedDesigns($targetCid);
 
+        $categories = [];
+        $subcategories = [];
+        $subSubcategories = [];
+        $productAttributes = [];
+        if ($isProductAddingEdit) {
+            $categoryScope = $cid
+                ? " WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'"
+                : " WHERE status = 'active'";
+            $categoryParams = $cid ? [$cid] : [];
+            $categories = DB::fetchAll("SELECT id, concern_id, name, default_hsn, default_gst_rate FROM categories{$categoryScope} ORDER BY name ASC", $categoryParams);
+            $subcategories = DB::fetchAll("SELECT id, concern_id, category_id, name FROM subcategories{$categoryScope} ORDER BY name ASC", $categoryParams);
+            $subSubcategories = DB::fetchAll("SELECT id, concern_id, subcategory_id, name FROM sub_subcategories{$categoryScope} ORDER BY name ASC", $categoryParams);
+            $productAttributes = DB::fetchAll(
+                $cid
+                    ? "SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order"
+                    : "SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes ORDER BY attribute_type, sort_order",
+                $cid ? [$cid] : []
+            );
+        }
+
         $this->render('concern/purchase_billing_create', [
             'pageTitle'      => ($isProductAddingEdit ? 'Edit Existing Purchase Invoice: #' : 'Edit Purchase Bill: #') . $bill['bill_no'],
             'pageHeading'    => ($isProductAddingEdit ? 'Edit Existing Purchase Invoice: #' : 'Edit Purchase Bill: #') . $bill['bill_no'],
             'pageDescription' => $isProductAddingEdit
                 ? 'Review and update the existing Purchase Billing invoice before adding it to stock.'
                 : 'Update fabric rolls, garment supplies/accessories and finished goods for this bill.',
-            'currentModule'  => 'purchase_billing',
+            'currentModule'  => $isProductAddingEdit ? 'product_adding' : 'purchase_billing',
             'suppliers'      => $suppliers,
             'variants'       => $variants,
             'selectedCid'    => $cid,
             'allConcerns'    => $allConcerns,
+            'categories'     => $categories,
+            'subcategories'  => $subcategories,
+            'subSubcategories' => $subSubcategories,
+            'productAttributes' => $productAttributes,
             'hsnList'        => $hsnList,
             'bill'           => $bill,
             'existingItems'  => $items,
@@ -776,10 +595,18 @@ class PurchaseController extends Controller {
             'savedColors'    => $savedColors,
             'savedDesigns'   => $savedDesigns,
             'formAction'     => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/update_purchase_bill' : '/m/purchase_billing/update'),
+            'hsnSaveUrl'     => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/save_hsn' : '/m/purchase_billing/save_hsn'),
+            'rollSpecSaveUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/save_roll_spec' : '/m/purchase_billing/save_roll_spec'),
+            'quickCategorySaveUrl' => $isProductAddingEdit ? \App\Core\Controller::url('/m/product_adding/categories/store') : '',
+            'quickAttributeSaveUrl' => $isProductAddingEdit ? \App\Core\Controller::url('/m/product_adding/attributes/store') : '',
             'backUrl'        => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding' : '/m/purchase_billing'),
             'backLabel'      => $isProductAddingEdit ? 'Back to Product Adding' : 'Back to Purchases',
             'submitLabel'    => $isProductAddingEdit ? 'Update Existing Invoice' : 'Update Purchase Bill',
             'productAddingEdit' => $isProductAddingEdit,
+            'quickSupplierSaveUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/suppliers/store' : '/m/purchase_billing/suppliers/store'),
+            'quickSupplierUpdateUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/suppliers/update' : '/m/purchase_billing/suppliers/update'),
+            'quickSupplierDeleteUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/suppliers/delete' : '/m/purchase_billing/suppliers/delete'),
+            'allowQuickSupplier'   => Auth::isSuperAdmin() || Auth::can($isProductAddingEdit ? 'product_adding' : 'purchase_billing', 'add'),
             'invoiceCheckUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/check_invoice' : '/m/purchase_billing/check_invoice'),
         ]);
     }
@@ -1186,6 +1013,53 @@ class PurchaseController extends Controller {
         }
 
         $billId = (int)($_POST['bill_id'] ?? 0);
+        $isProductAddingRequest = ($_POST['product_adding_redirect'] ?? '') === '1';
+
+        if ($isProductAddingRequest) {
+            // Check if a Purchase Billing invoice exists for this supplier + invoice number (invoice no + supplier + qty contact)
+            $pbBill = DB::fetch(
+                "SELECT pb.id, pb.bill_no, COALESCE(SUM(pbi.qty), 0) AS invoice_qty
+                 FROM purchase_bills pb
+                 LEFT JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
+                 WHERE pb.concern_id = ? AND pb.supplier_id = ?
+                   AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))
+                   AND COALESCE(pb.source_module, 'purchase_billing') = 'purchase_billing'
+                 GROUP BY pb.id
+                 ORDER BY pb.id DESC LIMIT 1",
+                [$concernId, $supplierId, $invoiceNo]
+            );
+
+            $paSql = "SELECT COALESCE(SUM(pbi.qty), 0) AS added_qty
+                      FROM purchase_bills pb
+                      JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
+                      WHERE pb.concern_id = ? AND pb.supplier_id = ?
+                        AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))
+                        AND pb.source_module = 'product_adding'";
+            $paParams = [$concernId, $supplierId, $invoiceNo];
+            if ($billId > 0) {
+                $paSql .= ' AND pb.id != ?';
+                $paParams[] = $billId;
+            }
+            $addedQty = (float)(DB::fetchValue($paSql, $paParams) ?: 0);
+
+            if ($pbBill) {
+                $invoiceQty = (float)($pbBill['invoice_qty'] ?? 0);
+                $remainingQty = max(0.0, $invoiceQty - $addedQty);
+                $this->renderJson([
+                    'success' => true,
+                    'duplicate' => false,
+                    'matched_purchase_bill' => [
+                        'id' => (int)$pbBill['id'],
+                        'bill_no' => (string)$pbBill['bill_no'],
+                        'invoice_qty' => $invoiceQty,
+                        'product_adding_qty' => $addedQty,
+                        'remaining_qty' => $remainingQty,
+                    ],
+                ]);
+                return;
+            }
+        }
+
         $existingSql = "SELECT pb.id, pb.source_module, pb.inward_status,
                                COUNT(pbi.id) AS item_count,
                                COALESCE(SUM(CASE
@@ -1211,21 +1085,6 @@ class PurchaseController extends Controller {
                 ? 'This supplier invoice number has already been recorded for the selected supplier.'
                 : '',
         ];
-        $isProductAddingRequest = ($_POST['product_adding_redirect'] ?? '') === '1';
-        $canEditProductAddingInvoice = Auth::isSuperAdmin() || Auth::can('product_adding', 'edit');
-        if (
-            $duplicate &&
-            $isProductAddingRequest &&
-            $canEditProductAddingInvoice &&
-            ($existingBill['source_module'] ?? '') === 'purchase_billing' &&
-            (int)($existingBill['item_count'] ?? 0) > 0 &&
-            (int)($existingBill['stocked_count'] ?? 0) === 0 &&
-            ($existingBill['inward_status'] ?? 'pending') !== 'completed'
-        ) {
-            $response['existing_invoice_edit_url'] = \App\Core\Controller::url(
-                '/m/product_adding/edit_purchase_bill?id=' . (int)$existingBill['id']
-            );
-        }
         $this->renderJson($response);
     }
 
@@ -1265,10 +1124,42 @@ class PurchaseController extends Controller {
             $this->redirect($createRedirect);
             return;
         }
-        if ($this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo)) {
+        if (!$isProductAddingInvoice && $this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo)) {
             $this->flash('error', 'This supplier invoice number has already been recorded for the selected supplier.');
             $this->redirect($createRedirect);
             return;
+        }
+
+        $matchedPurchaseBillQty = null;
+        $alreadyAddedProductAddingQty = 0.0;
+        if ($isProductAddingInvoice) {
+            $matchedPb = DB::fetch(
+                "SELECT pb.id, COALESCE(SUM(pbi.qty), 0) AS invoice_qty
+                 FROM purchase_bills pb
+                 LEFT JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
+                 WHERE pb.concern_id = ? AND pb.supplier_id = ?
+                   AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))
+                   AND COALESCE(pb.source_module, 'purchase_billing') = 'purchase_billing'
+                 GROUP BY pb.id
+                 ORDER BY pb.id DESC LIMIT 1",
+                [$cid, $supplierId, $supplierInvoiceNo]
+            );
+            if ($matchedPb) {
+                $matchedPurchaseBillQty = (float)($matchedPb['invoice_qty'] ?? 0);
+                $alreadyAddedProductAddingQty = (float)(DB::fetchValue(
+                    "SELECT COALESCE(SUM(pbi.qty), 0)
+                     FROM purchase_bills pb
+                     JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
+                     WHERE pb.concern_id = ? AND pb.supplier_id = ?
+                       AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))
+                       AND pb.source_module = 'product_adding'",
+                    [$cid, $supplierId, $supplierInvoiceNo]
+                ) ?: 0);
+            } elseif ($this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo)) {
+                $this->flash('error', 'This supplier invoice number has already been recorded for the selected supplier.');
+                $this->redirect($createRedirect);
+                return;
+            }
         }
         $fabricDescription = trim($_POST['fabric_description'] ?? '');
         $notes             = trim($_POST['notes'] ?? '');
@@ -1286,7 +1177,8 @@ class PurchaseController extends Controller {
             $paymentStatus = 'unpaid';
         }
 
-        // Process the 3 Inline Sections
+        // Process Sections (Unified Purchase Billing items or 3-section Product Adding items)
+        $simpleItemsRaw  = $_POST['purchase_items'] ?? [];
         $rollsRaw        = $_POST['rolls'] ?? [];
         $garmentOtherRaw = $_POST['garment_other'] ?? [];
         $finishedRaw     = $_POST['finished_goods'] ?? [];
@@ -1294,6 +1186,10 @@ class PurchaseController extends Controller {
         $itemsToInsert = [];
         $totalAmount   = 0.0;
         $totalTax      = 0.0;
+
+        if (!empty($simpleItemsRaw) && is_array($simpleItemsRaw)) {
+            $itemsToInsert = $this->parseSimplePurchaseItems($simpleItemsRaw, $totalAmount, $totalTax);
+        }
 
         // 1. Fabric Rolls (Reference Image 1)
         if (is_array($rollsRaw)) {
@@ -1642,9 +1538,22 @@ class PurchaseController extends Controller {
         }
 
         if (empty($itemsToInsert)) {
-            $this->flash('error', 'Please enter at least one item (Roll, Garment Supply, or Finished Good) with quantity and price.');
+            $this->flash('error', 'Please enter at least one item with quantity and price.');
             $this->redirect($createRedirect);
             return;
+        }
+
+        if ($isProductAddingInvoice && $matchedPurchaseBillQty !== null) {
+            $newTotalQty = array_reduce($itemsToInsert, fn($carry, $it) => $carry + (float)($it['qty'] ?? 0), 0.0);
+            $remainingQty = max(0.0, $matchedPurchaseBillQty - $alreadyAddedProductAddingQty);
+            if (($alreadyAddedProductAddingQty + $newTotalQty) > ($matchedPurchaseBillQty + 0.0001)) {
+                $this->flash(
+                    'error',
+                    "Product Adding quantity ({$newTotalQty}) exceeds remaining Purchase Billing invoice quantity ({$remainingQty} of {$matchedPurchaseBillQty}) for invoice '{$supplierInvoiceNo}'."
+                );
+                $this->redirect($createRedirect);
+                return;
+            }
         }
 
         try {
@@ -2094,6 +2003,77 @@ class PurchaseController extends Controller {
         ];
     }
 
+    private function parseSimplePurchaseItems(array $rawItems, float &$totalAmount, float &$totalTax): array
+    {
+        $items = [];
+        $typeLabels = [
+            'rolls' => 'Fabric',
+            'garment_other' => 'Other Garments Supply',
+            'finished_goods' => 'Finished Goods',
+        ];
+
+        foreach ($rawItems as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $sectionType = trim((string)($row['product_type'] ?? 'rolls'));
+            if (!isset($typeLabels[$sectionType])) {
+                $sectionType = 'rolls';
+            }
+            $name = trim((string)($row['name'] ?? ($row['item_name'] ?? '')));
+            $qty = (float)($row['qty'] ?? ($row['quantity'] ?? 0));
+            $price = (float)($row['price'] ?? ($row['unit_price'] ?? 0));
+
+            if ($name === '' || $qty <= 0 || $price <= 0) {
+                continue;
+            }
+
+            $hsnCode = trim((string)($row['hsn'] ?? ($row['hsn_code'] ?? '')));
+            $taxMode = trim((string)($row['tax_mode'] ?? 'Exclude GST'));
+            $gstType = trim((string)($row['gst'] ?? ($row['gst_type'] ?? 'Exempted')));
+            $taxType = trim((string)($row['tax_input_type'] ?? 'Percentage'));
+            $sgstVal = (float)($row['sgst'] ?? 0);
+            $cgstVal = (float)($row['cgst'] ?? 0);
+            $igstVal = (float)($row['igst'] ?? 0);
+            $fallback = (float)($row['gst_rate'] ?? 0);
+
+            $calc = $this->calculateLineTax($qty, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
+            $totalAmount += $calc['itemBase'];
+            $totalTax += $calc['itemTax'];
+
+            $items[] = [
+                'section_type'  => $sectionType,
+                'variant_id'    => null,
+                'catalog_id'    => null,
+                'item_name'     => $name,
+                'item_code'     => '',
+                'hsn_code'      => $hsnCode ?: null,
+                'specification' => '',
+                'color'         => null,
+                'pattern'       => null,
+                'designs_count' => 1,
+                'rq_qty'        => $sectionType === 'rolls' ? max(1, (int)round($qty)) : 1,
+                'unit'          => $sectionType === 'rolls' ? 'Rolls' : 'Pieces',
+                'gross_weight'  => null,
+                'net_weight'    => null,
+                'qty'           => $qty,
+                'unit_price'    => $price,
+                'gst_rate'      => $calc['gstRate'],
+                'gst_type'      => $gstType,
+                'tax_mode'      => $taxMode,
+                'total_price'   => $calc['itemBase'],
+                'tax_amount'    => $calc['itemTax'],
+                'photo_path'    => null,
+                'category_name' => $typeLabels[$sectionType],
+                'product_type'  => $typeLabels[$sectionType],
+                'mrp'           => null,
+                'selling_price' => null,
+            ];
+        }
+
+        return $items;
+    }
+
     public function updateBill(): void {
         $this->validateCsrf();
         $isProductAddingEdit = ($_POST['product_adding_redirect'] ?? '') === '1';
@@ -2179,6 +2159,7 @@ class PurchaseController extends Controller {
             $paymentStatus = 'unpaid';
         }
         // Process sections
+        $simpleItemsRaw  = $_POST['purchase_items'] ?? [];
         $rollsRaw        = $_POST['rolls'] ?? [];
         $garmentOtherRaw = $_POST['garment_other'] ?? [];
         $finishedRaw     = $_POST['finished_goods'] ?? [];
@@ -2186,6 +2167,10 @@ class PurchaseController extends Controller {
         $itemsToInsert = [];
         $totalAmount   = 0.0;
         $totalTax      = 0.0;
+
+        if (!empty($simpleItemsRaw) && is_array($simpleItemsRaw)) {
+            $itemsToInsert = $this->parseSimplePurchaseItems($simpleItemsRaw, $totalAmount, $totalTax);
+        }
 
         // 1. Rolls
         if (is_array($rollsRaw)) {
@@ -2571,13 +2556,7 @@ class PurchaseController extends Controller {
     }
 
     // 3. PURCHASE DAMAGE
-    public function damage(): void {
-        $isSuperAdmin = Auth::isSuperAdmin();
-        $cid = Auth::concernId();
-        if ($isSuperAdmin) {
-            $cid = (int)($_GET['concern_id'] ?? 0) ?: null;
-        }
-
+    public static function fetchPurchaseDamageData(?int $cid): array {
         PurchaseDamageService::initTable();
         $sql = "SELECT history_source, record_id, damage_no, concern_id, concern_name, supplier_name,
                        item_name, item_code, item_type, tag_code, qty, location, reason, notes,
@@ -2631,29 +2610,23 @@ class PurchaseController extends Controller {
         $sql .= " ORDER BY damage_history.created_at DESC LIMIT 200";
         $damages = DB::fetchAll($sql, $params);
         $damageReasons = $cid ? PurchaseDamageService::getDamageReasons((int)$cid) : [];
-        $allConcerns = $isSuperAdmin
-            ? DB::fetchAll("SELECT id, name, code FROM concerns ORDER BY name ASC")
-            : [];
-        $canAddDamage = $isSuperAdmin || Auth::can('purchase_damage', 'add');
-        $canEditDamage = $isSuperAdmin || Auth::can('purchase_damage', 'edit');
-        $canDeleteDamage = $isSuperAdmin || Auth::can('purchase_damage', 'delete');
-
-        $this->render('concern/purchase_damage', [
-            'pageTitle'     => 'Purchase Damage & Rejections',
-            'currentModule' => 'purchase_damage',
-            'damages'       => $damages,
-            'selectedCid'   => $cid,
-            'isSuperAdmin'  => $isSuperAdmin,
-            'allConcerns'   => $allConcerns,
+        return [
+            'damages' => $damages,
             'damageReasons' => $damageReasons,
-            'canAddDamage'  => $canAddDamage,
-            'canEditDamage' => $canEditDamage,
-            'canDeleteDamage' => $canDeleteDamage,
-        ]);
+        ];
+    }
+
+    public function damage(): void {
+        $isSuperAdmin = Auth::isSuperAdmin();
+        $cid = Auth::concernId();
+        if ($isSuperAdmin) {
+            $cid = (int)($_GET['concern_id'] ?? 0) ?: null;
+        }
+        $this->redirect('/m/purchase_stocks?tab=damage' . ($isSuperAdmin && $cid ? '&concern_id=' . $cid : ''));
     }
 
     public function exportDamage(): void {
-        ModuleGuard::enforce('purchase_damage', 'view');
+        ModuleGuard::enforce('purchase_stocks', 'view');
         PurchaseDamageService::initTable();
 
         $isSuperAdmin = Auth::isSuperAdmin();
@@ -2807,7 +2780,7 @@ class PurchaseController extends Controller {
     }
 
     public function addDamageReason(): void {
-        ModuleGuard::enforce('purchase_damage', 'add');
+        ModuleGuard::enforce('purchase_stocks', 'add');
         $this->validateCsrf();
 
         $cid = Auth::isSuperAdmin()
@@ -2839,7 +2812,7 @@ class PurchaseController extends Controller {
 
         if (!$cid) {
             $this->flash('error', 'Please choose a concern for this purchase damage.');
-            $this->redirect('/m/purchase_damage');
+            $this->redirect('/m/purchase_stocks?tab=damage');
         }
 
         $rawScannedItems = $_POST['scanned_items'] ?? '';
@@ -2866,18 +2839,18 @@ class PurchaseController extends Controller {
             $this->flash('error', 'Failed to record damage: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/purchase_damage');
+        $this->redirect('/m/purchase_stocks?tab=damage' . (Auth::isSuperAdmin() && $cid ? '&concern_id=' . $cid : ''));
     }
 
     public function updateDamageRecord(): void {
-        ModuleGuard::enforce('purchase_damage', 'edit');
+        ModuleGuard::enforce('purchase_stocks', 'edit');
         $this->validateCsrf();
 
         $damageId = (int)($_POST['damage_id'] ?? 0);
         $concernId = Auth::isSuperAdmin()
             ? (int)($_POST['concern_id'] ?? 0)
             : Auth::concernId();
-        $returnUrl = '/m/purchase_damage' . (Auth::isSuperAdmin() && $concernId ? '?concern_id=' . $concernId : '');
+        $returnUrl = '/m/purchase_stocks?tab=damage' . (Auth::isSuperAdmin() && $concernId ? '&concern_id=' . $concernId : '');
 
         $rawQty = $_POST['qty'] ?? null;
         $reason = $_POST['reason'] ?? null;
@@ -2925,14 +2898,14 @@ class PurchaseController extends Controller {
     }
 
     public function deleteDamageRecord(): void {
-        ModuleGuard::enforce('purchase_damage', 'delete');
+        ModuleGuard::enforce('purchase_stocks', 'delete');
         $this->validateCsrf();
 
         $damageId = (int)($_POST['damage_id'] ?? 0);
         $concernId = Auth::isSuperAdmin()
             ? (int)($_POST['concern_id'] ?? 0)
             : Auth::concernId();
-        $returnUrl = '/m/purchase_damage' . (Auth::isSuperAdmin() && $concernId ? '?concern_id=' . $concernId : '');
+        $returnUrl = '/m/purchase_stocks?tab=damage' . (Auth::isSuperAdmin() && $concernId ? '&concern_id=' . $concernId : '');
 
         if (!$damageId || !$concernId) {
             $this->flash('error', 'Select a valid quarantine record.');

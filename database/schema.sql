@@ -949,6 +949,9 @@ CREATE TABLE IF NOT EXISTS `outwards` (
 CREATE TABLE IF NOT EXISTS `product_attributes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `concern_id` int(11) NOT NULL,
+  `category_id` int(11) DEFAULT NULL,
+  `subcategory_id` int(11) DEFAULT NULL,
+  `sub_sub_category_id` int(11) DEFAULT NULL,
   `attribute_type` varchar(50) NOT NULL DEFAULT 'size',
   `attribute_name` varchar(100) NOT NULL,
   `attribute_value` varchar(100) NOT NULL,

@@ -14,11 +14,8 @@ class ModuleRegistry
             ['code' => 'admin_reports', 'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line', 'sort_order' => 4, 'group_name' => 'Super Admin', 'is_super_admin_only' => 0],
 
             ['code' => 'concern_dashboard', 'name' => 'Concern Dashboard', 'icon' => 'bi-speedometer', 'sort_order' => 10, 'group_name' => 'Dashboard', 'is_super_admin_only' => 0],
-            ['code' => 'suppliers', 'name' => 'Supplier', 'icon' => 'bi-truck', 'sort_order' => 20, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
             ['code' => 'purchase_billing', 'name' => 'Purchase Billing', 'icon' => 'bi-receipt', 'sort_order' => 21, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
             ['code' => 'purchase_stocks', 'name' => 'Purchase Stocks', 'icon' => 'bi-boxes', 'sort_order' => 22, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
-            ['code' => 'purchase_damage', 'name' => 'Purchase Damage', 'icon' => 'bi-shield-x', 'sort_order' => 23, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
-            ['code' => 'catalog_mapping', 'name' => 'Catalog Hierarchy', 'icon' => 'bi-diagram-3-fill', 'sort_order' => 24, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
             ['code' => 'product_adding', 'name' => 'Product Adding', 'icon' => 'bi-plus-square-dotted', 'sort_order' => 25, 'group_name' => 'Purchase', 'is_super_admin_only' => 0],
             ['code' => 'catalog_program', 'name' => 'Catalog & Program', 'icon' => 'bi-journal-bookmark', 'sort_order' => 30, 'group_name' => 'Production', 'is_super_admin_only' => 0],
             ['code' => 'cutting_wastage', 'name' => 'Cutting & Wastage', 'icon' => 'bi-scissors', 'sort_order' => 31, 'group_name' => 'Production', 'is_super_admin_only' => 0],

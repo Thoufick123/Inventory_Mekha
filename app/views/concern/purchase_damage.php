@@ -1,4 +1,5 @@
 <div class="container-fluid px-0">
+    <?php if (empty($hideDamageHeader)): ?>
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
             <h4 class="fw-bold mb-1 text-dark">Purchase Damage Quarantine</h4>
@@ -18,6 +19,7 @@
             </form>
         <?php endif; ?>
     </div>
+    <?php endif; ?>
 
     <?php if (empty($selectedCid)): ?>
         <div class="alert alert-info border-0 shadow-sm">Select a concern above before scanning purchase labels.</div>

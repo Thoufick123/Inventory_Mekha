@@ -572,34 +572,40 @@ if (!$styleConcernId && $isEdit) {
 </div>
 
 <!-- MODAL 4: ADD HSN MASTER -->
-<div class="modal fade" id="modalAddHsn" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+<div class="modal fade" id="modalAddHsn" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <form class="modal-content border-0 shadow" id="formQuickAddHsn">
-            <div class="modal-header bg-primary text-white">
-                <h6 class="modal-title fw-bold"><i class="bi bi-receipt me-1.5"></i> Quick Add HSN Code Master</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <input type="hidden" name="code_type" value="HSN">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-upc-scan text-primary me-1.5"></i> Add HSN Master Code</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-3">
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">HSN Code *</label>
-                    <input type="text" name="hsn_code" class="form-control font-monospace" placeholder="e.g. 6109" maxlength="8" minlength="4" inputmode="numeric" pattern="[0-9]{4}|[0-9]{6}|[0-9]{8}" title="Enter 4, 6, or 8 numeric digits" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#catalogHsnMasterGstRate" autocomplete="off" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Commodity Description</label>
-                    <input type="text" name="description" class="form-control" placeholder="e.g. Cotton T-shirts, knitted garments">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">GST Rate (%) <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" min="0" max="100" name="gst_rate" id="catalogHsnMasterGstRate" class="form-control" placeholder="0.00 to 100.00" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">GST Rate Conditions / Notes</label>
-                    <input type="text" name="rate_note" class="form-control" maxlength="500" placeholder="e.g. Verify based on product composition and value">
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">HSN Code <span class="text-danger">*</span></label>
+                        <input type="text" name="hsn_code" class="form-control font-monospace fw-bold" placeholder="4, 6, or 8 digits" maxlength="8" minlength="4" inputmode="numeric" pattern="[0-9]{4}|[0-9]{6}|[0-9]{8}" title="Enter a valid 4-, 6-, or 8-digit numeric HSN code" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#catalogHsnMasterGstRate" autocomplete="off" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Category</label>
+                        <input type="text" name="category" class="form-control" placeholder="e.g. Apparel, Fabric, Packaging" maxlength="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">GST Rate (%)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" min="0" max="100" name="gst_rate" id="catalogHsnMasterGstRate" class="form-control font-monospace" placeholder="0.00 to 100.00" required title="Enter a GST percentage from 0.00 to 100.00">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-semibold">Description</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="e.g. T-shirts, singlets and other vests, knitted or crocheted" maxlength="255"></textarea>
+                    </div>
                 </div>
             </div>
-            <div class="modal-footer bg-light py-2">
+            <div class="modal-footer bg-light">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary btn-sm px-3">Save HSN</button>
+                <button type="submit" class="btn btn-primary btn-sm px-3"><i class="bi bi-check-circle me-1"></i> Save HSN Code</button>
             </div>
         </form>
     </div>

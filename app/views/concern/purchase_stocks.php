@@ -28,23 +28,15 @@
             </div>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
-            <?php if (\App\Core\Auth::can('purchase_stocks', 'export')): ?>
+            <?php if (\App\Core\Auth::can('purchase_stocks', 'export') && $activeTab !== 'damage'): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . $activeTab . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
                 <i class="bi bi-file-earmark-spreadsheet"></i> Export <?= match($activeTab) { 'rolls' => 'Rolls', 'garment_other' => 'Trims', 'finished_goods' => 'Finished Goods', default => 'Stocks' } ?> (CSV)
             </a>
             <?php endif; ?>
-            <a href="<?= \App\Core\Controller::url('/m/label_generation?tab=' . match($activeTab) { 'rolls' => 'purchase_raw', 'garment_other' => 'purchase_raw', 'finished_goods' => 'purchase_fg', default => 'purchase_raw' }) ?>" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
-                <i class="bi bi-qr-code"></i> Print Labels
-            </a>
-            <?php if ($canAddPurchaseStock): ?>
+            <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
             <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
                 <i class="bi bi-plus-lg"></i> Add Stock
             </button>
-            <?php endif; ?>
-            <?php if (\App\Core\Auth::can('purchase_billing', 'create')): ?>
-            <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn btn-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
-                <i class="bi bi-bag-plus"></i> Record Purchase
-            </a>
             <?php endif; ?>
         </div>
     </div>
@@ -184,9 +176,20 @@
                         </span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link py-2 px-3 fw-semibold d-flex align-items-center gap-2 rounded-2 <?= $activeTab === 'damage' ? 'active' : '' ?>" 
+                       href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=damage' . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>">
+                        <i class="bi bi-shield-x"></i>
+                        <span>4. Purchase Damage</span>
+                        <span class="badge <?= $activeTab === 'damage' ? 'bg-white text-primary' : 'bg-light text-secondary border' ?> rounded-pill ms-1">
+                            <?= count($damages ?? []) ?>
+                        </span>
+                    </a>
+                </li>
             </ul>
         </div>
 
+        <?php if ($activeTab !== 'damage'): ?>
         <!-- Filter & Search Toolbar -->
         <div class="card-body p-3 border-bottom bg-light">
             <form method="GET" action="<?= \App\Core\Controller::url('/m/purchase_stocks') ?>" class="row g-2 align-items-center">
@@ -225,6 +228,7 @@
                 </div>
             </form>
         </div>
+        <?php endif; ?>
 
         <!-- ============================================== -->
         <!-- TAB SECTION 1: FABRIC ROLLS                    -->
@@ -1083,7 +1087,19 @@
             </div>
         <?php endif; ?>
 
-        <?php if ($activeTab !== 'rolls' && $canEditPurchaseStock): ?>
+        <!-- ============================================== -->
+        <!-- TAB SECTION 4: PURCHASE DAMAGE                 -->
+        <!-- ============================================== -->
+        <?php if ($activeTab === 'damage'): ?>
+            <div class="card-body p-4">
+                <?php
+                    $hideDamageHeader = true;
+                    require __DIR__ . '/purchase_damage.php';
+                ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($activeTab !== 'rolls' && $activeTab !== 'damage' && $canEditPurchaseStock): ?>
             <div class="modal fade" id="editPurchaseStockItemModal" tabindex="-1" aria-labelledby="editPurchaseStockItemModalLabel" aria-hidden="true">
                 <div class="modal-dialog modal-lg modal-dialog-centered">
                     <div class="modal-content">

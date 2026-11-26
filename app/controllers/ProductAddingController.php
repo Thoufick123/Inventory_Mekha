@@ -98,11 +98,11 @@ class ProductAddingController extends Controller
             }
         }
         if ($cid) {
-            $suppliers = DB::fetchAll("SELECT id, code, name, company_name, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
+            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $variants = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
             $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
         } else {
-            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
+            $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
             $variants = DB::fetchAll("SELECT id, concern_id, product_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
             $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
         }
@@ -149,6 +149,8 @@ class ProductAddingController extends Controller
             'hsnSaveUrl' => \App\Core\Controller::url('/m/product_adding/save_hsn'),
             'rollSpecSaveUrl' => \App\Core\Controller::url('/m/product_adding/save_roll_spec'),
             'quickSupplierSaveUrl' => \App\Core\Controller::url('/m/product_adding/suppliers/store'),
+            'quickSupplierUpdateUrl' => \App\Core\Controller::url('/m/product_adding/suppliers/update'),
+            'quickSupplierDeleteUrl' => \App\Core\Controller::url('/m/product_adding/suppliers/delete'),
             'quickCategorySaveUrl' => \App\Core\Controller::url('/m/product_adding/categories/store'),
             'quickAttributeSaveUrl' => \App\Core\Controller::url('/m/product_adding/attributes/store'),
             'allowQuickSupplier' => Auth::isSuperAdmin() || Auth::can('product_adding', 'add'),
@@ -206,7 +208,7 @@ class ProductAddingController extends Controller
         }
         $summary = DB::fetch($summarySql, $summaryParams) ?: [];
 
-        $billSql = "SELECT pb.id, pb.concern_id, pb.bill_no, pb.supplier_invoice_no, pb.bill_date,
+        $billSql = "SELECT pb.id, pb.concern_id, pb.supplier_id, pb.bill_no, pb.supplier_invoice_no, pb.bill_date,
                            pb.total_amount, pb.tax_amount, pb.net_amount, pb.payment_status, pb.inward_status,
                            s.name AS supplier_name, s.company_name AS supplier_company,
                            c.name AS concern_name,
@@ -225,7 +227,7 @@ class ProductAddingController extends Controller
             $billParams[] = $cid;
         }
         $billSql .= ' ORDER BY pb.id DESC';
-        $bills = DB::fetchAll($billSql, $billParams);
+        $bills = PurchaseBillSourceService::attachInvoiceSyncStatus(DB::fetchAll($billSql, $billParams), $cid);
 
         // Fetch 3-Tier Hierarchy, Attributes & HSN Master for Product Adding
         if ($cid) {
