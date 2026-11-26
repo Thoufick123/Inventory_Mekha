@@ -388,7 +388,7 @@ if (!empty($multiLabels)) {
                         <div class="label-qr-box qr-container" data-code="<?= htmlspecialchars($iQr) ?>"></div>
                     </div>
                     <div class="label-details-stack">
-                        <?php if (!empty($hTitle)): ?>
+                        <?php if (!empty($hTitle) && !$isProduction): ?>
                             <div class="label-item-title"><?= htmlspecialchars($hTitle) ?></div>
                         <?php endif; ?>
                         <?php if ($isPurchaseFinishedGoodsLabel): ?>
@@ -495,7 +495,7 @@ if (!empty($multiLabels)) {
                     </div>
 
                     <div class="label-details-stack">
-                        <?php if (!empty($headerTitle)): ?>
+                        <?php if (!empty($headerTitle) && !$isProduction): ?>
                             <div class="label-item-title"><?= htmlspecialchars($headerTitle) ?></div>
                         <?php endif; ?>
                         <?php if ($isPurchaseFinishedGoods): ?>

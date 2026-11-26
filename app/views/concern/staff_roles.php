@@ -40,9 +40,9 @@ $activeTab = $activeTab ?? 'staff';
                 <i class="bi bi-people-fill me-1"></i> View All Staff
             </a>
             <?php if (\App\Core\Auth::can('staff', 'add')): ?>
-            <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCreateRole">
-                <i class="bi bi-plus-circle me-1"></i> Create New Role
-            </button>
+            <a href="<?= \App\Core\Controller::url('/m/staff/roles/create') ?>" class="btn btn-primary shadow-sm">
+                <i class="bi bi-plus-circle me-1"></i> Add New Role
+            </a>
             <?php endif; ?>
         </div>
     </div>

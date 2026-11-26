@@ -842,6 +842,19 @@ class AdminController extends Controller {
         $fromDate   = trim($_GET['from_date'] ?? '');
         $toDate     = trim($_GET['to_date'] ?? '');
 
+        // Resolve concern IDs (supports single ID, array of IDs, or comma-separated string)
+        $selectedConcernIds = [];
+        if (!empty($_GET['concern_ids']) && is_array($_GET['concern_ids'])) {
+            $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($_GET['concern_ids']))));
+        } elseif (!empty($_GET['concern_id'])) {
+            if (is_array($_GET['concern_id'])) {
+                $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($_GET['concern_id']))));
+            } else {
+                $parts = explode(',', (string)$_GET['concern_id']);
+                $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($parts))));
+            }
+        }
+
         $range = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
         $salesDateFilter = "";
@@ -852,6 +865,16 @@ class AdminController extends Controller {
             $endDateEsc = addslashes($range['end_date']);
             $salesDateFilter = " AND si.invoice_date >= '{$startDateEsc}' AND si.invoice_date <= '{$endDateEsc}'";
             $purchaseDateFilter = " AND pb.bill_date >= '{$startDateEsc}' AND pb.bill_date <= '{$endDateEsc}'";
+        }
+
+        $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns ORDER BY name ASC");
+
+        $concernWhere = "";
+        $params = [];
+        if (!empty($selectedConcernIds)) {
+            $placeholders = implode(',', array_fill(0, count($selectedConcernIds), '?'));
+            $concernWhere = " WHERE c.id IN ({$placeholders}) ";
+            $params = $selectedConcernIds;
         }
 
         $concernStats = DB::fetchAll(
@@ -862,27 +885,45 @@ class AdminController extends Controller {
                     (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id {$salesDateFilter}) AS total_sales,
                     (SELECT COALESCE(SUM(net_amount), 0) FROM purchase_bills pb WHERE pb.concern_id = c.id {$purchaseDateFilter}) AS total_purchases
              FROM concerns c
-             ORDER BY c.id ASC"
+             {$concernWhere}
+             ORDER BY c.id ASC",
+            $params
         );
 
         $this->render('admin/reports', [
-            'pageTitle'     => 'Consolidated Multi-Concern Reports',
-            'currentModule' => 'admin_reports',
-            'concernStats'  => $concernStats,
-            'period'        => $period,
-            'singleDate'    => $singleDate,
-            'fromDate'      => $fromDate,
-            'toDate'        => $toDate,
-            'rangeLabel'    => $range['label'],
+            'pageTitle'          => 'Consolidated Multi-Concern Reports',
+            'currentModule'      => 'admin_reports',
+            'concernStats'       => $concernStats,
+            'allConcerns'        => $allConcerns,
+            'selectedConcernIds' => $selectedConcernIds,
+            'selectedConcernId'  => (count($selectedConcernIds) === 1 ? $selectedConcernIds[0] : null),
+            'period'             => $period,
+            'singleDate'         => $singleDate,
+            'fromDate'           => $fromDate,
+            'toDate'             => $toDate,
+            'rangeLabel'         => $range['label'],
         ]);
     }
 
     public function exportReports(): void {
-        $format     = strtolower(trim($_GET['format'] ?? 'excel'));
-        $period     = trim($_GET['period'] ?? 'all');
-        $singleDate = trim($_GET['single_date'] ?? '');
-        $fromDate   = trim($_GET['from_date'] ?? '');
-        $toDate     = trim($_GET['to_date'] ?? '');
+        $format            = strtolower(trim($_GET['format'] ?? 'excel'));
+        $period            = trim($_GET['period'] ?? 'all');
+        $singleDate        = trim($_GET['single_date'] ?? '');
+        $fromDate          = trim($_GET['from_date'] ?? '');
+        $toDate            = trim($_GET['to_date'] ?? '');
+
+        // Resolve concern IDs (supports single ID, array of IDs, or comma-separated string)
+        $selectedConcernIds = [];
+        if (!empty($_GET['concern_ids']) && is_array($_GET['concern_ids'])) {
+            $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($_GET['concern_ids']))));
+        } elseif (!empty($_GET['concern_id'])) {
+            if (is_array($_GET['concern_id'])) {
+                $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($_GET['concern_id']))));
+            } else {
+                $parts = explode(',', (string)$_GET['concern_id']);
+                $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($parts))));
+            }
+        }
 
         $range = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
@@ -896,6 +937,23 @@ class AdminController extends Controller {
             $purchaseDateFilter = " AND pb.bill_date >= '{$startDateEsc}' AND pb.bill_date <= '{$endDateEsc}'";
         }
 
+        $concernWhere = "";
+        $params = [];
+        $targetConcern = null;
+        $selectedConcernsList = [];
+
+        if (!empty($selectedConcernIds)) {
+            $placeholders = implode(',', array_fill(0, count($selectedConcernIds), '?'));
+            $concernWhere = " WHERE c.id IN ({$placeholders}) ";
+            $params = $selectedConcernIds;
+
+            if (count($selectedConcernIds) === 1) {
+                $targetConcern = DB::fetch("SELECT name, code FROM concerns WHERE id = ?", [$selectedConcernIds[0]]);
+            } else {
+                $selectedConcernsList = DB::fetchAll("SELECT name, code FROM concerns WHERE id IN ({$placeholders}) ORDER BY name ASC", $selectedConcernIds);
+            }
+        }
+
         $stats = DB::fetchAll(
             "SELECT c.id, c.code, c.name,
                     (SELECT COUNT(*) FROM variants v WHERE v.concern_id = c.id) AS total_variants,
@@ -904,7 +962,9 @@ class AdminController extends Controller {
                     (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id {$salesDateFilter}) AS total_sales,
                     (SELECT COALESCE(SUM(net_amount), 0) FROM purchase_bills pb WHERE pb.concern_id = c.id {$purchaseDateFilter}) AS total_purchases
              FROM concerns c
-             ORDER BY c.id ASC"
+             {$concernWhere}
+             ORDER BY c.id ASC",
+            $params
         );
 
         $headers = [
@@ -942,27 +1002,44 @@ class AdminController extends Controller {
             ];
         }
 
+        if ($targetConcern) {
+            $scopeLabel = "Concern: {$targetConcern['name']} ({$targetConcern['code']})";
+            $reportTitle = "Performance Report - {$targetConcern['name']}";
+            $cleanCode = preg_replace('/[^a-zA-Z0-9_-]/', '_', $targetConcern['code']);
+            $prefixFileName = 'Report_' . $cleanCode . '_';
+        } elseif (!empty($selectedConcernsList)) {
+            $codes = array_column($selectedConcernsList, 'code');
+            $scopeLabel = "Selected Concerns (" . count($selectedConcernsList) . "): " . implode(', ', $codes);
+            $reportTitle = "Multi-Concern Performance Report (" . count($selectedConcernsList) . " Selected Concerns)";
+            $prefixFileName = 'Performance_Report_' . implode('_', array_slice($codes, 0, 3)) . '_';
+        } else {
+            $scopeLabel = 'Consolidated All Registered Concerns';
+            $reportTitle = 'Consolidated Multi-Concern Performance Report';
+            $prefixFileName = 'Consolidated_Performance_Report_';
+        }
+
         $totalsRow = [
-            'TOTAL CONSOLIDATED', '', count($exportData) . ' Concerns', '', number_format($grandStockQty, 2),
+            'TOTAL CONSOLIDATED', '', count($exportData) . ' Concern(s)', '', number_format($grandStockQty, 2),
             '₹' . number_format($grandValuation, 2), '₹' . number_format($grandPurchases, 2), '₹' . number_format($grandSales, 2)
         ];
 
         $metadata = [
-            'Scope'        => 'Consolidated All Registered Concerns',
+            'Scope'        => $scopeLabel,
             'Period Scope' => $range['label'],
             'Generated By' => Auth::user()['name'] ?? 'Super Administrator',
         ];
 
         $cleanPeriodName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $range['period']);
-        $filename = 'Consolidated_Performance_Report_' . $cleanPeriodName . '_' . date('Ymd_His');
+        $filename = $prefixFileName . $cleanPeriodName . '_' . date('Ymd_His');
 
         if ($format === 'excel' || $format === 'xls' || $format === 'xlsx') {
-            \App\Services\ExportService::downloadExcel($filename, 'Consolidated Multi-Concern Performance Report', $metadata, $headers, $exportData, $totalsRow);
+            \App\Services\ExportService::downloadExcel($filename, $reportTitle, $metadata, $headers, $exportData, $totalsRow);
         } elseif ($format === 'pdf') {
-            \App\Services\ExportService::renderPdfView('Consolidated Multi-Concern Performance Report', $metadata, $headers, $exportData, $totalsRow);
+            \App\Services\ExportService::renderPdfView($reportTitle, $metadata, $headers, $exportData, $totalsRow);
         } else {
             \App\Services\ExportService::downloadCsv($filename, $headers, $exportData, $totalsRow);
         }
+        exit;
     }
 
     public function exportConcerns(): void {

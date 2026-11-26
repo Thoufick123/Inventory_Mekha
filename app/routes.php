@@ -443,6 +443,8 @@ $router->post('/m/cash/shift/close', [FinanceController::class, 'closeShift'], '
 $router->get('/m/staff', [StaffController::class, 'index'], 'staff', 'view');
 $router->get('/m/staff/create', [StaffController::class, 'create'], 'staff', 'add');
 $router->get('/m/staff/roles', [StaffController::class, 'roles'], 'staff', 'view');
+$router->get('/m/staff/roles/create', [StaffController::class, 'createRoleView'], 'staff', 'add');
+$router->post('/m/staff/roles/store', [StaffController::class, 'storeRole'], 'staff', 'add');
 $router->post('/m/staff/assign-role', [StaffController::class, 'assignRole'], 'staff', 'edit');
 $router->post('/m/staff/save-role-permissions', [StaffController::class, 'saveRolePermissions'], 'staff', 'edit');
 $router->post('/m/staff/save-user-permissions', [StaffController::class, 'saveUserPermissions'], 'staff', 'edit');

@@ -1123,6 +1123,7 @@ $canScan = Auth::isSuperAdmin() || Auth::can('stocks', 'add') || Auth::can('labe
                                                     <th>SKU</th>
                                                     <th class="text-center">Pcs</th>
                                                     <th class="text-center">Status</th>
+                                                    <th class="text-end pe-2">Print</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="prod_batch_variant_tbody"></tbody>
@@ -2405,6 +2406,7 @@ function onBatchSelect() {
                 : (isLabelsGenerated 
                     ? '<span class="badge bg-info-subtle text-info border border-info" style="font-size:0.68rem;"><i class="bi bi-tag-fill"></i> Labeled</span>'
                     : '<span class="badge bg-warning-subtle text-warning border border-warning" style="font-size:0.68rem;"><i class="bi bi-clock-history"></i> Pending</span>');
+            const itemId  = item.id || item.stitching_item_id || 0;
             const tr = document.createElement('tr');
             tr.innerHTML =
                 '<td class="text-muted small">' + (idx+1) + '</td>' +
@@ -2412,10 +2414,31 @@ function onBatchSelect() {
                 '<td class="small">' + color + '</td>' +
                 '<td class="small font-monospace">' + sku + '</td>' +
                 '<td class="text-center"><span class="badge bg-success font-monospace">' + pcs + ' pcs</span></td>' +
-                '<td class="text-center">' + statusHtml + '</td>';
+                '<td class="text-center">' + statusHtml + '</td>' +
+                '<td class="text-end pe-2 text-nowrap">' +
+                    '<button type="button" class="btn btn-sm btn-outline-primary py-0 px-1.5 me-1 fw-semibold" style="font-size:0.72rem;" onclick="printSingleProductionVariant(' + itemId + ', 1)" title="Print 1 label for this variant"><i class="bi bi-printer me-1"></i>1</button>' +
+                    '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1.5" style="font-size:0.72rem;" onclick="selectProdItemAndSwitchMode(' + itemId + ')" title="Choose custom label copies (Way 2)"><i class="bi bi-sliders"></i></button>' +
+                '</td>';
             tbody.appendChild(tr);
         });
     }
+}
+
+function printSingleProductionVariant(itemId, qty = 1) {
+    if (!itemId) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= \App\Core\Controller::url('/m/label_generation/generate') ?>';
+    form.target = '_blank';
+    form.innerHTML = `
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+        <input type="hidden" name="label_type" value="production">
+        <input type="hidden" name="item_id" value="${parseInt(itemId, 10)}">
+        <input type="hidden" name="qty" value="${Math.max(1, parseInt(qty, 10) || 1)}">
+    `;
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
 }
 
 // Way 1 form validation
@@ -2611,6 +2634,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 
+function escapeLabelHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+}
+
 function viewLabelJob(jobId) {
     const modalEl = document.getElementById('viewLabelJobModal');
     const bodyEl = document.getElementById('viewLabelJobBody');
@@ -2625,7 +2652,7 @@ function viewLabelJob(jobId) {
     .then(r => r.json())
     .then(data => {
         if (!data || !data.success) {
-            bodyEl.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml((data && data.message) || 'Failed to load job.')}</div>`;
+            bodyEl.innerHTML = `<div class="alert alert-danger mb-0">${escapeLabelHtml((data && data.message) || 'Failed to load job.')}</div>`;
             return;
         }
         const job = data.job || {};
@@ -2640,11 +2667,11 @@ function viewLabelJob(jobId) {
                         <tbody>
                             ${variants.map(v => `
                                 <tr>
-                                    <td class="small fw-semibold">${escapeHtml(v.variant_name || '-')}</td>
-                                    <td class="small">${escapeHtml(v.size || '-')}</td>
+                                    <td class="small fw-semibold">${escapeLabelHtml(v.variant_name || '-')}</td>
+                                    <td class="small">${escapeLabelHtml(v.size || '-')}</td>
                                     <td class="small">₹${parseFloat(v.base_price || 0).toFixed(2)}</td>
                                     <td class="small text-success fw-semibold">₹${parseFloat(v.discount_price || 0).toFixed(2)}</td>
-                                    <td class="small font-monospace text-primary">${escapeHtml(v.qr_code || '-')}</td>
+                                    <td class="small font-monospace text-primary">${escapeLabelHtml(v.qr_code || '-')}</td>
                                     <td class="small text-end fw-bold">${parseInt(v.stitching_qty || 0, 10)}</td>
                                 </tr>
                             `).join('')}
@@ -2655,11 +2682,9 @@ function viewLabelJob(jobId) {
         }
         bodyEl.innerHTML = `
             <div class="row g-3">
-                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Job ID</div><div class="fw-bold font-monospace">#${parseInt(job.id || 0, 10)}</div></div></div>
-                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Batch / Item Code</div><div class="fw-bold font-monospace">${escapeHtml(job.item_code || '-')}</div></div></div>
+                <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Batch / Item Code</div><div class="fw-bold font-monospace">${escapeLabelHtml(job.item_code || '-')}</div></div></div>
                 <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Total Copies</div><div class="fw-bold text-primary">${parseInt(job.qty || 0, 10)} Prints</div></div></div>
-                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">Title</div><div class="fw-semibold">${escapeHtml(job.item_title || '-')}</div></div></div>
-                <div class="col-md-6"><div class="p-2.5 rounded border"><div class="small text-muted">QR Reference</div><div class="font-monospace text-primary">${escapeHtml(job.qr_payload || '-')}</div></div></div>
+                <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">QR Reference</div><div class="font-monospace text-primary">${escapeLabelHtml(job.qr_payload || '-')}</div></div></div>
             </div>
             ${varTable}
         `;
@@ -2692,9 +2717,8 @@ function openDeleteLabelJobModal(button) {
 <div class="modal fade" id="viewLabelJobModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header py-2">
-                <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-eye text-info me-1"></i> Label Job Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header py-2 border-bottom-0">
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="viewLabelJobBody"></div>
         </div>

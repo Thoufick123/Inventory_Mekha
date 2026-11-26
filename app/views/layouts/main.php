@@ -75,6 +75,42 @@
         #sidebar .nav-link i {
             font-size: 1.1rem;
         }
+        #sidebar .nav-sublink {
+            color: #94a3b8;
+            padding: 0.45rem 1.5rem 0.45rem 3.1rem;
+            display: flex;
+            align-items: center;
+            font-size: 0.84rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        #sidebar .nav-sublink:hover {
+            color: #ffffff;
+            background: var(--sidebar-hover);
+        }
+        #sidebar .nav-sublink.active {
+            color: #ffffff;
+            background: var(--sidebar-active);
+            font-weight: 600;
+        }
+        #sidebar .nav-group-toggle {
+            cursor: pointer;
+            user-select: none;
+            width: 100%;
+            border: none;
+            background: transparent;
+            text-align: left;
+        }
+        #sidebar .nav-group-toggle .arrow-icon {
+            transition: transform 0.2s ease;
+            font-size: 0.8rem;
+            margin-left: auto;
+        }
+        #sidebar .nav-group-toggle[aria-expanded="true"] .arrow-icon,
+        #sidebar .nav-group-toggle:not(.collapsed) .arrow-icon {
+            transform: rotate(180deg);
+        }
         #main-content {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
@@ -312,18 +348,32 @@
                 <?php endforeach; ?>
             <?php endforeach; ?>
 
-            <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'view')): ?>
-            <div class="nav-group-title">Staff</div>
-            <a href="<?= \App\Core\Controller::url('/m/staff') ?>" class="nav-link <?= (isset($currentModule) && $currentModule === 'staff' && (empty($currentSubModule) || $currentSubModule === 'all')) ? 'active' : '' ?>">
-                <i class="bi bi-people-fill"></i>
-                <span>All Staff</span>
-            </a>
-            <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'add')): ?>
-            <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="nav-link <?= (isset($currentModule) && $currentModule === 'staff' && isset($currentSubModule) && $currentSubModule === 'create') ? 'active' : '' ?>">
-                <i class="bi bi-person-plus-fill"></i>
-                <span>Add New Staff</span>
-            </a>
-            <?php endif; ?>
+            <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'view')): 
+                $isStaffActive = (isset($currentModule) && $currentModule === 'staff') || str_contains($activeRoute, '/m/staff');
+                $isAddStaffActive = (isset($currentModule) && $currentModule === 'staff' && isset($currentSubModule) && $currentSubModule === 'create') || str_contains($activeRoute, '/m/staff/create');
+                $isTotalStaffActive = (isset($currentModule) && $currentModule === 'staff' && (empty($currentSubModule) || $currentSubModule === 'all')) && !str_contains($activeRoute, '/m/staff/create') && !str_contains($activeRoute, '/m/staff/roles');
+                $isRolesActive = (isset($currentModule) && $currentModule === 'staff' && isset($currentSubModule) && $currentSubModule === 'roles') || str_contains($activeRoute, '/m/staff/roles');
+            ?>
+            <button class="nav-link nav-group-toggle <?= $isStaffActive ? '' : 'collapsed' ?>" type="button" data-bs-toggle="collapse" data-bs-target="#submenuStaff" aria-expanded="<?= $isStaffActive ? 'true' : 'false' ?>" aria-controls="submenuStaff">
+                <i class="bi bi-people"></i>
+                <span>Staff</span>
+                <i class="bi bi-chevron-down arrow-icon"></i>
+            </button>
+            <div class="collapse <?= $isStaffActive ? 'show' : '' ?>" id="submenuStaff">
+                <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'add')): ?>
+                <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="nav-sublink <?= $isAddStaffActive ? 'active' : '' ?>">
+                    <span>Add Staff</span>
+                </a>
+                <?php endif; ?>
+                <a href="<?= \App\Core\Controller::url('/m/staff') ?>" class="nav-sublink <?= $isTotalStaffActive ? 'active' : '' ?>">
+                    <span>Total Staffs</span>
+                </a>
+                <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'view')): ?>
+                <a href="<?= \App\Core\Controller::url('/m/staff/roles') ?>" class="nav-sublink <?= $isRolesActive ? 'active' : '' ?>">
+                    <span>Role Assign / Permissions</span>
+                </a>
+                <?php endif; ?>
+            </div>
             <?php endif; ?>
             <?php if ($isSuperAdmin): ?>
             <a href="<?= \App\Core\Controller::url('/admin/concerns') ?>" class="nav-link <?= (str_contains($activeRoute, 'admin/concerns') || (isset($currentModule) && $currentModule === 'admin_concerns')) ? 'active' : '' ?>">

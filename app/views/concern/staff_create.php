@@ -28,13 +28,13 @@ foreach ($modules as $m) {
                 <i class="bi bi-person-plus-fill"></i>
             </div>
             <div>
-                <h4 class="fw-bold mb-0 text-dark">Add New Staff Member</h4>
-                <p class="text-secondary small mb-0">Register employee profile, business concern assignment, role permissions & system login credentials.</p>
+                <h4 class="fw-bold mb-0 text-dark">Create New Staff Member</h4>
+                <p class="text-secondary small mb-0">Add a team member and assign View, Create, Edit, or Delete access.</p>
             </div>
         </div>
         <div>
             <a href="<?= \App\Core\Controller::url('/m/staff' . ($selectedCid ? '?concern_id=' . $selectedCid : '')) ?>" class="btn btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1.5 shadow-sm fw-semibold">
-                <i class="bi bi-arrow-left"></i> Back to All Staff
+                <i class="bi bi-arrow-left"></i> Back to Staff Directory
             </a>
         </div>
     </div>
@@ -45,22 +45,143 @@ foreach ($modules as $m) {
             <div class="card border-0 shadow-sm rounded-4 bg-white" style="border: 1px solid #e2e8f0 !important;">
                 <div class="card-header bg-white py-3 px-4 border-bottom">
                     <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
-                        <i class="bi bi-person-vcard text-primary fs-5"></i> Employee Details & Account Credentials
+                        <i class="bi bi-person-fill-gear text-primary fs-5"></i> Personal Details & Credentials
                     </h6>
                 </div>
 
                 <form action="<?= \App\Core\Controller::url('/m/staff/store') ?>" method="POST" class="card-body p-4" autocomplete="off">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
 
-                    <!-- 1. BUSINESS CONCERN ASSIGNMENT -->
+                    <!-- ROW 1: Full Name & Assign System Role -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                Full Name <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
+                                    <i class="bi bi-person"></i>
+                                </span>
+                                <input type="text" name="name" id="staff_create_name" class="form-control border-start-0" placeholder="e.g. Rahul Sharma" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                Assign System Role <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
+                                    <i class="bi bi-shield-check"></i>
+                                </span>
+                                <input type="text" name="role_name" id="staff_role_input" class="form-control border-start-0 border-end-0" placeholder="Type or select role..." list="role_datalist" value="<?php
+                                    $curRoleVal = '';
+                                    if (!empty($oldInput['role_name'])) {
+                                        $curRoleVal = $oldInput['role_name'];
+                                    } elseif (!empty($oldInput['role_id'])) {
+                                        foreach ($roles as $r) {
+                                            if ((int)$r['id'] === (int)$oldInput['role_id']) {
+                                                $curRoleVal = $r['name'];
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    echo htmlspecialchars($curRoleVal);
+                                ?>" required autocomplete="off" oninput="onRoleInputChanged(this.value)">
+                                <input type="hidden" name="role_id" id="staff_create_role_id" value="<?= htmlspecialchars($oldInput['role_id'] ?? '') ?>">
+                                <button class="btn btn-outline-secondary dropdown-toggle border-start-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 0 8px 8px 0;">
+                                    <span class="visually-hidden">Toggle Dropdown</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                                    <li><h6 class="dropdown-header text-uppercase small" style="font-size: 0.68rem;">Existing System Roles</h6></li>
+                                    <?php foreach ($roles as $r): ?>
+                                        <li>
+                                            <button class="dropdown-item d-flex justify-content-between align-items-center" type="button" onclick="selectRoleCombobox('<?= (int)$r['id'] ?>', '<?= htmlspecialchars(addslashes($r['name'])) ?>')">
+                                                <span><?= htmlspecialchars($r['name']) ?></span>
+                                                <span class="badge bg-light text-muted border font-monospace ms-2" style="font-size: 0.68rem;">Role #<?= $r['id'] ?></span>
+                                            </button>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                                <datalist id="role_datalist">
+                                    <?php foreach ($roles as $r): ?>
+                                        <option value="<?= htmlspecialchars($r['name']) ?>" data-id="<?= (int)$r['id'] ?>"></option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ROW 2: Email Address & Password -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                Email Address <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
+                                    <i class="bi bi-envelope"></i>
+                                </span>
+                                <input type="email" name="email" id="staff_create_email" class="form-control border-start-0" placeholder="rahul@example.com" value="<?= htmlspecialchars($oldInput['email'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                Password <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
+                                    <i class="bi bi-key"></i>
+                                </span>
+                                <input type="password" name="password" id="staff_create_password" class="form-control border-start-0 border-end-0" placeholder="••••••••" value="<?= htmlspecialchars($oldInput['password'] ?? '') ?>" required autocomplete="new-password">
+                                <button class="btn btn-outline-secondary border-start-0" type="button" onclick="toggleCreatePassword(this)" style="border-radius: 0 8px 8px 0;">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ROW 3: Phone Number & Employment Status -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-bold text-secondary mb-0">
+                                    <i class="bi bi-telephone text-primary me-1"></i> Phone Number
+                                </label>
+                                <span id="phone_digit_counter" class="badge bg-light text-muted border font-monospace" style="font-size: 0.72rem;">0 / 10 digits</span>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted font-semibold" style="border-radius: 8px 0 0 8px;">+91</span>
+                                <input type="tel" name="phone" id="staff_create_phone" maxlength="10" class="form-control border-start-0 border-end-0 font-monospace" placeholder="10-digit mobile number" value="<?= htmlspecialchars($oldInput['phone'] ?? '') ?>" oninput="updatePhoneCounter(this)" autocomplete="off">
+                                <span class="input-group-text bg-white border-start-0 text-muted" style="border-radius: 0 8px 8px 0;">#</span>
+                            </div>
+                            <div class="form-text text-muted small mt-1" style="font-size: 0.73rem;">
+                                Only 10-digit numeric mobile numbers (starting with 6-9). Letters and duplicate numbers are rejected.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                Employment Status
+                            </label>
+                            <select name="status" class="form-select" style="border-radius: 8px;">
+                                <option value="active" <?= ($oldInput['status'] ?? 'active') === 'active' ? 'selected' : '' ?>>Active (Can login & operate)</option>
+                                <option value="inactive" <?= ($oldInput['status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Inactive (Disabled)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- ROW 4: Select Department / Operational Concern -->
                     <div class="mb-4 p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
                         <input type="hidden" name="concern_id" id="staff_concern_id" value="">
+                        <input type="hidden" name="designation" id="staff_create_designation" value="">
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                             <label class="small fw-bold text-dark text-uppercase mb-0 d-flex align-items-center gap-1.5" style="font-size: 0.78rem; letter-spacing: 0.05em;">
-                                <i class="bi bi-buildings-fill text-primary"></i> 1. Authorized Business Concerns *
+                                <i class="bi bi-buildings-fill text-primary"></i> Select Department / Operational Concern *
                             </label>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <div class="input-group input-group-sm" style="max-width: 220px;">
+                                <span class="text-muted small d-inline-flex align-items-center gap-1" style="font-size: 0.75rem;">
+                                    <i class="bi bi-info-circle text-primary"></i> Auto-scoped based on assigned role
+                                </span>
+                                <div class="input-group input-group-sm" style="max-width: 200px;">
                                     <span class="input-group-text bg-white border-end-0 py-0.5 px-2 text-secondary" style="border-radius: 6px 0 0 6px;">
                                         <i class="bi bi-search"></i>
                                     </span>
@@ -97,66 +218,6 @@ foreach ($modules as $m) {
                         </div>
                         <div id="no_concerns_match_msg" class="text-muted small text-center py-2" style="display: none;">
                             <i class="bi bi-search me-1"></i> No matching concerns found.
-                        </div>
-                    </div>
-
-                    <!-- 2. FULL NAME & DESIGNATION -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-person me-1 text-primary"></i> Full Name *
-                            </label>
-                            <input type="text" name="name" id="staff_create_name" class="form-control" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required autocomplete="one-time-code" readonly onfocus="this.removeAttribute('readonly');" onmouseover="this.removeAttribute('readonly');" style="border-radius: 8px;">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-briefcase me-1 text-primary"></i> Role Assign *
-                            </label>
-                            <input type="text" name="designation" id="staff_create_designation" class="form-control" value="<?= htmlspecialchars($oldInput['designation'] ?? '') ?>" required autocomplete="off" style="border-radius: 8px;">
-                        </div>
-                    </div>
-
-
-
-                    <!-- 4. EMAIL & LOGIN PASSWORD -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-envelope me-1 text-primary"></i> Email Address (Login ID) *
-                            </label>
-                            <input type="email" name="email" id="staff_create_email" class="form-control" value="<?= htmlspecialchars($oldInput['email'] ?? '') ?>" required autocomplete="one-time-code" readonly onfocus="this.removeAttribute('readonly');" onmouseover="this.removeAttribute('readonly');" style="border-radius: 8px;">
-                            <small class="text-muted" style="font-size: 0.72rem;">Used for user authentication into the ERP.</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-lock me-1 text-primary"></i> Password *
-                            </label>
-                            <div class="input-group">
-                                <input type="password" name="password" id="staff_create_password" class="form-control border-end-0" value="<?= htmlspecialchars($oldInput['password'] ?? '') ?>" required autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');" onmouseover="this.removeAttribute('readonly');" style="border-radius: 8px 0 0 8px;">
-                                <button class="btn btn-outline-secondary border-start-0" type="button" onclick="toggleCreatePassword(this)" style="border-radius: 0 8px 8px 0;">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                            </div>
-                            <small class="text-muted" style="font-size: 0.72rem;">Minimum 6 characters recommended.</small>
-                        </div>
-                    </div>
-
-                    <!-- 5. PHONE NUMBER & STATUS -->
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-telephone me-1 text-primary"></i> Mobile / Phone Number *
-                            </label>
-                            <input type="tel" name="phone" id="staff_create_phone" maxlength="10" class="form-control font-monospace" value="<?= htmlspecialchars($oldInput['phone'] ?? '') ?>" required autocomplete="one-time-code" readonly onfocus="this.removeAttribute('readonly');" onmouseover="this.removeAttribute('readonly');" style="border-radius: 8px;">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size: 0.74rem;">
-                                <i class="bi bi-toggle-on me-1 text-primary"></i> Employment Status *
-                            </label>
-                            <select name="status" class="form-select" required style="border-radius: 8px;">
-                                <option value="active" <?= ($oldInput['status'] ?? 'active') === 'active' ? 'selected' : '' ?>>Active (Can login & operate)</option>
-                                <option value="inactive" <?= ($oldInput['status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Inactive (Disabled)</option>
-                            </select>
                         </div>
                     </div>
 
@@ -749,6 +810,75 @@ function toggleCreatePassword(btn) {
         if (icon) {
             icon.className = 'bi bi-eye';
         }
+    }
+}
+
+function updatePhoneCounter(input) {
+    if (!input) return;
+    input.value = input.value.replace(/[^0-9]/g, '');
+    const len = input.value.length;
+    const badge = document.getElementById('phone_digit_counter');
+    if (badge) {
+        badge.textContent = len + ' / 10 digits';
+        if (len === 10) {
+            badge.className = 'badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 font-monospace';
+        } else {
+            badge.className = 'badge bg-light text-muted border font-monospace';
+        }
+    }
+}
+
+function selectRoleCombobox(roleId, roleName) {
+    const roleInput = document.getElementById('staff_role_input');
+    const roleIdInput = document.getElementById('staff_create_role_id');
+    if (roleInput) roleInput.value = roleName;
+    if (roleIdInput) roleIdInput.value = roleId;
+    applyRolePermissions(roleId);
+}
+
+function onRoleInputChanged(val) {
+    const roleIdInput = document.getElementById('staff_create_role_id');
+    const term = (val || '').trim().toLowerCase();
+    
+    // Check if entered text matches an existing role in the datalist
+    let foundId = '';
+    const datalist = document.getElementById('role_datalist');
+    if (datalist) {
+        for (const opt of datalist.options) {
+            if (opt.value.trim().toLowerCase() === term) {
+                foundId = opt.getAttribute('data-id') || '';
+                break;
+            }
+        }
+    }
+    if (roleIdInput) {
+        roleIdInput.value = foundId;
+    }
+    if (foundId) {
+        applyRolePermissions(foundId);
+    }
+}
+
+function applyRolePermissions(roleId) {
+    if (!roleId || !window.allRolePerms) return;
+    const roleIdInt = parseInt(roleId);
+    const rPerms = window.allRolePerms[roleIdInt] || {};
+    
+    // Auto populate permissions for active concern
+    const selectedCids = getSelectedConcernIds();
+    selectedCids.forEach(cid => {
+        if (!window.concernPerms[cid]) window.concernPerms[cid] = {};
+        const allowed = window.concernModules[cid] || [];
+        allowed.forEach(mid => {
+            if (rPerms[mid]) {
+                window.concernPerms[cid][mid] = { ...rPerms[mid] };
+            }
+        });
+    });
+
+    if (window.activeConcernId) {
+        loadConcernPermsToMatrix(window.activeConcernId);
+        updateHeaderCheckboxesState();
     }
 }
 
