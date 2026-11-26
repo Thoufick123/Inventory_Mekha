@@ -587,7 +587,7 @@ if ($isEdit && !empty($existingItems)) {
             <div class="card-body p-4">
                 <div class="row g-3 mb-3">
                     <?php if (empty($selectedCid)): ?>
-                        <div class="col-md-3">
+                        <div class="col-lg-3 col-md-6">
                             <label class="form-label small fw-semibold">Target Concern <span class="text-danger">*</span></label>
                             <select name="concern_id" id="billConcernId" class="form-select" required>
                                 <option value="">-- Choose Concern --</option>
@@ -601,7 +601,7 @@ if ($isEdit && !empty($existingItems)) {
                         </div>
                     <?php endif; ?>
 
-                    <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
+                    <div class="<?= empty($selectedCid) ? 'col-lg-4 col-md-6' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold">Supplier <span class="text-danger">*</span></label>
                         <?php
                             $selectedSupplierLabel = '';
@@ -614,7 +614,7 @@ if ($isEdit && !empty($existingItems)) {
                                 }
                             }
                         ?>
-                        <div class="input-group">
+                        <div class="input-group flex-nowrap">
                             <select name="supplier_id" id="supplierSelect" class="d-none" required>
                                 <option value="">-- Select registered supplier --</option>
                                 <?php foreach ($suppliers as $sup): ?>
@@ -623,34 +623,34 @@ if ($isEdit && !empty($existingItems)) {
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="position-relative flex-grow-1">
+                            <div class="position-relative flex-grow-1" style="min-width: 0;">
                                 <input type="text"
                                        id="supplierSearchInput"
-                                       class="form-control"
+                                       class="form-control rounded-end-0"
                                        placeholder="Type supplier name, company or phone..."
                                        autocomplete="off"
                                        value="<?= htmlspecialchars($selectedSupplierLabel) ?>">
                                 <div id="supplierAutocompleteMenu" class="dropdown-menu w-100 shadow-sm" style="max-height: 240px; overflow-y: auto;"></div>
                             </div>
-                            <button type="button" class="btn btn-outline-secondary" id="viewSupplierBtn" title="View Suppliers">
-                                <i class="bi bi-eye me-1"></i> View
+                            <button type="button" class="btn btn-outline-secondary px-2 text-nowrap" id="viewSupplierBtn" title="View Suppliers">
+                                <i class="bi bi-eye"></i> View
                             </button>
                             <?php if (!empty($allowQuickSupplier)): ?>
-                                <button type="button" class="btn btn-outline-primary" id="openQuickSupplier" data-bs-toggle="modal" data-bs-target="#modalQuickSupplier">
-                                    <i class="bi bi-plus-lg me-1"></i> Add New
+                                <button type="button" class="btn btn-outline-primary px-2 text-nowrap" id="openQuickSupplier" data-bs-toggle="modal" data-bs-target="#modalQuickSupplier">
+                                    <i class="bi bi-plus-lg"></i> Add New
                                 </button>
                             <?php endif; ?>
                         </div>
                         <div class="invalid-feedback">Please choose a supplier.</div>
                     </div>
 
-                    <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
+                    <div class="<?= empty($selectedCid) ? 'col-lg-2 col-md-6' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold">Purchase Date <span class="text-danger">*</span></label>
                         <input type="date" name="bill_date" class="form-control" value="<?= htmlspecialchars($isEdit ? $bill['bill_date'] : date('Y-m-d')) ?>" required>
                         <div class="invalid-feedback">Valid purchase date is required.</div>
                     </div>
 
-                    <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
+                    <div class="<?= empty($selectedCid) ? 'col-lg-3 col-md-6' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold">Invoice / Bill Number <span class="text-danger">*</span></label>
                         <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
                         <div class="invalid-feedback" id="billSupplierInvoiceFeedback" aria-live="polite">Invoice / Bill number is required.</div>
@@ -689,7 +689,7 @@ if ($isEdit && !empty($existingItems)) {
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small fw-bold text-dark">Stock Status</label>
-                        <div class="form-control form-control-sm bg-white text-muted">Pending - use Label Generation to add stock</div>
+                        <div class="form-control form-control-sm bg-white text-muted text-truncate" title="Pending - use Label Generation to add stock">Pending - use Label Generation to add stock</div>
                     </div>
                 </div>
 
