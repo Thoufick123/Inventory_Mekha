@@ -7111,7 +7111,9 @@ class ProductionController extends Controller {
             return;
         }
 
-        // Fetch completed or in-progress stitching batches ready for QC
+        $savedQcId = (int)($_GET['qc_id'] ?? 0);
+
+        // Fetch completed or in-progress stitching batches that have not already been submitted to QC
         $batchSql = "
             SELECT sl.*,
                    COALESCE(sl.batch_no, sl.log_no) AS display_batch_no,
@@ -7120,8 +7122,14 @@ class ProductionController extends Controller {
                    COALESCE((SELECT SUM(stitching_qty) FROM stitching_items WHERE stitching_id = sl.id), sl.stitched_pieces, 0) AS total_pieces
             FROM stitching_logs sl
             LEFT JOIN production_programs pp ON sl.program_id = pp.id
-            WHERE (sl.status != 'cancelled' OR sl.status IS NULL)";
-        $batchParams = [];
+            WHERE (sl.status != 'cancelled' OR sl.status IS NULL)
+              AND NOT EXISTS (
+                  SELECT 1 FROM qc_inspections qi
+                  WHERE qi.stitching_batch_id = sl.id
+                    AND (qi.status IS NULL OR qi.status != 'CANCELLED')
+                    AND qi.id != ?
+              )";
+        $batchParams = [$savedQcId];
         if ($cid) {
             $batchSql .= " AND (sl.concern_id = ? OR sl.concern_id IS NULL)";
             $batchParams[] = $cid;
@@ -7171,7 +7179,6 @@ class ProductionController extends Controller {
         }
 
         $savedQc = null;
-        $savedQcId = (int)($_GET['qc_id'] ?? 0);
         if ($savedQcId > 0 && $selectedStitchingId > 0) {
             $savedQcSql = "
                 SELECT id, qc_no, status, concern_id, stitching_batch_id, defect_notes
