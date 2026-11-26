@@ -117,6 +117,9 @@ class InwardController extends Controller {
             if (!in_array('destination_concern_id', $outCols)) {
                 DB::query("ALTER TABLE `outwards` ADD COLUMN `destination_concern_id` INT NULL AFTER `transfer_type`");
             }
+            if (!in_array('damage_transfer', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `damage_transfer` TINYINT(1) NOT NULL DEFAULT 0 AFTER `destination_concern_id`");
+            }
             if (!in_array('gate_pass_no', $outCols)) {
                 DB::query("ALTER TABLE `outwards` ADD COLUMN `gate_pass_no` VARCHAR(50) NULL AFTER `lr_number`");
             }
@@ -182,6 +185,7 @@ class InwardController extends Controller {
                    o.created_at,
                    o.status AS outward_status,
                    o.destination_concern_id,
+                   COALESCE(o.damage_transfer, 0) AS damage_transfer,
                    coalesce(b.id, pob.batch_id, 0) AS batch_id,
                    coalesce(b.batch_no, concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
                    coalesce(pob.cartons_count, b.total_boxes, 1) AS total_boxes,
@@ -349,6 +353,8 @@ class InwardController extends Controller {
                    COALESCE(NULLIF(pu.code, ''), '—') AS source_unit_code,
                    COALESCE(NULLIF(pu.location, ''), '—') AS source_unit_location,
                    COALESCE(NULLIF(pu.manager_name, ''), '—') AS manager_name,
+                   COALESCE(NULLIF(src_con.name, ''), '—') AS source_concern_name,
+                   COALESCE(NULLIF(src_con.code, ''), '—') AS source_concern_code,
                    COALESCE(NULLIF(dest_con.name, ''), '—') AS dest_warehouse_name,
                    COALESCE(NULLIF(dest_con.code, ''), '—') AS dest_warehouse_code,
                    coalesce(b.batch_no, (SELECT batch_no FROM batches WHERE id = (SELECT batch_id FROM production_outward_batches WHERE outward_id = o.id LIMIT 1)), concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
@@ -356,6 +362,7 @@ class InwardController extends Controller {
                    COALESCE(NULLIF(pp.program_name, ''), '—') AS program_name
             FROM outwards o
             LEFT JOIN production_units pu ON o.production_unit_id = pu.id
+            LEFT JOIN concerns src_con ON o.concern_id = src_con.id
             LEFT JOIN concerns dest_con ON o.destination_concern_id = dest_con.id
             LEFT JOIN production_outward_batches pob ON o.id = pob.outward_id
             LEFT JOIN batches b ON pob.batch_id = b.id
@@ -482,7 +489,9 @@ class InwardController extends Controller {
         unset($item);
 
         $pendingMissing = max(0, $totalDispatched - $totalCredited - $totalDamaged);
-        $verificationMatch = $totalDispatched > 0 ? round(($totalCredited / $totalDispatched) * 100) : 0;
+        $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
+        $receivedQtyForMatch = $isDamageTransfer ? $totalDamaged : $totalCredited;
+        $verificationMatch = $totalDispatched > 0 ? round(($receivedQtyForMatch / $totalDispatched) * 100) : 0;
 
         $this->render('concern/inward_scan', [
             'pageTitle'          => "Cross-Check Batch #{$outward['batch_no']}",

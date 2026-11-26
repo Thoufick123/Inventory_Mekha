@@ -13,6 +13,8 @@ use App\Services\DamageService;
 use Exception;
 
 class DamageController extends Controller {
+    private static bool $damageOutwardSchemaEnsured = false;
+
     public function index(): void {
         \App\Services\StockService::consolidateLegacyLocations();
         $cid = $this->requestConcernId();
@@ -147,6 +149,257 @@ class DamageController extends Controller {
         ]);
     }
 
+    public function outward(): void {
+        ModuleGuard::enforce('concern_damage', 'add');
+        $this->ensureDamageOutwardSchema();
+        $cid = $this->requestConcernId();
+        $allConcerns = DB::fetchAll(
+            "SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY name ASC"
+        );
+        $outwardSql = "SELECT o.id, o.outward_no, o.destination_concern_id, o.status, o.created_at,
+                              c.name AS destination_name,
+                              COALESCE(SUM(oi.qty), 0) AS total_qty
+                       FROM outwards o
+                       LEFT JOIN concerns c ON c.id = o.destination_concern_id
+                       LEFT JOIN outward_items oi ON oi.outward_id = o.id
+                       WHERE o.damage_transfer = 1";
+        $outwardParams = [];
+        if ($cid) {
+            $outwardSql .= " AND o.concern_id = ?";
+            $outwardParams[] = $cid;
+        }
+        $outwardSql .= " GROUP BY o.id ORDER BY o.id DESC LIMIT 50";
+
+        $this->render('concern/concern_damage_outward', [
+            'pageTitle' => 'Damage Outward',
+            'currentModule' => 'concern_damage',
+            'selectedCid' => $cid,
+            'allConcerns' => $allConcerns,
+            'outwards' => DB::fetchAll($outwardSql, $outwardParams),
+        ]);
+    }
+
+    public function scanOutward(): void {
+        ModuleGuard::enforce('concern_damage', 'add');
+        $this->validateCsrf();
+        $this->ensureDamageOutwardSchema();
+        $concernId = $this->requestConcernId();
+        $rawTagCode = $_POST['tag_code'] ?? '';
+        $tagCode = is_scalar($rawTagCode) ? strtoupper(trim((string)$rawTagCode)) : '';
+        if (!$concernId || $tagCode === '' || strlen($tagCode) > 100) {
+            $this->renderJson(['success' => false, 'message' => 'Select a concern and scan a damaged-stock label.'], 422);
+            return;
+        }
+
+        try {
+            $variant = $this->resolveConcernDamageTag($concernId, $tagCode);
+            $stockRows = $this->getVariantDamagedStockRows($concernId, (int)$variant['id']);
+            $availableQty = (int)floor(array_sum(array_map(
+                static fn(array $stock): float => (float)$stock['qty'],
+                $stockRows
+            )));
+            if ($availableQty <= 0) {
+                throw new \RuntimeException('This label has no available damaged stock in the selected concern.');
+            }
+            $this->renderJson([
+                'success' => true,
+                'item' => [
+                    'variant_id' => (int)$variant['id'],
+                    'tag_code' => $tagCode,
+                    'product_code' => (string)$variant['product_code'],
+                    'variant_name' => (string)$variant['name'],
+                    'category_name' => (string)($variant['category_name'] ?? 'General'),
+                    'size' => (string)($variant['size'] ?? ''),
+                    'available_qty' => $availableQty,
+                ],
+            ]);
+        } catch (\RuntimeException $e) {
+            $this->renderJson(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function storeOutward(): void {
+        ModuleGuard::enforce('concern_damage', 'add');
+        $this->validateCsrf();
+        $this->ensureDamageOutwardSchema();
+        $concernId = $this->requestConcernId();
+        $destinationConcernId = (int)($_POST['destination_concern_id'] ?? 0);
+        $vehicleNumber = trim((string)($_POST['vehicle_number'] ?? ''));
+        $driverName = trim((string)($_POST['driver_name'] ?? ''));
+        $driverContact = trim((string)($_POST['driver_contact'] ?? ''));
+        $transporterName = trim((string)($_POST['transporter_name'] ?? ''));
+        $notes = trim((string)($_POST['notes'] ?? ''));
+        $rawTotalBoxes = $_POST['total_boxes'] ?? '';
+        $rawItems = $_POST['scanned_items_json'] ?? '';
+        $items = is_string($rawItems) ? json_decode($rawItems, true) : null;
+
+        $redirectUrl = '/m/concern_damage/outward' . (Auth::isSuperAdmin() && $concernId ? '?concern_id=' . $concernId : '');
+        $transactionStarted = false;
+        try {
+            $compactVehicleNumber = preg_replace('/[\s-]+/', '', strtoupper($vehicleNumber));
+            if (
+                !$concernId ||
+                $destinationConcernId <= 0 ||
+                $destinationConcernId === $concernId
+            ) {
+                throw new \RuntimeException('Select a source concern and a different destination concern.');
+            }
+            if (
+                $compactVehicleNumber === null ||
+                !preg_match('/^(?:[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$/D', $compactVehicleNumber)
+            ) {
+                throw new \RuntimeException('Enter a valid vehicle registration number, such as TN 12 AB 1234.');
+            }
+            if ($driverName !== '' && !preg_match("/^[\\p{L}\\p{M}][\\p{L}\\p{M} .'-]{0,99}$/u", $driverName)) {
+                throw new \RuntimeException('Driver name must contain only letters, spaces, apostrophes, periods, or hyphens.');
+            }
+            if ($driverContact !== '' && !preg_match('/^[6-9][0-9]{9}$/D', $driverContact)) {
+                throw new \RuntimeException('Driver contact must be a valid 10-digit Indian mobile number.');
+            }
+            if (strlen($transporterName) > 150 || strlen($notes) > 2000) {
+                throw new \RuntimeException('Transporter name or notes exceed the allowed length.');
+            }
+            if (!is_scalar($rawTotalBoxes) || !preg_match('/^\d+$/D', trim((string)$rawTotalBoxes)) ||
+                (int)$rawTotalBoxes < 1 || (int)$rawTotalBoxes > 99999) {
+                throw new \RuntimeException('Total boxes/cartons must be a whole number between 1 and 99999.');
+            }
+            if (!is_array($items) || !$items || count($items) > 500) {
+                throw new \RuntimeException('Scan at least one damaged-stock item before dispatching.');
+            }
+            if (!DB::fetch("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$destinationConcernId])) {
+                throw new \RuntimeException('The selected destination concern does not exist or is inactive.');
+            }
+
+            $quantitiesByVariant = [];
+            foreach ($items as $item) {
+                if (!is_array($item) || !is_scalar($item['variant_id'] ?? null) || !is_scalar($item['qty'] ?? null) ||
+                    !is_numeric($item['qty'])) {
+                    throw new \RuntimeException('The scanned damage outward items are invalid. Please scan them again.');
+                }
+                $variantId = filter_var($item['variant_id'], FILTER_VALIDATE_INT);
+                $qty = (float)$item['qty'];
+                if (!$variantId || $variantId < 1 || !is_finite($qty) || $qty < 1 || abs($qty - round($qty)) > 0.000001) {
+                    throw new \RuntimeException('Each damaged-stock quantity must be a whole number greater than zero.');
+                }
+                $quantitiesByVariant[(int)$variantId] = ($quantitiesByVariant[(int)$variantId] ?? 0) + $qty;
+            }
+
+            DB::beginTransaction();
+            $transactionStarted = true;
+            $source = DB::fetch(
+                "SELECT id FROM concerns WHERE id = ? AND status = 'active' FOR UPDATE",
+                [$concernId]
+            );
+            $destination = DB::fetch(
+                "SELECT id, name FROM concerns WHERE id = ? AND status = 'active' FOR UPDATE",
+                [$destinationConcernId]
+            );
+            if (!$source) {
+                throw new \RuntimeException('The selected source concern is no longer active.');
+            }
+            if (!$destination || $destinationConcernId === $concernId) {
+                throw new \RuntimeException('The selected destination concern is no longer available.');
+            }
+
+            $today = date('Ymd');
+            $sequence = (int)DB::fetchValue(
+                "SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?",
+                ["OUT-{$today}-%"]
+            ) + 1;
+            $outwardNo = 'OUT-' . $today . '-' . str_pad((string)$sequence, 4, '0', STR_PAD_LEFT);
+            $gatePassNo = 'GP-' . $today . '-' . str_pad((string)$sequence, 4, '0', STR_PAD_LEFT);
+            $productionUnitId = (int)DB::fetchValue(
+                "SELECT id FROM production_units WHERE concern_id = ? ORDER BY id ASC LIMIT 1",
+                [$concernId]
+            ) ?: 1;
+
+            DB::query(
+                "INSERT INTO outwards (
+                    concern_id, production_unit_id, outward_no, gate_pass_no, transfer_type,
+                    destination_concern_id, outward_date, location, warehouse_name, total_boxes,
+                    vehicle_number, driver_name, driver_contact, transporter_name, notes,
+                    status, dispatched_at, created_by, damage_transfer, created_at
+                 ) VALUES (?, ?, ?, ?, 'concern', ?, CURDATE(), 'Damage Stock', ?, ?, ?, ?, ?, ?, ?, 'DISPATCHED', NOW(), ?, 1, NOW())",
+                [
+                    $concernId, $productionUnitId, $outwardNo, $gatePassNo,
+                    $destinationConcernId, $destination['name'], (int)$rawTotalBoxes,
+                    $vehicleNumber, $driverName, $driverContact, $transporterName,
+                    $notes, Auth::id(),
+                ]
+            );
+            $outwardId = (int)DB::lastInsertId();
+
+            foreach ($quantitiesByVariant as $variantId => $requestedQty) {
+                $variant = DB::fetch(
+                    "SELECT id FROM variants WHERE id = ? AND concern_id = ? FOR UPDATE",
+                    [$variantId, $concernId]
+                );
+                if (!$variant) {
+                    throw new \RuntimeException('A scanned item does not belong to the selected source concern.');
+                }
+                $stockRows = $this->getVariantDamagedStockRows($concernId, $variantId, true);
+                $availableQty = array_sum(array_map(
+                    static fn(array $stock): float => (float)$stock['qty'],
+                    $stockRows
+                ));
+                if ($requestedQty > $availableQty + 0.0001) {
+                    throw new \RuntimeException("Only {$availableQty} damaged piece(s) remain for variant #{$variantId}.");
+                }
+
+                DB::query(
+                    "INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (?, ?, ?, ?)",
+                    [$concernId, $outwardId, $variantId, $requestedQty]
+                );
+
+                $remainingQty = $requestedQty;
+                foreach ($stockRows as $stock) {
+                    if ($remainingQty <= 0.00001) {
+                        break;
+                    }
+                    $dispatchQty = min($remainingQty, (float)$stock['qty']);
+                    if ($dispatchQty <= 0) {
+                        continue;
+                    }
+                    StockService::move(
+                        $concernId,
+                        $variantId,
+                        (string)$stock['location'],
+                        0.00,
+                        $dispatchQty,
+                        'Damage Outward',
+                        $outwardId,
+                        "Damaged stock dispatched under {$outwardNo} to {$destination['name']}"
+                    );
+                    $remainingQty -= $dispatchQty;
+                }
+                if ($remainingQty > 0.0001) {
+                    throw new \RuntimeException("Damaged stock changed while dispatching variant #{$variantId}.");
+                }
+                StockService::move(
+                    $concernId,
+                    $variantId,
+                    "IN_TRANSIT:OUTWARD:{$outwardId}",
+                    $requestedQty,
+                    0.00,
+                    'Outward Transit',
+                    $outwardId,
+                    "Damaged stock in transit under {$outwardNo}"
+                );
+            }
+
+            DB::commit();
+            $transactionStarted = false;
+            $this->flash('success', "Damage outward {$outwardNo} dispatched to {$destination['name']}.");
+        } catch (\Throwable $e) {
+            if ($transactionStarted) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Damage outward failed: ' . $e->getMessage());
+        }
+
+        $this->redirect($redirectUrl);
+    }
+
     public function scan(): void {
         ModuleGuard::enforce('concern_damage', 'add');
         $this->validateCsrf();
@@ -278,6 +531,29 @@ class DamageController extends Controller {
             static fn(array $row): string => trim((string)$row['location']),
             $rows
         )));
+    }
+
+    private function ensureDamageOutwardSchema(): void {
+        if (self::$damageOutwardSchemaEnsured) {
+            return;
+        }
+        $columns = array_column(DB::fetchAll("DESCRIBE `outwards`"), 'Field');
+        if (!in_array('damage_transfer', $columns, true)) {
+            DB::query("ALTER TABLE `outwards` ADD COLUMN `damage_transfer` TINYINT(1) NOT NULL DEFAULT 0 AFTER `destination_concern_id`");
+        }
+        self::$damageOutwardSchemaEnsured = true;
+    }
+
+    private function getVariantDamagedStockRows(int $concernId, int $variantId, bool $forUpdate = false): array {
+        $sql = "SELECT location, qty
+                FROM stocks
+                WHERE concern_id = ? AND variant_id = ? AND qty > 0
+                  AND location LIKE '%:DAMAGED'
+                ORDER BY location ASC";
+        if ($forUpdate) {
+            $sql .= ' FOR UPDATE';
+        }
+        return DB::fetchAll($sql, [$concernId, $variantId]);
     }
 
     private function getVariantAvailableStockRows(int $concernId, int $variantId, bool $forUpdate = false): array {

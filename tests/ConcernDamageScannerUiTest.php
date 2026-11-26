@@ -56,7 +56,8 @@ $checks = [
         && strpos($listHtml, 'Loss / Valuation') !== false,
     'Damage list links to the dedicated scan-entry page' =>
         strpos($listHtml, '/m/concern_damage/new') !== false
-        && strpos($listHtml, 'Scan &amp; Log Damage / Rework') !== false,
+        && strpos($listHtml, 'Scan &amp; Log Damage / Rework') !== false
+        && strpos($listHtml, '/m/concern_damage/outward') !== false,
 ];
 
 $canAddDamage = false;
@@ -93,10 +94,45 @@ $checks['Concern users see their fixed concern name instead of a concern selecto
     strpos($entryHtml, 'GRM Garments') !== false
     && strpos($entryHtml, 'id="entryConcernId"') === false;
 
+$allConcerns = [
+    ['id' => 1, 'name' => 'GRM Garments', 'code' => 'GRM'],
+    ['id' => 2, 'name' => 'Apex Fashion', 'code' => 'APX'],
+];
+$outwards = [];
+ob_start();
+include __DIR__ . '/../app/views/concern/concern_damage_outward.php';
+$damageOutwardHtml = ob_get_clean();
+$checks['Damage outward scans stock, displays damaged availability, and selects a destination concern'] =
+    strpos($damageOutwardHtml, 'Scan Damaged Stock') !== false
+    && strpos($damageOutwardHtml, 'Available Damaged Qty') !== false
+    && strpos($damageOutwardHtml, 'name="destination_concern_id"') !== false
+    && strpos($damageOutwardHtml, 'name="scanned_items_json"') !== false
+    && strpos($damageOutwardHtml, '/m/concern_damage/outward/scan') !== false
+    && strpos($damageOutwardHtml, '/m/concern_damage/outward/store') !== false;
+
+$damageController = file_get_contents(__DIR__ . '/../app/controllers/DamageController.php');
+$checks['Damage outward scanner and dispatch accept only stock in DAMAGED locations'] =
+    strpos($damageController, 'private function getVariantDamagedStockRows') !== false
+    && strpos($damageController, "location LIKE '%:DAMAGED'") !== false
+    && strpos($damageController, "'damage_transfer'") !== false
+    && strpos($damageController, "'Outward Transit'") !== false;
+$warehouseService = file_get_contents(__DIR__ . '/../app/services/WarehouseService.php');
+$checks['Damage outward receipt is always recorded as quarantined damaged stock'] =
+    strpos($warehouseService, '$isDamageTransfer') !== false
+    && strpos($warehouseService, 'DamageService::recordTransferredDamage(') !== false;
+$inwardController = file_get_contents(__DIR__ . '/../app/controllers/InwardController.php');
+$inwardScanView = file_get_contents(__DIR__ . '/../app/views/concern/inward_scan.php');
+$checks['Damage inward shows the transfer manifest and keeps label-generation actions hidden'] =
+    strpos($inwardController, 'source_concern_name') !== false
+    && strpos($inwardController, '$receivedQtyForMatch = $isDamageTransfer ? $totalDamaged : $totalCredited') !== false
+    && strpos($inwardScanView, 'Damage Transfer Manifest') !== false
+    && strpos($inwardScanView, 'if (!$isDamageTransfer)') !== false
+    && strpos($inwardScanView, 'Receive Damaged Stock') !== false;
+
 $isSuperAdmin = true;
 $allConcerns = [
-    ['id' => 1, 'name' => 'GRM Garments'],
-    ['id' => 2, 'name' => 'Apex Fashion'],
+    ['id' => 1, 'name' => 'GRM Garments', 'code' => 'GRM'],
+    ['id' => 2, 'name' => 'Apex Fashion', 'code' => 'APX'],
 ];
 ob_start();
 include __DIR__ . '/../app/views/concern/concern_damage_entry.php';

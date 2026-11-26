@@ -282,22 +282,32 @@
             foreach ($grouped as $groupName => $mods):
                 if ($groupName === 'Staff' || $groupName === 'Masters') continue;
                 // If Finance group, merge 'cash' and 'cash_flow' into a single 'Cash & Cash Flow' module
+                $financeExpenseModule = null;
+                $hasFinanceCashFlow = false;
                 if ($groupName === 'Finance') {
                     $hasCashOrFlow = false;
                     $mergedMods = [];
                     foreach ($mods as $m) {
+                        if ($m['code'] === 'expense') {
+                            $financeExpenseModule = $m;
+                            continue;
+                        }
                         if ($m['code'] === 'cash') {
                             $hasCashOrFlow = true;
                             continue; // skip separate cash entry
                         }
                         if ($m['code'] === 'cash_flow') {
                             $hasCashOrFlow = true;
+                            $hasFinanceCashFlow = true;
                             $m['name'] = 'Cash & Cash Flow';
                             $m['icon'] = 'bi-cash-coin';
                             $mergedMods[] = $m;
                             continue;
                         }
                         $mergedMods[] = $m;
+                    }
+                    if ($financeExpenseModule !== null && !$hasFinanceCashFlow) {
+                        $mergedMods[] = $financeExpenseModule;
                     }
                     if ($hasCashOrFlow && empty(array_filter($mergedMods, fn($item) => $item['code'] === 'cash_flow'))) {
                         $mergedMods[] = [
@@ -341,10 +351,34 @@
                                     (str_contains($activeRoute, $m['code']));
                     }
                 ?>
-                    <a href="<?= $href ?>" class="nav-link <?= $isActive ? 'active' : '' ?>">
-                        <i class="bi <?= htmlspecialchars($m['icon']) ?>"></i>
-                        <span><?= htmlspecialchars($m['name']) ?></span>
-                    </a>
+                    <?php if ($m['code'] === 'cash_flow' && $hasFinanceCashFlow && $financeExpenseModule !== null):
+                        $isCashFlowGroupActive = (isset($currentModule) && in_array($currentModule, ['cash_flow', 'cash', 'expense'], true))
+                            || str_contains($activeRoute, 'cash')
+                            || str_contains($activeRoute, '/m/expense');
+                        $isCashFlowOverviewActive = (isset($currentModule) && in_array($currentModule, ['cash_flow', 'cash'], true))
+                            || (str_contains($activeRoute, 'cash') && !str_contains($activeRoute, '/m/expense'));
+                        $isExpenseActive = (isset($currentModule) && $currentModule === 'expense')
+                            || str_contains($activeRoute, '/m/expense');
+                    ?>
+                        <button class="nav-link nav-group-toggle <?= $isCashFlowGroupActive ? '' : 'collapsed' ?>" type="button" data-bs-toggle="collapse" data-bs-target="#submenuCashFlow" aria-expanded="<?= $isCashFlowGroupActive ? 'true' : 'false' ?>" aria-controls="submenuCashFlow">
+                            <i class="bi <?= htmlspecialchars($m['icon']) ?>"></i>
+                            <span><?= htmlspecialchars($m['name']) ?></span>
+                            <i class="bi bi-chevron-down arrow-icon"></i>
+                        </button>
+                        <div class="collapse <?= $isCashFlowGroupActive ? 'show' : '' ?>" id="submenuCashFlow">
+                            <a href="<?= \App\Core\Controller::url('/m/cash_flow') ?>" class="nav-sublink <?= $isCashFlowOverviewActive ? 'active' : '' ?>">
+                                <span>Cash Flow Overview</span>
+                            </a>
+                            <a href="<?= \App\Core\Controller::url('/m/expense') ?>" class="nav-sublink <?= $isExpenseActive ? 'active' : '' ?>">
+                                <span>Expenses</span>
+                            </a>
+                        </div>
+                    <?php else: ?>
+                        <a href="<?= $href ?>" class="nav-link <?= $isActive ? 'active' : '' ?>">
+                            <i class="bi <?= htmlspecialchars($m['icon']) ?>"></i>
+                            <span><?= htmlspecialchars($m['name']) ?></span>
+                        </a>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             <?php endforeach; ?>
 

@@ -912,6 +912,7 @@ CREATE TABLE IF NOT EXISTS `outwards` (
   `customer_id` int(11) DEFAULT NULL,
   `transfer_type` enum('customer','concern') NOT NULL DEFAULT 'customer',
   `destination_concern_id` int(11) DEFAULT NULL,
+  `damage_transfer` tinyint(1) NOT NULL DEFAULT 0,
   `outward_date` date NOT NULL,
   `location` varchar(50) NOT NULL DEFAULT 'Main Store',
   `warehouse_id` int(11) DEFAULT NULL,

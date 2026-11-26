@@ -196,20 +196,26 @@ if ($isEdit && !empty($existingItems)) {
     min-width: 0;
 }
 .fg-quick-fill-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-    gap: .5rem;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: .4rem;
+    overflow-x: auto;
+}
+.fg-quick-fill-grid > div:not(.d-none) {
+    flex: 1 1 0;
+    min-width: 82px;
 }
 .fg-quick-fill-label {
     display: flex;
     align-items: center;
-    gap: .35rem;
-    min-height: 1.25rem;
-    margin-bottom: .35rem;
+    gap: .25rem;
+    min-height: 1.2rem;
+    margin-bottom: .25rem;
     color: #475569;
-    font-size: .72rem;
+    font-size: .68rem;
     font-weight: 700;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 @media (max-width: 767.98px) {
     .fg-variant-matrix-scroll {
@@ -272,10 +278,6 @@ if ($isEdit && !empty($existingItems)) {
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Payment method</div>
                         <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)($savedBill['payment_method'] ?? 'credit')))) ?></div>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <div class="small text-muted">Payment reference</div>
-                        <div class="fw-semibold"><?= trim((string)($savedBill['payment_reference'] ?? '')) !== '' ? htmlspecialchars((string)$savedBill['payment_reference']) : '—' ?></div>
                     </div>
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Paid amount</div>
@@ -602,7 +604,7 @@ if ($isEdit && !empty($existingItems)) {
                     <?php endif; ?>
 
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
-                        <label class="form-label small fw-semibold">Supplier <span class="text-danger">*</span></label>
+                        <label class="form-label small fw-semibold mb-1">Supplier <span class="text-danger">*</span></label>
                         <?php
                             $selectedSupplierLabel = '';
                             if ($isEdit && !empty($bill['supplier_id'])) {
@@ -614,7 +616,7 @@ if ($isEdit && !empty($existingItems)) {
                                 }
                             }
                         ?>
-                        <div class="input-group">
+                        <div class="input-group input-group-sm flex-nowrap">
                             <select name="supplier_id" id="supplierSelect" class="d-none" required>
                                 <option value="">-- Select registered supplier --</option>
                                 <?php foreach ($suppliers as $sup): ?>
@@ -623,53 +625,79 @@ if ($isEdit && !empty($existingItems)) {
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="position-relative flex-grow-1">
+                            <div class="position-relative flex-grow-1" style="min-width: 0;">
                                 <input type="text"
                                        id="supplierSearchInput"
-                                       class="form-control"
-                                       placeholder="Type supplier name, company or phone..."
+                                       class="form-control form-control-sm"
+                                       placeholder="Type supplier name..."
                                        autocomplete="off"
                                        value="<?= htmlspecialchars($selectedSupplierLabel) ?>">
                                 <div id="supplierAutocompleteMenu" class="dropdown-menu w-100 shadow-sm" style="max-height: 240px; overflow-y: auto;"></div>
                             </div>
-                            <button type="button" class="btn btn-outline-secondary" id="viewSupplierBtn" title="View Suppliers">
-                                <i class="bi bi-eye me-1"></i> View
+                            <button type="button" class="btn btn-outline-secondary text-nowrap px-2" id="viewSupplierBtn" title="View Suppliers">
+                                <i class="bi bi-eye"></i> View
                             </button>
                             <?php if (!empty($allowQuickSupplier)): ?>
-                                <button type="button" class="btn btn-outline-primary" id="openQuickSupplier" data-bs-toggle="modal" data-bs-target="#modalQuickSupplier">
-                                    <i class="bi bi-plus-lg me-1"></i> Add New
+                                <button type="button" class="btn btn-outline-primary text-nowrap px-2" id="openQuickSupplier" data-bs-toggle="modal" data-bs-target="#modalQuickSupplier">
+                                    <i class="bi bi-plus-lg"></i> Add
                                 </button>
                             <?php endif; ?>
                         </div>
                         <div class="invalid-feedback">Please choose a supplier.</div>
                     </div>
 
-                    <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
-                        <label class="form-label small fw-semibold">Purchase Date <span class="text-danger">*</span></label>
-                        <input type="date" name="bill_date" class="form-control" value="<?= htmlspecialchars($isEdit ? $bill['bill_date'] : date('Y-m-d')) ?>" required>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold mb-1">Purchase Date <span class="text-danger">*</span></label>
+                        <input type="date" name="bill_date" class="form-control form-control-sm" value="<?= htmlspecialchars($isEdit ? $bill['bill_date'] : date('Y-m-d')) ?>" required>
                         <div class="invalid-feedback">Valid purchase date is required.</div>
                     </div>
 
-                    <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
-                        <label class="form-label small fw-semibold">Invoice / Bill Number <span class="text-danger">*</span></label>
-                        <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
+                    <div class="<?= empty($selectedCid) ? 'col-md-2' : 'col-md-3' ?>">
+                        <label class="form-label small fw-semibold mb-1">Invoice / Bill No <span class="text-danger">*</span></label>
+                        <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control form-control-sm" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
                         <div class="invalid-feedback" id="billSupplierInvoiceFeedback" aria-live="polite">Invoice / Bill number is required.</div>
                         <div class="form-text small" id="billSupplierInvoiceStatus" aria-live="polite"></div>
                     </div>
+
+                    <div class="<?= empty($selectedCid) ? 'col-md-2' : 'col-md-3' ?>">
+                        <label class="form-label small fw-semibold mb-1">Invoice Attachment <span class="text-danger">*</span></label>
+                        <input type="file" name="attachments[]" id="billAttachments" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple <?= ($isEdit && !empty($existingAttachments)) ? '' : 'required' ?>>
+                        <div class="invalid-feedback">Please choose at least one tax invoice / bill attachment file.</div>
+                        <?php if (!empty($existingAttachments)): ?>
+                            <div class="mt-1 small">
+                                <?php foreach ($existingAttachments as $index => $attachmentPath): ?>
+                                    <a href="<?= htmlspecialchars(\App\Services\CloudinaryService::url($attachmentPath)) ?>" target="_blank" rel="noopener" class="fw-semibold text-primary me-2">
+                                        <i class="bi bi-paperclip"></i> Attachment <?= $index + 1 ?>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
 
-                <!-- Payment Method & Inward Settlement Details -->
-                <div class="row g-3 mb-3 p-3 rounded-3 bg-light border">
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-dark">Payment Status</label>
+                <?php
+                    $defaultGlobalTaxMode = 'Exclude GST';
+                    $defaultGlobalGstType = 'Exempted';
+                    $defaultGlobalTaxInputType = 'Percentage';
+                    if ($isEdit && !empty($existingItems)) {
+                        $firstItem = $existingItems[0];
+                        $defaultGlobalTaxMode = $firstItem['tax_mode'] ?? 'Exclude GST';
+                        $defaultGlobalGstType = $firstItem['gst_type'] ?? 'Exempted';
+                        $defaultGlobalTaxInputType = $firstItem['tax_input_type'] ?? 'Percentage';
+                    }
+                ?>
+                <!-- Row 2: Payment, Overall Tax Controls & Notes -->
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold mb-1">Payment Status</label>
                         <select name="payment_status" id="billPaymentStatus" class="form-select form-select-sm">
-                            <option value="unpaid" <?= ($bill['payment_status'] ?? '') === 'unpaid' ? 'selected' : '' ?>>Unpaid (Awaiting settlement)</option>
-                            <option value="partial" <?= ($bill['payment_status'] ?? '') === 'partial' ? 'selected' : '' ?>>Partial (Partially paid)</option>
-                            <option value="paid" <?= ($bill['payment_status'] ?? '') === 'paid' ? 'selected' : '' ?>>Paid (Fully settled)</option>
+                            <option value="unpaid" <?= ($bill['payment_status'] ?? '') === 'unpaid' ? 'selected' : '' ?>>Unpaid</option>
+                            <option value="partial" <?= ($bill['payment_status'] ?? '') === 'partial' ? 'selected' : '' ?>>Partial</option>
+                            <option value="paid" <?= ($bill['payment_status'] ?? '') === 'paid' ? 'selected' : '' ?>>Paid</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-dark">Payment Method</label>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold mb-1">Payment Method</label>
                         <select name="payment_method" id="billPaymentMethod" class="form-select form-select-sm">
                             <?php if (!isset($paymentMethods[$currentPaymentMethod]) && !empty($bill['payment_method'])): ?>
                                 <option value="<?= htmlspecialchars($bill['payment_method']) ?>" selected>
@@ -683,40 +711,33 @@ if ($isEdit && !empty($existingItems)) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-dark">Payment Ref. / Cheque / UTR</label>
-                        <input type="text" name="payment_reference" id="billPaymentRef" class="form-control form-control-sm" placeholder="e.g. UTR-998812 / CHQ-0012" value="<?= htmlspecialchars($bill['payment_reference'] ?? '') ?>">
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold mb-1">Tax Mode</label>
+                        <select id="globalTaxMode" class="form-select form-select-sm" onchange="syncGlobalTaxControlsToAllRows()">
+                            <option value="Exclude GST" <?= $defaultGlobalTaxMode === 'Exclude GST' ? 'selected' : '' ?>>Exclude GST</option>
+                            <option value="Include GST" <?= $defaultGlobalTaxMode === 'Include GST' ? 'selected' : '' ?>>Include GST</option>
+                        </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-dark">Stock Status</label>
-                        <div class="form-control form-control-sm bg-white text-muted">Pending - use Label Generation to add stock</div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold mb-1">GST Type</label>
+                        <select id="globalGstType" class="form-select form-select-sm" onchange="syncGlobalTaxControlsToAllRows()">
+                            <option value="Exempted" <?= $defaultGlobalGstType === 'Exempted' ? 'selected' : '' ?>>Exempted</option>
+                            <option value="Both (CGST and SGST)" <?= $defaultGlobalGstType === 'Both (CGST and SGST)' ? 'selected' : '' ?>>Both (CGST & SGST)</option>
+                            <option value="CGST" <?= $defaultGlobalGstType === 'CGST' ? 'selected' : '' ?>>CGST</option>
+                            <option value="SGST" <?= $defaultGlobalGstType === 'SGST' ? 'selected' : '' ?>>SGST</option>
+                            <option value="IGST" <?= $defaultGlobalGstType === 'IGST' ? 'selected' : '' ?>>IGST</option>
+                        </select>
                     </div>
-                </div>
-
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Tax Invoice / Bill Attachment <span class="text-danger">*</span></label>
-                        <input type="file" name="attachments[]" id="billAttachments" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple <?= ($isEdit && !empty($existingAttachments)) ? '' : 'required' ?>>
-                        <div class="invalid-feedback">Please choose at least one tax invoice / bill attachment file.</div>
-                        <div class="form-text text-muted small">Select multiple JPG, PNG, WEBP or PDF files. Each file can be up to 5 MB.</div>
-                        <?php if (!empty($existingAttachments)): ?>
-                            <div class="mt-1 small">
-                                <span class="text-muted">Current attachments:</span>
-                                <ul class="mb-0">
-                                    <?php foreach ($existingAttachments as $index => $attachmentPath): ?>
-                                        <li>
-                                            <a href="<?= htmlspecialchars(\App\Services\CloudinaryService::url($attachmentPath)) ?>" target="_blank" rel="noopener" class="fw-semibold text-primary">
-                                                <i class="bi bi-paperclip"></i> Attachment <?= $index + 1 ?>
-                                            </a>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
-                        <?php endif; ?>
+                    <div class="col-md-1" id="globalTaxInputTypeWrap" style="<?= $defaultGlobalGstType === 'Exempted' ? 'display:none;' : '' ?>">
+                        <label class="form-label small fw-semibold mb-1">Mode</label>
+                        <select id="globalTaxInputType" class="form-select form-select-sm" onchange="syncGlobalTaxControlsToAllRows()">
+                            <option value="Percentage" <?= $defaultGlobalTaxInputType === 'Percentage' ? 'selected' : '' ?>>%</option>
+                            <option value="Amount" <?= $defaultGlobalTaxInputType === 'Amount' ? 'selected' : '' ?>>₹</option>
+                        </select>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Purchase Notes</label>
-                        <input type="text" name="notes" class="form-control" placeholder="Consignment reference, gate pass, or vehicle number" value="<?= htmlspecialchars($isEdit ? ($bill['notes'] ?? '') : '') ?>">
+                    <div class="col-md">
+                        <label class="form-label small fw-semibold mb-1">Purchase Notes</label>
+                        <input type="text" name="notes" class="form-control form-control-sm" placeholder="Gate pass / vehicle / notes" value="<?= htmlspecialchars($isEdit ? ($bill['notes'] ?? '') : '') ?>">
                     </div>
                 </div>
             </div>
@@ -772,8 +793,8 @@ if ($isEdit && !empty($existingItems)) {
                                 <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-layers text-primary me-1"></i> Individual Fabric Rolls (<span id="rollCountHeader">0</span>)</h6>
                                 <small class="text-muted">Add each roll received on this supplier invoice.</small>
                             </div>
-                            <button type="button" class="btn btn-sm text-white px-3 fw-semibold shadow-sm" style="background: #4f46e5;" onclick="addRollRow()">
-                                <i class="bi bi-plus-circle me-1"></i> Add Fabric Roll
+                            <button type="button" class="btn btn-primary btn-sm px-3" onclick="addRollRow()">
+                                <i class="bi bi-plus-circle me-1"></i> Add Row
                             </button>
                         </div>
 
@@ -789,8 +810,27 @@ if ($isEdit && !empty($existingItems)) {
                             <?php endforeach; ?>
                         </datalist>
 
-                        <!-- Dynamic Roll Input Cards (Starts Empty) -->
-                        <div id="rollsContainer"></div>
+                        <!-- Inline Roll Entry Table -->
+                        <div style="overflow: visible;" class="mb-3">
+                            <table class="table table-sm table-bordered align-middle mb-0" id="rollsEntryTable" style="table-layout: fixed; width: 100%;">
+                                <thead class="table-light small text-uppercase text-muted text-nowrap">
+                                    <tr>
+                                        <th class="text-center px-1" style="width: 3%;">#</th>
+                                        <th class="px-1" style="width: 13%;">Fabric Name <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 11%;">Color <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 11%;">Pattern <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 7%;">Qty <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 9%;">Weight (kg) <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 9%;">Price (₹) <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 12%;">HSN</th>
+                                        <th class="px-1" style="width: 14%;">GST</th>
+                                        <th class="px-1" style="width: 8%;">Photo</th>
+                                        <th class="text-center px-1" style="width: 3%;">Del</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rollsContainer"></tbody>
+                            </table>
+                        </div>
 
                         <div id="noRollsPlaceholder" class="p-4 bg-light rounded-3 text-center text-muted mb-3">
                             <i class="bi bi-layers fs-3 d-block mb-1 text-secondary"></i>
@@ -869,13 +909,30 @@ if ($isEdit && !empty($existingItems)) {
                                 <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-box-seam text-success me-1"></i> Other Garment Supplies</h6>
                                 <small class="text-muted">Optional non-fabric products received on this invoice.</small>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-primary px-3 fw-semibold shadow-sm" onclick="addOtherRow()">
-                                <i class="bi bi-plus-circle me-1"></i> Add Supply
+                            <button type="button" class="btn btn-primary btn-sm px-3" onclick="addOtherRow()">
+                                <i class="bi bi-plus-circle me-1"></i> Add Row
                             </button>
                         </div>
 
-                        <!-- Dynamic Supply Input Cards (Starts Empty) -->
-                        <div id="garmentOtherContainer"></div>
+                        <!-- Inline Supply Entry Table -->
+                        <div style="overflow: visible;" class="mb-3">
+                            <table class="table table-sm table-bordered align-middle mb-0" id="otherEntryTable" style="table-layout: fixed; width: 100%;">
+                                <thead class="table-light small text-uppercase text-muted text-nowrap">
+                                    <tr>
+                                        <th class="text-center px-1" style="width: 3%;">#</th>
+                                        <th class="px-1" style="width: 11%;">Code</th>
+                                        <th class="px-1" style="width: 21%;">Item Name <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 8%;">Qty <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 12%;">Unit <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 10%;">Price (₹) <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 13%;">HSN</th>
+                                        <th class="px-1" style="width: 18%;">GST</th>
+                                        <th class="text-center px-1" style="width: 4%;">Del</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="garmentOtherContainer"></tbody>
+                            </table>
+                        </div>
 
                         <div id="noSuppliesPlaceholder" class="p-4 bg-light rounded-3 text-center text-muted mb-3">
                             <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary"></i>
@@ -920,7 +977,7 @@ if ($isEdit && !empty($existingItems)) {
                     <!-- 3. FINISHED GOODS (BASED ON REFERENCE IMAGE 3) -->
                     <!-- ============================================== -->
                     <div class="tab-pane fade" id="paneFinished" role="tabpanel">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3 <?= $isProductAddingForm ? 'd-none' : '' ?>">
                             <div>
                                 <h6 class="fw-bold mb-0 text-dark" style="color: #6d28d9;"><i class="bi bi-tag text-purple me-1"></i> Finished Goods / Apparel Items</h6>
                                 <small class="text-muted">Record complete garments, t-shirts, shirts or series packs received into inventory.</small>
@@ -930,10 +987,10 @@ if ($isEdit && !empty($existingItems)) {
                             </button>
                         </div>
 
-                        <!-- Dynamic Finished Goods Input Cards (Starts Empty) -->
+                        <!-- Dynamic Finished Goods Input Cards -->
                         <div id="finishedGoodsContainer"></div>
 
-                        <div id="noFinishedPlaceholder" class="p-4 bg-light rounded-3 text-center text-muted mb-3">
+                        <div id="noFinishedPlaceholder" class="p-4 bg-light rounded-3 text-center text-muted mb-3 <?= $isProductAddingForm ? 'd-none' : '' ?>">
                             <i class="bi bi-tag fs-3 d-block mb-1 text-secondary"></i>
                             No finished goods added. Click <strong>+ Add Finished Good</strong> to add ready apparel.
                         </div>
@@ -1035,15 +1092,13 @@ if ($isEdit && !empty($existingItems)) {
                         <thead class="table-light small text-uppercase text-muted text-nowrap">
                             <tr>
                                 <th class="text-center px-1" style="width: 3%;">#</th>
-                                <th class="px-1" style="width: 12%;">Type <span class="text-danger">*</span></th>
-                                <th class="px-1" style="width: 15%;">Name <span class="text-danger">*</span></th>
-                                <th class="px-1" style="width: 11%;">HSN</th>
-                                <th class="px-1" style="width: 7%;">Qty <span class="text-danger">*</span></th>
-                                <th class="px-1" style="width: 9%;">Price <span class="text-danger">*</span></th>
-                                <th class="px-1" style="width: 12%;">Tax Mode</th>
-                                <th class="px-1" style="width: 14%;">GST</th>
-                                <th class="text-end px-1" style="width: 6%;">Tax</th>
-                                <th class="text-end px-1 bg-success bg-opacity-10 text-success" style="width: 7%;">Total</th>
+                                <th class="px-1" style="width: 14%;">Type <span class="text-danger">*</span></th>
+                                <th class="px-1" style="width: 20%;">Name <span class="text-danger">*</span></th>
+                                <th class="px-1" style="width: 13%;">HSN</th>
+                                <th class="px-1" style="width: 8%;">Qty <span class="text-danger">*</span></th>
+                                <th class="px-1" style="width: 10%;">Price <span class="text-danger">*</span></th>
+                                <th class="text-center px-1" style="width: 14%;">GST (%)</th>
+                                <th class="text-end px-1 bg-success bg-opacity-10 text-success" style="width: 14%;">Total</th>
                                 <th class="text-center px-1" style="width: 4%;">Del</th>
                             </tr>
                         </thead>
@@ -2193,12 +2248,15 @@ function onRollGstTypeChange(rollId) {
     const hsnInput = card.querySelector('.roll-input-hsn');
     const hsnGst = parseFloat(hsnInput?.dataset?.hsnGstRate) || 0;
 
+    const exemptBadge = document.getElementById('rollExemptBadge_' + rollId);
     if (gstType === 'Exempted') {
         // When Exempted: dynamic fields do NOT come
         if (dynamicContainer) dynamicContainer.classList.add('d-none');
+        if (exemptBadge) exemptBadge.classList.remove('d-none');
     } else {
         // Show fields based on Image 2
         if (dynamicContainer) dynamicContainer.classList.remove('d-none');
+        if (exemptBadge) exemptBadge.classList.add('d-none');
 
         const taxType = card.querySelector('.roll-input-tax-type')?.value || 'Percentage';
         const isPct = (taxType === 'Percentage');
@@ -2349,10 +2407,13 @@ function onOtherGstTypeChange(otherId) {
     const hsnInput = card.querySelector('.other-input-hsn');
     const hsnGst = parseFloat(hsnInput?.dataset?.hsnGstRate) || 0;
 
+    const exemptBadge = document.getElementById('otherExemptBadge_' + otherId);
     if (gstType === 'Exempted') {
         if (dynamicContainer) dynamicContainer.classList.add('d-none');
+        if (exemptBadge) exemptBadge.classList.remove('d-none');
     } else {
         if (dynamicContainer) dynamicContainer.classList.remove('d-none');
+        if (exemptBadge) exemptBadge.classList.add('d-none');
 
         const taxType = card.querySelector('.other-input-tax-type')?.value || 'Percentage';
         const isPct = (taxType === 'Percentage');
@@ -2455,10 +2516,13 @@ function onFinishedGstTypeChange(fgId) {
     const hsnInput = card.querySelector('.fg-input-hsn');
     const hsnGst = parseFloat(hsnInput?.dataset?.hsnGstRate) || 0;
 
+    const exemptBadge = document.getElementById('otherExemptBadge_' + otherId);
     if (gstType === 'Exempted') {
         if (dynamicContainer) dynamicContainer.classList.add('d-none');
+        if (exemptBadge) exemptBadge.classList.remove('d-none');
     } else {
         if (dynamicContainer) dynamicContainer.classList.remove('d-none');
+        if (exemptBadge) exemptBadge.classList.add('d-none');
 
         const taxType = card.querySelector('.fg-input-tax-type')?.value || 'Percentage';
         const isPct = (taxType === 'Percentage');
@@ -2615,6 +2679,19 @@ function buildProductAddingAttributeSelect(type, id, label) {
     </div>`;
 }
 
+function getProductAddingMatrixAttributeTypes() {
+    const reservedTypes = [
+        'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
+        'quantity', 'qty', 'supplier_cost', 'unit_price', 'hsn', 'hsn_code', 'variant', 'style_code',
+        'category_id', 'subcategory_id', 'sub_sub_category_id', 'catalog_gst_rate', 'tax_mode', 'gst',
+        'gst_type', 'tax_input_type', 'gst_rate', 'sgst', 'cgst', 'igst', 'mrp', 'selling_price',
+        'weight', 'allocated_qty', 'custom_attributes', 'catalog_style_name', 'variant_name'
+    ];
+    return [...new Set(getProductAddingScopedRows(productAddingAttributes)
+        .map(attribute => String(attribute.attribute_type || '').toLowerCase().trim())
+        .filter(type => type && !reservedTypes.includes(type)))];
+}
+
 function getProductAddingOtherAttributeTypes() {
     const reservedTypes = [
         'size', 'color', 'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
@@ -2667,7 +2744,7 @@ function promptAddProductAddingAttribute(fgId) {
         return;
     }
     const reservedTypes = [
-        'size', 'color', 'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
+        'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
         'quantity', 'qty', 'supplier_cost', 'unit_price', 'hsn', 'hsn_code', 'variant', 'style_code',
         'category_id', 'subcategory_id', 'sub_sub_category_id', 'catalog_gst_rate', 'tax_mode', 'gst',
         'gst_type', 'tax_input_type', 'gst_rate', 'sgst', 'cgst', 'igst', 'mrp', 'selling_price',
@@ -2677,7 +2754,7 @@ function promptAddProductAddingAttribute(fgId) {
         alert('That name is reserved for a built-in product field. Use the existing field instead.');
         return;
     }
-    if (getProductAddingOtherAttributeTypes().includes(type)) {
+    if (type !== 'size' && type !== 'color' && getProductAddingOtherAttributeTypes().includes(type)) {
         alert('That attribute already exists. Use its Add New Value option.');
         return;
     }
@@ -2703,13 +2780,12 @@ function handleProductAddingAttributeChange(select, fgId, rowIndex) {
 }
 
 function ensureProductAddingAttributeColumn(type, preferredCardId, preferredRowIndex, preferredValue) {
-    const hasBuiltInColumn = type === 'size' || type === 'color';
     document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(card => {
         const header = card.querySelector('.fg-variant-matrix thead tr');
         if (!header) return;
         const hasHeader = [...header.querySelectorAll('th[data-attribute-type]')]
             .some(cell => cell.dataset.attributeType === type);
-        if (!hasHeader && !hasBuiltInColumn) {
+        if (!hasHeader) {
             const th = document.createElement('th');
             th.dataset.attributeType = type;
             th.textContent = type.replace(/_/g, ' ').toUpperCase();
@@ -2720,7 +2796,7 @@ function ensureProductAddingAttributeColumn(type, preferredCardId, preferredRowI
         card.querySelectorAll('.fg-variant-row').forEach(row => {
             const rowTypeControl = [...row.querySelectorAll('.fg-variant-attribute')]
                 .find(control => control.dataset.attributeType === type);
-            if (rowTypeControl || hasBuiltInColumn) return;
+            if (rowTypeControl) return;
             const rowIndex = parseInt(row.dataset.rowIndex, 10);
             const cellTemplate = document.createElement('template');
             cellTemplate.innerHTML = buildProductAddingVariantAttributeCell(type, parseInt(card.id.replace('finishedCard_', ''), 10), rowIndex).trim();
@@ -2836,12 +2912,13 @@ async function saveProductAddingAttributeValue(type, rawValue, fgId, rowIndex, a
 }
 
 function buildProductAddingVariantRow(cardId, rowIndex) {
-    const customTypes = getProductAddingOtherAttributeTypes();
-    const customCells = customTypes.map(type => buildProductAddingVariantAttributeCell(type, cardId, rowIndex)).join('');
+    const dynamicAttributeCells = getProductAddingMatrixAttributeTypes()
+        .map(type => buildProductAddingVariantAttributeCell(type, cardId, rowIndex))
+        .join('');
     const prefix = `finished_goods[${cardId}][variants][${rowIndex}]`;
     return `
         <tr id="fgVariantRow_${cardId}_${rowIndex}" class="fg-variant-row">
-            <td><input type="text" name="${prefix}[variant_name]" class="form-control form-control-sm fg-variant-name" required oninput="this.dataset.userEdited='1'"></td>
+            <td><input type="text" name="${prefix}[variant_name]" class="form-control form-control-sm fg-variant-name" required oninput="this.dataset.userEdited='1'; syncFinishedTable()"></td>
             <td><div class="fg-variant-hierarchy-control">
                 <select name="${prefix}[category_id]" class="form-select form-select-sm fg-variant-category" required onchange="onFinishedVariantCategoryChange(${cardId}, ${rowIndex})">${buildProductAddingCategoryOptions()}</select>
                 <button type="button" class="btn btn-outline-primary btn-sm" title="Add category" aria-label="Add category" onclick="quickAddFinishedHierarchy('category', ${cardId}, ${rowIndex})"><i class="bi bi-plus-lg"></i></button>
@@ -2854,10 +2931,11 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
                 <select name="${prefix}[sub_sub_category_id]" class="form-select form-select-sm fg-variant-sub-subcategory" onchange="onFinishedVariantSubSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select>
                 <button type="button" class="btn btn-outline-primary btn-sm fg-add-sub-subcategory" title="Add sub-subcategory" aria-label="Add sub-subcategory" onclick="quickAddFinishedHierarchy('subsubcategory', ${cardId}, ${rowIndex})" disabled><i class="bi bi-plus-lg"></i></button>
             </div></td>
-            <td class="text-center"><span class="badge bg-primary-subtle text-primary border font-monospace fg-variant-hierarchy-key">—</span></td>
-            ${customCells}
-            <td><input type="number" step="1" min="1" name="${prefix}[quantity]" class="form-control form-control-sm text-center fg-variant-qty" required oninput="syncFinishedTable()"></td>
-            <td><input type="number" step="0.001" min="0" name="${prefix}[weight]" class="form-control form-control-sm fg-variant-weight" value="0"></td>
+            ${dynamicAttributeCells}
+            <td>
+                <input type="hidden" name="${prefix}[weight]" class="fg-variant-weight" value="0">
+                <input type="number" step="1" min="1" name="${prefix}[quantity]" class="form-control form-control-sm text-center fg-variant-qty" required oninput="syncFinishedTable()">
+            </td>
             <td>
                 <div class="input-group input-group-sm">
                     <input type="text" name="${prefix}[hsn]" class="form-control font-monospace fg-variant-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} required autocomplete="off" oninput="onFinishedVariantHsnChange(${cardId}, ${rowIndex})" onchange="onFinishedVariantHsnChange(${cardId}, ${rowIndex})">
@@ -2871,17 +2949,16 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
             <td><input type="number" step="0.01" min="0.01" name="${prefix}[supplier_cost]" class="form-control form-control-sm fg-variant-cost" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex}); syncFinishedTable()"></td>
             <td><input type="number" step="0.01" min="0.01" name="${prefix}[mrp]" class="form-control form-control-sm fg-variant-mrp" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex})"></td>
             <td><input type="number" step="0.01" min="0.01" name="${prefix}[selling_price]" class="form-control form-control-sm fg-variant-selling" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex}); syncFinishedTable()"></td>
-            <td class="text-center"><span class="badge bg-light text-dark border fg-variant-profit">₹0.00</span></td>
             <td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm" aria-label="Remove variant" onclick="removeFinishedVariantRow(${cardId}, ${rowIndex})"><i class="bi bi-trash3"></i></button></td>
         </tr>`;
 }
 
 function buildProductAddingAttributeSelectionControls(cardId) {
-    const types = getProductAddingOtherAttributeTypes();
     const firstRow = document.getElementById(`fgVariantRow_${cardId}_1`);
     const categoryId = firstRow?.querySelector('.fg-variant-category')?.value || '';
     const subcategoryId = firstRow?.querySelector('.fg-variant-subcategory')?.value || '';
     const subSubcategoryId = firstRow?.querySelector('.fg-variant-sub-subcategory')?.value || '';
+    const types = getProductAddingMatrixAttributeTypes();
     return `<div class="row g-2 align-items-end mb-3" id="fgVariantAttributeSelections_${cardId}">
         ${types.map(type => {
             const values = getProductAddingAttributeValues(type, categoryId, subcategoryId, subSubcategoryId);
@@ -2968,7 +3045,6 @@ function buildProductAddingFields(id) {
                 </div>
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="promptAddProductAddingAttribute(${id})"><i class="bi bi-plus-lg me-1"></i>Add Attribute</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addFinishedVariantRow(${id})"><i class="bi bi-plus-lg me-1"></i>Add Variant</button>
                 </div>
             </div>
             <div class="card-body pb-2">
@@ -2985,6 +3061,10 @@ function buildProductAddingFields(id) {
                     </button>
                 </div>
                 <div class="fg-quick-fill-grid mt-2">
+                    <div>
+                        <label class="fg-quick-fill-label" for="fgQuickProductName_${id}">Product Name</label>
+                        <input id="fgQuickProductName_${id}" type="text" class="form-control form-control-sm" data-quick-fill-field="product_name" placeholder="Product name...">
+                    </div>
                     <div>
                         <label class="fg-quick-fill-label" for="fgQuickCategory_${id}">Category</label>
                         <select id="fgQuickCategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="category" onchange="updateProductAddingQuickFillHierarchy(${id}, 'category')">
@@ -3006,12 +3086,12 @@ function buildProductAddingFields(id) {
                     <div>
                         <label class="fg-quick-fill-label" for="fgQuickQty_${id}">Qty</label>
                         <input id="fgQuickQty_${id}" type="number" min="1" step="1" class="form-control form-control-sm" data-quick-fill-field="quantity" placeholder="Qty...">
-                        <div class="form-check mt-1">
+                        <div class="form-check mt-1 d-none">
                             <input class="form-check-input" type="checkbox" id="fgQuickBalance_${id}" data-quick-fill-auto-balance>
                             <label class="form-check-label small" for="fgQuickBalance_${id}">Auto-Balance total</label>
                         </div>
                     </div>
-                    <div>
+                    <div class="d-none">
                         <label class="fg-quick-fill-label" for="fgQuickWeight_${id}">Weight (kg)</label>
                         <input id="fgQuickWeight_${id}" type="number" min="0" step="0.001" class="form-control form-control-sm" data-quick-fill-field="weight" placeholder="Weight...">
                     </div>
@@ -3037,6 +3117,9 @@ function buildProductAddingFields(id) {
                     </div>
                 </div>
             </div>
+            <div class="d-flex justify-content-end align-items-center px-3 py-2 bg-white border-top">
+                <button type="button" class="btn btn-primary btn-sm px-3" onclick="addFinishedVariantRow(${id})"><i class="bi bi-plus-circle me-1"></i>Add Row</button>
+            </div>
             <div class="table-responsive fg-variant-matrix-scroll">
                 <table class="table table-sm table-bordered table-hover align-middle mb-0 text-nowrap fg-variant-matrix">
                     <thead class="table-light">
@@ -3045,18 +3128,13 @@ function buildProductAddingFields(id) {
                             <th>CATEGORY *</th>
                             <th>SUBCATEGORY</th>
                             <th>SUB-SUBCATEGORY</th>
-                            <th>HIERARCHY KEY</th>
-                            <th>COLOR *</th>
-                            <th>SIZE *</th>
-                            ${getProductAddingOtherAttributeTypes().map(type => `<th data-attribute-type="${escapeHtml(type)}">${escapeHtml(type.toUpperCase())}</th>`).join('')}
+                            ${getProductAddingMatrixAttributeTypes().map(type => `<th data-attribute-type="${escapeHtml(type)}">${escapeHtml(type.toUpperCase())} *</th>`).join('')}
                             <th>QTY *</th>
-                            <th>WEIGHT (KG)</th>
                             <th>HSN CODE *</th>
                             <th>GST %</th>
                             <th>COST (₹) *</th>
                             <th>MRP (₹) *</th>
                             <th>SELLING PRICE (₹) *</th>
-                            <th>PROFIT</th>
                             <th>ACTIONS</th>
                         </tr>
                     </thead>
@@ -3122,23 +3200,7 @@ function addFinishedVariantRow(fgId, presetAttributes = {}) {
     card.dataset.nextVariantRow = String(rowIndex + 1);
     tbody.insertAdjacentHTML('beforeend', buildProductAddingVariantRow(fgId, rowIndex));
     const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
-    const firstExistingRow = [...tbody.querySelectorAll('.fg-variant-row')].find(item => item !== row);
     row.dataset.rowIndex = String(rowIndex);
-    if (firstExistingRow) {
-        const categoryId = firstExistingRow.querySelector('.fg-variant-category')?.value || '';
-        const subcategoryId = firstExistingRow.querySelector('.fg-variant-subcategory')?.value || '';
-        const subSubcategoryId = firstExistingRow.querySelector('.fg-variant-sub-subcategory')?.value || '';
-        const existingHsn = firstExistingRow.querySelector('.fg-variant-hsn');
-        const newHsn = row.querySelector('.fg-variant-hsn');
-        row.querySelector('.fg-variant-category').value = categoryId;
-        fillFinishedVariantSubcategories(row, categoryId, subcategoryId);
-        fillFinishedVariantSubSubcategories(row, subcategoryId, subSubcategoryId);
-        if (existingHsn?.value && newHsn) {
-            newHsn.value = existingHsn.value;
-            newHsn.dataset.hsnGstRate = existingHsn.dataset.hsnGstRate || '';
-            row.querySelector('.fg-variant-gst-rate').value = newHsn.dataset.hsnGstRate;
-        }
-    }
     Object.entries(presetAttributes).forEach(([type, value]) => {
         const control = [...row.querySelectorAll('.fg-variant-attribute')]
             .find(input => input.dataset.attributeType === type);
@@ -3223,29 +3285,19 @@ function generateProductAddingVariantRows(fgId) {
     });
     const starterRowSet = new Set(starterRows);
     const activeRows = rows.filter(row => !starterRowSet.has(row));
-    const rowCombinationKey = row => JSON.stringify(dimensions.map(dimension => [
-        dimension.type,
-        [...row.querySelectorAll('.fg-variant-attribute')]
-            .find(control => control.dataset.attributeType === dimension.type)?.value || ''
-    ]));
-    const existingCombinations = new Set(activeRows.map(rowCombinationKey));
-    combinations = combinations.filter(combination => {
-        const key = JSON.stringify(dimensions.map(dimension => [dimension.type, combination[dimension.type] || '']));
-        if (existingCombinations.has(key)) return false;
-        existingCombinations.add(key);
-        return true;
-    });
-    if (!combinations.length) {
-        showInlineProductAddingMessage(fgId, 'All selected attribute combinations already exist in the table.');
-        return;
-    }
     if (activeRows.length + combinations.length > 100) {
         alert('A style can contain up to 100 variant rows.');
         return;
     }
 
     starterRows.forEach(row => row.remove());
-    combinations.forEach(attributes => addFinishedVariantRow(fgId, attributes));
+    combinations.forEach(attributes => {
+        addFinishedVariantRow(fgId, attributes);
+        const createdRow = tbody.lastElementChild;
+        if (createdRow) {
+            createdRow.dataset.quickFillTarget = 'new';
+        }
+    });
 }
 
 function updateProductAddingQuickFillHierarchy(fgId, changedTier) {
@@ -3278,13 +3330,16 @@ function updateProductAddingQuickFillHierarchy(fgId, changedTier) {
 
 function applyProductAddingQuickFill(fgId) {
     const tbody = document.getElementById('fgVariantTableBody_' + fgId);
-    const rows = [...(tbody?.querySelectorAll('.fg-variant-row') || [])];
+    const allRows = [...(tbody?.querySelectorAll('.fg-variant-row') || [])];
+    const newlyCreatedRows = allRows.filter(row => row.dataset.quickFillTarget === 'new');
+    const rows = newlyCreatedRows.length > 0 ? newlyCreatedRows : allRows;
     const panel = document.querySelector(`#finishedCard_${fgId} .fg-quick-fill-panel`);
     if (!rows.length || !panel) {
         alert('Add or generate variant rows before applying Quick Fill.');
         return;
     }
     const field = name => panel.querySelector(`[data-quick-fill-field="${name}"]`)?.value.trim() || '';
+    const quickProductName = field('product_name');
     const quantityValue = field('quantity');
     const weightValue = field('weight');
     const hsnValue = field('hsn');
@@ -3355,7 +3410,16 @@ function applyProductAddingQuickFill(fgId) {
         onFinishedVariantCategoryChange(fgId, firstRowIndex);
     }
     rows.forEach((row, index) => {
+        if (quickProductName !== '') {
+            const nameInput = row.querySelector('.fg-variant-name');
+            if (nameInput) {
+                nameInput.value = quickProductName.slice(0, 150);
+                nameInput.dataset.userEdited = '1';
+            }
+        }
         if (categoryId) {
+            const catSel = row.querySelector('.fg-variant-category');
+            if (catSel) catSel.value = categoryId;
             fillFinishedVariantSubcategories(row, categoryId, subcategoryId);
             fillFinishedVariantSubSubcategories(row, subcategoryId, subSubcategoryId);
         }
@@ -3372,6 +3436,7 @@ function applyProductAddingQuickFill(fgId) {
         if (costValue !== '') row.querySelector('.fg-variant-cost').value = costValue;
         if (mrpValue !== '') row.querySelector('.fg-variant-mrp').value = mrpValue;
         if (sellingValue !== '') row.querySelector('.fg-variant-selling').value = sellingValue;
+        delete row.dataset.quickFillTarget;
         updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
     });
     syncFinishedTable();
@@ -3458,70 +3523,42 @@ function fillFinishedVariantSubSubcategories(row, subcategoryId, selectedSubSubc
 }
 
 function onFinishedVariantCategoryChange(fgId, rowIndex) {
-    const card = document.getElementById('finishedCard_' + fgId);
     const sourceRow = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
-    if (!card || !sourceRow) return;
+    if (!sourceRow) return;
     const categoryId = sourceRow.querySelector('.fg-variant-category')?.value || '';
     const categoryData = getProductAddingScopedRows(productAddingCategories)
         .find(item => String(item.id) === categoryId);
-    card.querySelectorAll('.fg-variant-row').forEach(row => {
-        const categorySelect = row.querySelector('.fg-variant-category');
-        categorySelect.value = categoryId;
-        fillFinishedVariantSubcategories(row, categoryId);
-        const hsnInput = row.querySelector('.fg-variant-hsn');
-        if (categoryData?.default_hsn && hsnInput && !hsnInput.value) {
-            const matchedHsn = findHsnMasterRow(categoryData.default_hsn);
-            if (matchedHsn) {
-                setHsnInputValue(hsnInput, matchedHsn);
-            } else {
-                hsnInput.value = categoryData.default_hsn;
-                hsnInput.dataset.hsnGstRate = categoryData.default_gst_rate ?? '';
-            }
-            if ((hsnInput.dataset.hsnGstRate === '' || hsnInput.dataset.hsnGstRate === undefined)
-                && categoryData.default_gst_rate !== null && categoryData.default_gst_rate !== '') {
-                hsnInput.dataset.hsnGstRate = categoryData.default_gst_rate;
-            }
-            onFinishedVariantHsnChange(fgId, parseInt(row.dataset.rowIndex, 10));
+    fillFinishedVariantSubcategories(sourceRow, categoryId);
+    const hsnInput = sourceRow.querySelector('.fg-variant-hsn');
+    if (categoryData?.default_hsn && hsnInput && !hsnInput.value) {
+        const matchedHsn = findHsnMasterRow(categoryData.default_hsn);
+        if (matchedHsn) {
+            setHsnInputValue(hsnInput, matchedHsn);
+        } else {
+            hsnInput.value = categoryData.default_hsn;
+            hsnInput.dataset.hsnGstRate = categoryData.default_gst_rate ?? '';
         }
-        updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
-    });
-    if (typeof refreshProductAddingAttributeSelectors === 'function') {
-        refreshProductAddingAttributeSelectors();
+        if ((hsnInput.dataset.hsnGstRate === '' || hsnInput.dataset.hsnGstRate === undefined)
+            && categoryData.default_gst_rate !== null && categoryData.default_gst_rate !== '') {
+            hsnInput.dataset.hsnGstRate = categoryData.default_gst_rate;
+        }
+        onFinishedVariantHsnChange(fgId, rowIndex);
     }
+    updateProductAddingVariantRow(fgId, rowIndex);
 }
 
 function onFinishedVariantSubcategoryChange(fgId, rowIndex) {
-    const card = document.getElementById('finishedCard_' + fgId);
     const sourceRow = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
-    if (!card || !sourceRow) return;
+    if (!sourceRow) return;
     const subcategoryId = sourceRow.querySelector('.fg-variant-subcategory')?.value || '';
-    card.querySelectorAll('.fg-variant-row').forEach(row => {
-        fillFinishedVariantSubcategories(row, row.querySelector('.fg-variant-category')?.value || '');
-        const subcategory = row.querySelector('.fg-variant-subcategory');
-        if ([...subcategory.options].some(option => option.value === subcategoryId)) {
-            subcategory.value = subcategoryId;
-        }
-        fillFinishedVariantSubSubcategories(row, subcategory.value);
-        updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
-    });
-    if (typeof refreshProductAddingAttributeSelectors === 'function') {
-        refreshProductAddingAttributeSelectors();
-    }
+    fillFinishedVariantSubSubcategories(sourceRow, subcategoryId);
+    updateProductAddingVariantRow(fgId, rowIndex);
 }
 
 function onFinishedVariantSubSubcategoryChange(fgId, rowIndex) {
-    const card = document.getElementById('finishedCard_' + fgId);
     const sourceRow = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
-    if (!card || !sourceRow) return;
-    const selectedId = sourceRow.querySelector('.fg-variant-sub-subcategory')?.value || '';
-    card.querySelectorAll('.fg-variant-row').forEach(row => {
-        const select = row.querySelector('.fg-variant-sub-subcategory');
-        if ([...select.options].some(option => option.value === selectedId)) select.value = selectedId;
-        updateProductAddingVariantRow(fgId, parseInt(row.dataset.rowIndex, 10));
-    });
-    if (typeof refreshProductAddingAttributeSelectors === 'function') {
-        refreshProductAddingAttributeSelectors();
-    }
+    if (!sourceRow) return;
+    updateProductAddingVariantRow(fgId, rowIndex);
 }
 
 async function quickAddFinishedHierarchy(tier, fgId, rowIndex) {
@@ -4084,129 +4121,123 @@ function showToastNotice(msg) {
     }, 3500);
 }
 
+function getGlobalTaxSettings() {
+    return {
+        taxMode: document.getElementById('globalTaxMode')?.value || 'Exclude GST',
+        gstType: document.getElementById('globalGstType')?.value || 'Exempted',
+        taxInputType: document.getElementById('globalTaxInputType')?.value || 'Percentage',
+    };
+}
+
+function syncGlobalTaxControlsToAllRows() {
+    const { taxMode, gstType, taxInputType } = getGlobalTaxSettings();
+    const wrap = document.getElementById('globalTaxInputTypeWrap');
+    if (wrap) wrap.style.display = gstType === 'Exempted' ? 'none' : '';
+
+    document.querySelectorAll('.roll-card').forEach(card => {
+        const id = card.id.replace('rollCard_', '');
+        if (card.querySelector('.roll-input-tax-mode')) card.querySelector('.roll-input-tax-mode').value = taxMode;
+        if (card.querySelector('.roll-input-gst')) card.querySelector('.roll-input-gst').value = gstType;
+        if (card.querySelector('.roll-input-tax-type')) card.querySelector('.roll-input-tax-type').value = taxInputType;
+        onRollGstTypeChange(id);
+    });
+    document.querySelectorAll('.other-card').forEach(card => {
+        const id = card.id.replace('otherCard_', '');
+        if (card.querySelector('.other-input-tax-mode')) card.querySelector('.other-input-tax-mode').value = taxMode;
+        if (card.querySelector('.other-input-gst')) card.querySelector('.other-input-gst').value = gstType;
+        if (card.querySelector('.other-input-tax-type')) card.querySelector('.other-input-tax-type').value = taxInputType;
+        onOtherGstTypeChange(id);
+    });
+    document.querySelectorAll('.finished-card').forEach(card => {
+        const id = card.id.replace('finishedCard_', '');
+        if (card.querySelector('.fg-input-tax-mode')) card.querySelector('.fg-input-tax-mode').value = taxMode;
+        if (card.querySelector('.fg-input-gst')) card.querySelector('.fg-input-gst').value = gstType;
+        if (card.querySelector('.fg-input-tax-type')) card.querySelector('.fg-input-tax-type').value = taxInputType;
+        if (typeof onFinishedGstTypeChange === 'function') onFinishedGstTypeChange(id);
+    });
+    document.querySelectorAll('.simple-purchase-card').forEach(card => {
+        const id = card.id.replace('simpleCard_', '');
+        if (card.querySelector('.simple-input-tax-mode')) card.querySelector('.simple-input-tax-mode').value = taxMode;
+        if (card.querySelector('.simple-input-gst')) card.querySelector('.simple-input-gst').value = gstType;
+        if (card.querySelector('.simple-input-tax-type')) card.querySelector('.simple-input-tax-type').value = taxInputType;
+        onSimpleGstTypeChange(id);
+    });
+}
+
 function addRollRow() {
     rollCounter++;
     document.getElementById('itemsValidationError')?.classList.add('d-none');
     const rollCode = generateRollCode(rollCounter);
     const container = document.getElementById('rollsContainer');
     document.getElementById('noRollsPlaceholder')?.classList.add('d-none');
-    const div = document.createElement('div');
-    div.className = 'roll-card card border mb-4 shadow-sm rounded-3';
-    div.id = 'rollCard_' + rollCounter;
+    const globalTax = getGlobalTaxSettings();
+    const tr = document.createElement('tr');
+    tr.className = 'roll-card';
+    tr.id = 'rollCard_' + rollCounter;
 
-    div.innerHTML = `
-        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-layers text-primary"></i>
-                <span class="fw-bold text-dark font-monospace">ROLL #${rollCounter}</span>
-                <span class="badge bg-dark font-monospace px-2 py-1 roll-code-badge" id="rollCodeBadge_${rollCounter}">${rollCode}</span>
+    tr.innerHTML = `
+        <td class="text-center px-1">
+            <div class="fw-bold text-dark font-monospace small">${rollCounter}</div>
+            <span class="badge bg-dark font-monospace roll-code-badge d-none" id="rollCodeBadge_${rollCounter}">${rollCode}</span>
+            <input type="hidden" name="rolls[${rollCounter}][existing_photo]" value="">
+        </td>
+        <td class="px-1">
+            <input type="text" name="rolls[${rollCounter}][roll_code]" class="form-control form-control-sm px-1 font-monospace text-uppercase roll-input-code" placeholder="Fabric name" value="" required oninput="updateRollHeaderCode(${rollCounter}); syncRollsTable()">
+        </td>
+        <td class="px-1">
+            <input type="text" name="rolls[${rollCounter}][color]" list="rollColorList" class="form-control form-control-sm px-1 text-uppercase roll-input-color" placeholder="Color" value="" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
+            <div class="roll-stock-notice small mt-1" id="rollStockNotice_${rollCounter}" style="display: none;"></div>
+        </td>
+        <td class="px-1">
+            <input type="text" name="rolls[${rollCounter}][pattern]" list="rollPatternList" class="form-control form-control-sm px-1 text-uppercase roll-input-pattern" placeholder="Pattern" value="" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
+        </td>
+        <td class="px-1">
+            <input type="number" min="1" step="1" name="rolls[${rollCounter}][rq]" class="form-control form-control-sm px-1 text-end roll-input-rq" placeholder="1" value="1" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
+        </td>
+        <td class="px-1">
+            <input type="number" step="0.01" min="0.01" name="rolls[${rollCounter}][weight]" class="form-control form-control-sm px-1 text-end roll-input-weight" placeholder="0.00" value="" required oninput="syncRollsTable()">
+        </td>
+        <td class="px-1">
+            <input type="number" step="0.01" min="0.01" name="rolls[${rollCounter}][price]" class="form-control form-control-sm px-1 text-end roll-input-price" placeholder="0.00" value="" required oninput="syncRollsTable()">
+        </td>
+        <td class="px-1">
+            <div class="input-group input-group-sm">
+                <input type="text" name="rolls[${rollCounter}][hsn]" class="form-control form-control-sm px-1 font-monospace roll-input-hsn" placeholder="HSN" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" oninput="onRollHsnInput(${rollCounter})" onchange="onRollHsnChange(${rollCounter})">
+                <button type="button" class="btn btn-outline-primary px-1" title="Add HSN" onclick="promptAddHsn(${rollCounter})">+</button>
             </div>
-            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="removeRollRow(${rollCounter})">
-                <i class="bi bi-trash3 me-1"></i> Delete
+            <small class="hsn-rate-note text-muted d-block"></small>
+        </td>
+        <td class="px-1">
+            <input type="hidden" name="rolls[${rollCounter}][tax_mode]" class="roll-input-tax-mode" value="${escapeHtml(globalTax.taxMode)}">
+            <input type="hidden" name="rolls[${rollCounter}][gst]" class="roll-input-gst" value="${escapeHtml(globalTax.gstType)}">
+            <input type="hidden" name="rolls[${rollCounter}][tax_input_type]" class="roll-input-tax-type" value="${escapeHtml(globalTax.taxInputType)}">
+            <span class="badge bg-light text-dark border ${globalTax.gstType === 'Exempted' ? '' : 'd-none'}" id="rollExemptBadge_${rollCounter}">Exempted</span>
+            <div class="${globalTax.gstType === 'Exempted' ? 'd-none' : ''} roll-gst-dynamic-container" id="gstDynamic_${rollCounter}">
+                <div class="d-flex gap-1">
+                    <div class="flex-fill roll-sgst-col" id="sgstCol_${rollCounter}">
+                        <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][sgst]" class="form-control form-control-sm px-1 roll-input-sgst" value="0" placeholder="SGST" title="SGST" oninput="syncRollsTable()">
+                    </div>
+                    <div class="flex-fill roll-cgst-col" id="cgstCol_${rollCounter}">
+                        <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][cgst]" class="form-control form-control-sm px-1 roll-input-cgst" value="0" placeholder="CGST" title="CGST" oninput="syncRollsTable()">
+                    </div>
+                    <div class="flex-fill roll-igst-col d-none" id="igstCol_${rollCounter}">
+                        <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][igst]" class="form-control form-control-sm px-1 roll-input-igst" value="0" placeholder="IGST" title="IGST" oninput="syncRollsTable()">
+                    </div>
+                </div>
+            </div>
+        </td>
+        <td class="px-1">
+            <input type="file" name="rolls[${rollCounter}][photo]" class="form-control form-control-sm px-1 roll-input-photo" accept=".jpg,.jpeg,.png,.webp" onchange="previewRollPhoto(this, ${rollCounter})">
+            <div class="roll-photo-preview-inline mt-1" id="photoPreview_${rollCounter}"></div>
+        </td>
+        <td class="text-center px-1">
+            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete Roll" onclick="removeRollRow(${rollCounter})">
+                <i class="bi bi-trash3"></i>
             </button>
-        </div>
-        <div class="card-body p-3">
-            <!-- Row 1: Roll No, Color, Pattern, Qty, Weight, Price -->
-            <div class="row g-2 mb-2 align-items-end">
-                <div class="col-md-2">
-                <label class="form-label small fw-semibold mb-1">Fabric Name <span class="text-danger">*</span></label>
-                <input type="text" name="rolls[${rollCounter}][roll_code]" class="form-control form-control-sm font-monospace text-uppercase roll-input-code" placeholder="E.G. COTTON" value="" required oninput="updateRollHeaderCode(${rollCounter}); syncRollsTable()">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Color / Shade <span class="text-danger">*</span></label>
-                    <input type="text" name="rolls[${rollCounter}][color]" list="rollColorList" class="form-control form-control-sm text-uppercase roll-input-color" placeholder="E.G. BLACK" value="" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Design Name / Pattern <span class="text-danger">*</span></label>
-                    <input type="text" name="rolls[${rollCounter}][pattern]" list="rollPatternList" class="form-control form-control-sm text-uppercase roll-input-pattern" placeholder="E.G. FLORAL 01" value="" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Qty <span class="text-danger">*</span></label>
-                    <input type="number" min="1" step="1" name="rolls[${rollCounter}][rq]" class="form-control form-control-sm roll-input-rq" placeholder="1" value="1" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Overall Weight (kg) <span class="text-danger">*</span></label>
-                    <div class="input-group input-group-sm">
-                        <input type="number" step="0.01" min="0.01" name="rolls[${rollCounter}][weight]" class="form-control form-control-sm roll-input-weight" placeholder="0.00" value="" required oninput="syncRollsTable()">
-                        <span class="input-group-text small bg-light text-muted">kg</span>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Unit Price (₹) <span class="text-danger">*</span></label>
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text small bg-light text-muted">₹</span>
-                        <input type="number" step="0.01" min="0.01" name="rolls[${rollCounter}][price]" class="form-control form-control-sm roll-input-price" placeholder="0.00" value="" required oninput="syncRollsTable()">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Live Roll Stock Accumulation Notice -->
-            <div class="roll-stock-notice mb-3" id="rollStockNotice_${rollCounter}" style="display: none;"></div>
-
-            <!-- Row 2: HSN Code, Tax Mode, GST & Dynamic Fields -->
-            <div class="row g-2 mb-3 align-items-end">
-                <div class="col-md-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label small fw-semibold mb-0">HSN Code</label>
-                        <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddHsn(${rollCounter})">+ Add HSN</a>
-                    </div>
-                    <input type="text" name="rolls[${rollCounter}][hsn]" class="form-control form-control-sm font-monospace roll-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" oninput="onRollHsnInput(${rollCounter})" onchange="onRollHsnChange(${rollCounter})">
-                    <small class="hsn-rate-note text-muted d-block mt-1"></small>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Tax Mode</label>
-                    <select name="rolls[${rollCounter}][tax_mode]" class="form-select form-select-sm roll-input-tax-mode" onchange="syncRollsTable()">
-                        <option value="Exclude GST" selected>Exclude GST</option>
-                        <option value="Include GST">Include GST</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">GST</label>
-                    <select name="rolls[${rollCounter}][gst]" class="form-select form-select-sm roll-input-gst" onchange="onRollGstTypeChange(${rollCounter})">
-                        <option value="Exempted" selected>Exempted</option>
-                        <option value="Both (CGST and SGST)">Both (CGST and SGST)</option>
-                        <option value="SGST">SGST</option>
-                        <option value="CGST">CGST</option>
-                        <option value="IGST">IGST</option>
-                    </select>
-                </div>
-                <!-- Dynamic GST Fields Container -->
-                <div class="col-md-5 d-none roll-gst-dynamic-container" id="gstDynamic_${rollCounter}">
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold mb-1">Tax Input Type</label>
-                            <select name="rolls[${rollCounter}][tax_input_type]" class="form-select form-select-sm roll-input-tax-type" onchange="onRollTaxInputTypeChange(${rollCounter})">
-                                <option value="Percentage" selected>Percentage (%)</option>
-                                <option value="Amount">Amount (₹)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4 roll-sgst-col" id="sgstCol_${rollCounter}">
-                            <label class="form-label small fw-semibold mb-1 roll-sgst-label">SGST (%)</label>
-                            <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][sgst]" class="form-control form-control-sm roll-input-sgst" value="0" placeholder="0" oninput="syncRollsTable()">
-                        </div>
-                        <div class="col-md-4 roll-cgst-col" id="cgstCol_${rollCounter}">
-                            <label class="form-label small fw-semibold mb-1 roll-cgst-label">CGST (%)</label>
-                            <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][cgst]" class="form-control form-control-sm roll-input-cgst" value="0" placeholder="0" oninput="syncRollsTable()">
-                        </div>
-                        <div class="col-md-4 roll-igst-col d-none" id="igstCol_${rollCounter}">
-                            <label class="form-label small fw-semibold mb-1 roll-igst-label">IGST (%)</label>
-                            <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][igst]" class="form-control form-control-sm roll-input-igst" value="0" placeholder="0" oninput="syncRollsTable()">
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Row 3: Roll Sample Photo & Preview -->
-            <div class="row g-2 align-items-end">
-                <div class="col-md-6">
-                    <label class="form-label small fw-semibold mb-1">Roll Sample Photo (Optional — JPG, PNG, WEBP)</label>
-                    <input type="file" name="rolls[${rollCounter}][photo]" class="form-control form-control-sm roll-input-photo" accept=".jpg,.jpeg,.png,.webp" onchange="previewRollPhoto(this, ${rollCounter})">
-                    <div class="roll-photo-preview-inline mt-1" id="photoPreview_${rollCounter}"></div>
-                </div>
-            </div>
-        </div>
+        </td>
     `;
-    container.appendChild(div);
-    syncRollsTable();
+    container.appendChild(tr);
+    onRollGstTypeChange(rollCounter);
 }
 
 function removeRollRow(id) {
@@ -4486,108 +4517,67 @@ function addOtherRow() {
     document.getElementById('itemsValidationError')?.classList.add('d-none');
     const container = document.getElementById('garmentOtherContainer');
     document.getElementById('noSuppliesPlaceholder').classList.add('d-none');
+    const globalTax = getGlobalTaxSettings();
 
-    const div = document.createElement('div');
-    div.className = 'other-card card border mb-3 shadow-sm rounded-3';
-    div.id = 'otherCard_' + otherCounter;
-    div.innerHTML = `
-        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-box-seam text-success"></i>
-                <span class="fw-bold text-dark font-monospace">SUPPLY #${otherCounter}</span>
-                <span class="badge bg-teal-subtle text-teal font-monospace px-2 py-1">TRIM-0${otherCounter}</span>
+    const tr = document.createElement('tr');
+    tr.className = 'other-card';
+    tr.id = 'otherCard_' + otherCounter;
+    tr.innerHTML = `
+        <td class="text-center px-1 fw-bold text-dark font-monospace small">${otherCounter}</td>
+        <td class="px-1">
+            <input type="text" name="garment_other[${otherCounter}][product_no]" class="form-control form-control-sm px-1 font-monospace text-uppercase other-input-code" placeholder="TRIM-0${otherCounter}" value="" oninput="syncOtherTable()">
+        </td>
+        <td class="px-1">
+            <input type="text" name="garment_other[${otherCounter}][item_name]" class="form-control form-control-sm px-1 other-input-name" placeholder="Item name" value="" required oninput="syncOtherTable()">
+        </td>
+        <td class="px-1">
+            <input type="number" step="0.01" min="0.01" name="garment_other[${otherCounter}][quantity]" class="form-control form-control-sm px-1 text-end other-input-qty" placeholder="0" value="" required oninput="syncOtherTable()">
+        </td>
+        <td class="px-1">
+            <div class="input-group input-group-sm">
+                <select name="garment_other[${otherCounter}][unit]" class="form-select form-select-sm px-1 other-input-unit" onchange="onUnitChange(this, ${otherCounter}); syncOtherTable()">
+                    ${getUnitOptionsHtml('Pieces')}
+                </select>
+                <button type="button" class="btn btn-outline-primary px-1" title="Add Unit" onclick="promptAddUnit(${otherCounter})">+</button>
             </div>
-            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="removeOtherRow(${otherCounter})">
-                <i class="bi bi-trash3 me-1"></i> Delete
+        </td>
+        <td class="px-1">
+            <input type="number" step="0.01" min="0.01" name="garment_other[${otherCounter}][unit_price]" class="form-control form-control-sm px-1 text-end other-input-price" placeholder="0.00" value="" required oninput="syncOtherTable()">
+        </td>
+        <td class="px-1">
+            <div class="input-group input-group-sm">
+                <input type="text" name="garment_other[${otherCounter}][hsn]" class="form-control form-control-sm px-1 font-monospace other-input-hsn" placeholder="HSN" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" oninput="onOtherHsnInput(${otherCounter})" onchange="onOtherHsnChange(${otherCounter})">
+                <button type="button" class="btn btn-outline-primary px-1" title="Add HSN" onclick="promptAddHsn(${otherCounter}, 'other')">+</button>
+            </div>
+            <small class="hsn-rate-note text-muted d-block"></small>
+        </td>
+        <td class="px-1">
+            <input type="hidden" name="garment_other[${otherCounter}][tax_mode]" class="other-input-tax-mode" value="${escapeHtml(globalTax.taxMode)}">
+            <input type="hidden" name="garment_other[${otherCounter}][gst]" class="other-input-gst" value="${escapeHtml(globalTax.gstType)}">
+            <input type="hidden" name="garment_other[${otherCounter}][tax_input_type]" class="other-input-tax-type" value="${escapeHtml(globalTax.taxInputType)}">
+            <span class="badge bg-light text-dark border ${globalTax.gstType === 'Exempted' ? '' : 'd-none'}" id="otherExemptBadge_${otherCounter}">Exempted</span>
+            <div class="${globalTax.gstType === 'Exempted' ? 'd-none' : ''} other-gst-dynamic-container" id="otherGstDynamic_${otherCounter}">
+                <div class="d-flex gap-1">
+                    <div class="flex-fill other-sgst-col" id="otherSgstCol_${otherCounter}">
+                        <input type="number" step="0.01" min="0" name="garment_other[${otherCounter}][sgst]" class="form-control form-control-sm px-1 other-input-sgst" value="" placeholder="SGST" title="SGST" oninput="syncOtherTable()">
+                    </div>
+                    <div class="flex-fill other-cgst-col" id="otherCgstCol_${otherCounter}">
+                        <input type="number" step="0.01" min="0" name="garment_other[${otherCounter}][cgst]" class="form-control form-control-sm px-1 other-input-cgst" value="" placeholder="CGST" title="CGST" oninput="syncOtherTable()">
+                    </div>
+                    <div class="flex-fill d-none other-igst-col" id="otherIgstCol_${otherCounter}">
+                        <input type="number" step="0.01" min="0" name="garment_other[${otherCounter}][igst]" class="form-control form-control-sm px-1 other-input-igst" value="" placeholder="IGST" title="IGST" oninput="syncOtherTable()">
+                    </div>
+                </div>
+            </div>
+        </td>
+        <td class="text-center px-1">
+            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete Supply" onclick="removeOtherRow(${otherCounter})">
+                <i class="bi bi-trash3"></i>
             </button>
-        </div>
-        <div class="card-body p-3">
-            <!-- Row 1: Code, Name, Quantity, Unit, Price -->
-            <div class="row g-2 mb-3 align-items-end">
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Other Product No/Code</label>
-                    <input type="text" name="garment_other[${otherCounter}][product_no]" class="form-control form-control-sm font-monospace text-uppercase other-input-code" placeholder="e.g. TRIM-0${otherCounter}" value="" oninput="syncOtherTable()">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-semibold mb-1">Item Name / Description <span class="text-danger">*</span></label>
-                    <input type="text" name="garment_other[${otherCounter}][item_name]" class="form-control form-control-sm other-input-name" placeholder="e.g. 24L Polyester 4-Hole Buttons" value="" required oninput="syncOtherTable()">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Quantity <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" min="0.01" name="garment_other[${otherCounter}][quantity]" class="form-control form-control-sm other-input-qty" placeholder="0" value="" required oninput="syncOtherTable()">
-                </div>
-                <div class="col-md-2">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label small fw-semibold mb-0">Unit <span class="text-danger">*</span></label>
-                        <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddUnit(${otherCounter})">+ Add Unit</a>
-                    </div>
-                    <select name="garment_other[${otherCounter}][unit]" class="form-select form-select-sm other-input-unit" onchange="onUnitChange(this, ${otherCounter}); syncOtherTable()">
-                        ${getUnitOptionsHtml('Pieces')}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Unit Price (₹) <span class="text-danger">*</span></label>
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text small bg-light text-muted">₹</span>
-                        <input type="number" step="0.01" min="0.01" name="garment_other[${otherCounter}][unit_price]" class="form-control form-control-sm other-input-price" placeholder="0.00" value="" required oninput="syncOtherTable()">
-                    </div>
-                </div>
-            </div>
-            <!-- Row 2: HSN, Tax Mode, GST & Dynamic Fields -->
-            <div class="row g-2 align-items-end">
-                <div class="col-md-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label small fw-semibold mb-0">HSN Code</label>
-                        <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddHsn(${otherCounter}, 'other')">+ Add HSN</a>
-                    </div>
-                    <input type="text" name="garment_other[${otherCounter}][hsn]" class="form-control form-control-sm font-monospace other-input-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} autocomplete="off" oninput="onOtherHsnInput(${otherCounter})" onchange="onOtherHsnChange(${otherCounter})">
-                    <small class="hsn-rate-note text-muted d-block mt-1"></small>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Tax Mode</label>
-                    <select name="garment_other[${otherCounter}][tax_mode]" class="form-select form-select-sm other-input-tax-mode" onchange="syncOtherTable()">
-                        <option value="Exclude GST" selected>Exclude GST</option>
-                        <option value="Include GST">Include GST</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-semibold mb-1">GST</label>
-                    <select name="garment_other[${otherCounter}][gst]" class="form-select form-select-sm other-input-gst" onchange="onOtherGstTypeChange(${otherCounter})">
-                        <option value="Exempted" selected>Exempted</option>
-                        <option value="Both (CGST and SGST)">Both (CGST and SGST)</option>
-                        <option value="SGST">SGST</option>
-                        <option value="CGST">CGST</option>
-                        <option value="IGST">IGST</option>
-                    </select>
-                </div>
-                <div class="col-md-5 d-none other-gst-dynamic-container" id="otherGstDynamic_${otherCounter}">
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold mb-1">Tax Input Type</label>
-                            <select name="garment_other[${otherCounter}][tax_input_type]" class="form-select form-select-sm other-input-tax-type" onchange="onOtherTaxInputTypeChange(${otherCounter})">
-                                <option value="Percentage" selected>Percentage (%)</option>
-                                <option value="Amount">Amount (₹)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4 other-sgst-col" id="otherSgstCol_${otherCounter}">
-                            <label class="form-label small fw-semibold mb-1 other-sgst-label">SGST (%)</label>
-                            <input type="number" step="0.01" min="0" name="garment_other[${otherCounter}][sgst]" class="form-control form-control-sm other-input-sgst" value="" placeholder="0" oninput="syncOtherTable()">
-                        </div>
-                        <div class="col-md-4 other-cgst-col" id="otherCgstCol_${otherCounter}">
-                            <label class="form-label small fw-semibold mb-1 other-cgst-label">CGST (%)</label>
-                            <input type="number" step="0.01" min="0" name="garment_other[${otherCounter}][cgst]" class="form-control form-control-sm other-input-cgst" value="" placeholder="0" oninput="syncOtherTable()">
-                        </div>
-                        <div class="col-md-4 d-none other-igst-col" id="otherIgstCol_${otherCounter}">
-                            <label class="form-label small fw-semibold mb-1 other-igst-label">IGST (%)</label>
-                            <input type="number" step="0.01" min="0" name="garment_other[${otherCounter}][igst]" class="form-control form-control-sm other-input-igst" value="" placeholder="0" oninput="syncOtherTable()">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </td>
     `;
-    container.appendChild(div);
-    syncOtherTable();
+    container.appendChild(tr);
+    onOtherGstTypeChange(otherCounter);
 }
 
 function removeOtherRow(id) {
@@ -4677,7 +4667,9 @@ function addFinishedRow() {
             </button>
         </div>
         <div class="card-body p-3">
-            <!-- Row 1: Product, Qty, Unit Price of Supplier Cost -->
+            ${isProductAddingForm
+                ? `<input type="hidden" name="finished_goods[${finishedCounter}][product]" class="fg-input-product" value="">`
+                : `<!-- Row 1: Product, Qty, Unit Price of Supplier Cost -->
             <div class="row g-2 mb-3 align-items-end">
                 <div class="col-md-5">
                     <label class="form-label small fw-semibold mb-1">Product / Style Name <span class="text-danger">*</span></label>
@@ -4694,23 +4686,12 @@ function addFinishedRow() {
                         <input type="number" step="0.01" min="0.01" name="finished_goods[${finishedCounter}][supplier_cost]" class="form-control form-control-sm fg-input-cost" placeholder="0.00" value="" required oninput="syncFinishedTable()">
                     </div>
                 </div>
-            </div>
+            </div>`
+            }
             ${catalogFields ? `<div class="fg-new-catalog-fields border rounded-3 bg-light p-3 mb-3" hidden>${catalogFields}</div>` : ''}
-            ${isProductAddingForm ? `
-                <div class="row g-2 mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold mb-1">MRP (₹)</label>
-                        <input type="number" step="0.01" min="0.01" name="finished_goods[${finishedCounter}][mrp]" class="form-control form-control-sm fg-input-mrp" placeholder="0.00" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold mb-1">Selling Price (₹)</label>
-                        <input type="number" step="0.01" min="0.01" name="finished_goods[${finishedCounter}][selling_price]" class="form-control form-control-sm fg-input-selling" placeholder="0.00" required>
-                    </div>
-                </div>
-            ` : ''}
 
             <!-- Row 2: HSN, Tax Mode, GST & Dynamic Fields -->
-            <div class="row g-2 align-items-end">
+            <div class="row g-2 align-items-end ${isProductAddingForm ? 'd-none' : ''}">
                 <div class="col-md-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label class="form-label small fw-semibold mb-0">HSN Code</label>
@@ -4786,6 +4767,11 @@ function syncFinishedTable() {
     cards.forEach(card => {
         if (isProductAddingForm) {
             const rows = [...card.querySelectorAll('.fg-variant-row')];
+            const firstVariantName = rows[0]?.querySelector('.fg-variant-name')?.value?.trim() || '';
+            const productHidden = card.querySelector('.fg-input-product');
+            if (productHidden) {
+                productHidden.value = firstVariantName;
+            }
             const totalQuantity = rows.reduce((sum, row) => sum + (parseInt(row.querySelector('.fg-variant-qty')?.value, 10) || 0), 0);
             lineCount += rows.length;
             const totals = card.querySelector('[id^="fgVariantTotals_"]');
@@ -4931,9 +4917,10 @@ function addSimplePurchaseRow(initialData = null) {
     const qty = initialData?.qty !== undefined && initialData?.qty !== null ? initialData.qty : 1;
     const price = initialData?.price !== undefined && initialData?.price !== null ? initialData.price : 0;
     const hsn = initialData?.hsn || '';
-    const taxMode = initialData?.tax_mode || 'Exclude GST';
-    const gstType = initialData?.gst_type || 'Exempted';
-    const taxInputType = initialData?.tax_input_type || 'Percentage';
+    const globalTax = getGlobalTaxSettings();
+    const taxMode = initialData?.tax_mode || globalTax.taxMode;
+    const gstType = initialData?.gst_type || globalTax.gstType;
+    const taxInputType = initialData?.tax_input_type || globalTax.taxInputType;
     const sgst = parseFloat(initialData?.sgst) || 0;
     const cgst = parseFloat(initialData?.cgst) || 0;
     const igst = parseFloat(initialData?.igst) || 0;
@@ -4966,51 +4953,25 @@ function addSimplePurchaseRow(initialData = null) {
             <input type="number" step="0.01" min="0" class="form-control form-control-sm px-1 text-end simple-input-price" name="purchase_items[${id}][price]" value="${price}" required oninput="syncSimplePurchaseTable()">
         </td>
         <td class="px-1">
-            <select class="form-select form-select-sm px-1 simple-input-tax-mode" name="purchase_items[${id}][tax_mode]" onchange="syncSimplePurchaseTable()">
-                <option value="Exclude GST" ${taxMode === 'Exclude GST' ? 'selected' : ''}>Exclude GST</option>
-                <option value="Include GST" ${taxMode === 'Include GST' ? 'selected' : ''}>Include GST</option>
-            </select>
-        </td>
-        <td class="px-1">
-            <div class="d-flex flex-column gap-1">
-                <div class="d-flex gap-1">
-                    <select class="form-select form-select-sm simple-input-gst" name="purchase_items[${id}][gst]" onchange="onSimpleGstTypeChange(${id})">
-                        <option value="Exempted" ${gstType === 'Exempted' ? 'selected' : ''}>Exempted</option>
-                        <option value="Both (CGST and SGST)" ${gstType === 'Both (CGST and SGST)' ? 'selected' : ''}>Both (CGST & SGST)</option>
-                        <option value="CGST" ${gstType === 'CGST' ? 'selected' : ''}>CGST Only</option>
-                        <option value="SGST" ${gstType === 'SGST' ? 'selected' : ''}>SGST Only</option>
-                        <option value="IGST" ${gstType === 'IGST' ? 'selected' : ''}>IGST</option>
-                    </select>
-                    <div id="simpleTaxInputTypeCol_${id}" style="display: none; min-width: 78px;">
-                        <select class="form-select form-select-sm simple-input-tax-type" name="purchase_items[${id}][tax_input_type]" onchange="onSimpleTaxInputTypeChange(${id})">
-                            <option value="Percentage" ${taxInputType === 'Percentage' ? 'selected' : ''}>%</option>
-                            <option value="Amount" ${taxInputType === 'Amount' ? 'selected' : ''}>₹</option>
-                        </select>
-                    </div>
+            <span class="simple-row-gst-rate text-center d-block" aria-label="GST rate">0.00%</span>
+            <div class="d-none">
+            <input type="hidden" class="simple-input-tax-mode" name="purchase_items[${id}][tax_mode]" value="${escapeHtml(taxMode)}">
+            <input type="hidden" class="simple-input-gst" name="purchase_items[${id}][gst]" value="${escapeHtml(gstType)}">
+            <input type="hidden" class="simple-input-tax-type" name="purchase_items[${id}][tax_input_type]" value="${escapeHtml(taxInputType)}">
+            <span class="badge bg-light text-dark border ${gstType === 'Exempted' ? '' : 'd-none'}" id="simpleExemptBadge_${id}">Exempted</span>
+            <div class="d-flex gap-1" id="simpleGstDynamic_${id}" style="display: none;">
+                <div class="flex-fill" id="simpleSgstCol_${id}" style="display: none;">
+                    <input type="number" step="0.01" min="0" class="form-control form-control-sm px-1 simple-input-sgst" name="purchase_items[${id}][sgst]" value="${sgst}" placeholder="SGST" title="SGST" oninput="syncSimplePurchaseTable()">
                 </div>
-                <div class="d-flex gap-1" id="simpleGstDynamic_${id}" style="display: none;">
-                    <div class="flex-fill" id="simpleSgstCol_${id}" style="display: none;">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text px-1 small">S</span>
-                            <input type="number" step="0.01" min="0" class="form-control form-control-sm simple-input-sgst" name="purchase_items[${id}][sgst]" value="${sgst}" placeholder="SGST" oninput="syncSimplePurchaseTable()">
-                        </div>
-                    </div>
-                    <div class="flex-fill" id="simpleCgstCol_${id}" style="display: none;">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text px-1 small">C</span>
-                            <input type="number" step="0.01" min="0" class="form-control form-control-sm simple-input-cgst" name="purchase_items[${id}][cgst]" value="${cgst}" placeholder="CGST" oninput="syncSimplePurchaseTable()">
-                        </div>
-                    </div>
-                    <div class="flex-fill" id="simpleIgstCol_${id}" style="display: none;">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text px-1 small">I</span>
-                            <input type="number" step="0.01" min="0" class="form-control form-control-sm simple-input-igst" name="purchase_items[${id}][igst]" value="${igst}" placeholder="IGST" oninput="syncSimplePurchaseTable()">
-                        </div>
-                    </div>
+                <div class="flex-fill" id="simpleCgstCol_${id}" style="display: none;">
+                    <input type="number" step="0.01" min="0" class="form-control form-control-sm px-1 simple-input-cgst" name="purchase_items[${id}][cgst]" value="${cgst}" placeholder="CGST" title="CGST" oninput="syncSimplePurchaseTable()">
+                </div>
+                <div class="flex-fill" id="simpleIgstCol_${id}" style="display: none;">
+                    <input type="number" step="0.01" min="0" class="form-control form-control-sm px-1 simple-input-igst" name="purchase_items[${id}][igst]" value="${igst}" placeholder="IGST" title="IGST" oninput="syncSimplePurchaseTable()">
                 </div>
             </div>
+            </div>
         </td>
-        <td class="text-end simple-row-tax">₹0.00</td>
         <td class="text-end fw-bold text-success bg-success bg-opacity-10 simple-row-total">₹0.00</td>
         <td class="text-center">
             <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" title="Delete Row" onclick="removeSimplePurchaseRow(${id})">
@@ -5048,12 +5009,15 @@ function onSimpleGstTypeChange(id) {
     const cgstCol = document.getElementById('simpleCgstCol_' + id);
     const igstCol = document.getElementById('simpleIgstCol_' + id);
 
+    const exemptBadge = document.getElementById('simpleExemptBadge_' + id);
     if (gstType === 'Exempted') {
         if (typeCol) typeCol.style.display = 'none';
         if (dynRow) dynRow.style.display = 'none';
+        if (exemptBadge) exemptBadge.classList.remove('d-none');
     } else {
         if (typeCol) typeCol.style.display = 'block';
         if (dynRow) dynRow.style.display = 'flex';
+        if (exemptBadge) exemptBadge.classList.add('d-none');
         if (sgstCol) sgstCol.style.display = (gstType === 'Both (CGST and SGST)' || gstType === 'SGST') ? 'block' : 'none';
         if (cgstCol) cgstCol.style.display = (gstType === 'Both (CGST and SGST)' || gstType === 'CGST') ? 'block' : 'none';
         if (igstCol) igstCol.style.display = (gstType === 'IGST') ? 'block' : 'none';
@@ -5101,9 +5065,21 @@ function syncSimplePurchaseTable() {
         const qty = parseFloat(row.querySelector('.simple-input-qty')?.value) || 0;
         const price = parseFloat(row.querySelector('.simple-input-price')?.value) || 0;
         const taxInfo = calculateItemTax(row, 'simple', qty, price);
-
-        const taxCell = row.querySelector('.simple-row-tax');
-        if (taxCell) taxCell.innerHTML = taxInfo.taxHtml;
+        const gstType = row.querySelector('.simple-input-gst')?.value || 'Exempted';
+        const taxInputType = row.querySelector('.simple-input-tax-type')?.value || 'Percentage';
+        const gstRateCell = row.querySelector('.simple-row-gst-rate');
+        if (gstRateCell) {
+            if (gstType === 'Exempted') {
+                gstRateCell.textContent = '0.00%';
+            } else if (taxInputType !== 'Percentage') {
+                gstRateCell.textContent = '—';
+            } else {
+                const gstRate = ['sgst', 'cgst', 'igst'].reduce((rate, component) => {
+                    return rate + (parseFloat(row.querySelector(`.simple-input-${component}`)?.value) || 0);
+                }, 0);
+                gstRateCell.textContent = gstRate.toFixed(2) + '%';
+            }
+        }
 
         const totalCell = row.querySelector('.simple-row-total');
         if (totalCell) totalCell.textContent = '₹' + taxInfo.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -5179,143 +5155,41 @@ function loadInitialData() {
         rollCounter = 0;
 
         existingRolls.forEach(function(r) {
-            rollCounter++;
-            const rollCode = generateRollCode(rollCounter, r.item_code);
-            const div = document.createElement('div');
-            div.className = 'roll-card card border mb-4 shadow-sm rounded-3';
-            div.id = 'rollCard_' + rollCounter;
-
+            addRollRow();
+            const row = document.getElementById('rollCard_' + rollCounter);
+            if (!row) return;
             const existingPhoto = r.photo_path || '';
-            let photoPreviewHtml = '';
+            const existingPhotoInput = row.querySelector('input[name$="[existing_photo]"]');
+            if (existingPhotoInput) existingPhotoInput.value = existingPhoto;
             if (existingPhoto) {
                 const photoUrl = (existingPhoto.startsWith('http://') || existingPhoto.startsWith('https://'))
                     ? existingPhoto
                     : ('<?= \App\Core\Controller::url('/') ?>' + existingPhoto.replace(/^\/+/, ''));
-                div.dataset.photoUrl = photoUrl;
-                photoPreviewHtml = `
-                    <div class="d-inline-flex align-items-center gap-2 p-1 px-2 mt-1 bg-white border rounded shadow-sm">
-                        <a href="${photoUrl}" target="_blank" title="View Current Photo">
-                            <img src="${photoUrl}" class="rounded border" style="width: 32px; height: 32px; object-fit: cover;" alt="Preview">
-                        </a>
-                        <span class="small fw-semibold text-truncate text-dark" style="max-width: 180px;">Current Photo</span>
-                    </div>
-                `;
+                row.dataset.photoUrl = photoUrl;
+                const previewEl = document.getElementById('photoPreview_' + rollCounter);
+                if (previewEl) {
+                    previewEl.innerHTML = `<a href="${photoUrl}" target="_blank" class="small text-decoration-none">View Photo</a>`;
+                }
             }
-
-            const taxMode = r.tax_mode || 'Exclude GST';
+            if (row.querySelector('.roll-input-code')) row.querySelector('.roll-input-code').value = r.item_code || r.item_name || '';
+            if (row.querySelector('.roll-input-color')) row.querySelector('.roll-input-color').value = r.color || '';
+            if (row.querySelector('.roll-input-pattern')) row.querySelector('.roll-input-pattern').value = r.pattern || '';
+            if (row.querySelector('.roll-input-rq')) row.querySelector('.roll-input-rq').value = parseInt(r.rq_qty || r.qty) || 1;
+            if (row.querySelector('.roll-input-weight')) row.querySelector('.roll-input-weight').value = parseFloat(r.net_weight) || '';
+            if (row.querySelector('.roll-input-price')) row.querySelector('.roll-input-price').value = parseFloat(r.unit_price) || '';
+            const hsnInput = row.querySelector('.roll-input-hsn');
+            if (hsnInput) {
+                hsnInput.value = r.hsn_code || '';
+                setHsnInputMetadata(hsnInput, hsnInput.value);
+            }
+            if (row.querySelector('.roll-input-tax-mode')) row.querySelector('.roll-input-tax-mode').value = r.tax_mode || 'Exclude GST';
             const gstType = r.gst_type || 'Exempted';
             const gstRate = parseFloat(r.gst_rate) || 0;
             const halfRate = (gstRate / 2).toFixed(2);
-
-            div.innerHTML = `
-                <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-layers text-primary"></i>
-                        <span class="fw-bold text-dark font-monospace">ROLL #${rollCounter}</span>
-                        <span class="badge bg-dark font-monospace px-2 py-1 roll-code-badge" id="rollCodeBadge_${rollCounter}">${escapeHtml(rollCode)}</span>
-                    </div>
-                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="removeRollRow(${rollCounter})">
-                        <i class="bi bi-trash3 me-1"></i> Delete
-                    </button>
-                </div>
-                <div class="card-body p-3">
-                    <input type="hidden" name="rolls[${rollCounter}][existing_photo]" value="${escapeHtml(existingPhoto)}">
-                    <div id="rollStockNotice_${rollCounter}" style="display: none;"></div>
-                    <!-- Row 1: Roll No, Color, Pattern, RQ, Weight, Price -->
-                    <div class="row g-2 mb-3 align-items-end">
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold mb-1">Fabric Name <span class="text-danger">*</span></label>
-                            <input type="text" name="rolls[${rollCounter}][roll_code]" class="form-control form-control-sm font-monospace text-uppercase roll-input-code" placeholder="E.G. COTTON" value="${escapeHtml(r.item_code || '')}" required oninput="updateRollHeaderCode(${rollCounter}); syncRollsTable()">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold mb-1">Color / Shade <span class="text-danger">*</span></label>
-                            <input type="text" name="rolls[${rollCounter}][color]" class="form-control form-control-sm text-uppercase roll-input-color" placeholder="E.G. NAVY BLUE" value="${escapeHtml(r.color || '')}" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold mb-1">Design Name / Pattern <span class="text-danger">*</span></label>
-                            <input type="text" name="rolls[${rollCounter}][pattern]" class="form-control form-control-sm text-uppercase roll-input-pattern" placeholder="E.G. FLORAL 01" value="${escapeHtml(r.pattern || '')}" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold mb-1">Qty <span class="text-danger">*</span></label>
-                            <input type="number" min="1" step="1" name="rolls[${rollCounter}][rq]" class="form-control form-control-sm roll-input-rq" placeholder="1" value="${parseInt(r.rq_qty) || 1}" required oninput="onRollColorOrPatternChange(${rollCounter}); syncRollsTable()">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold mb-1">Overall Weight (kg) <span class="text-danger">*</span></label>
-                            <div class="input-group input-group-sm">
-                                <input type="number" step="0.01" min="0.01" name="rolls[${rollCounter}][weight]" class="form-control form-control-sm roll-input-weight" placeholder="0.00" value="${parseFloat(r.net_weight) || ''}" required oninput="syncRollsTable()">
-                                <span class="input-group-text small bg-light text-muted">kg</span>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold mb-1">Unit Price (₹) <span class="text-danger">*</span></label>
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text small bg-light text-muted">₹</span>
-                                <input type="number" step="0.01" min="0.01" name="rolls[${rollCounter}][price]" class="form-control form-control-sm roll-input-price" placeholder="0.00" value="${parseFloat(r.unit_price) || ''}" required oninput="syncRollsTable()">
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Row 2: HSN, Tax Mode, GST & Dynamic Fields -->
-                    <div class="row g-2 mb-3 align-items-end">
-                        <div class="col-md-3">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small fw-semibold mb-0">HSN Code</label>
-                                <a href="javascript:void(0)" class="text-decoration-none small text-primary fw-semibold" onclick="promptAddHsn(${rollCounter})">+ Add HSN</a>
-                            </div>
-                            <input type="text" name="rolls[${rollCounter}][hsn]" class="form-control form-control-sm font-monospace roll-input-hsn" value="${escapeHtml(r.hsn_code || '')}" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes(r.hsn_code || '')} autocomplete="off" oninput="onRollHsnInput(${rollCounter})" onchange="onRollHsnChange(${rollCounter})">
-                            <small class="hsn-rate-note text-muted d-block mt-1"></small>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold mb-1">Tax Mode</label>
-                            <select name="rolls[${rollCounter}][tax_mode]" class="form-select form-select-sm roll-input-tax-mode" onchange="syncRollsTable()">
-                                <option value="Exclude GST" ${taxMode === 'Exclude GST' ? 'selected' : ''}>Exclude GST</option>
-                                <option value="Include GST" ${taxMode === 'Include GST' ? 'selected' : ''}>Include GST</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold mb-1">GST</label>
-                            <select name="rolls[${rollCounter}][gst]" class="form-select form-select-sm roll-input-gst" onchange="onRollGstTypeChange(${rollCounter})">
-                                <option value="Exempted" ${gstType === 'Exempted' ? 'selected' : ''}>Exempted</option>
-                                <option value="Both (CGST and SGST)" ${gstType === 'Both (CGST and SGST)' ? 'selected' : ''}>Both (CGST and SGST)</option>
-                                <option value="SGST" ${gstType === 'SGST' ? 'selected' : ''}>SGST</option>
-                                <option value="CGST" ${gstType === 'CGST' ? 'selected' : ''}>CGST</option>
-                                <option value="IGST" ${gstType === 'IGST' ? 'selected' : ''}>IGST</option>
-                            </select>
-                        </div>
-                        <div class="col-md-5 ${gstType === 'Exempted' ? 'd-none' : ''} roll-gst-dynamic-container" id="gstDynamic_${rollCounter}">
-                            <div class="row g-2 align-items-end">
-                                <div class="col-md-4">
-                                    <label class="form-label small fw-semibold mb-1">Tax Input Type</label>
-                                    <select name="rolls[${rollCounter}][tax_input_type]" class="form-select form-select-sm roll-input-tax-type" onchange="onRollTaxInputTypeChange(${rollCounter})">
-                                        <option value="Percentage" selected>Percentage (%)</option>
-                                        <option value="Amount">Amount (₹)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4 roll-sgst-col ${gstType === 'CGST' || gstType === 'IGST' ? 'd-none' : ''}" id="sgstCol_${rollCounter}">
-                                    <label class="form-label small fw-semibold mb-1 roll-sgst-label">SGST (%)</label>
-                                    <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][sgst]" class="form-control form-control-sm roll-input-sgst" value="${gstType === 'Both (CGST and SGST)' ? halfRate : (gstType === 'SGST' ? gstRate : 0)}" placeholder="0" oninput="syncRollsTable()">
-                                </div>
-                                <div class="col-md-4 roll-cgst-col ${gstType === 'SGST' || gstType === 'IGST' ? 'd-none' : ''}" id="cgstCol_${rollCounter}">
-                                    <label class="form-label small fw-semibold mb-1 roll-cgst-label">CGST (%)</label>
-                                    <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][cgst]" class="form-control form-control-sm roll-input-cgst" value="${gstType === 'Both (CGST and SGST)' ? halfRate : (gstType === 'CGST' ? gstRate : 0)}" placeholder="0" oninput="syncRollsTable()">
-                                </div>
-                                <div class="col-md-4 roll-igst-col ${gstType !== 'IGST' ? 'd-none' : ''}" id="igstCol_${rollCounter}">
-                                    <label class="form-label small fw-semibold mb-1 roll-igst-label">IGST (%)</label>
-                                    <input type="number" step="0.01" min="0" name="rolls[${rollCounter}][igst]" class="form-control form-control-sm roll-input-igst" value="${gstType === 'IGST' ? gstRate : 0}" placeholder="0" oninput="syncRollsTable()">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Row 3: Roll Sample Photo & Preview -->
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold mb-1">Roll Sample Photo (Optional — JPG, PNG, WEBP)</label>
-                            <input type="file" name="rolls[${rollCounter}][photo]" class="form-control form-control-sm roll-input-photo" accept=".jpg,.jpeg,.png,.webp" onchange="previewRollPhoto(this, ${rollCounter})">
-                            <div class="roll-photo-preview-inline mt-1" id="photoPreview_${rollCounter}">${photoPreviewHtml}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            container.appendChild(div);
+            if (row.querySelector('.roll-input-gst')) row.querySelector('.roll-input-gst').value = gstType;
+            if (row.querySelector('.roll-input-sgst')) row.querySelector('.roll-input-sgst').value = gstType === 'Both (CGST and SGST)' ? halfRate : (gstType === 'SGST' ? gstRate : 0);
+            if (row.querySelector('.roll-input-cgst')) row.querySelector('.roll-input-cgst').value = gstType === 'Both (CGST and SGST)' ? halfRate : (gstType === 'CGST' ? gstRate : 0);
+            if (row.querySelector('.roll-input-igst')) row.querySelector('.roll-input-igst').value = gstType === 'IGST' ? gstRate : 0;
             onRollHsnChange(rollCounter);
         });
     }
@@ -5388,6 +5262,16 @@ document.addEventListener('DOMContentLoaded', function() {
             addSimplePurchaseRow();
         }
         syncSimplePurchaseTable();
+    }
+
+    const tabFinishedBtn = document.getElementById('tabFinishedBtn');
+    if (tabFinishedBtn && isProductAddingForm) {
+        tabFinishedBtn.addEventListener('shown.bs.tab', function () {
+            const container = document.getElementById('finishedGoodsContainer');
+            if (container && container.querySelectorAll('.finished-card').length === 0) {
+                addFinishedRow();
+            }
+        });
     }
 
     const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
@@ -5714,13 +5598,32 @@ document.addEventListener('DOMContentLoaded', function() {
         if (invalidFields.length > 0 || !hasItem) {
             event.preventDefault();
             event.stopPropagation();
+            if (invalidFields.length > 0 && itemsError) {
+                const missingLabels = invalidFields
+                    .map(getFieldLabel)
+                    .filter(Boolean)
+                    .filter((v, i, a) => a.indexOf(v) === i);
+                if (missingLabels.length > 0) {
+                    itemsError.textContent = 'Please check required field(s): ' + missingLabels.join(', ');
+                    itemsError.classList.remove('d-none');
+                }
+            }
             const firstInvalid = invalidFields[0];
             if (firstInvalid) {
                 const pane = firstInvalid.closest('.tab-pane');
-                if (pane && pane.id === 'paneRolls') document.getElementById('tabRollsBtn').click();
-                if (pane && pane.id === 'paneOther') document.getElementById('tabOtherBtn').click();
-                if (pane && pane.id === 'paneFinished') document.getElementById('tabFinishedBtn').click();
-                setTimeout(() => firstInvalid.focus(), 150);
+                if (pane && pane.id === 'paneRolls') document.getElementById('tabRollsBtn')?.click();
+                if (pane && pane.id === 'paneOther') document.getElementById('tabOtherBtn')?.click();
+                if (pane && pane.id === 'paneFinished') document.getElementById('tabFinishedBtn')?.click();
+                const focusTarget = (firstInvalid === supplierInput)
+                    ? (document.getElementById('supplierSearchInput') || firstInvalid)
+                    : firstInvalid;
+                if (firstInvalid === supplierInput && focusTarget) {
+                    focusTarget.classList.add('is-invalid');
+                }
+                setTimeout(() => {
+                    focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    focusTarget.focus();
+                }, 150);
             }
         }
         form.classList.add('was-validated');
@@ -5743,6 +5646,16 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const tabFinishedBtn = document.getElementById('tabFinishedBtn');
+    if (tabFinishedBtn && isProductAddingForm) {
+        tabFinishedBtn.addEventListener('shown.bs.tab', function () {
+            const container = document.getElementById('finishedGoodsContainer');
+            if (container && container.querySelectorAll('.finished-card').length === 0) {
+                addFinishedRow();
+            }
+        });
+    }
+
     const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
     const countModalElement = document.getElementById('productAddingLabelCountModal');
     const countRows = document.getElementById('productAddingLabelCountRows');

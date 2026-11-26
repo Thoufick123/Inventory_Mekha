@@ -511,7 +511,7 @@ class PurchaseController extends Controller {
         $bill = DB::fetch($sql, $params);
         if (!$bill || ($isProductAddingEdit && ($bill['source_module'] ?? '') !== 'purchase_billing')) {
             $this->flash('error', 'Purchase Bill not found or access denied.');
-            $this->redirect($isProductAddingEdit ? '/m/product_adding' : '/m/purchase_billing');
+            $this->redirect($isProductAddingEdit ? '/m/product_adding/create?bill_id=' . $billId : '/m/purchase_billing');
             return;
         }
 
@@ -2477,7 +2477,7 @@ class PurchaseController extends Controller {
             RollRegistryService::syncSpecs($cid);
 
             $this->flash('success', "Purchase Bill '#{$bill['bill_no']}' updated successfully for ₹" . number_format($netAmount, 2) . " (" . count($itemsToInsert) . " items)!");
-            $this->redirect($isProductAddingEdit ? '/m/product_adding/edit_purchase_bill?id=' . $billId : '/m/purchase_billing');
+            $this->redirect($isProductAddingEdit ? '/m/product_adding/create?bill_id=' . $billId : '/m/purchase_billing');
         } catch (\Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Error updating purchase bill: ' . $e->getMessage());
