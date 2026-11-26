@@ -206,14 +206,15 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 </select>
                                 <div class="dropdown flex-grow-1" style="min-width: 0;">
                                     <button type="button"
-                                            class="form-select text-start fw-semibold rounded-0 border-start-0 text-truncate w-100"
+                                            class="form-select text-start fw-semibold rounded-0 text-truncate w-100"
                                             id="customerChannelDropdownBtn"
                                             data-bs-toggle="dropdown"
                                             data-bs-auto-close="outside"
-                                            aria-expanded="false">
+                                            aria-expanded="false"
+                                            style="height: 100%; box-shadow: none;">
                                         <?= htmlspecialchars($initialChannelName) ?>
                                     </button>
-                                    <div class="dropdown-menu w-100 shadow-lg p-1" id="customerChannelDropdownMenu" style="max-height: 280px; overflow-y: auto; z-index: 1065;"></div>
+                                    <div class="dropdown-menu w-100 shadow-lg p-2 border" id="customerChannelDropdownMenu" style="max-height: 290px; overflow-y: auto; z-index: 1065; border-radius: 10px;"></div>
                                 </div>
                                 <?php if (\App\Core\Auth::can('billing', 'add') || \App\Core\Auth::can('billing', 'edit') || \App\Core\Auth::can('billing', 'delete')): ?>
                                 <button type="button" class="btn btn-outline-primary fw-semibold text-nowrap" id="btn_add_customer_channel" data-bs-toggle="modal" data-bs-target="#modalAddCustomerChannel" title="Manage Customer Channels (Add, View, Edit, Delete)">
@@ -2250,15 +2251,22 @@ document.addEventListener('DOMContentLoaded', function() {
         customerChannelsData.forEach(ch => {
             const isSelected = currentKey === ch.channel_key;
             const row = document.createElement('div');
-            row.className = 'd-flex align-items-center justify-content-between rounded-2 px-2 py-1.5 mb-0.5 ' + (isSelected ? 'bg-primary text-white' : 'hover-bg-light');
+            row.className = 'd-flex align-items-center justify-content-between rounded-2 px-2 py-1';
             row.style.cursor = 'pointer';
+            row.style.marginBottom = '3px';
+            row.style.minHeight = '36px';
+            if (isSelected) {
+                row.style.backgroundColor = '#eff6ff';
+                row.style.color = '#1d4ed8';
+            }
 
             const labelWrap = document.createElement('div');
             labelWrap.className = 'd-flex align-items-center gap-2 flex-grow-1 text-truncate me-2';
             labelWrap.innerHTML = `
+                <i class="bi ${isSelected ? 'bi-check-circle-fill text-primary' : 'bi-circle text-muted opacity-50'}" style="font-size: 0.78rem;"></i>
                 <span class="fw-semibold small text-truncate">${escapeHtml(ch.channel_name)}</span>
                 ${Number(ch.is_order_channel) === 1
-                    ? `<span class="badge ${isSelected ? 'bg-white text-primary' : 'bg-info-subtle text-info-emphasis border border-info-subtle'}" style="font-size:0.64rem;">Shipping &amp; Payment</span>`
+                    ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:0.64rem; padding: 2px 6px;">Shipping &amp; Payment</span>`
                     : ''}
             `;
             labelWrap.addEventListener('click', function () {
@@ -2279,8 +2287,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (canEditChannel && Number(ch.id) > 0) {
                 const editBtn = document.createElement('button');
                 editBtn.type = 'button';
-                editBtn.className = 'btn btn-sm py-0 px-1.5 ' + (isSelected ? 'btn-light text-primary' : 'btn-outline-secondary');
-                editBtn.innerHTML = '<i class="bi bi-pencil-square" style="font-size:0.76rem;"></i>';
+                editBtn.className = 'btn btn-sm btn-outline-secondary';
+                editBtn.style.cssText = 'width: 28px; height: 28px; padding: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; background: #ffffff;';
+                editBtn.innerHTML = '<i class="bi bi-pencil-square" style="font-size:0.78rem;"></i>';
                 editBtn.title = 'Edit ' + ch.channel_name;
                 editBtn.addEventListener('click', function (e) {
                     e.stopPropagation();
@@ -2294,8 +2303,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (canDeleteAny && Number(ch.id) > 0) {
                 const delBtn = document.createElement('button');
                 delBtn.type = 'button';
-                delBtn.className = 'btn btn-sm py-0 px-1.5 ' + (isSelected ? 'btn-danger' : 'btn-outline-danger');
-                delBtn.innerHTML = '<i class="bi bi-trash3" style="font-size:0.76rem;"></i>';
+                delBtn.className = 'btn btn-sm btn-outline-danger';
+                delBtn.style.cssText = 'width: 28px; height: 28px; padding: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; background: #ffffff;';
+                delBtn.innerHTML = '<i class="bi bi-trash3" style="font-size:0.78rem;"></i>';
                 delBtn.title = 'Delete ' + ch.channel_name;
                 delBtn.addEventListener('click', function (e) {
                     e.stopPropagation();
@@ -2307,7 +2317,7 @@ document.addEventListener('DOMContentLoaded', function() {
             row.appendChild(labelWrap);
             row.appendChild(actions);
             if (!isSelected) {
-                row.addEventListener('mouseenter', () => { row.style.backgroundColor = '#f1f5f9'; });
+                row.addEventListener('mouseenter', () => { row.style.backgroundColor = '#f8fafc'; });
                 row.addEventListener('mouseleave', () => { row.style.backgroundColor = ''; });
             }
             channelDropdownMenu.appendChild(row);
