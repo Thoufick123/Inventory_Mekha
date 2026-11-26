@@ -96,17 +96,6 @@
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
-                    <label class="form-label small fw-semibold mb-1" for="damageLocation">Warehouse</label>
-                    <select id="damageLocation" name="location" class="form-select form-select-sm">
-                        <option value="">All Locations</option>
-                        <?php foreach ($locations as $stockLocation): ?>
-                            <option value="<?= htmlspecialchars($stockLocation, ENT_QUOTES, 'UTF-8') ?>" <?= $selectedLocation === $stockLocation ? 'selected' : '' ?>>
-                                <?= htmlspecialchars(preg_replace('/:(AVAILABLE|DAMAGED)$/i', '', $stockLocation)) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-6 col-md-2">
                     <label class="form-label small fw-semibold mb-1" for="damageStatus">Status / Action</label>
                     <select id="damageStatus" name="status" class="form-select form-select-sm">
                         <option value="">All Statuses</option>
@@ -133,7 +122,6 @@
                     <tr>
                         <th>Case</th>
                         <th>Product &amp; Variant</th>
-                        <th>Warehouse</th>
                         <th>Source &amp; Origin Batch</th>
                         <th>Quantity</th>
                         <th>Loss / Valuation</th>
@@ -144,7 +132,7 @@
                 </thead>
                 <tbody>
                     <?php if (empty($damages)): ?>
-                        <tr><td colspan="9" class="text-center py-5 text-muted">No damage or rework records match these filters.</td></tr>
+                        <tr><td colspan="8" class="text-center py-5 text-muted">No damage or rework records match these filters.</td></tr>
                     <?php else: ?>
                         <?php foreach ($damages as $d):
                             $rowStatus = strtoupper((string)($d['current_status'] ?? 'LOGGED'));
@@ -165,7 +153,6 @@
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($d['variant_name']) ?></div>
                                     <small class="text-muted font-monospace"><?= htmlspecialchars($d['product_code']) ?> &bull; <?= htmlspecialchars($d['size'] ?: 'Standard') ?></small>
                                 </td>
-                                <td><span class="badge bg-dark"><i class="bi bi-building me-1"></i><?= htmlspecialchars(preg_replace('/:(AVAILABLE|DAMAGED)$/i', '', (string)$d['location'])) ?></span></td>
                                 <td>
                                     <span class="badge bg-secondary-subtle text-secondary"><?= htmlspecialchars($sourceLabel) ?></span>
                                     <small class="d-block text-muted"><?= !empty($d['origin_ref_id']) ? 'Batch / Ref #' . (int)$d['origin_ref_id'] : 'Concern stock' ?></small>

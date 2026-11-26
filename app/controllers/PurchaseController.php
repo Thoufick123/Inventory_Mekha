@@ -339,7 +339,7 @@ class PurchaseController extends Controller
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
                 LEFT JOIN concerns con ON pb.concern_id = con.id';
-        $where = [];
+        $where = ["COALESCE(NULLIF(pb.source_module, ''), 'purchase_billing') = 'purchase_billing'"];
         $params = [];
         if ($cid) {
             $where[] = 'pb.concern_id = ?';
@@ -350,9 +350,7 @@ class PurchaseController extends Controller
             $params[] = $dateScope['start_date'];
             $params[] = $dateScope['end_date'];
         }
-        if (!empty($where)) {
-            $sql .= ' WHERE ' . implode(' AND ', $where);
-        }
+        $sql .= ' WHERE ' . implode(' AND ', $where);
         $sql .= ' ORDER BY pb.id DESC';
         $bills = DB::fetchAll($sql, $params);
 
@@ -422,12 +420,13 @@ class PurchaseController extends Controller
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
                 LEFT JOIN concerns con ON pb.concern_id = con.id";
+        $where = ["COALESCE(NULLIF(pb.source_module, ''), 'purchase_billing') = 'purchase_billing'"];
         $params = [];
         if ($cid) {
-            $sql .= ' WHERE pb.concern_id = ?';
+            $where[] = 'pb.concern_id = ?';
             $params[] = $cid;
         }
-        $sql .= ' ORDER BY pb.id DESC';
+        $sql .= ' WHERE ' . implode(' AND ', $where) . ' ORDER BY pb.id DESC';
         $bills = PurchaseBillSourceService::attachInvoiceSyncStatus(DB::fetchAll($sql, $params), $cid);
 
         if ($cid) {
@@ -541,7 +540,24 @@ class PurchaseController extends Controller
             }
         }
 
-        $items = DB::fetchAll('SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC', [$id]);
+        $items = DB::fetchAll(
+            'SELECT pbi.*,
+                    v.product_code AS variant_product_code,
+                    v.size AS variant_size,
+                    v.attributes AS variant_attributes,
+                    v.price AS variant_selling_price,
+                    v.mrp AS variant_mrp,
+                    v.weight AS variant_weight,
+                    c.style_code AS catalog_style_code,
+                    c.hierarchy_path AS catalog_hierarchy_path,
+                    c.name AS catalog_name
+             FROM purchase_bill_items pbi
+             LEFT JOIN variants v ON pbi.variant_id = v.id
+             LEFT JOIN catalogs c ON COALESCE(pbi.catalog_id, v.catalog_id) = c.id
+             WHERE pbi.purchase_bill_id = ?
+             ORDER BY pbi.id ASC',
+            [$id]
+        );
 
         if ($cid) {
             $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
@@ -755,11 +771,28 @@ class PurchaseController extends Controller
             return;
         }
 
-        $items = DB::fetchAll('SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC', [$id]);
+        $items = DB::fetchAll(
+            'SELECT pbi.*,
+                    v.product_code AS variant_product_code,
+                    v.size AS variant_size,
+                    v.attributes AS variant_attributes,
+                    v.price AS variant_selling_price,
+                    v.mrp AS variant_mrp,
+                    v.weight AS variant_weight,
+                    c.style_code AS catalog_style_code,
+                    c.hierarchy_path AS catalog_hierarchy_path,
+                    c.name AS catalog_name
+             FROM purchase_bill_items pbi
+             LEFT JOIN variants v ON pbi.variant_id = v.id
+             LEFT JOIN catalogs c ON COALESCE(pbi.catalog_id, v.catalog_id) = c.id
+             WHERE pbi.purchase_bill_id = ?
+             ORDER BY pbi.id ASC',
+            [$id]
+        );
 
         $isProductAddingBill = ($bill['source_module'] ?? 'purchase_billing') === 'product_adding';
         $this->render('concern/purchase_billing_view', [
-            'pageTitle'     => ($isProductAddingBill ? 'Product Adding Bill #' : 'Purchase Bill #') . $bill['bill_no'],
+            'pageTitle' => ($isProductAddingBill ? 'Product Adding Bill #' : 'Purchase Bill #') . $bill['bill_no'],
             'currentModule' => $isProductAddingBill ? 'product_adding' : 'purchase_billing',
             'bill' => $bill,
             'items' => $items,
@@ -791,7 +824,24 @@ class PurchaseController extends Controller
             return;
         }
 
-        $items = DB::fetchAll('SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC', [$id]);
+        $items = DB::fetchAll(
+            'SELECT pbi.*,
+                    v.product_code AS variant_product_code,
+                    v.size AS variant_size,
+                    v.attributes AS variant_attributes,
+                    v.price AS variant_selling_price,
+                    v.mrp AS variant_mrp,
+                    v.weight AS variant_weight,
+                    c.style_code AS catalog_style_code,
+                    c.hierarchy_path AS catalog_hierarchy_path,
+                    c.name AS catalog_name
+             FROM purchase_bill_items pbi
+             LEFT JOIN variants v ON pbi.variant_id = v.id
+             LEFT JOIN catalogs c ON COALESCE(pbi.catalog_id, v.catalog_id) = c.id
+             WHERE pbi.purchase_bill_id = ?
+             ORDER BY pbi.id ASC',
+            [$id]
+        );
 
         $cleanBillNo = preg_replace('/[^A-Za-z0-9_\-]/', '_', $bill['bill_no']);
         $filename = "Purchase_Items_{$cleanBillNo}_" . date('Ymd_His') . '.csv';
@@ -994,12 +1044,16 @@ class PurchaseController extends Controller
         ];
     }
 
-    private function supplierInvoiceNumberExists(int $concernId, int $supplierId, string $invoiceNo, ?int $excludeBillId = null): bool
+    private function supplierInvoiceNumberExists(int $concernId, int $supplierId, string $invoiceNo, ?int $excludeBillId = null, ?string $sourceModule = null): bool
     {
         $sql = 'SELECT id FROM purchase_bills
                 WHERE concern_id = ? AND supplier_id = ?
                   AND LOWER(TRIM(supplier_invoice_no)) = LOWER(TRIM(?))';
         $params = [$concernId, $supplierId, $invoiceNo];
+        if ($sourceModule !== null) {
+            $sql .= " AND COALESCE(NULLIF(source_module, ''), 'purchase_billing') = ?";
+            $params[] = $sourceModule;
+        }
         if ($excludeBillId !== null) {
             $sql .= ' AND id != ?';
             $params[] = $excludeBillId;
@@ -1022,85 +1076,90 @@ class PurchaseController extends Controller
             $this->renderJson(['success' => false, 'message' => 'Choose a concern before checking the invoice number.'], 422);
             return;
         }
-        if ($supplierId <= 0 || $invoiceNo === '') {
+        if ($invoiceNo === '') {
             $this->renderJson(['success' => true, 'duplicate' => false]);
             return;
         }
 
         $billId = (int) ($_POST['bill_id'] ?? 0);
         $isProductAddingRequest = ($_POST['product_adding_redirect'] ?? '') === '1';
-
-        if ($isProductAddingRequest) {
-            // Check if a Purchase Billing invoice exists for this supplier + invoice number (invoice no + supplier + qty contact)
-            $pbBill = DB::fetch(
-                "SELECT pb.id, pb.bill_no, COALESCE(SUM(pbi.qty), 0) AS invoice_qty
-                 FROM purchase_bills pb
-                 LEFT JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
-                 WHERE pb.concern_id = ? AND pb.supplier_id = ?
-                   AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))
-                   AND COALESCE(pb.source_module, 'purchase_billing') = 'purchase_billing'
-                 GROUP BY pb.id
-                 ORDER BY pb.id DESC LIMIT 1",
-                [$concernId, $supplierId, $invoiceNo]
+        $currentModule = $isProductAddingRequest ? 'product_adding' : 'purchase_billing';
+        if ($billId > 0) {
+            $billSource = DB::fetchValue(
+                "SELECT COALESCE(NULLIF(source_module, ''), 'purchase_billing') FROM purchase_bills WHERE id = ?",
+                [$billId]
             );
-
-            $paSql = "SELECT COALESCE(SUM(pbi.qty), 0) AS added_qty
-                      FROM purchase_bills pb
-                      JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
-                      WHERE pb.concern_id = ? AND pb.supplier_id = ?
-                        AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))
-                        AND pb.source_module = 'product_adding'";
-            $paParams = [$concernId, $supplierId, $invoiceNo];
-            if ($billId > 0) {
-                $paSql .= ' AND pb.id != ?';
-                $paParams[] = $billId;
+            if ($billSource) {
+                $currentModule = (string) $billSource;
             }
-            $addedQty = (float) (DB::fetchValue($paSql, $paParams) ?: 0);
+        }
+        $otherModule = $currentModule === 'product_adding' ? 'purchase_billing' : 'product_adding';
 
-            if ($pbBill) {
-                $invoiceQty = (float) ($pbBill['invoice_qty'] ?? 0);
-                $remainingQty = max(0.0, $invoiceQty - $addedQty);
+        // 1. Strict duplicate check ONLY within the same module (when supplier is selected)
+        if ($supplierId > 0) {
+            $sameModuleSql = "SELECT pb.id, pb.bill_no
+                              FROM purchase_bills pb
+                              WHERE pb.concern_id = ? AND pb.supplier_id = ?
+                                AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))
+                                AND COALESCE(NULLIF(pb.source_module, ''), 'purchase_billing') = ?";
+            $sameModuleParams = [$concernId, $supplierId, $invoiceNo, $currentModule];
+            if ($billId > 0) {
+                $sameModuleSql .= ' AND pb.id != ?';
+                $sameModuleParams[] = $billId;
+            }
+            $sameModuleBill = DB::fetch($sameModuleSql . ' ORDER BY pb.id DESC LIMIT 1', $sameModuleParams);
+            if ($sameModuleBill) {
                 $this->renderJson([
                     'success' => true,
-                    'duplicate' => false,
-                    'matched_purchase_bill' => [
-                        'id' => (int) $pbBill['id'],
-                        'bill_no' => (string) $pbBill['bill_no'],
-                        'invoice_qty' => $invoiceQty,
-                        'product_adding_qty' => $addedQty,
-                        'remaining_qty' => $remainingQty,
-                    ],
+                    'duplicate' => true,
+                    'message' => 'This supplier invoice number has already been recorded for the selected supplier.',
                 ]);
                 return;
             }
         }
 
-        $existingSql = "SELECT pb.id, pb.source_module, pb.inward_status,
-                               COUNT(pbi.id) AS item_count,
-                               COALESCE(SUM(CASE
-                                   WHEN COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'
-                                   THEN 1 ELSE 0
-                               END), 0) AS stocked_count
-                        FROM purchase_bills pb
-                        LEFT JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
-                        WHERE pb.concern_id = ? AND pb.supplier_id = ?
-                          AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))";
-        $existingParams = [$concernId, $supplierId, $invoiceNo];
-        if ($billId > 0) {
-            $existingSql .= ' AND pb.id != ?';
-            $existingParams[] = $billId;
+        // 2. Check if the invoice exists in the other module to share & auto-fill header/supplier details
+        $otherWhereSupplier = $supplierId > 0 ? ' AND pb.supplier_id = ?' : '';
+        $otherParams = $supplierId > 0
+            ? [$concernId, $supplierId, $invoiceNo, $otherModule]
+            : [$concernId, $invoiceNo, $otherModule];
+        $otherBill = DB::fetch(
+            "SELECT pb.id, pb.supplier_id, pb.bill_no,
+                    COALESCE(SUM(pbi.qty), 0) AS invoice_qty
+             FROM purchase_bills pb
+             LEFT JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
+             WHERE pb.concern_id = ?{$otherWhereSupplier}
+               AND LOWER(TRIM(pb.supplier_invoice_no)) = LOWER(TRIM(?))
+               AND COALESCE(NULLIF(pb.source_module, ''), 'purchase_billing') = ?
+             GROUP BY pb.id
+             ORDER BY pb.id DESC LIMIT 1",
+            $otherParams
+        );
+
+        if ($otherBill) {
+            $invoiceQty = (float) ($otherBill['invoice_qty'] ?? 0);
+            $matchedPayload = [
+                'id' => (int) $otherBill['id'],
+                'supplier_id' => (int) $otherBill['supplier_id'],
+                'bill_no' => (string) $otherBill['bill_no'],
+                'source_module' => $otherModule,
+                'invoice_qty' => $invoiceQty,
+                'product_adding_qty' => 0.0,
+                'remaining_qty' => $invoiceQty,
+            ];
+            $this->renderJson([
+                'success' => true,
+                'duplicate' => false,
+                'matched_purchase_bill' => $matchedPayload,
+            ]);
+            return;
         }
-        $existingSql .= ' GROUP BY pb.id ORDER BY pb.id DESC LIMIT 1';
-        $existingBill = DB::fetch($existingSql, $existingParams);
-        $duplicate = !empty($existingBill);
-        $response = [
+
+        $this->renderJson([
             'success' => true,
-            'duplicate' => $duplicate,
-            'message' => $duplicate
-                ? 'This supplier invoice number has already been recorded for the selected supplier.'
-                : '',
-        ];
-        $this->renderJson($response);
+            'duplicate' => false,
+            'message' => '',
+        ]);
     }
 
     public function storeBill(): void
@@ -1127,7 +1186,7 @@ class PurchaseController extends Controller
             return;
         }
 
-        if (!$supplierId) {
+        if (!$isProductAddingInvoice && $supplierId === null) {
             $this->flash('error', 'Please select a registered supplier.');
             $this->redirect($createRedirect);
             return;
@@ -1140,7 +1199,7 @@ class PurchaseController extends Controller
             $this->redirect($createRedirect);
             return;
         }
-        if (!$isProductAddingInvoice && $this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo)) {
+        if (!$isProductAddingInvoice && $this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo, null, 'purchase_billing')) {
             $this->flash('error', 'This supplier invoice number has already been recorded for the selected supplier.');
             $this->redirect($createRedirect);
             return;
@@ -1171,7 +1230,7 @@ class PurchaseController extends Controller
                        AND pb.source_module = 'product_adding'",
                     [$cid, $supplierId, $supplierInvoiceNo]
                 ) ?: 0);
-            } elseif ($this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo)) {
+            } elseif ($this->supplierInvoiceNumberExists($cid, $supplierId, $supplierInvoiceNo, null, 'product_adding')) {
                 $this->flash('error', 'This supplier invoice number has already been recorded for the selected supplier.');
                 $this->redirect($createRedirect);
                 return;
@@ -1348,18 +1407,15 @@ class PurchaseController extends Controller
                         continue;
                     }
                     $quantity = (float) ($variantRow['quantity'] ?? 0);
-                    $supplierCost = (float) ($variantRow['supplier_cost'] ?? 0);
                     $sellingPrice = (float) ($variantRow['selling_price'] ?? 0);
                     $mrp = (float) ($variantRow['mrp'] ?? 0);
                     if (!is_finite($quantity) ||
-                            !is_finite($supplierCost) ||
                             !is_finite($sellingPrice) ||
                             !is_finite($mrp) ||
                             $quantity <= 0 ||
-                            $supplierCost <= 0 ||
-                            $sellingPrice <= $supplierCost ||
-                            $mrp <= $sellingPrice) {
-                        $this->flash('error', 'Every finished-goods variant must satisfy Supplier Cost < Selling Price < MRP and have a quantity greater than zero.');
+                            $sellingPrice <= 0 ||
+                            ($mrp > 0 && $mrp <= $sellingPrice)) {
+                        $this->flash('error', 'Every finished-goods variant must have a quantity greater than zero, Selling Price > 0, and MRP > Selling Price.');
                         $this->redirect($createRedirect);
                         return;
                     }
@@ -1376,7 +1432,7 @@ class PurchaseController extends Controller
         if (is_array($finishedRaw)) {
             foreach ($finishedRaw as $idx => $f) {
                 $qty = (float) ($f['quantity'] ?? ($f['qty'] ?? 0));
-                $price = (float) ($f['supplier_cost'] ?? ($f['unit_price'] ?? 0));
+                $price = (float) ($f['selling_price'] ?? ($f['supplier_cost'] ?? ($f['unit_price'] ?? 0)));
 
                 if ($qty > 0 && $price > 0) {
                     $catalogId = null;
@@ -1595,16 +1651,12 @@ class PurchaseController extends Controller
             return;
         }
 
+        $qtyMismatchWarning = null;
         if ($isProductAddingInvoice && $matchedPurchaseBillQty !== null) {
             $newTotalQty = array_reduce($itemsToInsert, fn($carry, $it) => $carry + (float) ($it['qty'] ?? 0), 0.0);
-            $remainingQty = max(0.0, $matchedPurchaseBillQty - $alreadyAddedProductAddingQty);
-            if (($alreadyAddedProductAddingQty + $newTotalQty) > ($matchedPurchaseBillQty + 0.0001)) {
-                $this->flash(
-                    'error',
-                    "Product Adding quantity ({$newTotalQty}) exceeds remaining Purchase Billing invoice quantity ({$remainingQty} of {$matchedPurchaseBillQty}) for invoice '{$supplierInvoiceNo}'."
-                );
-                $this->redirect($createRedirect);
-                return;
+            $totalProductAddingQty = $alreadyAddedProductAddingQty + $newTotalQty;
+            if (abs($totalProductAddingQty - $matchedPurchaseBillQty) > 0.0001) {
+                $qtyMismatchWarning = "Quantity mismatch alert: Product Adding qty ({$totalProductAddingQty}) does not match Purchase Billing invoice qty ({$matchedPurchaseBillQty}) for invoice '{$supplierInvoiceNo}'. Saved with Qty Mismatch status.";
             }
         }
 
@@ -1778,6 +1830,9 @@ class PurchaseController extends Controller
             }
 
             $this->flash('success', "Production Purchase '{$billNo}' recorded successfully!");
+            if ($qtyMismatchWarning !== null) {
+                $this->flash('warning', $qtyMismatchWarning);
+            }
             $this->redirect($isProductAddingInvoice ? $successRedirect . '?bill_id=' . $billId : $successRedirect);
         } catch (Exception $e) {
             DB::rollBack();
@@ -1815,8 +1870,8 @@ class PurchaseController extends Controller
         if (strlen($styleCode) > 50) {
             $styleCode = substr($styleCode, 0, 50);
         }
-        if ($supplierCost <= 0 || $sellingPrice <= $supplierCost || $mrp <= $sellingPrice) {
-            throw new Exception('New catalog pricing must follow Supplier Cost < Selling Price < MRP.');
+        if ($sellingPrice <= 0 || ($mrp > 0 && $mrp <= $sellingPrice)) {
+            throw new Exception('New catalog pricing must have Selling Price > 0 and MRP > Selling Price.');
         }
         if ($size === '') {
             $size = 'Free Size';
@@ -2373,7 +2428,7 @@ class PurchaseController extends Controller
         if (is_array($finishedRaw)) {
             foreach ($finishedRaw as $idx => $f) {
                 $qty = (float) ($f['quantity'] ?? ($f['qty'] ?? 0));
-                $price = (float) ($f['supplier_cost'] ?? ($f['unit_price'] ?? 0));
+                $price = (float) ($f['selling_price'] ?? ($f['supplier_cost'] ?? ($f['unit_price'] ?? 0)));
 
                 if ($qty > 0 && $price > 0) {
                     $taxMode = trim($f['tax_mode'] ?? 'Exclude GST');
@@ -2435,6 +2490,21 @@ class PurchaseController extends Controller
             $this->flash('error', $e->getMessage());
             $this->redirect($editBillUrl);
             return;
+        }
+        if (empty($attachmentPaths)) {
+            $otherModule = $isProductAddingInvoice ? 'purchase_billing' : 'product_adding';
+            $matchedAttachmentBill = DB::fetch(
+                "SELECT attachment_path, attachment_paths
+                 FROM purchase_bills
+                 WHERE concern_id = ? AND supplier_id = ?
+                   AND LOWER(TRIM(supplier_invoice_no)) = LOWER(TRIM(?))
+                   AND COALESCE(NULLIF(source_module, ''), 'purchase_billing') = ?
+                 ORDER BY id DESC LIMIT 1",
+                [$cid, $supplierId, $supplierInvoiceNo, $otherModule]
+            );
+            if ($matchedAttachmentBill) {
+                $attachmentPaths = $this->getBillAttachmentPaths($matchedAttachmentBill);
+            }
         }
         if (empty($attachmentPaths)) {
             $this->flash('error', 'Tax Invoice / Bill Attachment is required. Please upload at least one invoice file.');

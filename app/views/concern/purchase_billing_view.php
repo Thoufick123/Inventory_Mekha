@@ -296,7 +296,6 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                             <th>UNIT PRICE (₹)</th>
                             <th>QTY</th>
                             <th>TOTAL</th>
-                            <th>GST TYPE</th>
                             <th>TAX</th>
                             <th class="table-success text-success fw-bold">TOTAL VALUE (TAX+TOTAL)</th>
                         </tr>
@@ -332,13 +331,6 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                                 <td>₹<?= number_format($unitPrice, 2) ?></td>
                                 <td class="fw-semibold"><?= $qtyRq ?></td>
                                 <td class="fw-semibold">₹<?= number_format($baseVal, 2) ?></td>
-                                <td>
-                                    <?php if ($gstType === 'Exempted' || ($gstRate == 0 && $taxVal <= 0)): ?>
-                                        <span class="badge bg-light text-dark border">EXEMPTED</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-primary-subtle text-primary border"><?= htmlspecialchars($gstType) ?><?= $gstRate > 0 ? ' (' . number_format($gstRate, 2) . '%)' : '' ?></span>
-                                    <?php endif; ?>
-                                </td>
                                 <td>
                                     <?php if ($gstType === 'Both (CGST and SGST)' && $taxVal > 0): ?>
                                         <div class="fw-bold">₹<?= number_format($taxVal, 2) ?></div>
@@ -377,14 +369,12 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     <thead class="table-light">
                         <tr>
                             <th style="width: 40px;">#</th>
-                            <th>OTHER PRODUCT NO/CODE</th>
                             <th>ITEM NAME / DESCRIPTION</th>
                             <th>HSN</th>
                             <th>QUANTITY</th>
                             <th>UNIT</th>
                             <th>UNIT PRICE</th>
                             <th>BASE VALUE</th>
-                            <th>GST TYPE</th>
                             <th>TAX</th>
                             <th class="table-success text-success fw-bold">TOTAL VALUE</th>
                         </tr>
@@ -399,20 +389,12 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                             ?>
                             <tr>
                                 <td><?= $idx++ ?></td>
-                                <td class="font-monospace fw-semibold text-dark"><?= htmlspecialchars($o['item_code'] ?: '-') ?></td>
                                 <td class="fw-semibold text-dark text-start"><?= htmlspecialchars($o['item_name']) ?></td>
                                 <td class="font-monospace"><?= htmlspecialchars($o['hsn_code'] ?: '-') ?></td>
                                 <td class="fw-semibold"><?= number_format($o['qty'], 2) ?></td>
                                 <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($o['unit']) ?></span></td>
                                 <td>₹<?= number_format($o['unit_price'], 2) ?></td>
                                 <td>₹<?= number_format($o['total_price'], 2) ?></td>
-                                <td>
-                                    <?php if ($gstType === 'Exempted' || ($gstRate == 0 && $taxVal <= 0)): ?>
-                                        <span class="badge bg-light text-dark border">EXEMPTED</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-success-subtle text-success border"><?= htmlspecialchars($gstType) ?><?= $gstRate > 0 ? ' (' . number_format($gstRate, 2) . '%)' : '' ?></span>
-                                    <?php endif; ?>
-                                </td>
                                 <td>
                                     <?php if ($gstType === 'Both (CGST and SGST)' && $taxVal > 0): ?>
                                         <div class="fw-bold">₹<?= number_format($taxVal, 2) ?></div>
@@ -451,11 +433,15 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     <thead class="table-light">
                         <tr>
                             <th style="width: 40px;">#</th>
-                            <th>PRODUCT</th>
+                            <th>PRODUCT CODE</th>
+                            <th>PRODUCT / HIERARCHY</th>
+                            <th>COLOR</th>
+                            <th>SIZE</th>
+                            <th>WEIGHT</th>
                             <th>HSN</th>
                             <th>QTY</th>
-                            <th>UNIT PRICE OF SUPPLIER COST (₹)</th>
-                            <th>GST TYPE</th>
+                            <th>SELLING PRICE (₹)</th>
+                            <th>MRP (₹)</th>
                             <th>TAX</th>
                             <th class="table-success text-success fw-bold">TOTAL VALUE</th>
                         </tr>
@@ -467,20 +453,34 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                             $taxVal = (float)($f['tax_amount'] ?? 0);
                             $totalVal = (float)($f['total_price'] ?? 0) + $taxVal;
                             $gstType = $f['gst_type'] ?? ($gstRate == 0 && $taxVal <= 0 ? 'Exempted' : 'GST');
+                            $productCode = trim((string)($f['variant_product_code'] ?? ($f['item_code'] ?? '')));
+                            $hierarchyPath = trim((string)($f['catalog_hierarchy_path'] ?? ($f['category_name'] ?? '')));
+                            $styleCode = trim((string)($f['catalog_style_code'] ?? ''));
+                            $variantAttrs = !empty($f['variant_attributes']) ? json_decode((string)$f['variant_attributes'], true) : [];
+                            $fgColor = trim((string)($f['color'] ?? ($variantAttrs['color'] ?? '')));
+                            $fgSize = trim((string)($f['variant_size'] ?? ($f['specification'] ?? '')));
+                            $fgWeight = (float)($f['net_weight'] ?? ($f['variant_weight'] ?? 0));
+                            $fgSelling = (float)($f['selling_price'] ?? ($f['variant_selling_price'] ?? ($f['unit_price'] ?? 0)));
+                            $fgMrp = (float)($f['mrp'] ?? ($f['variant_mrp'] ?? 0));
                             ?>
                             <tr>
                                 <td><?= $idx++ ?></td>
-                                <td class="fw-bold text-dark text-start"><?= htmlspecialchars($f['item_name']) ?></td>
-                                <td class="font-monospace"><?= htmlspecialchars($f['hsn_code'] ?: '-') ?></td>
-                                <td class="fw-bold"><?= (int)$f['qty'] ?></td>
-                                <td>₹<?= number_format($f['unit_price'], 2) ?></td>
-                                <td>
-                                    <?php if ($gstType === 'Exempted' || ($gstRate == 0 && $taxVal <= 0)): ?>
-                                        <span class="badge bg-light text-dark border">EXEMPTED</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-purple-subtle text-purple border" style="background:#ede9fe; color:#6d28d9;"><?= htmlspecialchars($gstType) ?><?= $gstRate > 0 ? ' (' . number_format($gstRate, 2) . '%)' : '' ?></span>
+                                <td class="font-monospace fw-bold text-primary"><?= htmlspecialchars($productCode !== '' ? $productCode : '-') ?></td>
+                                <td class="text-start">
+                                    <div class="fw-bold text-dark"><?= htmlspecialchars($f['item_name']) ?></div>
+                                    <?php if ($hierarchyPath !== '' || $styleCode !== ''): ?>
+                                        <small class="text-muted d-block">
+                                            <?= htmlspecialchars($hierarchyPath) ?><?= ($hierarchyPath !== '' && $styleCode !== '') ? ' • ' : '' ?><?= $styleCode !== '' ? htmlspecialchars($styleCode) : '' ?>
+                                        </small>
                                     <?php endif; ?>
                                 </td>
+                                <td><?= htmlspecialchars($fgColor !== '' ? $fgColor : '-') ?></td>
+                                <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($fgSize !== '' ? $fgSize : '-') ?></span></td>
+                                <td><?= $fgWeight > 0 ? number_format($fgWeight, 2) . ' kg' : '-' ?></td>
+                                <td class="font-monospace"><?= htmlspecialchars($f['hsn_code'] ?: '-') ?></td>
+                                <td class="fw-bold"><?= (int)$f['qty'] ?></td>
+                                <td class="fw-semibold">₹<?= number_format($fgSelling, 2) ?></td>
+                                <td><?= $fgMrp > 0 ? '₹' . number_format($fgMrp, 2) : '-' ?></td>
                                 <td>
                                     <?php if ($gstType === 'Both (CGST and SGST)' && $taxVal > 0): ?>
                                         <div class="fw-bold">₹<?= number_format($taxVal, 2) ?></div>

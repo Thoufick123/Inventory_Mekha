@@ -618,18 +618,17 @@ class CatalogMappingController extends Controller
                 throw new Exception("Quantity Validation Error: Sum of all variant quantities ({$sumAllocatedQty}) must exactly equal the total purchased quantity ({$purchasedTotalQty}). It cannot be less than or greater than {$purchasedTotalQty} ({$diffText}).");
             }
 
-            // Strict Validation 2: Pricing Hierarchy Validation - Supplier Cost < Selling Price < MRP
-            $supplierUnitCost = (float) ($item['unit_price'] ?? 0.0);
+            // Strict Validation 2: Pricing Hierarchy Validation - Selling Price > 0 and MRP > Selling Price
             foreach ($variantMrps as $vKey => $vMrpVal) {
                 $varMrp = $vMrpVal !== '' ? (float) $vMrpVal : $mrp;
                 $varPrice = isset($variantSellingPrices[$vKey]) && $variantSellingPrices[$vKey] !== '' ? (float) $variantSellingPrices[$vKey] : $sellingPrice;
 
-                if ($varPrice <= $supplierUnitCost) {
-                    throw new Exception('Pricing Validation Error: Selling Price (₹' . number_format($varPrice, 2) . ') must be strictly greater than Supplier Cost (₹' . number_format($supplierUnitCost, 2) . '). Required Rule: Supplier Cost < Selling Price < MRP.');
+                if ($varPrice <= 0) {
+                    throw new Exception('Pricing Validation Error: Selling Price must be greater than zero.');
                 }
 
-                if ($varMrp <= $varPrice) {
-                    throw new Exception('Pricing Validation Error: MRP (₹' . number_format($varMrp, 2) . ') must be strictly greater than Selling Price (₹' . number_format($varPrice, 2) . '). Required Rule: Supplier Cost < Selling Price < MRP.');
+                if ($varMrp > 0 && $varMrp <= $varPrice) {
+                    throw new Exception('Pricing Validation Error: MRP (₹' . number_format($varMrp, 2) . ') must be strictly greater than Selling Price (₹' . number_format($varPrice, 2) . ').');
                 }
             }
 

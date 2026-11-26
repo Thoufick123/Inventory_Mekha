@@ -352,9 +352,8 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                         <table class="table align-middle mb-0" id="indentItemsTable">
                             <thead class="table-light">
                                 <tr class="text-uppercase small text-secondary">
-                                    <th style="width: 45%;">ITEM</th>
-                                    <th style="width: 25%;" class="text-center">CONCERN STOCK</th>
-                                    <th style="width: 20%;" class="text-center">REQUEST QTY</th>
+                                    <th style="width: 60%;">ITEM</th>
+                                    <th style="width: 30%;" class="text-center">CONCERN STOCK</th>
                                     <th style="width: 10%;" class="text-end"></th>
                                 </tr>
                             </thead>
@@ -517,14 +516,12 @@ function addIndentItemRow(variantId, name, sku, size, defaultQty = 10) {
             <div class="fw-bold text-dark text-uppercase">${escapeHtml(name)}</div>
             <small class="text-muted font-monospace">${escapeHtml(sku)}${size ? ' &bull; ' + escapeHtml(size) : ''}</small>
             <input type="hidden" name="items[${variantId}][variant_id]" value="${variantId}">
+            <input type="hidden" name="items[${variantId}][requested_qty]" value="${defaultQty}">
         </td>
         <td class="text-center">
             <span class="badge ${stockBadgeClass} px-2 py-1 concern-stock-badge" data-variant-id="${variantId}">
                 ${stock.toFixed(2)} pcs
             </span>
-        </td>
-        <td class="text-center">
-            <input type="number" name="items[${variantId}][requested_qty]" class="form-control form-control-sm text-center mx-auto" style="max-width: 90px;" min="1" step="1" value="${defaultQty}" required>
         </td>
         <td class="text-end">
             <button type="button" class="btn btn-sm btn-link text-danger p-0 border-0" onclick="removeIndentRow(this)" title="Delete Row">

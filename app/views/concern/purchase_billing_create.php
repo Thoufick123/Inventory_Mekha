@@ -10,12 +10,13 @@ $quickCategorySaveUrl = $quickCategorySaveUrl ?? '';
 $quickAttributeSaveUrl = $quickAttributeSaveUrl ?? '';
 $invoiceCheckUrl = $invoiceCheckUrl ?? '';
 $isProductAddingForm = ($currentModule ?? '') === 'product_adding';
+$supplierIsOptional = $isProductAddingForm;
 $backUrl = $backUrl ?? \App\Core\Controller::url('/m/purchase_billing');
 $backLabel = $backLabel ?? 'Back to Purchases';
 $submitLabel = $submitLabel ?? ($isEdit ? 'Update Purchase Bill' : 'Save Purchase');
 $pageHeading = $pageHeading ?? ($isEdit ? ('Edit Purchase Bill: #' . htmlspecialchars($bill['bill_no'])) : 'Record Production Purchase');
 $pageDescription = $pageDescription ?? ($isEdit ? 'Update fabric rolls, garment supplies/accessories and finished goods for this bill.' : 'Record fabric rolls, garment supplies/accessories and finished goods received from vendors.');
-$currentPaymentMethod = strtolower(str_replace([' ', '-'], '_', trim((string)($bill['payment_method'] ?? 'credit'))));
+$currentPaymentMethod = strtolower(str_replace([' ', '-'], '_', trim((string) ($bill['payment_method'] ?? 'credit'))));
 $paymentMethods = [
     'credit' => 'Credit',
     'cash' => 'Cash',
@@ -25,25 +26,25 @@ $paymentMethods = [
 $existingAttachments = [];
 $savedBillAttachments = [];
 if (!empty($savedBill)) {
-    $decodedBillAttachments = json_decode((string)($savedBill['attachment_paths'] ?? ''), true);
+    $decodedBillAttachments = json_decode((string) ($savedBill['attachment_paths'] ?? ''), true);
     if (is_array($decodedBillAttachments)) {
         $savedBillAttachments = array_values(array_filter($decodedBillAttachments, static function ($path): bool {
             return is_string($path) && trim($path) !== '';
         }));
     }
     if (empty($savedBillAttachments) && !empty($savedBill['attachment_path'])) {
-        $savedBillAttachments[] = (string)$savedBill['attachment_path'];
+        $savedBillAttachments[] = (string) $savedBill['attachment_path'];
     }
 }
 if ($isEdit) {
-    $decodedAttachments = json_decode((string)($bill['attachment_paths'] ?? ''), true);
+    $decodedAttachments = json_decode((string) ($bill['attachment_paths'] ?? ''), true);
     if (is_array($decodedAttachments)) {
         $existingAttachments = array_values(array_filter($decodedAttachments, static function ($path): bool {
             return is_string($path) && trim($path) !== '';
         }));
     }
     if (empty($existingAttachments) && !empty($bill['attachment_path'])) {
-        $existingAttachments[] = (string)$bill['attachment_path'];
+        $existingAttachments[] = (string) $bill['attachment_path'];
     }
 }
 $existingRolls = [];
@@ -382,47 +383,47 @@ if ($isEdit && !empty($existingItems)) {
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Purchase date</div>
                         <div class="fw-semibold">
-                            <?= !empty($savedBill['bill_date']) ? htmlspecialchars(date('d M Y', strtotime((string)$savedBill['bill_date']))) : '—' ?>
+                            <?= !empty($savedBill['bill_date']) ? htmlspecialchars(date('d M Y', strtotime((string) $savedBill['bill_date']))) : '—' ?>
                         </div>
                     </div>
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Payment status</div>
-                        <div class="fw-semibold"><?= htmlspecialchars(ucfirst((string)($savedBill['payment_status'] ?? 'unpaid'))) ?></div>
+                        <div class="fw-semibold"><?= htmlspecialchars(ucfirst((string) ($savedBill['payment_status'] ?? 'unpaid'))) ?></div>
                     </div>
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Payment method</div>
-                        <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)($savedBill['payment_method'] ?? 'credit')))) ?></div>
+                        <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) ($savedBill['payment_method'] ?? 'credit')))) ?></div>
                     </div>
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Paid amount</div>
-                        <div class="fw-semibold">₹<?= number_format((float)($savedBill['paid_amount'] ?? 0), 2) ?></div>
+                        <div class="fw-semibold">₹<?= number_format((float) ($savedBill['paid_amount'] ?? 0), 2) ?></div>
                     </div>
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Stock status</div>
-                        <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)($savedBill['inward_status'] ?? 'pending')))) ?></div>
+                        <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) ($savedBill['inward_status'] ?? 'pending')))) ?></div>
                     </div>
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Purchase amount</div>
-                        <div class="fw-semibold">₹<?= number_format((float)($savedBill['total_amount'] ?? 0), 2) ?></div>
+                        <div class="fw-semibold">₹<?= number_format((float) ($savedBill['total_amount'] ?? 0), 2) ?></div>
                     </div>
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Tax amount</div>
-                        <div class="fw-semibold">₹<?= number_format((float)($savedBill['tax_amount'] ?? 0), 2) ?></div>
+                        <div class="fw-semibold">₹<?= number_format((float) ($savedBill['tax_amount'] ?? 0), 2) ?></div>
                     </div>
                     <div class="col-sm-6 col-lg-3">
                         <div class="small text-muted">Net amount</div>
-                        <div class="fw-semibold text-primary">₹<?= number_format((float)($savedBill['net_amount'] ?? 0), 2) ?></div>
+                        <div class="fw-semibold text-primary">₹<?= number_format((float) ($savedBill['net_amount'] ?? 0), 2) ?></div>
                     </div>
-                    <?php if (trim((string)($savedBill['notes'] ?? '')) !== ''): ?>
+                    <?php if (trim((string) ($savedBill['notes'] ?? '')) !== ''): ?>
                         <div class="col-12">
                             <div class="small text-muted">Purchase notes</div>
-                            <div><?= nl2br(htmlspecialchars((string)$savedBill['notes'])) ?></div>
+                            <div><?= nl2br(htmlspecialchars((string) $savedBill['notes'])) ?></div>
                         </div>
                     <?php endif; ?>
-                    <?php if (trim((string)($savedBill['fabric_description'] ?? '')) !== ''): ?>
+                    <?php if (trim((string) ($savedBill['fabric_description'] ?? '')) !== ''): ?>
                         <div class="col-12">
                             <div class="small text-muted">Purchase description</div>
-                            <div><?= nl2br(htmlspecialchars((string)$savedBill['fabric_description'])) ?></div>
+                            <div><?= nl2br(htmlspecialchars((string) $savedBill['fabric_description'])) ?></div>
                         </div>
                     <?php endif; ?>
                     <?php if ($savedBillAttachments): ?>
@@ -458,7 +459,7 @@ if ($isEdit && !empty($existingItems)) {
             <?php else: ?>
                 <form action="<?= $productAddingLabelUrl ?>" method="POST" target="productAddingLabelPreviewFrame" id="productAddingBulkLabelForm">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                    <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                    <input type="hidden" name="bill_id" value="<?= (int) $savedBill['id'] ?>">
                     <input type="hidden" name="inline_preview" value="1">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
@@ -482,16 +483,16 @@ if ($isEdit && !empty($existingItems)) {
                             <tbody>
                                 <?php foreach ($savedBillItems as $savedItem): ?>
                                     <?php
-                                    $savedItemId = (int)$savedItem['id'];
-                                    $itemSection = (string)$savedItem['section_type'];
+                                    $savedItemId = (int) $savedItem['id'];
+                                    $itemSection = (string) $savedItem['section_type'];
                                     $isSavedItemInStock = ($savedItem['inward_status'] ?? 'pending') === 'completed';
-                                    $requiredLabelQty = (int)$savedItem['required_label_qty'];
-                                    $generatedLabelQty = (int)$savedItem['generated_label_qty'];
-                                    $defaultLabelQty = (int)$savedItem['default_label_qty'];
+                                    $requiredLabelQty = (int) $savedItem['required_label_qty'];
+                                    $generatedLabelQty = (int) $savedItem['generated_label_qty'];
+                                    $defaultLabelQty = (int) $savedItem['default_label_qty'];
                                     $purchaseQty = $savedItem['purchase_qty_original'] ?? $savedItem['qty'];
-                                    $stockedQty = (float)$savedItem['stocked_qty'];
-                                    $needsStockCorrection = $isSavedItemInStock
-                                        && round($stockedQty, 2) < round((float)$purchaseQty, 2);
+                                    $stockedQty = (float) $savedItem['stocked_qty'];
+                                    $needsStockCorrection = $isSavedItemInStock &&
+                                        round($stockedQty, 2) < round((float) $purchaseQty, 2);
                                     ?>
                                     <tr>
                                         <td class="text-center align-middle">
@@ -507,8 +508,8 @@ if ($isEdit && !empty($existingItems)) {
                                                 data-default-label-count="<?= $defaultLabelQty ?>"
                                                 data-generated-label-count="<?= $generatedLabelQty ?>"
                                                 data-required-label-count="<?= $requiredLabelQty ?>"
-                                                data-purchase-qty="<?= htmlspecialchars((string)$purchaseQty) ?>"
-                                                data-stock-qty="<?= htmlspecialchars((string)$stockedQty) ?>"
+                                                data-purchase-qty="<?= htmlspecialchars((string) $purchaseQty) ?>"
+                                                data-stock-qty="<?= htmlspecialchars((string) $stockedQty) ?>"
                                                 <?= $isSavedItemInStock ? '' : 'checked' ?>
                                                 aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk actions">
                                         </td>
@@ -519,17 +520,17 @@ if ($isEdit && !empty($existingItems)) {
                                                 <?php if (!empty($savedItem['hsn_code'])): ?> · HSN <?= htmlspecialchars($savedItem['hsn_code']) ?><?php endif; ?>
                                             </div>
                                             <div class="small text-muted">
-                                                Unit ₹<?= number_format((float)($savedItem['unit_price'] ?? 0), 2) ?>
-                                                · Line ₹<?= number_format((float)($savedItem['total_price'] ?? 0), 2) ?>
+                                                Unit ₹<?= number_format((float) ($savedItem['unit_price'] ?? 0), 2) ?>
+                                                · Line ₹<?= number_format((float) ($savedItem['total_price'] ?? 0), 2) ?>
                                             </div>
                                         </td>
                                         <td><span class="badge text-bg-light border"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?></span></td>
                                         <td class="text-end">
-                                            <?= htmlspecialchars((string)$purchaseQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?>
+                                            <?= htmlspecialchars((string) $purchaseQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?>
                                             <?php if ($isSavedItemInStock): ?>
-                                                <div class="small text-success">Stocked: <?= htmlspecialchars((string)$stockedQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
+                                                <div class="small text-success">Stocked: <?= htmlspecialchars((string) $stockedQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
                                             <?php else: ?>
-                                                <div class="small text-primary">Stock qty: <?= htmlspecialchars((string)$purchaseQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
+                                                <div class="small text-primary">Stock qty: <?= htmlspecialchars((string) $purchaseQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?></div>
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-center">
@@ -537,8 +538,8 @@ if ($isEdit && !empty($existingItems)) {
                                                 <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-success">
                                                     <?= $generatedLabelQty ?> labels
                                                     <?= $isSavedItemInStock
-                                                        ? ' · Stocked ' . htmlspecialchars((string)$stockedQty)
-                                                        : ' · Stock qty ' . htmlspecialchars((string)$purchaseQty) ?>
+                                                        ? ' · Stocked ' . htmlspecialchars((string) $stockedQty)
+                                                        : ' · Stock qty ' . htmlspecialchars((string) $purchaseQty) ?>
                                                 </span>
                                             <?php else: ?>
                                                 <span id="productAddingLabelProgress<?= $savedItemId ?>" class="badge text-bg-warning">No labels printed</span>
@@ -581,7 +582,7 @@ if ($isEdit && !empty($existingItems)) {
                                                     title="Generate enough labels first">Add stock</button>
                                             <?php endif; ?>
                                             <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'edit') || \App\Core\Auth::can('purchase_billing', 'edit')): ?>
-                                                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/edit?id=' . (int)$savedBill['id']) ?>" class="btn btn-sm btn-outline-secondary ms-1" title="Edit bill">
+                                                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/edit?id=' . (int) $savedBill['id']) ?>" class="btn btn-sm btn-outline-secondary ms-1" title="Edit bill">
                                                     <i class="bi bi-pencil-square me-1"></i>Edit
                                                 </a>
                                             <?php endif; ?>
@@ -612,12 +613,12 @@ if ($isEdit && !empty($existingItems)) {
                 </form>
                 <form id="productAddingBulkStockForm" action="<?= $productAddingStockUrl ?>" method="POST" class="d-none">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                    <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                    <input type="hidden" name="bill_id" value="<?= (int) $savedBill['id'] ?>">
                     <input type="hidden" name="product_adding" value="1">
                 </form>
                 <?php foreach ($savedBillItems as $savedItem): ?>
                     <?php
-                    $savedItemId = (int)$savedItem['id'];
+                    $savedItemId = (int) $savedItem['id'];
                     $itemTab = $savedItem['section_type'] === 'finished_goods'
                         ? 'finished_goods'
                         : ($savedItem['section_type'] === 'rolls' ? 'rolls' : 'garment_other');
@@ -630,23 +631,23 @@ if ($isEdit && !empty($existingItems)) {
                         class="d-none"
                         data-label-item-id="<?= $savedItemId ?>"
                         data-label-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
-                        data-label-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)$savedItem['section_type']))) ?>"
-                        data-default-label-count="<?= (int)$savedItem['default_label_qty'] ?>">
+                        data-label-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $savedItem['section_type']))) ?>"
+                        data-default-label-count="<?= (int) $savedItem['default_label_qty'] ?>">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                        <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                        <input type="hidden" name="bill_id" value="<?= (int) $savedBill['id'] ?>">
                         <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
                         <input type="hidden" name="inline_preview" value="1">
                     </form>
                     <form id="productAddingStockForm<?= $savedItemId ?>" action="<?= $productAddingStockUrl ?>" method="POST" class="d-none">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                        <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                        <input type="hidden" name="bill_id" value="<?= (int) $savedBill['id'] ?>">
                         <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
                         <input type="hidden" name="tab" value="<?= $itemTab ?>">
                         <input type="hidden" name="product_adding" value="1">
                     </form>
                     <form id="productAddingStockCorrectionForm<?= $savedItemId ?>" action="<?= $productAddingCorrectionUrl ?>" method="POST" class="d-none">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                        <input type="hidden" name="bill_id" value="<?= (int)$savedBill['id'] ?>">
+                        <input type="hidden" name="bill_id" value="<?= (int) $savedBill['id'] ?>">
                         <input type="hidden" name="item_id" value="<?= $savedItemId ?>">
                     </form>
                 <?php endforeach; ?>
@@ -692,7 +693,7 @@ if ($isEdit && !empty($existingItems)) {
             <input type="hidden" name="product_adding_redirect" value="1">
         <?php endif; ?>
         <?php if ($isEdit): ?>
-            <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
+            <input type="hidden" name="bill_id" value="<?= (int) $bill['id'] ?>">
         <?php endif; ?>
 
         <!-- Section 1: Purchase & Supplier Details -->
@@ -703,6 +704,13 @@ if ($isEdit && !empty($existingItems)) {
             </div>
             <div class="card-body p-4">
                 <div class="row g-3 mb-3">
+                    <div class="<?= empty($selectedCid) ? 'col-md-2' : 'col-md-3' ?>">
+                        <label class="form-label small fw-semibold mb-1">Invoice / Bill No <span class="text-danger">*</span></label>
+                        <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control form-control-sm" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
+                        <div class="invalid-feedback" id="billSupplierInvoiceFeedback" aria-live="polite">Invoice / Bill number is required.</div>
+                        <div class="form-text small" id="billSupplierInvoiceStatus" aria-live="polite"></div>
+                    </div>
+
                     <?php if (empty($selectedCid)): ?>
                         <div class="col-lg-3 col-md-6">
                             <label class="form-label small fw-semibold">Target Concern <span class="text-danger">*</span></label>
@@ -719,23 +727,23 @@ if ($isEdit && !empty($existingItems)) {
                     <?php endif; ?>
 
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
-                        <label class="form-label small fw-semibold mb-1">Supplier <span class="text-danger">*</span></label>
+                        <label class="form-label small fw-semibold mb-1">Supplier <?= $supplierIsOptional ? '<span class="text-muted">(optional)</span>' : '<span class="text-danger">*</span>' ?></label>
                         <?php
-                            $selectedSupplierLabel = '';
-                            if ($isEdit && !empty($bill['supplier_id'])) {
-                                foreach ($suppliers as $sup) {
-                                    if ((int)$sup['id'] === (int)$bill['supplier_id']) {
-                                        $selectedSupplierLabel = $sup['name'] . (!empty($sup['company_name']) ? ' (' . $sup['company_name'] . ')' : '');
-                                        break;
-                                    }
+                        $selectedSupplierLabel = '';
+                        if ($isEdit && !empty($bill['supplier_id'])) {
+                            foreach ($suppliers as $sup) {
+                                if ((int) $sup['id'] === (int) $bill['supplier_id']) {
+                                    $selectedSupplierLabel = $sup['name'] . (!empty($sup['company_name']) ? ' (' . $sup['company_name'] . ')' : '');
+                                    break;
                                 }
                             }
+                        }
                         ?>
                         <div class="input-group input-group-sm flex-nowrap">
-                            <select name="supplier_id" id="supplierSelect" class="d-none" required>
-                                <option value="">-- Select registered supplier --</option>
+                            <select name="supplier_id" id="supplierSelect" class="d-none" <?= $supplierIsOptional ? '' : 'required' ?>>
+                                <option value=""><?= $supplierIsOptional ? '-- No supplier --' : '-- Select registered supplier --' ?></option>
                                 <?php foreach ($suppliers as $sup): ?>
-                                    <option value="<?= (int)$sup['id'] ?>" data-district="<?= htmlspecialchars($sup['district'] ?? '') ?>" <?= ($isEdit && $bill['supplier_id'] == $sup['id']) ? 'selected' : '' ?>>
+                                    <option value="<?= (int) $sup['id'] ?>" data-district="<?= htmlspecialchars($sup['district'] ?? '') ?>" <?= ($isEdit && $bill['supplier_id'] == $sup['id']) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($sup['name']) ?> <?= !empty($sup['company_name']) ? ('(' . htmlspecialchars($sup['company_name']) . ')') : '' ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -768,13 +776,6 @@ if ($isEdit && !empty($existingItems)) {
                     </div>
 
                     <div class="<?= empty($selectedCid) ? 'col-md-2' : 'col-md-3' ?>">
-                        <label class="form-label small fw-semibold mb-1">Invoice / Bill No <span class="text-danger">*</span></label>
-                        <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control form-control-sm" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
-                        <div class="invalid-feedback" id="billSupplierInvoiceFeedback" aria-live="polite">Invoice / Bill number is required.</div>
-                        <div class="form-text small" id="billSupplierInvoiceStatus" aria-live="polite"></div>
-                    </div>
-
-                    <div class="<?= empty($selectedCid) ? 'col-md-2' : 'col-md-3' ?>">
                         <label class="form-label small fw-semibold mb-1">Invoice Attachment <span class="text-danger">*</span></label>
                         <input type="file" name="attachments[]" id="billAttachments" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple <?= ($isEdit && !empty($existingAttachments)) ? '' : 'required' ?>>
                         <div class="invalid-feedback">Please choose at least one tax invoice / bill attachment file.</div>
@@ -791,15 +792,15 @@ if ($isEdit && !empty($existingItems)) {
                 </div>
 
                 <?php
-                    $defaultGlobalTaxMode = 'Exclude GST';
-                    $defaultGlobalGstType = 'Exempted';
-                    $defaultGlobalTaxInputType = 'Percentage';
-                    if ($isEdit && !empty($existingItems)) {
-                        $firstItem = $existingItems[0];
-                        $defaultGlobalTaxMode = $firstItem['tax_mode'] ?? 'Exclude GST';
-                        $defaultGlobalGstType = $firstItem['gst_type'] ?? 'Exempted';
-                        $defaultGlobalTaxInputType = $firstItem['tax_input_type'] ?? 'Percentage';
-                    }
+                $defaultGlobalTaxMode = 'Exclude GST';
+                $defaultGlobalGstType = 'Exempted';
+                $defaultGlobalTaxInputType = 'Percentage';
+                if ($isEdit && !empty($existingItems)) {
+                    $firstItem = $existingItems[0];
+                    $defaultGlobalTaxMode = $firstItem['tax_mode'] ?? 'Exclude GST';
+                    $defaultGlobalGstType = $firstItem['gst_type'] ?? 'Exempted';
+                    $defaultGlobalTaxInputType = $firstItem['tax_input_type'] ?? 'Percentage';
+                }
                 ?>
                 <!-- Row 2: Payment, Overall Tax Controls & Notes -->
                 <div class="row g-2 align-items-end">
@@ -1264,7 +1265,7 @@ if ($isEdit && !empty($existingItems)) {
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="supplier_id" id="quickSupplierId" value="">
             <?php if (!empty($selectedCid)): ?>
-                <input type="hidden" name="concern_id" value="<?= (int)$selectedCid ?>">
+                <input type="hidden" name="concern_id" value="<?= (int) $selectedCid ?>">
             <?php else: ?>
                 <div class="modal-header border-bottom-0 pb-0">
                     <h5 class="modal-title fw-bold" id="modalQuickSupplierLabel">Add Supplier</h5>
@@ -1276,7 +1277,7 @@ if ($isEdit && !empty($existingItems)) {
                         <select name="concern_id" class="form-select" required>
                             <option value="">-- Choose Target Concern --</option>
                             <?php foreach ($allConcerns ?? [] as $con): ?>
-                                <option value="<?= (int)$con['id'] ?>"><?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)</option>
+                                <option value="<?= (int) $con['id'] ?>"><?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)</option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -2785,7 +2786,7 @@ function onFinishedHsnInput(fgId) {
 
 function getProductAddingConcernId() {
     const concernSelect = document.getElementById('billConcernId');
-    return parseInt(concernSelect?.value || <?= (int)($selectedCid ?? 0) ?>, 10) || 0;
+    return parseInt(concernSelect?.value || <?= (int) ($selectedCid ?? 0) ?>, 10) || 0;
 }
 
 function getProductAddingScopedRows(rows) {
@@ -3113,7 +3114,6 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
                 <input type="number" step="0.01" min="0" max="100" name="${prefix}[catalog_gst_rate]" class="form-control fg-variant-gst-rate" value="" placeholder="—" readonly aria-label="GST rate from HSN code">
                 <span class="input-group-text">%</span>
             </div></td>
-            <td><input type="number" step="0.01" min="0.01" name="${prefix}[supplier_cost]" class="form-control form-control-sm fg-variant-cost" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex}); syncFinishedTable()"></td>
             <td><input type="number" step="0.01" min="0.01" name="${prefix}[mrp]" class="form-control form-control-sm fg-variant-mrp" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex})"></td>
             <td><input type="number" step="0.01" min="0.01" name="${prefix}[selling_price]" class="form-control form-control-sm fg-variant-selling" required oninput="updateProductAddingVariantRow(${cardId}, ${rowIndex}); syncFinishedTable()"></td>
             <td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm" aria-label="Remove variant" onclick="removeFinishedVariantRow(${cardId}, ${rowIndex})"><i class="bi bi-trash3"></i></button></td>
@@ -3271,10 +3271,6 @@ function buildProductAddingFields(id) {
                         <input id="fgQuickGst_${id}" type="number" min="0" max="100" step="0.01" class="form-control form-control-sm" data-quick-fill-gst-preview readonly aria-label="GST rate from selected HSN" placeholder="Auto">
                     </div>
                     <div>
-                        <label class="fg-quick-fill-label" for="fgQuickCost_${id}">Supplier Cost (₹)</label>
-                        <input id="fgQuickCost_${id}" type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-quick-fill-field="cost" placeholder="Cost...">
-                    </div>
-                    <div>
                         <label class="fg-quick-fill-label" for="fgQuickMrp_${id}">MRP (₹)</label>
                         <input id="fgQuickMrp_${id}" type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-quick-fill-field="mrp" placeholder="MRP...">
                     </div>
@@ -3299,7 +3295,6 @@ function buildProductAddingFields(id) {
                             <th>QTY *</th>
                             <th>HSN CODE *</th>
                             <th>GST %</th>
-                            <th>COST (₹) *</th>
                             <th>MRP (₹) *</th>
                             <th>SELLING PRICE (₹) *</th>
                             <th>ACTIONS</th>
@@ -3510,7 +3505,6 @@ function applyProductAddingQuickFill(fgId) {
     const quantityValue = field('quantity');
     const weightValue = field('weight');
     const hsnValue = field('hsn');
-    const costValue = field('cost');
     const mrpValue = field('mrp');
     const sellingValue = field('selling');
     let quantities = [];
@@ -3542,17 +3536,16 @@ function applyProductAddingQuickFill(fgId) {
         alert('Select a registered HSN code so its GST rate can be filled automatically.');
         return;
     }
-    const hasPricingInput = costValue !== '' || sellingValue !== '' || mrpValue !== '';
+    const hasPricingInput = sellingValue !== '' || mrpValue !== '';
     if (hasPricingInput) {
         const invalidPricing = rows.some(row => {
-            const cost = Number(costValue || row.querySelector('.fg-variant-cost')?.value || 0);
             const selling = Number(sellingValue || row.querySelector('.fg-variant-selling')?.value || 0);
             const mrp = Number(mrpValue || row.querySelector('.fg-variant-mrp')?.value || 0);
-            return !Number.isFinite(cost) || !Number.isFinite(selling) || !Number.isFinite(mrp)
-                || cost <= 0 || selling <= cost || mrp <= selling;
+            return !Number.isFinite(selling) || !Number.isFinite(mrp)
+                || selling <= 0 || mrp <= selling;
         });
         if (invalidPricing) {
-            alert('Every variant must satisfy Supplier Cost < Selling Price < MRP.');
+            alert('Every variant must satisfy Selling Price < MRP.');
             return;
         }
     }
@@ -3600,7 +3593,6 @@ function applyProductAddingQuickFill(fgId) {
             resolveHsnInputMetadata(hsn);
             onFinishedVariantHsnChange(fgId, parseInt(row.dataset.rowIndex, 10));
         }
-        if (costValue !== '') row.querySelector('.fg-variant-cost').value = costValue;
         if (mrpValue !== '') row.querySelector('.fg-variant-mrp').value = mrpValue;
         if (sellingValue !== '') row.querySelector('.fg-variant-selling').value = sellingValue;
         delete row.dataset.quickFillTarget;
@@ -3629,20 +3621,17 @@ function updateProductAddingVariantRow(fgId, rowIndex) {
     if (variantName && !variantName.dataset.userEdited) {
         variantName.value = productName.slice(0, 150);
     }
-    const costInput = row.querySelector('.fg-variant-cost');
     const sellingInput = row.querySelector('.fg-variant-selling');
     const mrpInput = row.querySelector('.fg-variant-mrp');
-    const cost = parseFloat(costInput?.value) || 0;
     const selling = parseFloat(sellingInput?.value) || 0;
     const mrp = parseFloat(mrpInput?.value) || 0;
-    costInput?.setCustomValidity(selling > 0 && cost >= selling ? 'Supplier cost must be lower than selling price.' : '');
-    sellingInput?.setCustomValidity((cost > 0 && selling <= cost) || (mrp > 0 && selling >= mrp)
-        ? 'Selling price must be greater than supplier cost and lower than MRP.'
+    sellingInput?.setCustomValidity(mrp > 0 && selling >= mrp
+        ? 'Selling price must be lower than MRP.'
         : '');
     mrpInput?.setCustomValidity(selling > 0 && mrp <= selling ? 'MRP must be greater than selling price.' : '');
     const profit = row.querySelector('.fg-variant-profit');
     if (profit) {
-        const value = selling - cost;
+        const value = selling;
         profit.textContent = `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         profit.classList.toggle('text-success', value > 0);
         profit.classList.toggle('text-danger', value < 0);
@@ -4022,7 +4011,7 @@ function saveAndApplyRollDesign() {
     formData.append('net_weight', weight);
     formData.append('supplier_name', supplier);
     <?php if ($selectedCid): ?>
-    formData.append('concern_id', '<?= (int)$selectedCid ?>');
+    formData.append('concern_id', '<?= (int) $selectedCid ?>');
     <?php endif; ?>
 
     fetch('<?= $rollSpecSaveUrl ?>', {
@@ -4970,7 +4959,7 @@ function syncFinishedTable() {
                 product: row.querySelector('.fg-variant-name')?.value || '-',
                 hsn: row.querySelector('.fg-variant-hsn')?.value || '-',
                 qty: parseInt(row.querySelector('.fg-variant-qty')?.value, 10) || 0,
-                cost: parseFloat(row.querySelector('.fg-variant-cost')?.value) || 0,
+                cost: parseFloat(row.querySelector('.fg-variant-selling')?.value) || 0,
                 gstRateField: row.querySelector('.fg-variant-gst-rate')
             }))
             : [{
@@ -5050,7 +5039,7 @@ function recalcOverallSummary() {
         document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(function(card) {
             card.querySelectorAll('.fg-variant-row').forEach(row => {
                 const qty = parseInt(row.querySelector('.fg-variant-qty')?.value, 10) || 0;
-                const cost = parseFloat(row.querySelector('.fg-variant-cost')?.value) || 0;
+                const cost = parseFloat(row.querySelector('.fg-variant-selling')?.value) || 0;
                 const rate = row.querySelector('.fg-variant-gst-rate')?.value ?? '';
                 const taxInfo = calculateItemTax(card, 'fg', qty, cost, rate);
                 grandBase += taxInfo.base;
@@ -5589,6 +5578,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         return total;
     };
+    const updateProductAddingQtyMismatchAlert = function () {
+        if (!isProductAddingForm || !matchedPurchaseBill || !invoiceStatus) return;
+        const invQty = parseFloat(matchedPurchaseBill.invoice_qty) || 0;
+        const remQty = parseFloat(matchedPurchaseBill.remaining_qty) || 0;
+        const sourceLabel = matchedPurchaseBill.source_module === 'product_adding' ? 'Product Adding' : 'Purchase Billing';
+        const currentQty = getCurrentProductAddingQty();
+        if (currentQty > 0 && Math.abs(currentQty - remQty) > 0.0001) {
+            invoiceStatus.textContent = `Qty Mismatch Alert: Product Adding qty (${currentQty}) does not match ${sourceLabel} invoice qty (${remQty}). Saving is still allowed.`;
+            invoiceStatus.className = 'form-text small text-warning fw-semibold';
+        } else {
+            invoiceStatus.textContent = `Matched ${sourceLabel} Invoice #${matchedPurchaseBill.bill_no} (Qty: ${invQty}) — Supplier auto-filled.`;
+            invoiceStatus.className = 'form-text small text-info fw-semibold';
+        }
+    };
     const clearInvoiceError = function () {
         matchedPurchaseBill = null;
         if (invoiceInput) {
@@ -5604,7 +5607,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!invoiceInput || !supplierInput || !invoiceCheckUrl) return false;
         const supplierId = supplierInput.value;
         const invoiceNo = invoiceInput.value.trim();
-        if (!supplierId || !invoiceNo) {
+        if (!invoiceNo) {
             clearInvoiceError();
             return false;
         }
@@ -5628,7 +5631,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 body: requestData
             });
-            const result = await response.json();
+            const responseText = await response.text();
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error('Invoice verification endpoint returned a non-JSON response.', response.status);
+                if (requestId !== invoiceCheckRequest) return false;
+                clearInvoiceError();
+                if (invoiceStatus) {
+                    invoiceStatus.textContent = 'Invoice pre-check is unavailable; duplicates will still be checked when saving.';
+                    invoiceStatus.className = 'form-text small text-warning';
+                }
+                return false;
+            }
             if (requestId !== invoiceCheckRequest) return false;
             if (!response.ok || !result.success) {
                 throw new Error(result.message || 'Unable to verify this invoice number.');
@@ -5654,18 +5670,27 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             clearInvoiceError();
-            if (isProductAddingForm && result.matched_purchase_bill) {
+            if (result.matched_purchase_bill) {
                 matchedPurchaseBill = result.matched_purchase_bill;
-                if (invoiceStatus) {
-                    const invQty = parseFloat(matchedPurchaseBill.invoice_qty) || 0;
-                    const addedQty = parseFloat(matchedPurchaseBill.product_adding_qty) || 0;
-                    const remQty = parseFloat(matchedPurchaseBill.remaining_qty) || 0;
-                    invoiceStatus.textContent = `Matched Purchase Billing Invoice #${matchedPurchaseBill.bill_no} — Invoice Qty: ${invQty} | Added: ${addedQty} | Remaining: ${remQty}`;
-                    invoiceStatus.className = remQty > 0 ? 'form-text small text-info fw-semibold' : 'form-text small text-warning fw-semibold';
+                if (!isEditMode && !supplierInput.value && matchedPurchaseBill.supplier_id) {
+                    supplierInput.value = String(matchedPurchaseBill.supplier_id);
+                    const selectedOpt = supplierInput.options[supplierInput.selectedIndex];
+                    const searchInput = document.getElementById('supplierSearchInput');
+                    if (searchInput && selectedOpt) {
+                        searchInput.value = selectedOpt.textContent.trim();
+                        searchInput.classList.remove('is-invalid');
+                    }
+                    supplierInput.setCustomValidity('');
                 }
-            } else if (invoiceStatus) {
-                invoiceStatus.textContent = 'Invoice number is available.';
-                invoiceStatus.className = 'form-text small text-success';
+                updateProductAddingQtyMismatchAlert();
+            } else {
+                if (attachmentsInput && !hasExistingAttachments) {
+                    attachmentsInput.required = true;
+                }
+                if (invoiceStatus) {
+                    invoiceStatus.textContent = 'Invoice number is available.';
+                    invoiceStatus.className = 'form-text small text-success';
+                }
             }
             return false;
         } catch (error) {
@@ -5681,7 +5706,7 @@ document.addEventListener('DOMContentLoaded', function() {
         clearTimeout(invoiceCheckTimer);
         invoiceCheckRequest++;
         clearInvoiceError();
-        if (!supplierInput?.value || !invoiceInput?.value.trim()) return;
+        if (!invoiceInput?.value.trim()) return;
         invoiceCheckTimer = setTimeout(checkSupplierInvoiceNumber, 300);
     };
     if (invoiceInput && supplierInput) {
@@ -5691,11 +5716,37 @@ document.addEventListener('DOMContentLoaded', function() {
             checkSupplierInvoiceNumber();
         });
         supplierInput.addEventListener('change', scheduleSupplierInvoiceCheck);
+        if (isProductAddingForm) {
+            const syncQtyAlertIfMatched = function (event) {
+                if (event.target && event.target.matches('.roll-input-rq, .other-input-qty, .fg-variant-qty, .fg-input-qty')) {
+                    updateProductAddingQtyMismatchAlert();
+                }
+            };
+            form.addEventListener('input', syncQtyAlertIfMatched);
+            form.addEventListener('change', syncQtyAlertIfMatched);
+        }
 
         form.addEventListener('submit', function (event) {
             if (allowSubmitAfterInvoiceCheck) {
                 allowSubmitAfterInvoiceCheck = false;
                 return;
+            }
+            if (supplierInput && !supplierInput.value) {
+                event.preventDefault();
+                event.stopPropagation();
+                supplierInput.setCustomValidity('Please choose a supplier.');
+                showFieldError(supplierInput);
+                const searchInput = document.getElementById('supplierSearchInput');
+                if (searchInput) {
+                    searchInput.classList.add('is-invalid');
+                    searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    searchInput.focus();
+                }
+                form.classList.add('was-validated');
+                return;
+            } else if (supplierInput) {
+                supplierInput.setCustomValidity('');
+                document.getElementById('supplierSearchInput')?.classList.remove('is-invalid');
             }
             event.preventDefault();
             if (invoiceSubmitPending) return;
@@ -5743,6 +5794,12 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     form.addEventListener('submit', function (event) {
+        if (supplierInput && !supplierInput.value) {
+            supplierInput.setCustomValidity('Please choose a supplier.');
+        } else if (supplierInput) {
+            supplierInput.setCustomValidity('');
+            document.getElementById('supplierSearchInput')?.classList.remove('is-invalid');
+        }
         validateAttachments();
         if (isProductAddingForm) {
             form.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(function (card) {
@@ -5751,13 +5808,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
             if (matchedPurchaseBill && invoiceInput) {
-                const currentQty = getCurrentProductAddingQty();
-                const remQty = parseFloat(matchedPurchaseBill.remaining_qty) || 0;
-                if (currentQty > remQty + 0.0001) {
-                    invoiceInput.setCustomValidity(`Total Product Adding qty (${currentQty}) cannot exceed remaining Purchase Billing invoice qty (${remQty}).`);
-                } else {
-                    invoiceInput.setCustomValidity('');
-                }
+                updateProductAddingQtyMismatchAlert();
             }
         }
         const invalidFields = Array.from(form.elements).filter(function (control) {
