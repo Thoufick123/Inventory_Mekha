@@ -4233,7 +4233,7 @@ class ProductionController extends Controller {
              FROM cutting_items ci
              LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
              WHERE ci.cutting_id = ?
-             ORDER BY ci.id ASC",
+             ORDER BY ci.catalog_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
             [$id]
         );
 
@@ -4287,7 +4287,7 @@ class ProductionController extends Controller {
              FROM cutting_items ci
              LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
              WHERE ci.cutting_id = ?
-             ORDER BY ci.id ASC",
+             ORDER BY ci.catalog_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
             [$id]
         );
 
@@ -5325,7 +5325,7 @@ class ProductionController extends Controller {
                 "SELECT id, stitching_id, variant_name, product_code, size, color, stitching_qty
                  FROM stitching_items
                  WHERE stitching_id IN ({$placeholders})
-                 ORDER BY id ASC",
+                 ORDER BY catalog_id ASC, " . self::sizeOrderSql('size') . ", id ASC",
                 $batchIds
             );
             $itemsByBatch = [];
@@ -5535,7 +5535,7 @@ class ProductionController extends Controller {
                  (SELECT c3.id FROM catalogs c3 WHERE c3.source_module = 'production_catalog' AND (c3.concern_id = pr.concern_id OR c3.concern_id = 1 OR c3.concern_id IS NULL) AND pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
              )
              WHERE ci.cutting_id = ?
-             ORDER BY ci.id ASC",
+             ORDER BY ci.catalog_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
             [$cuttingId]
         );
 
@@ -6062,7 +6062,7 @@ class ProductionController extends Controller {
              FROM stitching_items si
              LEFT JOIN catalogs c ON si.catalog_id = c.id
              WHERE si.stitching_id = ?
-             ORDER BY si.id ASC",
+             ORDER BY si.catalog_id ASC, " . self::sizeOrderSql('si.size') . ", si.id ASC",
             [$id]
         );
 
@@ -6276,7 +6276,7 @@ class ProductionController extends Controller {
              FROM stitching_items si
              LEFT JOIN catalogs c ON si.catalog_id = c.id
              WHERE si.stitching_id = ?
-             ORDER BY si.id ASC",
+             ORDER BY si.catalog_id ASC, " . self::sizeOrderSql('si.size') . ", si.id ASC",
             [$id]
         );
 
@@ -7088,7 +7088,7 @@ class ProductionController extends Controller {
             LEFT JOIN catalogs cat ON si.catalog_id = cat.id
             LEFT JOIN variants v ON si.variant_id = v.id
             WHERE si.stitching_id = ?
-            ORDER BY si.id ASC
+            ORDER BY si.catalog_id ASC, " . self::sizeOrderSql('si.size') . ", si.id ASC
         ", [$stitchingId]);
 
         echo json_encode([
@@ -7111,7 +7111,9 @@ class ProductionController extends Controller {
             return;
         }
 
-        // Fetch completed or in-progress stitching batches ready for QC
+        $savedQcId = (int)($_GET['qc_id'] ?? 0);
+
+        // Fetch completed or in-progress stitching batches that have not already been submitted to QC
         $batchSql = "
             SELECT sl.*,
                    COALESCE(sl.batch_no, sl.log_no) AS display_batch_no,
@@ -7120,8 +7122,14 @@ class ProductionController extends Controller {
                    COALESCE((SELECT SUM(stitching_qty) FROM stitching_items WHERE stitching_id = sl.id), sl.stitched_pieces, 0) AS total_pieces
             FROM stitching_logs sl
             LEFT JOIN production_programs pp ON sl.program_id = pp.id
-            WHERE (sl.status != 'cancelled' OR sl.status IS NULL)";
-        $batchParams = [];
+            WHERE (sl.status != 'cancelled' OR sl.status IS NULL)
+              AND NOT EXISTS (
+                  SELECT 1 FROM qc_inspections qi
+                  WHERE qi.stitching_batch_id = sl.id
+                    AND (qi.status IS NULL OR qi.status != 'CANCELLED')
+                    AND qi.id != ?
+              )";
+        $batchParams = [$savedQcId];
         if ($cid) {
             $batchSql .= " AND (sl.concern_id = ? OR sl.concern_id IS NULL)";
             $batchParams[] = $cid;
@@ -7166,12 +7174,11 @@ class ProductionController extends Controller {
                 $itemsSql .= " AND (sl.concern_id = ? OR sl.concern_id IS NULL)";
                 $itemsParams[] = $cid;
             }
-            $itemsSql .= " ORDER BY si.id ASC";
+            $itemsSql .= " ORDER BY si.catalog_id ASC, " . self::sizeOrderSql('si.size') . ", si.id ASC";
             $batchItems = DB::fetchAll($itemsSql, $itemsParams);
         }
 
         $savedQc = null;
-        $savedQcId = (int)($_GET['qc_id'] ?? 0);
         if ($savedQcId > 0 && $selectedStitchingId > 0) {
             $savedQcSql = "
                 SELECT id, qc_no, status, concern_id, stitching_batch_id, defect_notes

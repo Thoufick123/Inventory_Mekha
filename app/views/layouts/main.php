@@ -275,7 +275,7 @@
             $grouped = [];
             $combinedSidebarGroups = ['Stock', 'Shop', 'Sales', 'Finance'];
             foreach ($sidebarModules as $m) {
-                if ($m['code'] === 'variants' || $m['code'] === 'suppliers' || $m['code'] === 'catalog_mapping' || $m['code'] === 'purchase_damage' || $m['code'] === 'concern_dashboard' || $m['code'] === 'admin_concerns' || $m['code'] === 'dispatch' || $m['group_name'] === 'Masters') continue;
+                if ($m['code'] === 'variants' || $m['code'] === 'suppliers' || $m['code'] === 'catalog_mapping' || $m['code'] === 'purchase_damage' || $m['code'] === 'label_generation' || $m['code'] === 'concern_dashboard' || $m['code'] === 'admin_concerns' || $m['code'] === 'dispatch' || $m['group_name'] === 'Masters') continue;
                 $groupName = $m['code'] === 'catalog_mapping' ? 'Purchase' : $m['group_name'];
                 if (in_array($groupName, $combinedSidebarGroups, true)) {
                     $groupName = 'Modules';

@@ -569,7 +569,15 @@ class LabelController extends Controller {
      * Generate & render printable label sheet for any of the 3 sections
      */
     public function generate(): void {
-        ModuleGuard::enforce('label_generation', 'add');
+        if (
+            !Auth::isSuperAdmin()
+            && !Auth::can('label_generation', 'add')
+            && !Auth::can('stitching_wastage', 'view')
+            && !Auth::can('product_adding', 'view')
+            && !Auth::can('stocks', 'view')
+        ) {
+            ModuleGuard::enforce('stitching_wastage', 'view');
+        }
         $this->validateCsrf();
         $this->renderGeneratedLabels(false);
     }
@@ -1355,7 +1363,7 @@ class LabelController extends Controller {
                      LEFT JOIN variants v ON si.variant_id = v.id
                      LEFT JOIN brands b ON v.brand_id = b.id
                      WHERE si.stitching_id = ?" . ($cid ? " AND (sl.concern_id = ? OR sl.concern_id = 1 OR sl.concern_id IS NULL)" : "") . "
-                     ORDER BY si.id ASC",
+                     ORDER BY si.catalog_id ASC, " . self::sizeOrderSql('si.size') . ", si.id ASC",
                     $cid ? [$batchId, $cid] : [$batchId]
                 );
 

@@ -6,6 +6,28 @@ namespace App\Core;
 abstract class Controller {
     protected static bool $baseTablesEnsured = false;
 
+    /**
+     * SQL ORDER BY expression sorting garment sizes in standard order:
+     * XS (1), S (2), M (3), L (4), XL (5), XXL (6), 3XL (7), 4XL (8), etc.
+     */
+    public static function sizeOrderSql(string $col = 'size'): string {
+        $safeCol = preg_replace('/[^a-zA-Z0-9_.]/', '', $col) ?: 'size';
+        return "CASE UPPER(TRIM({$safeCol}))
+            WHEN 'XS' THEN 1
+            WHEN 'S' THEN 2
+            WHEN 'M' THEN 3
+            WHEN 'L' THEN 4
+            WHEN 'XL' THEN 5
+            WHEN 'XXL' THEN 6
+            WHEN '2XL' THEN 6
+            WHEN '3XL' THEN 7
+            WHEN '4XL' THEN 8
+            WHEN '5XL' THEN 9
+            WHEN '6XL' THEN 10
+            ELSE 99
+        END ASC";
+    }
+
     public function __construct() {
         self::ensureBaseTables();
     }

@@ -29,7 +29,7 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+            <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
             <button type="button" class="btn btn-dark shadow-sm fw-semibold" onclick="openStitchingBatchModalFromEditTable(<?= (int)$batch['id'] ?>)">
                 <i class="bi bi-printer-fill me-1"></i> Print All Labels
             </button>
@@ -215,7 +215,7 @@
                                         <th class="text-center py-2.5" style="width: 110px;">Total Wt (kg) <span class="text-danger">*</span></th>
                                         <th class="text-center py-2.5" style="width: 125px;">Base Price (₹) <span class="text-danger">*</span></th>
                                         <th class="text-center py-2.5" style="width: 125px;">Discount Price (₹) <span class="text-danger">*</span></th>
-                                        <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                        <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                         <th class="text-center pe-3 py-2.5" style="width: 90px;">Labels</th>
                                         <?php endif; ?>
                                     </tr>
@@ -279,7 +279,7 @@
                                                     <div class="invalid-feedback">Required</div>
                                                 </div>
                                             </td>
-                                            <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                            <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                             <td class="text-center pe-3 py-2">
                                                 <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
                                                         title="Print Labels for this Variant"

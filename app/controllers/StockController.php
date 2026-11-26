@@ -158,6 +158,10 @@ class StockController extends Controller {
                                  END,
                                  pbi.id DESC
                         LIMIT 1) AS purchase_item_id,
+                       COALESCE(
+                           NULLIF((SELECT MIN(v_src.id) FROM variants v_src WHERE v_src.product_code = v.product_code AND v.product_code IS NOT NULL AND v.product_code != ''), 0),
+                           v.id
+                       ) AS canonical_variant_id,
                        CASE
                            WHEN v.product_code LIKE 'FG-%'
                              OR cat.style_code LIKE 'FG-%'
@@ -275,7 +279,7 @@ class StockController extends Controller {
             $sql .= " AND s.concern_id = ?";
             $params[] = $cid;
         }
-        $sql .= " ORDER BY FIELD(stock_source, 'own', 'purchase', 'other'), s.qty DESC";
+        $sql .= " ORDER BY FIELD(stock_source, 'own', 'purchase', 'other'), COALESCE(cat.name, v.name) ASC, " . self::sizeOrderSql('v.size') . ", s.qty DESC";
         $stocks = DB::fetchAll($sql, $params);
         foreach ($stocks as &$stock) {
             $variantAttributes = json_decode((string)($stock['variant_attributes'] ?? ''), true);

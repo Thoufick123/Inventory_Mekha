@@ -106,16 +106,8 @@ $router->post('/m/variants/store', [VariantController::class, 'store'], 'stocks'
 $router->post('/m/variants/update', [VariantController::class, 'update'], 'stocks', 'edit');
 $router->post('/m/variants/delete', [VariantController::class, 'delete'], 'stocks', 'delete');
 
-// QR Label Generation & Barcode Scanning
-$router->get('/m/label_generation', [LabelController::class, 'index'], 'label_generation', 'view');
-$router->get('/m/label_generation/export', [LabelController::class, 'exportJobs'], 'label_generation', 'export');
-$router->post('/m/label_generation/generate', [LabelController::class, 'generate'], 'label_generation', 'add');
-$router->get('/m/label_generation/job/view', [LabelController::class, 'viewJob'], 'label_generation', 'view');
-$router->post('/m/label_generation/job/update', [LabelController::class, 'updateJob'], 'label_generation', 'edit');
-$router->post('/m/label_generation/job/delete', [LabelController::class, 'deleteJob'], 'label_generation', 'delete');
-$router->post('/m/label_generation/map_variant', [LabelController::class, 'mapVariant'], 'label_generation', 'edit');
-$router->post('/m/label/add_to_stock', [LabelController::class, 'addToStock'], 'label_generation', 'add');
-$router->post('/m/label_generation/add_to_stock', [LabelController::class, 'addToStock'], 'label_generation', 'add');
+// QR Label Printing (used by Stitching, Product Adding, Stocks) & Barcode Scanning
+$router->post('/m/label_generation/generate', [LabelController::class, 'generate']);
 $router->get('/scan', [LabelController::class, 'scanPage'], 'stocks', 'view');
 $router->get('/api/qr/lookup', [LabelController::class, 'lookup'], 'stocks', 'view');
 $router->post('/api/qr/lookup', [LabelController::class, 'lookup'], 'stocks', 'view');

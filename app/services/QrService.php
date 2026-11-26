@@ -235,12 +235,27 @@ class QrService {
                 LIMIT 1";
 
         $res = DB::fetch($sql, array_merge([$concernId], $variantParams));
+        $matchedViaTransfer = false;
+
+        // If a GRMV / finished-goods code belongs to an outwarded variant from another concern,
+        // resolve the matching replicated variant in the current concern by product_code.
+        if (!$res && $finishedGoodsCode && $variantId) {
+            $sourceCode = DB::fetchValue("SELECT product_code FROM variants WHERE id = ? LIMIT 1", [$variantId]);
+            if ($sourceCode) {
+                $transferSql = str_replace("WHERE {$variantFilter}", "WHERE v.product_code = ? AND v.concern_id = ?", $sql);
+                $res = DB::fetch($transferSql, [$concernId, $sourceCode, $concernId]);
+                if ($res) {
+                    $matchedViaTransfer = true;
+                }
+            }
+        }
 
         if ($res && !empty($res['attributes'])) {
             $res['attributes_parsed'] = json_decode($res['attributes'], true) ?: [];
         }
 
-        if ($res && $finishedGoodsCode) {
+        if ($res && $finishedGoodsCode && !$matchedViaTransfer) {
+            $normalizedCode = strtoupper(trim($code));
             $expectedCode = self::formatFinishedGoodsCode(
                 (int)$res['id'],
                 $res['main_category_code'] ?? $res['category_code'] ?? null,
@@ -250,7 +265,8 @@ class QrService {
                 $res['subcategory_name'] ?? null,
                 $res['sub_subcategory_name'] ?? null
             );
-            if (!hash_equals($expectedCode, strtoupper(trim($code)))) {
+            $expectedBrandCode = self::formatBrandVariantCode((int)$res['id']);
+            if (!hash_equals($expectedCode, $normalizedCode) && !hash_equals($expectedBrandCode, $normalizedCode)) {
                 return null;
             }
         }
