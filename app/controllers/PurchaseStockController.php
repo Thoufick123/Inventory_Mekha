@@ -28,7 +28,7 @@ class PurchaseStockController extends Controller {
         }
 
         $activeTab = trim($_GET['tab'] ?? 'rolls');
-        if (!in_array($activeTab, ['rolls', 'garment_other', 'finished_goods', 'damage'], true)) {
+        if (!in_array($activeTab, ['rolls', 'garment_other', 'damage'], true)) {
             $activeTab = 'rolls';
         }
 
@@ -310,7 +310,7 @@ class PurchaseStockController extends Controller {
                 $metrics['finished_value'] = max(0.0, $metrics['finished_value'] - $estimatedLoss);
             }
         }
-        $metrics['grand_value'] = $metrics['rolls_value'] + $metrics['other_value'] + $metrics['finished_value'];
+        $metrics['grand_value'] = $metrics['rolls_value'] + $metrics['other_value'];
         $damagedFinishedMrp = (float)DB::fetchValue(
             "SELECT COALESCE(SUM(q.qty * COALESCE(v.mrp, 0)), 0)
              FROM purchase_damage_quarantine q

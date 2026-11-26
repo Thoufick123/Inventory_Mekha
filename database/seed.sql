@@ -1,8 +1,7 @@
 -- ========================================================
 -- INVENTO: Live-safe baseline seed
 -- Preserves all concern, inventory, sales and operational data.
--- HSN/GST details and operational sequences are seeded by
--- database/seed_live.php for environments that use PHP seeding.
+-- Includes master modules, Super Admin role/user, and 95 HSN/SAC GST rows.
 -- ========================================================
 
 SET FOREIGN_KEY_CHECKS = 0;

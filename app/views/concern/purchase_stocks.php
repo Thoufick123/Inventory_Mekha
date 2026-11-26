@@ -54,13 +54,13 @@
             </div>
             <div>
                 <h4 class="fw-bold mb-0 text-dark">Purchase Stocks & Inventory</h4>
-                <p class="text-muted small mb-0">Monitor inwarded fabric rolls, trims/garment supplies, and finished goods inventory with current stock balance.</p>
+                <p class="text-muted small mb-0">Monitor inwarded fabric rolls and trims/garment supplies with current stock balance.</p>
             </div>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
             <?php if (\App\Core\Auth::can('purchase_stocks', 'export') && $activeTab !== 'damage'): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . $activeTab . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2">
-                <i class="bi bi-file-earmark-spreadsheet"></i> Export <?= match($activeTab) { 'rolls' => 'Rolls', 'garment_other' => 'Trims', 'finished_goods' => 'Finished Goods', default => 'Stocks' } ?> (CSV)
+                <i class="bi bi-file-earmark-spreadsheet"></i> Export <?= match($activeTab) { 'rolls' => 'Rolls', 'garment_other' => 'Trims', default => 'Stocks' } ?> (CSV)
             </a>
             <?php endif; ?>
             <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
@@ -96,10 +96,10 @@
         </div>
     <?php endif; ?>
 
-    <!-- 4 High-Impact KPI Stat Cards -->
+    <!-- 3 High-Impact KPI Stat Cards -->
     <div class="row g-3 mb-4">
         <!-- Metric 1: Fabric Rolls Stock -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl-4">
             <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-primary">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -117,7 +117,7 @@
         </div>
 
         <!-- Metric 2: Trims & Garment Other -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl-4">
             <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-info">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -134,33 +134,15 @@
             </div>
         </div>
 
-        <!-- Metric 3: Finished Goods Stock -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-purple" style="border-left-color: #8b5cf6 !important;">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="text-uppercase text-muted fw-bold mb-1" style="font-size: 0.70rem; letter-spacing: 0.05em;">Purchased Finished Goods</div>
-                        <h4 class="fw-bold mb-0 text-dark"><?= number_format($metrics['finished_qty'], 0) ?> <span class="fs-6 fw-normal text-muted">Pcs</span></h4>
-                        <div class="text-muted small mt-1" style="font-size: 0.75rem;">
-                            <i class="bi bi-tag text-purple me-1" style="color: #8b5cf6;"></i>MRP Val: <strong>₹<?= number_format($metrics['finished_mrp_val'], 2) ?></strong>
-                        </div>
-                    </div>
-                    <div class="rounded-3 p-3 text-purple" style="background: #ede9fe; color: #6d28d9;">
-                        <i class="bi bi-bag-check fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Metric 4: Total Purchased Inventory Value -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <!-- Metric 3: Total Purchased Inventory Value -->
+        <div class="col-12 col-sm-6 col-xl-4">
             <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-success">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-uppercase text-muted fw-bold mb-1" style="font-size: 0.70rem; letter-spacing: 0.05em;">Total Stock Valuation</div>
                         <h4 class="fw-bold mb-0 text-success">₹<?= number_format($metrics['grand_value'], 2) ?></h4>
                         <div class="text-muted small mt-1" style="font-size: 0.75rem;">
-                            <i class="bi bi-check2-circle text-success me-1"></i>Across all 3 purchase categories
+                            <i class="bi bi-check2-circle text-success me-1"></i>Across purchase stock categories
                         </div>
                     </div>
                     <div class="rounded-3 p-3 bg-success-subtle text-success">
@@ -197,20 +179,10 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link py-2 px-3 fw-semibold d-flex align-items-center gap-2 rounded-2 <?= $activeTab === 'finished_goods' ? 'active' : '' ?>" 
-                       href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=finished_goods' . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>">
-                        <i class="bi bi-bag-check"></i>
-                        <span>3. Purchased Finished Goods</span>
-                        <span class="badge <?= $activeTab === 'finished_goods' ? 'bg-white text-primary' : 'bg-light text-secondary border' ?> rounded-pill ms-1">
-                            <?= count($finishedGoods) ?>
-                        </span>
-                    </a>
-                </li>
-                <li class="nav-item">
                     <a class="nav-link py-2 px-3 fw-semibold d-flex align-items-center gap-2 rounded-2 <?= $activeTab === 'damage' ? 'active' : '' ?>" 
                        href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=damage' . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>">
                         <i class="bi bi-shield-x"></i>
-                        <span>4. Purchase Damage</span>
+                        <span>3. Purchase Damage</span>
                         <span class="badge <?= $activeTab === 'damage' ? 'bg-white text-primary' : 'bg-light text-secondary border' ?> rounded-pill ms-1">
                             <?= count($damages ?? []) ?>
                         </span>
@@ -926,199 +898,7 @@
         <?php endif; ?>
 
         <!-- ============================================== -->
-        <!-- TAB SECTION 3: PURCHASED FINISHED GOODS        -->
-        <!-- ============================================== -->
-        <?php if ($activeTab === 'finished_goods'): ?>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-bordered align-middle mb-0 text-center small compact-purchase-stock-table">
-                        <thead class="table-light">
-                            <tr class="fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
-                                <th style="width: 40px;">#</th>
-                                <th style="width: 130px;">Product Code</th>
-                                <th class="text-start">Garment Product Name</th>
-                                <th>Category / Type</th>
-                                <th>Size / Spec</th>
-                                <th>Color</th>
-                                <th class="text-end">Purchase Cost</th>
-                                <th class="text-end">MRP</th>
-                                <th>Inward Qty</th>
-                                <th>Available Stock</th>
-                                <th class="text-end">Stock Value (₹)</th>
-                                <th class="text-start">Purchase Bill Ref</th>
-                                <th style="width: 100px;">Status</th>
-                                <th style="width: 120px;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($finishedGoods)): ?>
-                                <tr>
-                                    <td colspan="14" class="text-center py-5 text-muted">
-                                        <i class="bi bi-bag-check display-6 text-secondary d-block mb-2"></i>
-                                        <strong>No finished goods found in purchase stock.</strong>
-                                        <div class="small mt-1">Record finished garments in purchase billing and inward them via <strong>Add to Stock</strong> in Label Generation.</div>
-                                    </td>
-                                </tr>
-                            <?php else: ?>
-                                <?php 
-                                $fIdx = 1;
-                                foreach ($finishedGoods as $f): 
-                                    $isInStock = ($f['inward_status'] ?? '') === 'completed';
-                                    $qty = (float)($f['qty'] ?? 1);
-                                    $uPrice = (float)($f['unit_price'] ?? 0);
-                                    $mrp = (float)($f['mrp'] ?? 0);
-                                    $tot = (float)($f['total_price'] ?? 0);
-                                    $liveStore = isset($f['live_variant_stock']) ? (float)$f['live_variant_stock'] : $qty;
-                                    $labelProductName = $f['variant_name'] ?: ($f['item_name'] ?: 'Finished Garment');
-                                    $labelDesign = trim($f['pattern'] ?: ($f['specification'] ?: ($f['variant_size'] ?: 'STANDARD')));
-                                    $labelCode = !empty($f['variant_id'])
-                                        ? \App\Services\QrService::formatFinishedGoodsCode(
-                                            (int)$f['variant_id'],
-                                            $f['main_category_code'] ?? null,
-                                            $f['sub_category_code'] ?? null,
-                                            $f['sub_sub_category_code'] ?? null,
-                                            $f['category_name'] ?? null,
-                                            $f['subcategory_name'] ?? null,
-                                            $f['sub_subcategory_name'] ?? null
-                                        )
-                                        : '';
-                                    $labelProductName = $f['fg_label_title'] ?: $labelProductName;
-                                    $labelCodeDisplay = $labelCode;
-                                    $labelPrice = (float)($f['variant_mrp'] ?: ($f['mrp'] ?: $f['unit_price']));
-                                    $labelConcern = $f['concern_name'] ?: 'GRM Inventory';
-                                    $labelRef = $f['bill_no'] ?: ('PO-' . $f['purchase_bill_id']);
-                                ?>
-                                    <tr>
-                                        <td class="text-muted fw-semibold"><?= $fIdx++ ?></td>
-                                        <td>
-                                            <span class="font-monospace fw-bold text-dark badge bg-light text-dark border">
-                                                <?= htmlspecialchars($f['variant_product_code'] ?: ($f['item_code'] ?: ('FG-' . $f['id']))) ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-start">
-                                            <div class="fw-bold text-dark"><?= htmlspecialchars($f['item_name']) ?></div>
-                                            <?php if (!empty($f['variant_name']) && $f['variant_name'] !== $f['item_name']): ?>
-                                                <div class="text-muted small" style="font-size: 0.70rem;">Catalog: <?= htmlspecialchars($f['variant_name']) ?></div>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-light text-secondary border"><?= htmlspecialchars($f['category_name'] ?: 'Apparel') ?></span>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-light text-dark border fw-semibold"><?= htmlspecialchars($f['specification'] ?: ($f['variant_size'] ?: 'Free')) ?></span>
-                                        </td>
-                                        <td>
-                                            <?= !empty($f['color']) ? htmlspecialchars(ucwords($f['color'])) : '-' ?>
-                                        </td>
-                                        <td class="text-end fw-semibold text-dark">
-                                            ₹<?= number_format($uPrice, 2) ?>
-                                        </td>
-                                        <td class="text-end fw-semibold text-primary">
-                                            <?= $mrp > 0 ? ('₹' . number_format($mrp, 2)) : '-' ?>
-                                        </td>
-                                        <td class="fw-bold text-dark">
-                                            <?= (float)$qty ?> Pcs
-                                        </td>
-                                        <td>
-                                            <?php if ($isInStock): ?>
-                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                                    <i class="bi bi-box2-heart me-1"></i><?= $liveStore ?> Pcs in Store
-                                                </span>
-                                            <?php else: ?>
-                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
-                                                    <i class="bi bi-hourglass-split me-1"></i><?= (float)$qty ?> Pending
-                                                </span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="text-end fw-bold text-dark">
-                                            ₹<?= number_format($tot, 2) ?>
-                                        </td>
-                                        <td class="text-start">
-                                            <div>
-                                                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . $f['purchase_bill_id']) ?>" class="fw-semibold text-primary font-monospace text-decoration-none">
-                                                    <?= htmlspecialchars($f['bill_no']) ?>
-                                                </a>
-                                            </div>
-                                            <div class="text-muted" style="font-size: 0.70rem;">
-                                                <?= htmlspecialchars($f['supplier_name'] ?: 'Vendor') ?> &bull; <?= date('d M Y', strtotime($f['bill_date'])) ?>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <?php if ($isInStock): ?>
-                                                <span class="badge bg-success text-white px-2 py-1" style="font-size: 0.68rem;">IN STOCK</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-warning text-dark px-2 py-1" style="font-size: 0.68rem;">PENDING</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <div class="d-flex justify-content-center gap-1">
-                                                <button type="button" class="btn btn-outline-info btn-sm purchase-stock-action-btn"
-                                                    data-section-type="finished_goods"
-                                                    data-item-id="<?= (int)$f['id'] ?>"
-                                                    data-concern-id="<?= (int)$f['concern_id'] ?>"
-                                                    onclick="viewPurchaseStock(this)"
-                                                    title="View finished good stock details">
-                                                    <i class="bi bi-eye"></i>
-                                                </button>
-                                                <?php if (!empty($f['label_generation_complete']) && !empty($f['variant_id'])): ?>
-                                                    <button type="button" class="btn btn-outline-primary btn-sm purchase-stock-action-btn"
-                                                        data-qr="<?= htmlspecialchars($labelCode, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-label-concern="<?= htmlspecialchars($labelConcern, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-label-ref="<?= htmlspecialchars($labelRef, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-label-title="<?= htmlspecialchars($labelProductName, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-label-field1-label="Product"
-                                                        data-label-code-label="Product Code"
-                                                        data-label-fabric="<?= htmlspecialchars($f['category_name'] ?: 'Apparel', ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-label-color="<?= htmlspecialchars($f['color'] ?: 'STANDARD', ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-label-design="<?= htmlspecialchars($labelDesign, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-label-price="<?= htmlspecialchars('₹' . number_format($labelPrice, 2), ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-label-code="<?= htmlspecialchars($labelCodeDisplay, ENT_QUOTES, 'UTF-8') ?>"
-                                                        onclick="showRollQr(this)"
-                                                        title="Preview the generated finished-goods label">
-                                                        <i class="bi bi-qr-code"></i>
-                                                    </button>
-                                                <?php endif; ?>
-                                                <?php if ($canEditPurchaseStock): ?>
-                                                    <button type="button" class="btn btn-outline-secondary btn-sm purchase-stock-action-btn" title="Edit this stock item"
-                                                        data-stock-type="finished_goods"
-                                                        data-item-id="<?= (int)$f['id'] ?>"
-                                                        data-concern-id="<?= (int)$f['concern_id'] ?>"
-                                                        data-item-name="<?= htmlspecialchars($f['item_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-item-code="<?= htmlspecialchars($f['item_code'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-specification="<?= htmlspecialchars($f['specification'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-color="<?= htmlspecialchars($f['color'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-unit="<?= htmlspecialchars($f['unit'] ?? 'Pieces', ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-qty="<?= htmlspecialchars((string)$qty, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-unit-price="<?= htmlspecialchars((string)$uPrice, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-mrp="<?= htmlspecialchars((string)$mrp, ENT_QUOTES, 'UTF-8') ?>"
-                                                        data-total-value="<?= htmlspecialchars((string)$tot, ENT_QUOTES, 'UTF-8') ?>"
-                                                        onclick="editPurchaseStockItem(this)">
-                                                        <i class="bi bi-pencil-square"></i>
-                                                    </button>
-                                                <?php endif; ?>
-                                                <?php if ($canDeletePurchaseStock): ?>
-                                                    <button type="button" class="btn btn-outline-danger btn-sm purchase-stock-action-btn" title="Delete this stock item"
-                                                        data-section-type="finished_goods"
-                                                        data-item-id="<?= (int)$f['id'] ?>"
-                                                        data-concern-id="<?= (int)$f['concern_id'] ?>"
-                                                        data-label="<?= htmlspecialchars($f['item_name'] ?? 'Finished Good', ENT_QUOTES, 'UTF-8') ?>"
-                                                        onclick="confirmDeletePurchaseStock(this)">
-                                                        <i class="bi bi-trash3"></i>
-                                                    </button>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <!-- ============================================== -->
-        <!-- TAB SECTION 4: PURCHASE DAMAGE                 -->
+        <!-- TAB SECTION 3: PURCHASE DAMAGE                 -->
         <!-- ============================================== -->
         <?php if ($activeTab === 'damage'): ?>
             <div class="card-body p-4">
@@ -1199,7 +979,7 @@
         <!-- Footer Pagination / Summary Info -->
         <div class="card-footer bg-white border-top p-3 d-flex flex-wrap justify-content-between align-items-center gap-2 small text-muted">
             <div>
-                Showing <strong><?= count($activeTab === 'rolls' ? $consolidatedRolls : ($activeTab === 'garment_other' ? $garmentOther : $finishedGoods)) ?></strong> <?= $activeTab === 'rolls' ? 'consolidated specification(s)' : 'items' ?> in <strong><?= match($activeTab) { 'rolls' => 'Fabric Rolls', 'garment_other' => 'Other Garments & Trims', 'finished_goods' => 'Purchased Finished Goods', default => 'Stocks' } ?></strong>
+                Showing <strong><?= count($activeTab === 'rolls' ? $consolidatedRolls : ($activeTab === 'garment_other' ? $garmentOther : ($damages ?? []))) ?></strong> <?= $activeTab === 'rolls' ? 'consolidated specification(s)' : 'items' ?> in <strong><?= match($activeTab) { 'rolls' => 'Fabric Rolls', 'garment_other' => 'Other Garments & Trims', 'damage' => 'Purchase Damage', default => 'Stocks' } ?></strong>
             </div>
             <div class="d-flex align-items-center gap-3">
                 <span><i class="bi bi-shield-check text-success me-1"></i> Multi-tenant data isolated</span>
@@ -1625,7 +1405,6 @@ function confirmDeletePurchaseStock(button) {
                             <select name="section_type" id="create_stock_section_type" class="form-select form-select-sm" onchange="toggleCreateStockFields()">
                                 <option value="rolls">1. Fabric Rolls</option>
                                 <option value="garment_other">2. Other Garments &amp; Trims</option>
-                                <option value="finished_goods">3. Purchased Finished Goods</option>
                             </select>
                         </div>
                         <div class="col-md-6">
