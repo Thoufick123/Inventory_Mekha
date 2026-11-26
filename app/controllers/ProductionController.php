@@ -1992,6 +1992,9 @@ class ProductionController extends Controller {
             $allocated = (float)$r['allocated_qty'];
             $damaged = (float)$r['damaged_qty'];
             $remaining = max(0.00, $total - $allocated - $damaged);
+            if ($remaining <= 0.0001) {
+                continue;
+            }
             $r['remaining_qty'] = $remaining;
             $unit = $r['unit'] ?: 'kg';
             $r['unit_price'] = (float)($r['unit_price'] ?? 0.00);
@@ -2120,6 +2123,9 @@ class ProductionController extends Controller {
             $allocated = (float)$r['allocated_qty'];
             $damaged = (float)$r['damaged_qty'];
             $remaining = max(0.00, $total - $allocated - $damaged);
+            if ($remaining <= 0.0001) {
+                continue;
+            }
             $r['remaining_qty'] = $remaining;
             $unit = $r['unit'] ?: 'kg';
             $r['unit_price'] = (float)($r['unit_price'] ?? 0.00);
@@ -2281,6 +2287,10 @@ class ProductionController extends Controller {
         $allocated = (float)$row['allocated_qty'];
         $damaged = (float)$row['damaged_qty'];
         $remaining = max(0.00, $total - $allocated - $damaged);
+        if ($remaining <= 0.0001) {
+            echo json_encode(['success' => false, 'message' => 'This roll is already programmed and has 0 remaining stock.']);
+            exit;
+        }
         $row['remaining_qty'] = $remaining;
         $unit = $row['unit'] ?: 'kg';
         $row['unit_price'] = (float)($row['unit_price'] ?? 0.00);

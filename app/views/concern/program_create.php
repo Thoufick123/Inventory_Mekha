@@ -262,27 +262,37 @@ function createRollCardHtml(index, preselectedRollId = null) {
             </div>
 
             <!-- 1. Select Raw Material Roll * -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-dark mb-1">Select Raw Material Roll &amp; Supplier <span class="text-danger">*</span></label>
-                <select name="rolls[${index}][purchase_bill_item_id]" class="form-select select-roll-item d-none" required>
-                    ${rollOptionsHtml}
-                </select>
-                <div class="roll-picker-wrap">
-                    <button type="button" class="roll-picker-btn" aria-expanded="false">
-                        <div class="roll-picker-btn-main"></div>
-                        <i class="bi bi-chevron-down text-muted flex-shrink-0 small"></i>
-                    </button>
-                    <div class="roll-picker-menu d-none">
-                        <div class="roll-picker-search-bar">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                                <input type="text" class="form-control border-start-0 ps-0 roll-picker-search" placeholder="Search fabric, color, code, supplier, or bill #...">
+            <div class="row g-2 mb-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold text-dark mb-1">Supplier Filter</label>
+                    <select class="form-select roll-supplier-filter-select">
+                        <option value="">All Suppliers</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label small fw-semibold text-dark mb-1">Select Raw Material Roll <span class="text-danger">*</span></label>
+                    <select name="rolls[${index}][purchase_bill_item_id]" class="form-select select-roll-item d-none" required>
+                        ${rollOptionsHtml}
+                    </select>
+                    <div class="roll-picker-wrap">
+                        <button type="button" class="roll-picker-btn" aria-expanded="false">
+                            <div class="roll-picker-btn-main"></div>
+                            <i class="bi bi-chevron-down text-muted flex-shrink-0 small"></i>
+                        </button>
+                        <div class="roll-picker-menu d-none">
+                            <div class="roll-picker-search-bar">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control border-start-0 ps-0 roll-picker-search" placeholder="Search fabric, color, code, supplier, or bill #...">
+                                </div>
                             </div>
+                            <div class="roll-picker-list"></div>
                         </div>
-                        <div class="roll-picker-list"></div>
                     </div>
                 </div>
-                <div class="roll-selected-summary d-none"></div>
+                <div class="col-12">
+                    <div class="roll-selected-summary d-none"></div>
+                </div>
             </div>
 
             <!-- 2. Roll Qty, Roll Weight, Roll Price matching Image 1 -->
