@@ -17,10 +17,16 @@ $defaultPeriod = $defaultPeriod ?? 'all';
 // Determine the target module for export authorization
 $targetExportModule = $currentModule ?? null;
 if (!$targetExportModule && !empty($exportUrl)) {
-    if (preg_match('#/(?:m/)?([a-z0-9_]+)/export#i', $exportUrl, $matches)) {
-        $targetExportModule = $matches[1];
+    if (preg_match('#/(?:m/|production/|warehouse/)?([a-z0-9_-]+)/export#i', $exportUrl, $matches)) {
+        $targetExportModule = str_replace('-', '_', strtolower($matches[1]));
         if ($targetExportModule === 'stock_ledger') $targetExportModule = 'stocks';
         if ($targetExportModule === 'cash') $targetExportModule = 'cash_flow';
+        if ($targetExportModule === 'cutting') $targetExportModule = 'cutting_wastage';
+        if ($targetExportModule === 'stitching') $targetExportModule = 'stitching_wastage';
+        if ($targetExportModule === 'qc') $targetExportModule = 'qc_stocks';
+        if ($targetExportModule === 'returns') $targetExportModule = 'return_exchange';
+        if ($targetExportModule === 'stock_requests') $targetExportModule = 'request';
+        if ($targetExportModule === 'export_roles') $targetExportModule = 'staff';
     }
 }
 

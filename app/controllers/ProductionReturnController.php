@@ -14,6 +14,7 @@ use App\Services\DamageService;
 use App\Services\DocumentNumberService;
 use App\Services\AuditService;
 use App\Services\ReturnExchangeSchema;
+use App\Services\ExportService;
 use Exception;
 
 class ProductionReturnController extends Controller {
@@ -83,6 +84,95 @@ class ProductionReturnController extends Controller {
             'toDate'        => $toDate,
             'selectedCid'   => $cid,
         ]);
+    }
+
+    public function export(): void {
+        ModuleGuard::enforce('return_exchange', 'view');
+        $cid = Auth::concernId();
+        $format = strtolower(trim((string)($_GET['format'] ?? 'excel')));
+        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $dateScope = ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
+
+        $sql = "SELECT pr.*, c.name AS customer_name, c.phone AS customer_phone,
+                       con.name AS concern_name, con.code AS concern_code,
+                       (SELECT COUNT(*) FROM production_return_exchange_items WHERE return_id = pr.id) AS item_count,
+                       (SELECT GROUP_CONCAT(DISTINCT CONCAT(v.name, ' [', v.product_code, ']') ORDER BY v.name SEPARATOR ' | ')
+                        FROM production_return_exchange_items prei
+                        JOIN variants v ON v.id = prei.variant_id
+                        WHERE prei.return_id = pr.id) AS product_codes,
+                       (SELECT COALESCE(SUM(total_amount), 0) FROM production_return_exchange_items WHERE return_id = pr.id AND direction = 'IN') AS return_total,
+                       (SELECT COALESCE(SUM(total_amount), 0) FROM production_return_exchange_items WHERE return_id = pr.id AND direction = 'OUT') AS exchange_total
+                FROM production_returns pr
+                LEFT JOIN customers c ON pr.customer_id = c.id
+                LEFT JOIN concerns con ON pr.concern_id = con.id
+                WHERE 1=1";
+        $params = [];
+        if ($cid) {
+            $sql .= " AND pr.concern_id = ?";
+            $params[] = $cid;
+        }
+        if ($dateScope['start_date'] && $dateScope['end_date']) {
+            $sql .= " AND DATE(COALESCE(pr.return_date, pr.created_at)) BETWEEN ? AND ?";
+            $params[] = $dateScope['start_date'];
+            $params[] = $dateScope['end_date'];
+        }
+        $sql .= " ORDER BY pr.id DESC";
+        $returns = DB::fetchAll($sql, $params);
+
+        $headers = [
+            'Return No', 'Date', 'Type', 'Status', 'Customer', 'Phone',
+            'Items Count', 'Products / Codes', 'Return Total (INR)', 'Exchange Total (INR)',
+            'Net Balance (INR)', 'Reason', 'Concern'
+        ];
+
+        $rows = [];
+        $totRetAmt = 0; $totExchAmt = 0; $totNet = 0;
+        foreach ($returns as $r) {
+            $retAmt = (float)($r['return_total'] ?? 0);
+            $exchAmt = (float)($r['exchange_total'] ?? 0);
+            $net = (float)($r['net_amount'] ?? ($retAmt - $exchAmt));
+            $totRetAmt += $retAmt;
+            $totExchAmt += $exchAmt;
+            $totNet += $net;
+
+            $rows[] = [
+                $r['return_no'],
+                $r['return_date'] ? date('d M Y', strtotime($r['return_date'])) : date('d M Y', strtotime($r['created_at'])),
+                strtoupper($r['type'] ?? 'RETURN'),
+                strtoupper($r['status'] ?? 'COMPLETED'),
+                $r['customer_name'] ?: 'Counter Walk-in',
+                $r['customer_phone'] ?: '-',
+                (int)($r['item_count'] ?? 0),
+                $r['product_codes'] ?: '-',
+                number_format($retAmt, 2),
+                number_format($exchAmt, 2),
+                number_format($net, 2),
+                $r['reason'] ?: '-',
+                $r['concern_name'] ?? 'Consolidated'
+            ];
+        }
+
+        $totals = ['Total RMAs: ' . count($returns), '', '', '', '', '', '', 'Totals:', number_format($totRetAmt, 2), number_format($totExchAmt, 2), number_format($totNet, 2), '', ''];
+        $metadata = [
+            'Report Title' => 'Returns & Exchange (RMA) Register Report',
+            'Scope / Period' => $dateScope['label'] ?? 'All Time',
+            'Generated At' => date('d M Y, h:i A'),
+            'Total RMAs' => count($returns),
+            'Concern' => $cid ? ($returns[0]['concern_name'] ?? 'Concern #' . $cid) : 'All Concerns'
+        ];
+
+        $filename = 'returns_rma_' . date('Ymd_His');
+
+        if ($format === 'pdf') {
+            ExportService::renderPdfView('Returns & Exchange (RMA) Register Report', $metadata, $headers, $rows, $totals);
+        } elseif ($format === 'csv') {
+            ExportService::downloadCsv($filename, $headers, $rows, $totals);
+        } else {
+            ExportService::downloadExcel($filename, 'Returns & Exchange (RMA) Register Report', $metadata, $headers, $rows, $totals);
+        }
     }
 
     public function update(): void {

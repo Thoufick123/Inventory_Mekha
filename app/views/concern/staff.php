@@ -40,6 +40,16 @@
         </div>
     <?php endif; ?>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Staff Directory & Workforce Register (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download staff roster, designations, department allocations, salaries & employment status';
+    $exportUrl = \App\Core\Controller::url('/m/staff/export');
+    $currentModule = 'staff';
+    $prefix = 'stf_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <!-- Search & Filter Directory Toolbar -->
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body p-3">

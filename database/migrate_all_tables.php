@@ -776,6 +776,98 @@ try {
     }
 } catch (\Throwable $e) {}
 
+// 25. BATCH_ITEMS
+echo "\n25. Checking `batch_items` schema...\n";
+try {
+    $biCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `batch_items`"), 'Field');
+    if (!in_array('concern_id', $biCols, true)) {
+        DB::query("ALTER TABLE `batch_items` ADD COLUMN `concern_id` INT NOT NULL DEFAULT 1 AFTER `id`, ADD INDEX `idx_bi_concern` (`concern_id`)");
+        DB::query("UPDATE `batch_items` bi JOIN `batches` b ON bi.batch_id = b.id SET bi.concern_id = b.concern_id WHERE b.concern_id IS NOT NULL");
+        echo "  + Added `concern_id` to `batch_items`\n";
+    } else {
+        echo "  . `concern_id` already exists on `batch_items`\n";
+    }
+    if (!in_array('qty', $biCols, true)) {
+        DB::query("ALTER TABLE `batch_items` ADD COLUMN `qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `product_code`");
+        if (in_array('quantity', $biCols, true)) {
+            DB::query("UPDATE `batch_items` SET `qty` = `quantity` WHERE `qty` = 0 AND `quantity` > 0");
+        }
+        echo "  + Added `qty` to `batch_items`\n";
+    } else {
+        echo "  . `qty` already exists on `batch_items`\n";
+    }
+    if (!in_array('unit_price', $biCols, true)) {
+        DB::query("ALTER TABLE `batch_items` ADD COLUMN `unit_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `qty`");
+        echo "  + Added `unit_price` to `batch_items`\n";
+    }
+    if (!in_array('taxable_value', $biCols, true)) {
+        DB::query("ALTER TABLE `batch_items` ADD COLUMN `taxable_value` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `unit_price`");
+        echo "  + Added `taxable_value` to `batch_items`\n";
+    }
+    if (!in_array('gst_amount', $biCols, true)) {
+        DB::query("ALTER TABLE `batch_items` ADD COLUMN `gst_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `taxable_value`");
+        echo "  + Added `gst_amount` to `batch_items`\n";
+    }
+    if (!in_array('total_amount', $biCols, true)) {
+        DB::query("ALTER TABLE `batch_items` ADD COLUMN `total_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `gst_amount`");
+        echo "  + Added `total_amount` to `batch_items`\n";
+    }
+    if (!in_array('qr_codes', $biCols, true)) {
+        DB::query("ALTER TABLE `batch_items` ADD COLUMN `qr_codes` LONGTEXT NULL AFTER `total_amount`");
+        echo "  + Added `qr_codes` to `batch_items`\n";
+    }
+} catch (\Throwable $e) {
+    echo "  ! batch_items migration note: " . $e->getMessage() . "\n";
+}
+
+// 26. LABEL_JOBS source_module
+echo "\n26. Checking `label_jobs` source_module...\n";
+try {
+    $ljCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `label_jobs`"), 'Field');
+    if (!in_array('source_module', $ljCols, true)) {
+        DB::query("ALTER TABLE `label_jobs` ADD COLUMN `source_module` VARCHAR(50) NOT NULL DEFAULT 'label_generation' AFTER `label_type`");
+        echo "  + Added `source_module` to `label_jobs`\n";
+    } else {
+        echo "  . `source_module` already exists on `label_jobs`\n";
+    }
+} catch (\Throwable $e) {}
+
+// 27. PURCHASE_BILLS source_module
+echo "\n27. Checking `purchase_bills` source_module...\n";
+try {
+    $pbCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `purchase_bills`"), 'Field');
+    if (!in_array('source_module', $pbCols, true)) {
+        DB::query("ALTER TABLE `purchase_bills` ADD COLUMN `source_module` VARCHAR(50) NOT NULL DEFAULT 'purchase_billing' AFTER `supplier_invoice_no`");
+        echo "  + Added `source_module` to `purchase_bills`\n";
+    } else {
+        echo "  . `source_module` already exists on `purchase_bills`\n";
+    }
+} catch (\Throwable $e) {}
+
+// 28. PRODUCT_ATTRIBUTES category hierarchy
+echo "\n28. Checking `product_attributes` category hierarchy columns...\n";
+try {
+    $paCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `product_attributes`"), 'Field');
+    if (!in_array('category_id', $paCols, true)) {
+        DB::query("ALTER TABLE `product_attributes` ADD COLUMN `category_id` INT NULL AFTER `concern_id`");
+        echo "  + Added `category_id` to `product_attributes`\n";
+    } else {
+        echo "  . `category_id` already exists on `product_attributes`\n";
+    }
+    if (!in_array('subcategory_id', $paCols, true)) {
+        DB::query("ALTER TABLE `product_attributes` ADD COLUMN `subcategory_id` INT NULL AFTER `category_id`");
+        echo "  + Added `subcategory_id` to `product_attributes`\n";
+    } else {
+        echo "  . `subcategory_id` already exists on `product_attributes`\n";
+    }
+    if (!in_array('sub_sub_category_id', $paCols, true)) {
+        DB::query("ALTER TABLE `product_attributes` ADD COLUMN `sub_sub_category_id` INT NULL AFTER `subcategory_id`");
+        echo "  + Added `sub_sub_category_id` to `product_attributes`\n";
+    } else {
+        echo "  . `sub_sub_category_id` already exists on `product_attributes`\n";
+    }
+} catch (\Throwable $e) {}
+
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";
 echo "========================================================\n";

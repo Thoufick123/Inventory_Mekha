@@ -101,6 +101,16 @@
         </div>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Product Adding Bills (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download registered purchase bills, supplier invoices, line counts & stock inward status';
+    $exportUrl = \App\Core\Controller::url('/m/product_adding/export');
+    $currentModule = 'product_adding';
+    $prefix = 'pa_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">

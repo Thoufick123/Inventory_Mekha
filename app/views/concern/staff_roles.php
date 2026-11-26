@@ -103,6 +103,16 @@ $activeTab = $activeTab ?? 'staff';
         </div>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Staff Roles & Module CRUD Permissions (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download staff login assignments, system roles, authorized concerns & access controls';
+    $exportUrl = \App\Core\Controller::url('/m/staff/export_roles');
+    $currentModule = 'staff';
+    $prefix = 'stf_role_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <!-- Mode Navigation Tabs -->
     <ul class="nav nav-pills mb-4 bg-white p-2 rounded-3 shadow-xs border" id="pills-tab" role="tablist">
         <li class="nav-item" role="presentation">

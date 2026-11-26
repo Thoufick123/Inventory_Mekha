@@ -30,6 +30,16 @@
         <?php endif; ?>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Quality Control (QC) Inspections (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download multi-checkpoint QC inspection records, pass/rework metrics & inspector details';
+    $exportUrl = \App\Core\Controller::url('/production/qc/export');
+    $currentModule = 'qc_stocks';
+    $prefix = 'qc_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <!-- Filter Card -->
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body p-3">

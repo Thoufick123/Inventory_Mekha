@@ -80,6 +80,16 @@
         </div>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Garment Stitching & Wastage Tracking (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download stitching batches, tailor piece rates, stitched units & scrap liquidation';
+    $exportUrl = \App\Core\Controller::url('/production/stitching/export');
+    $currentModule = 'stitching_wastage';
+    $prefix = 'stitch_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <!-- TABS NAVIGATION -->
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-header bg-white border-bottom px-4 pt-3 pb-0">

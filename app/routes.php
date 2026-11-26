@@ -65,6 +65,8 @@ $router->get('/admin/reports/export', [AdminController::class, 'exportReports'],
 
 // Catalog-only product creation
 $router->get('/m/product_adding', [ProductAddingController::class, 'index'], 'product_adding', 'view');
+$router->get('/m/product_adding/export', [ProductAddingController::class, 'export'], 'product_adding', 'export');
+$router->get('/product_adding/export', [ProductAddingController::class, 'export'], 'product_adding', 'export');
 $router->get('/m/product_adding/create', [ProductAddingController::class, 'create'], 'product_adding', 'add');
 $router->get('/m/product_adding/edit_purchase_bill', [PurchaseController::class, 'editBillFromProductAdding'], 'product_adding', 'edit');
 $router->post('/m/product_adding/store', [PurchaseController::class, 'storeBill'], 'product_adding', 'add');
@@ -145,6 +147,8 @@ $router->post('/warehouse/inward/credit', [InwardController::class, 'creditStock
 $router->get('/m/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');
 $router->get('/warehouse/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');
 $router->get('/m/inward/export', [InwardController::class, 'exportInward'], 'inward', 'export');
+$router->get('/warehouse/inward/export', [InwardController::class, 'exportInward'], 'inward', 'export');
+$router->get('/production/inward/export', [InwardController::class, 'exportInward'], 'inward', 'export');
 $router->post('/m/inward/store', [InwardController::class, 'store'], 'inward', 'add');
 $router->post('/m/inward/update', [InwardController::class, 'update'], 'inward', 'edit');
 $router->post('/m/inward/delete', [InwardController::class, 'delete'], 'inward', 'delete');
@@ -210,6 +214,7 @@ $router->get('/m/customers/export', [SalesController::class, 'exportCustomers'],
 $router->get('/api/customers/details', [SalesController::class, 'customerProfile'], 'customers', 'view');
 // Stock Requests & Inter-Module Movement
 $router->get('/production/stock-requests', [ProductionStockRequestController::class, 'index'], 'request', 'view');
+$router->get('/production/stock-requests/export', [ProductionStockRequestController::class, 'export'], 'request', 'export');
 $router->get('/production/stock-requests/create', [ProductionStockRequestController::class, 'create'], 'request', 'add');
 $router->post('/production/stock-requests/store', [ProductionStockRequestController::class, 'store'], 'request', 'add');
 $router->get('/production/stock-requests/view/{id}', [ProductionStockRequestController::class, 'view'], 'request', 'view');
@@ -260,6 +265,7 @@ $router->post('/m/dispatch/update', [SalesController::class, 'updateDispatch'], 
 $router->post('/m/dispatch/delete', [SalesController::class, 'deleteDispatch'], 'dispatch', 'delete');
 // Return & Exchange (RMA)
 $router->get('/production/returns', [ProductionReturnController::class, 'index'], 'return_exchange', 'view');
+$router->get('/production/returns/export', [ProductionReturnController::class, 'export'], 'return_exchange', 'export');
 $router->get('/production/returns/create', [SalesController::class, 'returnExchange'], 'return_exchange', 'add');
 $router->post('/production/returns/store', [ProductionReturnController::class, 'store'], 'return_exchange', 'add');
 $router->post('/production/returns/update', [ProductionReturnController::class, 'update'], 'return_exchange', 'edit');
@@ -343,6 +349,8 @@ $router->post('/production/cutting/update', [ProductionController::class, 'updat
 $router->get('/m/cutting_wastage/edit', [ProductionController::class, 'editCuttingBatch'], 'cutting_wastage', 'edit');
 $router->post('/m/cutting_wastage/update', [ProductionController::class, 'updateCuttingBatch'], 'cutting_wastage', 'edit');
 $router->post('/production/cutting/delete', [ProductionController::class, 'deleteCuttingBatch'], 'cutting_wastage', 'delete');
+$router->get('/production/cutting/export', [ProductionController::class, 'exportCutting'], 'cutting_wastage', 'export');
+$router->get('/m/cutting_wastage/export', [ProductionController::class, 'exportCutting'], 'cutting_wastage', 'export');
 
 // Cutting API Endpoints
 $router->get('/api/cutting/program-details', [ProductionController::class, 'apiCuttingProgramDetails'], 'cutting_wastage', 'view');
@@ -385,6 +393,7 @@ $router->get('/m/stitching_wastage/create', [ProductionController::class, 'creat
 $router->get('/m/stitching_wastage/edit', [ProductionController::class, 'editStitchingBatch'], 'stitching_wastage', 'edit');
 $router->get('/m/stitching_wastage/view', [ProductionController::class, 'viewStitchingBatch'], 'stitching_wastage', 'view');
 $router->get('/m/stitching_wastage/export', [ProductionController::class, 'exportStitching'], 'stitching_wastage', 'export');
+$router->get('/production/stitching/export', [ProductionController::class, 'exportStitching'], 'stitching_wastage', 'export');
 $router->post('/m/stitching_wastage/store', [ProductionController::class, 'storeStitchingBatch'], 'stitching_wastage', 'add');
 $router->post('/m/stitching_wastage/update', [ProductionController::class, 'updateStitchingBatch'], 'stitching_wastage', 'edit');
 $router->post('/m/stitching_wastage/delete', [ProductionController::class, 'deleteStitchingBatch'], 'stitching_wastage', 'delete');
@@ -453,6 +462,7 @@ $router->post('/m/staff/create-role', [StaffController::class, 'createRole'], 's
 $router->get('/api/staff/role-permissions', [StaffController::class, 'apiGetRolePermissions'], 'staff', 'view');
 $router->get('/api/staff/user-permissions', [StaffController::class, 'apiGetUserPermissions'], 'staff', 'view');
 $router->get('/m/staff/export', [StaffController::class, 'export'], 'staff', 'export');
+$router->get('/m/staff/export_roles', [StaffController::class, 'exportRoles'], 'staff', 'export');
 $router->post('/m/staff/store', [StaffController::class, 'store'], 'staff', 'add');
 $router->post('/m/staff/update', [StaffController::class, 'update'], 'staff', 'edit');
 $router->post('/m/staff/delete', [StaffController::class, 'delete'], 'staff', 'delete');

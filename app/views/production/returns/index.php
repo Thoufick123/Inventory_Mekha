@@ -16,6 +16,16 @@
         </div>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Returns & Exchanges RMA (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download reversible RMA transactions, return items, exchange settlements & ledger balances';
+    $exportUrl = \App\Core\Controller::url('/production/returns/export');
+    $currentModule = 'return_exchange';
+    $prefix = 'rma_exp';
+    include dirname(dirname(__DIR__)) . '/partials/export_card.php';
+    ?>
+
     <!-- Filters & Search Toolbar -->
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body p-3">

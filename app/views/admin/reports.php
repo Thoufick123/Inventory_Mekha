@@ -45,9 +45,6 @@
                     <span><?= htmlspecialchars($c['name']) ?></span>
                 </label>
             <?php endforeach; ?>
-            <button type="button" id="top_export_2_excel" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm ms-auto" onclick="exportSelectedCombined('excel')">
-                <i class="bi bi-file-earmark-excel"></i> <span id="top_export_label">Download Selected Report (Excel)</span>
-            </button>
         </div>
     </div>
 
@@ -64,43 +61,6 @@
     $defaultPeriod = $period ?? 'all';
     include __DIR__ . '/../partials/export_card.php';
     ?>
-
-    <!-- Floating Batch Export Action Bar for Selected Concerns -->
-    <div id="batch_export_bar" class="card border-0 shadow-sm rounded-4 p-3 mb-3 d-none" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: #ffffff;">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div class="d-flex align-items-center gap-2">
-                <div style="width: 38px; height: 38px; background: rgba(255,255,255,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
-                    <i class="bi bi-check2-square text-white"></i>
-                </div>
-                <div>
-                    <div class="fw-bold fs-6 text-white">
-                        <span id="selected_concerns_count">0</span> Concerns Selected (Same Report)
-                    </div>
-                    <small id="selected_concerns_names" class="text-white-50" style="font-size: 0.8rem;"></small>
-                </div>
-            </div>
-            <div class="d-flex flex-wrap align-items-center gap-2">
-                <span class="text-white-50 small me-1">Export Mode:</span>
-                <!-- Combined Export -->
-                <button type="button" class="btn btn-sm btn-light fw-bold text-success shadow-sm" onclick="exportSelectedCombined('excel')">
-                    <i class="bi bi-file-earmark-excel text-success me-1"></i> Download Same Report (Excel)
-                </button>
-                <button type="button" class="btn btn-sm btn-light fw-bold text-danger shadow-sm" onclick="exportSelectedCombined('pdf')">
-                    <i class="bi bi-file-earmark-pdf text-danger me-1"></i> Same Report (PDF)
-                </button>
-                <button type="button" class="btn btn-sm btn-light fw-bold text-secondary shadow-sm" onclick="exportSelectedCombined('csv')">
-                    <i class="bi bi-file-earmark-arrow-down text-secondary me-1"></i> CSV
-                </button>
-                <!-- Separated Reports (1 file per concern) -->
-                <button type="button" class="btn btn-sm btn-warning fw-bold text-dark shadow-sm" onclick="downloadSeparatedReports('excel')" title="Downloads a separated individual Excel report file for each selected concern">
-                    <i class="bi bi-folder-symlink me-1"></i> Download Separated (1 File Each)
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-light" onclick="clearAllSelections()" title="Deselect All">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- Summary Metrics Table -->
     <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden" style="border: 1px solid #e2e8f0 !important;">
@@ -283,14 +243,10 @@ function onPillCheckChange(pillInput) {
 
 function onRowCheckChange() {
     const checked = getSelectedRowChecks();
-    const batchBar = document.getElementById('batch_export_bar');
-    const countSpan = document.getElementById('selected_concerns_count');
-    const namesSpan = document.getElementById('selected_concerns_names');
     const masterCheck = document.getElementById('master_concern_check');
     const allRowChecks = document.querySelectorAll('.concern-row-check');
     const allPillChecks = document.querySelectorAll('.concern-pill-check');
     const headerLabel = document.getElementById('header_export_label');
-    const topLabel = document.getElementById('top_export_label');
 
     // Sync pill checkboxes to match row checkboxes
     const checkedValues = checked.map(c => c.value);
@@ -309,18 +265,10 @@ function onRowCheckChange() {
     });
 
     if (checked.length > 0) {
-        if (batchBar) batchBar.classList.remove('d-none');
-        if (countSpan) countSpan.textContent = checked.length;
-        const codes = checked.map(c => c.getAttribute('data-code')).join(', ');
-        if (namesSpan) namesSpan.textContent = 'Selected: ' + codes;
-        
         const btnText = 'Download ' + checked.length + ' Concern' + (checked.length > 1 ? 's' : '') + ' (Excel)';
         if (headerLabel) headerLabel.textContent = btnText;
-        if (topLabel) topLabel.textContent = btnText;
     } else {
-        if (batchBar) batchBar.classList.add('d-none');
         if (headerLabel) headerLabel.textContent = 'Download Selected Concerns (Excel)';
-        if (topLabel) topLabel.textContent = 'Download Selected Report (Excel)';
     }
 
     if (masterCheck) {
@@ -370,35 +318,5 @@ function exportSelectedCombined(format) {
     } else {
         window.location.href = url;
     }
-}
-
-// Download separated report files (1 file per concern)
-function downloadSeparatedReports(format) {
-    const checked = getSelectedRowChecks();
-    if (checked.length === 0) {
-        alert('Please check at least 1 or 2 concerns to download separated reports.');
-        return;
-    }
-
-    const dates = getActiveDateParams();
-    checked.forEach((cb, index) => {
-        const concernId = cb.value;
-        const url = '<?= \App\Core\Controller::url('/admin/reports/export') ?>' +
-                    '?concern_id=' + encodeURIComponent(concernId) +
-                    '&format=' + encodeURIComponent(format) +
-                    '&period=' + encodeURIComponent(dates.period) +
-                    '&single_date=' + encodeURIComponent(dates.singleDate) +
-                    '&from_date=' + encodeURIComponent(dates.fromDate) +
-                    '&to_date=' + encodeURIComponent(dates.toDate);
-
-        // Stagger iframe downloads so browser doesn't block parallel downloads
-        setTimeout(() => {
-            const ifr = document.createElement('iframe');
-            ifr.style.display = 'none';
-            ifr.src = url;
-            document.body.appendChild(ifr);
-            setTimeout(() => { document.body.removeChild(ifr); }, 15000);
-        }, index * 600);
-    });
 }
 </script>
