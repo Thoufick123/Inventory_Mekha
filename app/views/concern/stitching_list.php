@@ -136,7 +136,6 @@
                                     <th class="text-center py-3">Stitched Pcs</th>
                                     <th class="text-center py-3">Cut Wt</th>
                                     <th class="text-center py-3">Stitch Wt</th>
-                                    <th class="text-center py-3">Status</th>
                                     <th class="text-center py-3">Created</th>
                                     <th class="text-end pe-3 py-3">Actions</th>
                                 </tr>
@@ -144,7 +143,7 @@
                             <tbody>
                                 <?php if (empty($batches)): ?>
                                     <tr>
-                                        <td colspan="11" class="text-center py-5 text-muted">
+                                        <td colspan="10" class="text-center py-5 text-muted">
                                             <i class="bi bi-stack fs-1 d-block mb-2 text-secondary"></i>
                                             No stitching batches found. Click <strong>"New Stitching Batch"</strong> to start production.
                                         </td>
@@ -194,15 +193,6 @@
                                             <td class="text-center py-3 font-monospace small fw-bold text-dark">
                                                 <?= number_format((float)$b['stitch_weight'], 2) ?> kg
                                             </td>
-                                            <td class="text-center py-3">
-                                                <?php if ($b['status'] === 'completed'): ?>
-                                                    <span class="badge bg-success text-white px-2 py-1">Completed</span>
-                                                <?php elseif ($b['status'] === 'planned'): ?>
-                                                    <span class="badge bg-secondary text-white px-2 py-1">Planned</span>
-                                                <?php else: ?>
-                                                    <span class="badge bg-primary text-white px-2 py-1">In Progress</span>
-                                                <?php endif; ?>
-                                            </td>
                                             <td class="text-center py-3 small text-muted">
                                                 <?= date('d M Y', strtotime($b['created_at'])) ?>
                                             </td>
@@ -212,6 +202,13 @@
                                                        class="btn btn-outline-secondary" title="View Batch Details">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
+                                                    <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                                    <button type="button" class="btn btn-outline-dark"
+                                                            title="Print All Variant Labels"
+                                                            onclick='openStitchingBatchLabelModal(<?= (int)$b['id'] ?>, <?= htmlspecialchars(json_encode($b['label_items'] ?? []), ENT_QUOTES) ?>)'>
+                                                        <i class="bi bi-printer"></i>
+                                                    </button>
+                                                    <?php endif; ?>
                                                     <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
                                                     <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $b['id']) ?>" 
                                                        class="btn btn-outline-primary" title="Edit Batch">
@@ -1070,3 +1067,4 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+<?php include __DIR__ . '/partials/stitching_label_print_js.php'; ?>

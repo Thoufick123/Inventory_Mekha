@@ -51,6 +51,29 @@
     background: #f8fafc;
     border-bottom: 1px solid #e2e8f0;
 }
+.roll-supplier-filter-select {
+    min-height: 44px;
+    border: 2px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #1e293b;
+}
+.roll-supplier-filter-select:focus {
+    border-color: var(--primary, #4f46e5);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+.roll-picker-option.is-used-out {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+    background: #f8fafc;
+}
+.roll-picker-option.is-used-out .badge {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    border-color: #fca5a5 !important;
+}
 .roll-picker-list {
     max-height: 310px;
     overflow-y: auto;
@@ -155,7 +178,11 @@ window.ProgramRollPicker = (function() {
     }
 
     function buildSelectOptionsHtml(rollsData, preselectedId) {
-        const groups = buildGroupedRolls(rollsData);
+        const filteredRolls = (rollsData || []).filter(function(r) {
+            const rem = parseFloat(r.remaining_qty || 0) || 0;
+            return rem > 0 || (preselectedId && String(preselectedId) === String(r.id));
+        });
+        const groups = buildGroupedRolls(filteredRolls);
         let html = '<option value="">-- Select Fabric Roll --</option>';
         groups.forEach(function(grp) {
             const optgroupLabel = `${grp.title} (Total: ${grp.totalStock.toFixed(2)} ${grp.unit})`;
@@ -196,13 +223,39 @@ window.ProgramRollPicker = (function() {
         return html;
     }
 
-    function renderMenuItems(card, rollsData, getEffectiveStock, queryText) {
+    function getUsedRollIds(currentCard) {
+        // Returns a Set of roll IDs already selected in OTHER cards
+        const usedIds = new Set();
+        document.querySelectorAll('.roll-card').forEach(function(c) {
+            if (c === currentCard) return;
+            const s = c.querySelector('.select-roll-item');
+            if (s && s.value) usedIds.add(String(s.value));
+        });
+        return usedIds;
+    }
+
+    function buildSupplierOptions(rollsData) {
+        const seen = new Set();
+        const options = [{ value: '', label: 'All Suppliers' }];
+        (rollsData || []).forEach(function(r) {
+            const sup = getSupplierLabel(r);
+            if (!seen.has(sup)) {
+                seen.add(sup);
+                options.push({ value: sup, label: sup });
+            }
+        });
+        return options;
+    }
+
+    function renderMenuItems(card, rollsData, getEffectiveStock, queryText, supplierFilter) {
         const listEl = card.querySelector('.roll-picker-list');
         const sel = card.querySelector('.select-roll-item');
         if (!listEl || !sel) return;
 
         const selectedId = String(sel.value || '');
         const needle = String(queryText || '').trim().toLowerCase();
+        const supFilter = String(supplierFilter || '').trim();
+        const usedIds = getUsedRollIds(card);
         const groups = buildGroupedRolls(rollsData);
 
         let html = '';
@@ -210,6 +263,14 @@ window.ProgramRollPicker = (function() {
 
         groups.forEach(function(grp) {
             const matchingRolls = grp.rolls.filter(function(r) {
+                const isSelected = selectedId !== '' && selectedId === String(r.id);
+                const info = getEffectiveStock(r.id);
+                const rem = parseFloat(info.remainingForCard || 0) || 0;
+                // Exclude rolls that are already programmed and have 0 remaining stock (unless currently selected on this card)
+                if (rem <= 0 && !isSelected) return false;
+                // Supplier filter
+                if (supFilter && getSupplierLabel(r) !== supFilter) return false;
+                // Text search
                 if (!needle) return true;
                 const haystack = [
                     r.design_name, r.pattern, r.item_name, r.color,
@@ -241,6 +302,9 @@ window.ProgramRollPicker = (function() {
                 const showFabricName = itemName && itemName.toUpperCase() !== (r.design_name || r.pattern || '').toUpperCase();
                 const batchNote = grp.rolls.length > 1 ? `Batch #${idx + 1}` : '';
 
+                // Used in another card AND zero stock → block it
+                const isUsedOut = usedIds.has(String(r.id)) && rem <= 0;
+
                 const stockPill = rem > 0
                     ? `<span class="badge bg-success-subtle text-success border border-success-subtle fw-semibold">${rem.toFixed(2)} ${escapeHtml(unit)} avail</span>`
                     : `<span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold">0.00 ${escapeHtml(unit)}</span>`;
@@ -252,17 +316,22 @@ window.ProgramRollPicker = (function() {
                 if (info.allocatedInOthers > 0) {
                     secondaryParts.push(`${info.allocatedInOthers.toFixed(2)} ${escapeHtml(unit)} used in other roll`);
                 }
+                if (isUsedOut) {
+                    secondaryParts.push('Already used in this program');
+                }
 
                 html += `
                     <button type="button"
-                            class="roll-picker-option${isSelected ? ' is-selected' : ''}${rem <= 0 && !isSelected ? ' is-empty' : ''}"
-                            data-roll-id="${escapeHtml(r.id)}">
+                            class="roll-picker-option${isSelected ? ' is-selected' : ''}${rem <= 0 && !isSelected ? ' is-empty' : ''}${isUsedOut ? ' is-used-out' : ''}"
+                            data-roll-id="${escapeHtml(r.id)}"
+                            ${isUsedOut ? 'disabled title="This roll is already added to another slot and has no remaining stock."' : ''}>
                         <div class="d-flex align-items-center justify-content-between gap-2">
                             <div class="d-flex align-items-center gap-1 flex-wrap" style="min-width: 0;">
                                 <i class="bi ${isSelected ? 'bi-check-circle-fill text-primary' : 'bi-person-badge text-primary'} flex-shrink-0"></i>
                                 <span class="fw-bold text-dark small">${escapeHtml(supplier)}</span>
                                 <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;">${escapeHtml(code)}</span>
                                 ${batchNote ? `<span class="badge bg-light text-muted border" style="font-size: 0.66rem;">${escapeHtml(batchNote)}</span>` : ''}
+                                ${isUsedOut ? `<span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.66rem;">Used</span>` : ''}
                             </div>
                             <div class="flex-shrink-0">${stockPill}</div>
                         </div>
@@ -379,9 +448,20 @@ window.ProgramRollPicker = (function() {
         const btn = card.querySelector('.roll-picker-btn');
         const menu = card.querySelector('.roll-picker-menu');
         const searchInput = card.querySelector('.roll-picker-search');
+        const supplierSel = card.querySelector('.roll-supplier-filter-select');
         const listEl = card.querySelector('.roll-picker-list');
         const sel = card.querySelector('.select-roll-item');
         if (!wrap || !btn || !menu || !listEl || !sel) return;
+
+        // Populate supplier filter options
+        if (supplierSel) {
+            const opts = buildSupplierOptions(rollsData);
+            supplierSel.innerHTML = opts.map(function(o) {
+                return `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`;
+            }).join('');
+        }
+
+        const getSupFilter = () => supplierSel ? supplierSel.value : '';
 
         syncCardDisplay(card, rollsData, getEffectiveStock);
 
@@ -389,7 +469,7 @@ window.ProgramRollPicker = (function() {
             const isHidden = menu.classList.contains('d-none');
             closeAllMenus(isHidden ? menu : null);
             if (isHidden) {
-                renderMenuItems(card, rollsData, getEffectiveStock, searchInput ? searchInput.value : '');
+                renderMenuItems(card, rollsData, getEffectiveStock, searchInput ? searchInput.value : '', getSupFilter());
                 menu.classList.remove('d-none');
                 btn.classList.add('is-open');
                 btn.setAttribute('aria-expanded', 'true');
@@ -405,7 +485,7 @@ window.ProgramRollPicker = (function() {
 
         if (searchInput) {
             searchInput.addEventListener('input', function() {
-                renderMenuItems(card, rollsData, getEffectiveStock, this.value);
+                renderMenuItems(card, rollsData, getEffectiveStock, this.value, getSupFilter());
             });
             searchInput.addEventListener('keydown', function(event) {
                 if (event.key === 'Escape') {
@@ -415,9 +495,25 @@ window.ProgramRollPicker = (function() {
             });
         }
 
+        if (supplierSel) {
+            supplierSel.addEventListener('change', function() {
+                const chosenSupplier = this.value;
+                if (chosenSupplier && sel.value) {
+                    const currentRoll = (rollsData || []).find(function(r) {
+                        return String(r.id) === String(sel.value);
+                    });
+                    if (currentRoll && getSupplierLabel(currentRoll) !== chosenSupplier) {
+                        sel.value = '';
+                        sel.dispatchEvent(new Event('change'));
+                    }
+                }
+                renderMenuItems(card, rollsData, getEffectiveStock, searchInput ? searchInput.value : '', chosenSupplier);
+            });
+        }
+
         listEl.addEventListener('click', function(event) {
             const optionBtn = event.target.closest('.roll-picker-option');
-            if (!optionBtn) return;
+            if (!optionBtn || optionBtn.disabled) return;
             const rollId = optionBtn.getAttribute('data-roll-id') || '';
             sel.value = rollId;
             closeAllMenus();
@@ -430,12 +526,14 @@ window.ProgramRollPicker = (function() {
         const menu = card.querySelector('.roll-picker-menu');
         if (menu && !menu.classList.contains('d-none')) {
             const searchInput = card.querySelector('.roll-picker-search');
-            renderMenuItems(card, rollsData, getEffectiveStock, searchInput ? searchInput.value : '');
+            const supplierSel = card.querySelector('.roll-supplier-filter-select');
+            renderMenuItems(card, rollsData, getEffectiveStock, searchInput ? searchInput.value : '', supplierSel ? supplierSel.value : '');
         }
     }
 
     return {
         buildSelectOptionsHtml: buildSelectOptionsHtml,
+        buildSupplierOptions: buildSupplierOptions,
         attach: attach,
         refreshCard: refreshCard,
         syncCardDisplay: syncCardDisplay,

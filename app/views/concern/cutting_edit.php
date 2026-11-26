@@ -108,33 +108,25 @@ $fabricCostPerPiece = (float)($batch['fabric_cost_per_piece'] ?? ($totalCutPiece
                                    value="<?= htmlspecialchars($batch['cutting_name']) ?>" required>
                         </div>
 
-                        <!-- Status & Cutting Master Row -->
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold text-dark mb-1">Status</label>
-                                <select name="status" id="cuttingStatus" class="form-select">
-                                    <option value="in_progress" <?= $batch['status'] === 'in_progress' ? 'selected' : '' ?>>In Progress</option>
-                                    <option value="planned" <?= $batch['status'] === 'planned' ? 'selected' : '' ?>>Planned</option>
-                                    <option value="completed" <?= $batch['status'] === 'completed' ? 'selected' : '' ?>>Completed</option>
-                                </select>
+                        <input type="hidden" name="status" value="<?= htmlspecialchars($batch['status'] ?: 'in_progress') ?>">
+
+                        <!-- Cutting Master Row -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold text-dark mb-0">Cutting Master / Operator</label>
+                                <button type="button" class="btn btn-link btn-sm text-primary p-0 text-decoration-none fw-semibold" 
+                                        data-bs-toggle="modal" data-bs-target="#modalAddCuttingMaster">
+                                    <i class="bi bi-plus-circle me-1"></i>+ Add Cutting Master
+                                </button>
                             </div>
-                            <div class="col-md-6">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <label class="form-label small fw-semibold text-dark mb-0">Cutting Master / Operator</label>
-                                    <button type="button" class="btn btn-link btn-sm text-primary p-0 text-decoration-none fw-semibold" 
-                                            data-bs-toggle="modal" data-bs-target="#modalAddCuttingMaster">
-                                        <i class="bi bi-plus-circle me-1"></i>+ Add Cutting Master
-                                    </button>
-                                </div>
-                                <select name="cutting_master_id" id="cuttingMasterSelect" class="form-select">
-                                    <option value="">Select Cutting Master</option>
-                                    <?php foreach ($cuttingMasters as $cm): ?>
-                                        <option value="<?= $cm['id'] ?>" <?= ((int)$batch['cutting_master_id'] === (int)$cm['id']) ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($cm['name']) ?><?= !empty($cm['phone']) ? ' (' . htmlspecialchars($cm['phone']) . ')' : '' ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                            <select name="cutting_master_id" id="cuttingMasterSelect" class="form-select">
+                                <option value="">Select Cutting Master</option>
+                                <?php foreach ($cuttingMasters as $cm): ?>
+                                    <option value="<?= $cm['id'] ?>" <?= ((int)$batch['cutting_master_id'] === (int)$cm['id']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($cm['name']) ?><?= !empty($cm['phone']) ? ' (' . htmlspecialchars($cm['phone']) . ')' : '' ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
 
                         <!-- Notes / Remarks -->
