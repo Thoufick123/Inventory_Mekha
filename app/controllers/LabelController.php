@@ -1410,6 +1410,7 @@ class LabelController extends Controller {
                 $multiLabels = [];
                 $batchNo = $batchItems[0]['log_no'] ?? ('STCH-' . $batchId);
                 $batchConcernId = $cid ?: (int)($batchItems[0]['concern_id'] ?? 1);
+                $requestedCounts = is_array($_POST['label_counts'] ?? null) ? $_POST['label_counts'] : [];
 
                 foreach ($batchItems as $bItem) {
                     $itemVariantId = !empty($bItem['variant_id']) ? (int)$bItem['variant_id'] : 0;
@@ -1419,7 +1420,15 @@ class LabelController extends Controller {
                     $itemProg = $bItem['program_no'] ?: 'Standard Program';
                     $itemMrp = (float)($bItem['variant_mrp'] ?: ($bItem['v_mrp'] ?? 0));
                     $itemPrice = (float)($bItem['variant_price'] ?: ($bItem['v_price'] ?? $itemMrp));
-                    $itemPieces = max(1, (int)($bItem['stitched_pieces'] ?: 1));
+                    $sItemId = (int)($bItem['stitching_item_id'] ?? 0);
+                    if ($sItemId > 0 && array_key_exists($sItemId, $requestedCounts)) {
+                        $itemPieces = max(0, (int)$requestedCounts[$sItemId]);
+                        if ($itemPieces === 0) {
+                            continue;
+                        }
+                    } else {
+                        $itemPieces = max(1, (int)($bItem['stitched_pieces'] ?: 1));
+                    }
 
                     if (!$itemVariantId && !empty($itemSku)) {
                         $existingVar = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND product_code = ?", [$batchConcernId, $itemSku]);
@@ -1502,6 +1511,11 @@ class LabelController extends Controller {
                 }
 
                 $totalCopies = count($multiLabels);
+                if ($totalCopies === 0) {
+                    $this->flash('error', 'Please enter at least 1 label copy to generate.');
+                    $this->redirect('/m/label_generation?tab=production');
+                    return;
+                }
 
                 if ($existingJob) {
                     $jobId = (int)$existingJob['id'];

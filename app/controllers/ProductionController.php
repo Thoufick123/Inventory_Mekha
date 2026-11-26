@@ -5317,6 +5317,32 @@ class ProductionController extends Controller {
         $sql .= " ORDER BY sl.id DESC";
         $batches = DB::fetchAll($sql, $params);
 
+        // Attach variant items per batch for the Choose Label Counts modal
+        if (!empty($batches)) {
+            $batchIds = array_map(static fn($b) => (int)$b['id'], $batches);
+            $placeholders = implode(',', array_fill(0, count($batchIds), '?'));
+            $allBatchItems = DB::fetchAll(
+                "SELECT id, stitching_id, variant_name, product_code, size, color, stitching_qty
+                 FROM stitching_items
+                 WHERE stitching_id IN ({$placeholders})
+                 ORDER BY id ASC",
+                $batchIds
+            );
+            $itemsByBatch = [];
+            foreach ($allBatchItems as $bi) {
+                $itemsByBatch[(int)$bi['stitching_id']][] = [
+                    'id'           => (int)$bi['id'],
+                    'name'         => $bi['variant_name'] ?: trim(($bi['size'] ?? '') . ' - ' . ($bi['color'] ?? '')),
+                    'product_code' => $bi['product_code'] ?: '-',
+                    'qty'          => max(1, (int)$bi['stitching_qty']),
+                ];
+            }
+            foreach ($batches as &$b) {
+                $b['label_items'] = $itemsByBatch[(int)$b['id']] ?? [];
+            }
+            unset($b);
+        }
+
         // 2. Fetch Wastage Scrap Sales
         $saleSql = "SELECT sws.*, 
                            COALESCE(sl.batch_no, sl.log_no) AS stitching_batch_no,

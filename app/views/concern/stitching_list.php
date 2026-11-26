@@ -205,7 +205,7 @@
                                                     <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
                                                     <button type="button" class="btn btn-outline-dark"
                                                             title="Print All Variant Labels"
-                                                            onclick="printStitchingBatchLabels(<?= (int)$b['id'] ?>)">
+                                                            onclick='openStitchingBatchLabelModal(<?= (int)$b['id'] ?>, <?= htmlspecialchars(json_encode($b['label_items'] ?? []), ENT_QUOTES) ?>)'>
                                                         <i class="bi bi-printer"></i>
                                                     </button>
                                                     <?php endif; ?>

@@ -29,7 +29,15 @@
         </div>
         <div class="d-flex align-items-center gap-2">
             <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
-            <button type="button" class="btn btn-dark shadow-sm fw-semibold" onclick="printStitchingBatchLabels(<?= (int)$batch['id'] ?>)">
+            <?php
+                $batchLabelItems = array_map(static fn($it) => [
+                    'id'           => (int)$it['id'],
+                    'name'         => $it['variant_name'] ?: trim(($it['size'] ?? '') . ' - ' . ($it['color'] ?? '')),
+                    'product_code' => $it['product_code'] ?: '-',
+                    'qty'          => max(1, (int)$it['stitching_qty']),
+                ], $items ?? []);
+            ?>
+            <button type="button" class="btn btn-dark shadow-sm fw-semibold" onclick='openStitchingBatchLabelModal(<?= (int)$batch['id'] ?>, <?= htmlspecialchars(json_encode($batchLabelItems), ENT_QUOTES) ?>)'>
                 <i class="bi bi-printer-fill me-1"></i> Print All Labels
             </button>
             <?php endif; ?>
@@ -140,7 +148,7 @@
                                     <td class="text-center pe-3 py-2">
                                         <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
                                                 title="Print Labels for this Variant"
-                                                onclick="printStitchingVariantLabel(<?= (int)$it['id'] ?>, <?= max(1, (int)$it['stitching_qty']) ?>)">
+                                                onclick='openStitchingVariantLabelModal(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode('Product Code: ' . ($it['product_code'] ?: '-') . ' • stitched qty ' . max(1, (int)$it['stitching_qty'])), ENT_QUOTES) ?>, <?= max(1, (int)$it['stitching_qty']) ?>)'>
                                             <i class="bi bi-printer me-1"></i>Print
                                         </button>
                                     </td>

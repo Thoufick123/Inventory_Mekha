@@ -30,7 +30,7 @@
         </div>
         <div class="d-flex align-items-center gap-2">
             <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
-            <button type="button" class="btn btn-dark shadow-sm fw-semibold" onclick="printStitchingBatchLabels(<?= (int)$batch['id'] ?>)">
+            <button type="button" class="btn btn-dark shadow-sm fw-semibold" onclick="openStitchingBatchModalFromEditTable(<?= (int)$batch['id'] ?>)">
                 <i class="bi bi-printer-fill me-1"></i> Print All Labels
             </button>
             <?php endif; ?>
@@ -283,7 +283,7 @@
                                             <td class="text-center pe-3 py-2">
                                                 <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
                                                         title="Print Labels for this Variant"
-                                                        onclick="const r = this.closest('tr'); const q = r ? (r.querySelector('.input-stitch-qty')?.value || <?= (int)$it['stitching_qty'] ?>) : <?= (int)$it['stitching_qty'] ?>; printStitchingVariantLabel(<?= (int)$it['id'] ?>, q);">
+                                                        onclick="const r = this.closest('tr'); const q = r ? (r.querySelector('.input-stitch-qty')?.value || <?= (int)$it['stitching_qty'] ?>) : <?= (int)$it['stitching_qty'] ?>; openStitchingVariantLabelModal(<?= (int)$it['id'] ?>, <?= json_encode($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])) ?>, <?= json_encode('Product Code: ' . ($it['product_code'] ?: 'N/A')) ?> + ' • stitched qty ' + q, q);">
                                                     <i class="bi bi-printer me-1"></i>Print
                                                 </button>
                                             </td>
@@ -675,3 +675,22 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <?php include __DIR__ . '/partials/stitching_label_print_js.php'; ?>
+<script>
+function openStitchingBatchModalFromEditTable(batchId) {
+    const items = [];
+    document.querySelectorAll('#tbodyStitchingItems tr').forEach(function(tr) {
+        const id = parseInt(tr.getAttribute('data-item-id'), 10) || 0;
+        const nameEl = tr.querySelector('.fw-bold.text-dark.small');
+        const codeEl = tr.querySelector('.font-monospace');
+        const qtyEl = tr.querySelector('.input-stitch-qty');
+        const codeText = codeEl ? codeEl.textContent.replace('Product Code:', '').trim() : '';
+        items.push({
+            id: id,
+            name: nameEl ? nameEl.textContent.trim() : 'Variant',
+            product_code: codeText,
+            qty: Math.max(1, parseInt(qtyEl ? qtyEl.value : 1, 10) || 1)
+        });
+    });
+    openStitchingBatchLabelModal(batchId, items);
+}
+</script>
