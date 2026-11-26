@@ -31,7 +31,9 @@ foreach ($batchItems as $qcBatchItem) {
                 </span>
                 <?= $savedQc ? 'QC Inspection Review' : 'Initialize QC Inspection Batch' ?>
             </h4>
-            <p class="text-secondary small mb-0"><?= $savedQc ? 'Review the scanner verdicts before adding passed pieces to stock' : 'Select a completed stitching batch to begin quality control inspection' ?></p>
+            <?php if ($savedQc): ?>
+            <p class="text-secondary small mb-0">Review the scanner verdicts before adding passed pieces to stock</p>
+            <?php endif; ?>
         </div>
         <div class="d-flex align-items-center gap-2">
             <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary px-3 py-2 rounded-3 text-decoration-none">
@@ -77,7 +79,6 @@ foreach ($batchItems as $qcBatchItem) {
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="form-text small text-muted">Choose a stitched batch to dynamically load all cut & stitched variants.</div>
                         </div>
 
                         <!-- QC Inspector -->
