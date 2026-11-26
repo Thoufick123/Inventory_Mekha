@@ -37,11 +37,6 @@ foreach ($batchItems as $qcBatchItem) {
             <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary px-3 py-2 rounded-3 text-decoration-none">
                 <i class="bi bi-arrow-left me-1"></i> Back to QC List
             </a>
-            <?php if (!$savedQc): ?>
-                <button type="button" class="btn btn-primary fw-bold shadow-sm px-3 py-2 rounded-3 d-inline-flex align-items-center gap-2" onclick="submitQc('save_and_inspect')" title="Initialize QC and open 2D QR piece-by-piece scanner">
-                    <i class="bi bi-play-circle-fill"></i> Start QC
-                </button>
-            <?php endif; ?>
         </div>
     </div>
 
