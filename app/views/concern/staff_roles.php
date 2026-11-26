@@ -40,6 +40,9 @@ $activeTab = $activeTab ?? 'staff';
                 <i class="bi bi-people-fill me-1"></i> View All Staff
             </a>
             <?php if (\App\Core\Auth::can('staff', 'add')): ?>
+            <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="btn btn-outline-primary shadow-sm">
+                <i class="bi bi-person-plus me-1"></i> Create Staff
+            </a>
             <a href="<?= \App\Core\Controller::url('/m/staff/roles/create') ?>" class="btn btn-primary shadow-sm">
                 <i class="bi bi-plus-circle me-1"></i> Add New Role
             </a>
@@ -242,46 +245,35 @@ $activeTab = $activeTab ?? 'staff';
                                         </td>
                                         <td class="text-end pe-4">
                                             <div class="d-inline-flex align-items-center gap-1.5 flex-wrap justify-content-end">
-                                                <!-- 1. Quick Status Toggle -->
+                                                <?php
+                                                    $staffPayload = array_merge($stf, [
+                                                        'email' => !empty($stf['email']) ? $stf['email'] : ($stf['user_email'] ?? ''),
+                                                    ]);
+                                                    $staffJson = json_encode($staffPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+                                                ?>
+                                                <!-- 1. View Staff Profile -->
+                                                <button type="button" class="btn btn-xs btn-outline-info" onclick='openViewStaffModal(<?= $staffJson ?>)' title="View Staff Profile">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+
+                                                <!-- 2. Edit Staff & Module CRUD Permissions -->
                                                 <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
-                                                <form action="<?= \App\Core\Controller::url('/m/staff/toggle-status') ?>" method="POST" class="d-inline" onsubmit="return confirm('<?= $stf['status'] === 'active' ? 'Deactivate' : 'Activate' ?> <?= htmlspecialchars($stf['name']) ?>?');">
-                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                                                    <input type="hidden" name="id" value="<?= $stf['id'] ?>">
-                                                    <?php if ($stf['status'] === 'active'): ?>
-                                                        <button type="submit" class="btn btn-xs btn-outline-warning" title="Deactivate Staff Account">
-                                                            <i class="bi bi-person-slash"></i>
-                                                        </button>
-                                                    <?php else: ?>
-                                                        <button type="submit" class="btn btn-xs btn-outline-success" title="Activate Staff Account">
-                                                            <i class="bi bi-person-check"></i>
-                                                        </button>
-                                                    <?php endif; ?>
-                                                </form>
+                                                <button type="button" class="btn btn-xs btn-outline-primary" onclick='openEditStaffModal(<?= $staffJson ?>)' title="Edit Staff & CRUD Permissions">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
                                                 <?php endif; ?>
 
-                                                <!-- 2. Granular Access Matrix (Overrides) -->
-                                                <?php if ($hasLogin): ?>
-                                                    <button type="button" class="btn btn-xs btn-outline-dark shadow-xs" 
-                                                            title="Configure Individual Custom Permissions"
-                                                            onclick="openCustomUserPermissionsModal(<?= (int)$stf['id'] ?>, <?= (int)$stf['user_id'] ?>, '<?= htmlspecialchars(addslashes($stf['name'])) ?>')">
-                                                        <i class="bi bi-shield-lock me-1"></i> Permissions
+                                                <!-- 3. Delete Staff -->
+                                                <?php if (\App\Core\Auth::can('staff', 'delete')): ?>
+                                                <form action="<?= \App\Core\Controller::url('/m/staff/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete staff member <?= htmlspecialchars(addslashes($stf['name'])) ?> (<?= htmlspecialchars($stf['staff_code']) ?>)?');">
+                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                                    <input type="hidden" name="id" value="<?= $stf['id'] ?>">
+                                                    <input type="hidden" name="return_to" value="roles">
+                                                    <input type="hidden" name="return_concern_id" value="<?= htmlspecialchars((string)($concernFilter ?? '')) ?>">
+                                                    <button type="submit" class="btn btn-xs btn-outline-danger" title="Delete Staff">
+                                                        <i class="bi bi-trash"></i>
                                                     </button>
-                                                <?php else: ?>
-                                                    <button type="button" class="btn btn-xs btn-outline-secondary opacity-75" 
-                                                            title="Assign a login account/role first"
-                                                            onclick="openRoleAssignModal(<?= htmlspecialchars(json_encode([
-                                                                'id'            => $stf['id'],
-                                                                'name'          => $stf['name'],
-                                                                'staff_code'    => $stf['staff_code'],
-                                                                'concern_id'    => $stf['concern_id'],
-                                                                'concern_name'  => $stf['concern_name'],
-                                                                'concern_code'  => $stf['concern_code'],
-                                                                'email'         => $stf['user_email'] ?: $stf['email'],
-                                                                'role_id'       => $stf['role_id'] ?? 0,
-                                                                'assigned_cids' => array_column($assignedConcerns, 'id')
-                                                            ])) ?>)">
-                                                        <i class="bi bi-plus me-1"></i> Set Access
-                                                    </button>
+                                                </form>
                                                 <?php endif; ?>
                                             </div>
                                         </td>
@@ -325,9 +317,20 @@ $activeTab = $activeTab ?? 'staff';
                     <!-- Bulk Actions Toolbar -->
                     <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 p-2.5 bg-light rounded-3 mb-4 border">
                         <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-xs btn-primary" onclick="setAllPerms(true)">
-                                <i class="bi bi-check-square me-1"></i> Select All (Full Access)
-                            </button>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-xs btn-primary" onclick="setAllPerms(true)">
+                                    <i class="bi bi-check-square me-1"></i> Select All (Full Access)
+                                </button>
+                                <button type="button" class="btn btn-xs btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" title="Select All Options">
+                                    <span class="visually-hidden">Toggle Dropdown</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.8rem;">
+                                    <li><button class="dropdown-item" type="button" onclick="setAllPerms(true)"><i class="bi bi-check-square-fill text-primary me-2"></i>Select All (Full Access)</button></li>
+                                    <li><button class="dropdown-item" type="button" onclick="setColumnPerm('view', true)"><i class="bi bi-eye-fill text-primary me-2"></i>Select All View Only</button></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><button class="dropdown-item text-danger" type="button" onclick="setAllPerms(false)"><i class="bi bi-x-circle me-2"></i>Clear All Permissions</button></li>
+                                </ul>
+                            </div>
                             <button type="button" class="btn btn-xs btn-outline-secondary" onclick="setAllPerms(false)">
                                 <i class="bi bi-square me-1"></i> Clear All
                             </button>
@@ -343,18 +346,66 @@ $activeTab = $activeTab ?? 'staff';
                             <table class="table table-bordered align-middle mb-0" id="matrixTable">
                                 <thead class="bg-light text-uppercase text-secondary" style="font-size: 0.75rem;">
                                     <tr>
-                                        <th style="width: 40%;">Module / Feature</th>
-                                        <th style="width: 15%;" class="text-center bg-primary bg-opacity-10 text-primary">
-                                            <i class="bi bi-eye-fill me-1"></i> View
+                                        <th style="width: 40%; vertical-align: middle;">Module / Feature</th>
+                                        <th style="width: 15%;" class="text-center bg-primary bg-opacity-10 text-primary py-2">
+                                            <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                                <div class="d-inline-flex align-items-center gap-1">
+                                                    <span class="fw-bold"><i class="bi bi-eye-fill me-1"></i> View</span>
+                                                    <div class="dropdown d-inline-block">
+                                                        <button type="button" class="btn btn-link p-0 text-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.65rem; border: none; text-decoration: none;" title="View Column Options"></button>
+                                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                                                            <li><button class="dropdown-item" type="button" onclick="setColumnPerm('view', true)"><i class="bi bi-check2-all text-primary me-2"></i>Select All View</button></li>
+                                                            <li><button class="dropdown-item" type="button" onclick="setColumnPerm('view', false)"><i class="bi bi-x text-secondary me-2"></i>Deselect All View</button></li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                                <input type="checkbox" id="matrix_header_check_view" class="form-check-input m-0" style="width: 18px; height: 18px; cursor: pointer;" onchange="setColumnPerm('view', this.checked)" title="Select all View">
+                                            </div>
                                         </th>
-                                        <th style="width: 15%;" class="text-center bg-success bg-opacity-10 text-success">
-                                            <i class="bi bi-plus-circle-fill me-1"></i> Create (Add)
+                                        <th style="width: 15%;" class="text-center bg-success bg-opacity-10 text-success py-2">
+                                            <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                                <div class="d-inline-flex align-items-center gap-1">
+                                                    <span class="fw-bold"><i class="bi bi-plus-circle-fill me-1"></i> Create (Add)</span>
+                                                    <div class="dropdown d-inline-block">
+                                                        <button type="button" class="btn btn-link p-0 text-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.65rem; border: none; text-decoration: none;" title="Create Column Options"></button>
+                                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                                                            <li><button class="dropdown-item" type="button" onclick="setColumnPerm('add', true)"><i class="bi bi-check2-all text-success me-2"></i>Select All Create</button></li>
+                                                            <li><button class="dropdown-item" type="button" onclick="setColumnPerm('add', false)"><i class="bi bi-x text-secondary me-2"></i>Deselect All Create</button></li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                                <input type="checkbox" id="matrix_header_check_add" class="form-check-input m-0" style="width: 18px; height: 18px; cursor: pointer;" onchange="setColumnPerm('add', this.checked)" title="Select all Create">
+                                            </div>
                                         </th>
-                                        <th style="width: 15%;" class="text-center bg-warning bg-opacity-10 text-warning text-dark">
-                                            <i class="bi bi-pencil-fill me-1"></i> Edit (Update)
+                                        <th style="width: 15%;" class="text-center bg-warning bg-opacity-10 text-warning text-dark py-2">
+                                            <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                                <div class="d-inline-flex align-items-center gap-1">
+                                                    <span class="fw-bold"><i class="bi bi-pencil-fill me-1"></i> Edit (Update)</span>
+                                                    <div class="dropdown d-inline-block">
+                                                        <button type="button" class="btn btn-link p-0 text-warning text-dark dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.65rem; border: none; text-decoration: none;" title="Edit Column Options"></button>
+                                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                                                            <li><button class="dropdown-item" type="button" onclick="setColumnPerm('edit', true)"><i class="bi bi-check2-all text-warning me-2"></i>Select All Edit</button></li>
+                                                            <li><button class="dropdown-item" type="button" onclick="setColumnPerm('edit', false)"><i class="bi bi-x text-secondary me-2"></i>Deselect All Edit</button></li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                                <input type="checkbox" id="matrix_header_check_edit" class="form-check-input m-0" style="width: 18px; height: 18px; cursor: pointer;" onchange="setColumnPerm('edit', this.checked)" title="Select all Edit">
+                                            </div>
                                         </th>
-                                        <th style="width: 15%;" class="text-center bg-danger bg-opacity-10 text-danger">
-                                            <i class="bi bi-trash-fill me-1"></i> Delete
+                                        <th style="width: 15%;" class="text-center bg-danger bg-opacity-10 text-danger py-2">
+                                            <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                                <div class="d-inline-flex align-items-center gap-1">
+                                                    <span class="fw-bold"><i class="bi bi-trash-fill me-1"></i> Delete</span>
+                                                    <div class="dropdown d-inline-block">
+                                                        <button type="button" class="btn btn-link p-0 text-danger dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.65rem; border: none; text-decoration: none;" title="Delete Column Options"></button>
+                                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                                                            <li><button class="dropdown-item" type="button" onclick="setColumnPerm('delete', true)"><i class="bi bi-check2-all text-danger me-2"></i>Select All Delete</button></li>
+                                                            <li><button class="dropdown-item" type="button" onclick="setColumnPerm('delete', false)"><i class="bi bi-x text-secondary me-2"></i>Deselect All Delete</button></li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                                <input type="checkbox" id="matrix_header_check_delete" class="form-check-input m-0" style="width: 18px; height: 18px; cursor: pointer;" onchange="setColumnPerm('delete', this.checked)" title="Select all Delete">
+                                            </div>
                                         </th>
                                     </tr>
                                 </thead>
@@ -381,6 +432,7 @@ $activeTab = $activeTab ?? 'staff';
                                                     <div class="form-check d-flex justify-content-center m-0">
                                                         <input class="form-check-input perm-view perm-check-<?= $mid ?>" type="checkbox" 
                                                                name="perms[<?= $mid ?>][view]" value="1" <?= !empty($p['can_view']) ? 'checked' : '' ?>
+                                                               onchange="syncMatrixHeaderCheckboxes()"
                                                                style="width: 20px; height: 20px; cursor: pointer;">
                                                     </div>
                                                 </td>
@@ -389,6 +441,7 @@ $activeTab = $activeTab ?? 'staff';
                                                     <div class="form-check d-flex justify-content-center m-0">
                                                         <input class="form-check-input perm-add perm-check-<?= $mid ?>" type="checkbox" 
                                                                name="perms[<?= $mid ?>][add]" value="1" <?= !empty($p['can_add']) ? 'checked' : '' ?>
+                                                               onchange="syncMatrixHeaderCheckboxes()"
                                                                style="width: 20px; height: 20px; cursor: pointer;">
                                                     </div>
                                                 </td>
@@ -397,6 +450,7 @@ $activeTab = $activeTab ?? 'staff';
                                                     <div class="form-check d-flex justify-content-center m-0">
                                                         <input class="form-check-input perm-edit perm-check-<?= $mid ?>" type="checkbox" 
                                                                name="perms[<?= $mid ?>][edit]" value="1" <?= !empty($p['can_edit']) ? 'checked' : '' ?>
+                                                               onchange="syncMatrixHeaderCheckboxes()"
                                                                style="width: 20px; height: 20px; cursor: pointer;">
                                                     </div>
                                                 </td>
@@ -405,6 +459,7 @@ $activeTab = $activeTab ?? 'staff';
                                                     <div class="form-check d-flex justify-content-center m-0">
                                                         <input class="form-check-input perm-delete perm-check-<?= $mid ?>" type="checkbox" 
                                                                name="perms[<?= $mid ?>][delete]" value="1" <?= !empty($p['can_delete']) ? 'checked' : '' ?>
+                                                               onchange="syncMatrixHeaderCheckboxes()"
                                                                style="width: 20px; height: 20px; cursor: pointer;">
                                                     </div>
                                                 </td>
@@ -841,18 +896,46 @@ function selectAllConcerns(check) {
     document.querySelectorAll('.concern-check').forEach(cb => cb.checked = check);
 }
 
+function syncMatrixHeaderCheckboxes() {
+    ['view', 'add', 'edit', 'delete'].forEach(act => {
+        const headerCb = document.getElementById('matrix_header_check_' + act);
+        if (!headerCb) return;
+        const cbs = document.querySelectorAll('#matrixTable tbody .perm-' + act);
+        let total = cbs.length;
+        let checked = 0;
+        cbs.forEach(cb => { if (cb.checked) checked++; });
+        if (total > 0 && checked === total) {
+            headerCb.checked = true;
+            headerCb.indeterminate = false;
+        } else if (checked > 0) {
+            headerCb.checked = false;
+            headerCb.indeterminate = true;
+        } else {
+            headerCb.checked = false;
+            headerCb.indeterminate = false;
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    syncMatrixHeaderCheckboxes();
+});
+
 function setColumnPerm(action, checked) {
-    document.querySelectorAll('.perm-' + action).forEach(cb => cb.checked = checked);
+    document.querySelectorAll('#matrixTable tbody .perm-' + action).forEach(cb => cb.checked = checked);
+    syncMatrixHeaderCheckboxes();
 }
 
 function setAllPerms(checked) {
     ['view', 'add', 'edit', 'delete'].forEach(act => {
-        document.querySelectorAll('.perm-' + act).forEach(cb => cb.checked = checked);
+        document.querySelectorAll('#matrixTable tbody .perm-' + act).forEach(cb => cb.checked = checked);
     });
+    syncMatrixHeaderCheckboxes();
 }
 
 function setRowPerm(mid, checked) {
     document.querySelectorAll('.perm-check-' + mid).forEach(cb => cb.checked = checked);
+    syncMatrixHeaderCheckboxes();
 }
 
 function setRowReadOnly(mid) {
@@ -863,6 +946,7 @@ function setRowReadOnly(mid) {
             cb.checked = false;
         }
     });
+    syncMatrixHeaderCheckboxes();
 }
 
 function togglePasswordVisibility(inputId, btn) {
@@ -1050,3 +1134,9 @@ function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 </script>
+
+<?php
+$staffReturnTo = 'roles';
+$staffReturnConcernId = $concernFilter ?? '';
+include __DIR__ . '/_staff_crud_modals.php';
+?>

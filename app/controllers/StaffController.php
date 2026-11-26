@@ -205,26 +205,7 @@ class StaffController extends Controller {
         $sql .= " ORDER BY s.id DESC";
         $staffMembers = DB::fetchAll($sql, $params);
 
-        // Modules and grouping for permissions matrix (used in edit staff modal)
-        $modules = DB::fetchAll(
-            "SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC"
-        );
-        $groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
-        $groupedModules = [];
-        foreach ($modules as $m) {
-            if ($m['code'] === 'cash') continue;
-            if ($m['code'] === 'concern_dashboard' || ($m['group_name'] ?? '') === 'Dashboard') continue;
-            if ($m['code'] === 'variants' || ($m['group_name'] ?? '') === 'Masters') continue;
-            $grp = $m['group_name'] ?: 'General';
-            $groupedModules[$grp][] = $m;
-        }
-
-        // Concern enabled modules mapping for permissions scoping
-        $concernModules = [];
-        $cmRows = DB::fetchAll("SELECT concern_id, module_id FROM concern_modules WHERE enabled = 1");
-        foreach ($cmRows as $cm) {
-            $concernModules[(int)$cm['concern_id']][] = (int)$cm['module_id'];
-        }
+        $matrixCtx = $this->buildStaffModuleMatrixContext();
 
         $openAddModal = !empty($_GET['action']) && $_GET['action'] === 'add';
 
@@ -238,10 +219,10 @@ class StaffController extends Controller {
             'selectedCid'      => $selectedCid,
             'activeConcern'    => $activeConcern,
             'staffMembers'     => $staffMembers,
-            'modules'          => $modules,
-            'groupedModules'   => $groupedModules,
-            'groupOrder'       => $groupOrder,
-            'concernModules'   => $concernModules,
+            'modules'          => $matrixCtx['modules'],
+            'groupedModules'   => $matrixCtx['groupedModules'],
+            'groupOrder'       => $matrixCtx['groupOrder'],
+            'concernModules'   => $matrixCtx['concernModules'],
             'showConcernModal' => $showConcernModal,
             'openAddModal'     => $openAddModal,
             'filters'          => [
@@ -251,6 +232,42 @@ class StaffController extends Controller {
                 'status'     => $statusFilter,
             ],
         ]);
+    }
+
+    private function buildStaffModuleMatrixContext(): array {
+        $modules = DB::fetchAll(
+            "SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC"
+        );
+        $groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+        $groupedModules = [];
+        foreach ($modules as $m) {
+            if ($m['code'] === 'cash') continue;
+            if ($m['code'] === 'concern_dashboard' || ($m['group_name'] ?? '') === 'Dashboard') continue;
+            if ($m['code'] === 'variants' || ($m['group_name'] ?? '') === 'Masters') continue;
+            $grp = $m['group_name'] ?: 'General';
+            $groupedModules[$grp][] = $m;
+        }
+
+        $concernModules = [];
+        $cmRows = DB::fetchAll("SELECT concern_id, module_id FROM concern_modules WHERE enabled = 1");
+        foreach ($cmRows as $cm) {
+            $concernModules[(int)$cm['concern_id']][] = (int)$cm['module_id'];
+        }
+
+        return [
+            'modules'        => $modules,
+            'groupOrder'     => $groupOrder,
+            'groupedModules' => $groupedModules,
+            'concernModules' => $concernModules,
+        ];
+    }
+
+    private function resolveStaffRedirectUrl(?int $cid = null): string {
+        if (($_POST['return_to'] ?? '') === 'roles') {
+            $filterCid = isset($_POST['return_concern_id']) && $_POST['return_concern_id'] !== '' ? (int)$_POST['return_concern_id'] : null;
+            return '/m/staff/roles' . ($filterCid ? '?concern_id=' . $filterCid : '');
+        }
+        return '/m/staff' . ($cid ? '?concern_id=' . $cid : '');
     }
 
     public function create(): void {
@@ -640,7 +657,7 @@ class StaffController extends Controller {
         $staff = DB::fetch("SELECT * FROM staff WHERE id = ?", [$id]);
         if (!$staff) {
             $this->flash('error', 'Staff record not found.');
-            $this->redirect('/m/staff');
+            $this->redirect($this->resolveStaffRedirectUrl());
         }
 
         $cid         = (int)($_POST['concern_id'] ?? $staff['concern_id']);
@@ -660,19 +677,19 @@ class StaffController extends Controller {
         // Server-side validation
         if (mb_strlen($name) < 2) {
             $this->flash('error', 'Staff member full name is required (minimum 2 characters).');
-            $this->redirect('/m/staff?concern_id=' . $cid);
+            $this->redirect($this->resolveStaffRedirectUrl($cid));
         }
 
         if ($email !== '') {
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $this->flash('error', 'Please provide a valid email address.');
-                $this->redirect('/m/staff?concern_id=' . $cid);
+                $this->redirect($this->resolveStaffRedirectUrl($cid));
             }
             $existingUser = DB::fetch("SELECT id FROM users WHERE email = ? AND id != ?", [$email, (int)($staff['user_id'] ?? 0)]);
             $existingStaff = DB::fetch("SELECT id FROM staff WHERE email = ? AND id != ?", [$email, $id]);
             if ($existingUser || $existingStaff) {
                 $this->flash('error', "The email '{$email}' is already in use by another account.");
-                $this->redirect('/m/staff?concern_id=' . $cid);
+                $this->redirect($this->resolveStaffRedirectUrl($cid));
             }
         }
 
@@ -680,18 +697,18 @@ class StaffController extends Controller {
             $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
             if (strlen($cleanPhone) < 10 || strlen($cleanPhone) > 15) {
                 $this->flash('error', 'Phone / mobile number must be 10 digits.');
-                $this->redirect('/m/staff?concern_id=' . $cid);
+                $this->redirect($this->resolveStaffRedirectUrl($cid));
             }
             $dupPhone = DB::fetch("SELECT id FROM staff WHERE phone = ? AND concern_id = ? AND id != ?", [$phone, $cid, $id]);
             if ($dupPhone) {
                 $this->flash('error', "A staff member with phone number '{$phone}' already exists in this concern.");
-                $this->redirect('/m/staff?concern_id=' . $cid);
+                $this->redirect($this->resolveStaffRedirectUrl($cid));
             }
         }
 
         if ($password !== '' && strlen($password) < 6) {
             $this->flash('error', 'Password must be at least 6 characters long.');
-            $this->redirect('/m/staff?concern_id=' . $cid);
+            $this->redirect($this->resolveStaffRedirectUrl($cid));
         }
 
         DB::beginTransaction();
@@ -772,7 +789,7 @@ class StaffController extends Controller {
             $this->flash('error', 'Failed to update staff: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/staff?concern_id=' . $cid);
+        $this->redirect($this->resolveStaffRedirectUrl($cid));
     }
 
     public function toggleStatus(): void {
@@ -786,7 +803,7 @@ class StaffController extends Controller {
                 return;
             }
             $this->flash('error', 'Staff record not found.');
-            $this->redirect('/m/staff');
+            $this->redirect($this->resolveStaffRedirectUrl());
         }
 
         $newStatus = $staff['status'] === 'active' ? 'inactive' : 'active';
@@ -826,7 +843,7 @@ class StaffController extends Controller {
             $this->flash('error', 'Failed to change staff status: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/staff?concern_id=' . $staff['concern_id']);
+        $this->redirect($this->resolveStaffRedirectUrl((int)$staff['concern_id']));
     }
 
     public function delete(): void {
@@ -836,7 +853,7 @@ class StaffController extends Controller {
         $staff = DB::fetch("SELECT * FROM staff WHERE id = ?", [$id]);
         if (!$staff) {
             $this->flash('error', 'Staff record not found.');
-            $this->redirect('/m/staff');
+            $this->redirect($this->resolveStaffRedirectUrl());
         }
 
         $cid = (int)$staff['concern_id'];
@@ -847,7 +864,7 @@ class StaffController extends Controller {
             $this->flash('error', 'Failed to delete staff: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/staff?concern_id=' . $cid);
+        $this->redirect($this->resolveStaffRedirectUrl($cid));
     }
 
     public function export(): void {
@@ -1050,10 +1067,8 @@ class StaffController extends Controller {
             }
         }
 
-        // Operational modules for CRUD permissions matrix
-        $modules = DB::fetchAll(
-            "SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC"
-        );
+        $matrixCtx = $this->buildStaffModuleMatrixContext();
+        $modules = $matrixCtx['modules'];
 
         $activeTab = ($_GET['tab'] ?? 'staff') === 'matrix' ? 'matrix' : 'staff';
         $selectedRoleId = (int)($_GET['matrix_role_id'] ?? 0);
@@ -1081,6 +1096,9 @@ class StaffController extends Controller {
             'allConcerns'      => $allConcerns,
             'allRoles'         => $allRoles,
             'modules'          => $modules,
+            'groupedModules'   => $matrixCtx['groupedModules'],
+            'groupOrder'       => $matrixCtx['groupOrder'],
+            'concernModules'   => $matrixCtx['concernModules'],
             'staffMembers'     => $staffMembers,
             'userConcernsMap'  => $userConcernsMap,
             'concernFilter'    => $concernFilter,

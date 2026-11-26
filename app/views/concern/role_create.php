@@ -36,8 +36,8 @@
                 </h6>
             </div>
             <div class="card-body p-4">
-                <div class="row g-3 mb-3">
-                    <div class="col-md-4">
+                <div class="row g-3 mb-0">
+                    <div class="col-md-6">
                         <label class="form-label small fw-bold text-secondary mb-1">
                             Role Name <span class="text-danger">*</span>
                         </label>
@@ -45,22 +45,10 @@
                             <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
                                 <i class="bi bi-tag"></i>
                             </span>
-                            <input type="text" name="name" id="role_input_name" class="form-control border-start-0" placeholder="e.g. Warehouse Manager or Cutting Master" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required oninput="generateRoleSlug(this.value)" style="border-radius: 0 8px 8px 0;">
+                            <input type="text" name="name" id="role_input_name" class="form-control border-start-0" placeholder="e.g. Warehouse Manager or Cutting Master" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required style="border-radius: 0 8px 8px 0;">
                         </div>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-secondary mb-1">
-                            Role Identifier (Slug) <span class="text-danger">*</span>
-                        </label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0 text-muted font-monospace" style="border-radius: 8px 0 0 8px;">#</span>
-                            <input type="text" name="slug" id="role_input_slug" class="form-control border-start-0 font-monospace" placeholder="e.g. warehouse-manager" value="<?= htmlspecialchars($oldInput['slug'] ?? '') ?>" required style="border-radius: 0 8px 8px 0;">
-                        </div>
-                        <div class="form-text text-muted small mt-1" style="font-size: 0.73rem;">
-                            Unique slug identifier used for routing & permissions.
-                        </div>
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label class="form-label small fw-bold text-secondary mb-1">
                             Target Concern <span class="text-danger">*</span>
                         </label>
@@ -85,13 +73,6 @@
                         </select>
                     </div>
                 </div>
-
-                <div class="mb-0">
-                    <label class="form-label small fw-bold text-secondary mb-1">
-                        Role Description & Scope
-                    </label>
-                    <textarea name="description" class="form-control" rows="2" placeholder="Briefly describe the operational responsibilities and authority of this role..." style="border-radius: 8px;"><?= htmlspecialchars($oldInput['description'] ?? '') ?></textarea>
-                </div>
             </div>
         </div>
 
@@ -110,23 +91,21 @@
                         </span>
                         <input type="text" id="search_matrix_input" class="form-control form-control-sm border-start-0 py-1 px-2" placeholder="Search modules..." oninput="filterRoleModules(this.value)" autocomplete="off">
                     </div>
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 6px;">
-                            <i class="bi bi-sliders me-1"></i> Column Tools
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="setMatrixAll(true)" style="border-radius: 6px 0 0 6px;">
+                            <i class="bi bi-check-all me-1"></i> Select All
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 0 6px 6px 0;" title="Select All Options">
+                            <span class="visually-hidden">Toggle Dropdown</span>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.8rem;">
-                            <li><h6 class="dropdown-header text-uppercase" style="font-size: 0.68rem;">Toggle All By Column</h6></li>
-                            <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('view', true)"><i class="bi bi-check2 text-primary me-2"></i>Enable All View</button></li>
-                            <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('create', true)"><i class="bi bi-check2 text-success me-2"></i>Enable All Create</button></li>
-                            <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('edit', true)"><i class="bi bi-check2 text-warning me-2"></i>Enable All Edit</button></li>
-                            <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('delete', true)"><i class="bi bi-check2 text-danger me-2"></i>Enable All Delete</button></li>
+                            <li><button class="dropdown-item" type="button" onclick="setMatrixAll(true)"><i class="bi bi-check-square-fill text-primary me-2"></i>Select All (Full CRUD Access)</button></li>
+                            <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('view', true)"><i class="bi bi-eye-fill text-primary me-2"></i>Select All View Only</button></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><button class="dropdown-item text-danger" type="button" onclick="toggleColumnAll('all', false)"><i class="bi bi-x-circle me-2"></i>Clear All Permissions</button></li>
+                            <li><button class="dropdown-item text-secondary" type="button" onclick="toggleColumnAll('view', false)"><i class="bi bi-eye-slash me-2"></i>Clear All View</button></li>
+                            <li><button class="dropdown-item text-danger" type="button" onclick="setMatrixAll(false)"><i class="bi bi-x-circle me-2"></i>Deselect All Permissions</button></li>
                         </ul>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="setMatrixAll(true)" style="border-radius: 6px;">
-                        <i class="bi bi-check-all me-1"></i> Select All
-                    </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setMatrixAll(false)" style="border-radius: 6px;">
                         <i class="bi bi-x me-1"></i> Deselect All
                     </button>
@@ -166,19 +145,79 @@
                     .matrix-check-edit:checked { background-color: #d97706 !important; border-color: #d97706 !important; }
                     .matrix-check-delete:checked { background-color: #dc2626 !important; border-color: #dc2626 !important; }
                     .matrix-check-row:checked { background-color: #475569 !important; border-color: #475569 !important; }
+                    #header_check_view:checked { background-color: #2563eb !important; border-color: #2563eb !important; }
+                    #header_check_create:checked { background-color: #16a34a !important; border-color: #16a34a !important; }
+                    #header_check_edit:checked { background-color: #d97706 !important; border-color: #d97706 !important; }
+                    #header_check_delete:checked { background-color: #dc2626 !important; border-color: #dc2626 !important; }
                 </style>
 
                 <div class="table-responsive">
                     <table class="table role-matrix-table mb-0 align-middle">
                         <thead>
                             <tr>
-                                <th style="width: 36%;">SUBMODULE</th>
-                                <th style="width: 10%;" class="text-center text-primary">VIEW</th>
-                                <th style="width: 10%;" class="text-center text-success">CREATE</th>
-                                <th style="width: 10%;" class="text-center text-warning text-dark">EDIT</th>
-                                <th style="width: 10%;" class="text-center text-danger">DELETE</th>
-                                <th style="width: 12%;" class="text-center text-secondary">ADJUST</th>
-                                <th style="width: 12%;" class="text-center text-secondary">ROW ALL</th>
+                                <th style="width: 34%; vertical-align: middle;">SUBMODULE</th>
+                                <th style="width: 11%;" class="text-center text-primary">
+                                    <div class="d-flex flex-column align-items-center justify-content-center gap-1.5 py-1">
+                                        <div class="d-inline-flex align-items-center gap-1">
+                                            <span class="fw-bold">VIEW</span>
+                                            <div class="dropdown d-inline-block">
+                                                <button type="button" class="btn btn-link p-0 text-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.65rem; border: none; text-decoration: none;" title="View Column Options"></button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                                                    <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('view', true)"><i class="bi bi-check2-all text-primary me-2"></i>Select All View</button></li>
+                                                    <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('view', false)"><i class="bi bi-x text-secondary me-2"></i>Deselect All View</button></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <input type="checkbox" id="header_check_view" class="form-check-input matrix-check header-check-col" onchange="toggleColumnAll('view', this.checked)" title="Select all View">
+                                    </div>
+                                </th>
+                                <th style="width: 11%;" class="text-center text-success">
+                                    <div class="d-flex flex-column align-items-center justify-content-center gap-1.5 py-1">
+                                        <div class="d-inline-flex align-items-center gap-1">
+                                            <span class="fw-bold">CREATE</span>
+                                            <div class="dropdown d-inline-block">
+                                                <button type="button" class="btn btn-link p-0 text-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.65rem; border: none; text-decoration: none;" title="Create Column Options"></button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                                                    <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('create', true)"><i class="bi bi-check2-all text-success me-2"></i>Select All Create</button></li>
+                                                    <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('create', false)"><i class="bi bi-x text-secondary me-2"></i>Deselect All Create</button></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <input type="checkbox" id="header_check_create" class="form-check-input matrix-check header-check-col" onchange="toggleColumnAll('create', this.checked)" title="Select all Create">
+                                    </div>
+                                </th>
+                                <th style="width: 11%;" class="text-center text-warning text-dark">
+                                    <div class="d-flex flex-column align-items-center justify-content-center gap-1.5 py-1">
+                                        <div class="d-inline-flex align-items-center gap-1">
+                                            <span class="fw-bold">EDIT</span>
+                                            <div class="dropdown d-inline-block">
+                                                <button type="button" class="btn btn-link p-0 text-warning text-dark dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.65rem; border: none; text-decoration: none;" title="Edit Column Options"></button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                                                    <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('edit', true)"><i class="bi bi-check2-all text-warning me-2"></i>Select All Edit</button></li>
+                                                    <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('edit', false)"><i class="bi bi-x text-secondary me-2"></i>Deselect All Edit</button></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <input type="checkbox" id="header_check_edit" class="form-check-input matrix-check header-check-col" onchange="toggleColumnAll('edit', this.checked)" title="Select all Edit">
+                                    </div>
+                                </th>
+                                <th style="width: 11%;" class="text-center text-danger">
+                                    <div class="d-flex flex-column align-items-center justify-content-center gap-1.5 py-1">
+                                        <div class="d-inline-flex align-items-center gap-1">
+                                            <span class="fw-bold">DELETE</span>
+                                            <div class="dropdown d-inline-block">
+                                                <button type="button" class="btn btn-link p-0 text-danger dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.65rem; border: none; text-decoration: none;" title="Delete Column Options"></button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                                                    <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('delete', true)"><i class="bi bi-check2-all text-danger me-2"></i>Select All Delete</button></li>
+                                                    <li><button class="dropdown-item" type="button" onclick="toggleColumnAll('delete', false)"><i class="bi bi-x text-secondary me-2"></i>Deselect All Delete</button></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <input type="checkbox" id="header_check_delete" class="form-check-input matrix-check header-check-col" onchange="toggleColumnAll('delete', this.checked)" title="Select all Delete">
+                                    </div>
+                                </th>
+                                <th style="width: 11%; vertical-align: middle;" class="text-center text-secondary">ADJUST</th>
+                                <th style="width: 11%; vertical-align: middle;" class="text-center text-secondary">ROW ALL</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -302,32 +341,18 @@ function filterRoleMatrixByConcern(cid) {
     });
 
     syncAllGroupToggles();
+    syncHeaderCheckboxes();
     updatePermCounter();
 }
 
-function generateRoleSlug(name) {
-    const slugInput = document.getElementById('role_input_slug');
-    if (!slugInput) return;
-    if (slugInput.dataset.manualEdited === 'true') return;
-    slugInput.value = (name || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-}
-
 document.addEventListener('DOMContentLoaded', () => {
-    const slugInput = document.getElementById('role_input_slug');
-    if (slugInput) {
-        slugInput.addEventListener('input', () => {
-            slugInput.dataset.manualEdited = 'true';
-        });
-    }
     const concernSelect = document.getElementById('role_concern_id');
     if (concernSelect && concernSelect.value) {
         filterRoleMatrixByConcern(concernSelect.value);
     } else {
         document.querySelectorAll('.module-row').forEach(r => r.setAttribute('data-concern-allowed', '1'));
         syncAllGroupToggles();
+        syncHeaderCheckboxes();
         updatePermCounter();
     }
 });
@@ -371,11 +396,39 @@ function syncAllGroupToggles() {
     });
 }
 
+function syncHeaderCheckboxes() {
+    ['view', 'create', 'edit', 'delete'].forEach(type => {
+        const headerCb = document.getElementById('header_check_' + type);
+        if (!headerCb) return;
+        const className = type === 'create' ? 'matrix-check-create' : ('matrix-check-' + type);
+        let total = 0;
+        let checked = 0;
+        document.querySelectorAll('.module-row .' + className).forEach(cb => {
+            const tr = cb.closest('tr');
+            if (tr && tr.getAttribute('data-concern-allowed') !== '0' && tr.style.display !== 'none') {
+                total++;
+                if (cb.checked) checked++;
+            }
+        });
+        if (total > 0 && checked === total) {
+            headerCb.checked = true;
+            headerCb.indeterminate = false;
+        } else if (checked > 0) {
+            headerCb.checked = false;
+            headerCb.indeterminate = true;
+        } else {
+            headerCb.checked = false;
+            headerCb.indeterminate = false;
+        }
+    });
+}
+
 function onPermChanged(mid) {
     syncRowCheck(mid);
     const row = document.getElementById('row_all_' + mid)?.closest('tr');
     const grpHash = row ? row.getAttribute('data-group-hash') : null;
     if (grpHash) syncGroupToggle(grpHash);
+    syncHeaderCheckboxes();
     updatePermCounter();
 }
 
@@ -392,6 +445,7 @@ function toggleRowAll(mid, check, skipGroupSync = false) {
         const row = rowCheck ? rowCheck.closest('tr') : null;
         const grpHash = row ? row.getAttribute('data-group-hash') : null;
         if (grpHash) syncGroupToggle(grpHash);
+        syncHeaderCheckboxes();
     }
     updatePermCounter();
 }
@@ -409,6 +463,7 @@ function toggleModuleGroup(grpHash, check) {
         grpSwitch.checked = check;
         grpSwitch.indeterminate = false;
     }
+    syncHeaderCheckboxes();
     updatePermCounter();
 }
 
@@ -418,7 +473,7 @@ function toggleColumnAll(type, check) {
         return;
     }
     const className = type === 'create' ? 'matrix-check-create' : ('matrix-check-' + type);
-    document.querySelectorAll('.' + className).forEach(cb => {
+    document.querySelectorAll('.module-row .' + className).forEach(cb => {
         const tr = cb.closest('tr');
         if (tr && tr.getAttribute('data-concern-allowed') !== '0' && tr.style.display !== 'none') {
             cb.checked = check;
@@ -427,6 +482,7 @@ function toggleColumnAll(type, check) {
         }
     });
     syncAllGroupToggles();
+    syncHeaderCheckboxes();
     updatePermCounter();
 }
 
@@ -437,6 +493,7 @@ function setMatrixAll(check) {
         if (mid) toggleRowAll(mid, check, true);
     });
     syncAllGroupToggles();
+    syncHeaderCheckboxes();
     updatePermCounter();
 }
 
@@ -477,6 +534,7 @@ function filterRoleModules(term) {
         const grp = header.getAttribute('data-group');
         header.style.display = (groupCount[grp] && groupCount[grp] > 0) ? '' : 'none';
     });
+    syncHeaderCheckboxes();
     updatePermCounter();
 }
 </script>
