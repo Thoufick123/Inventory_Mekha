@@ -630,7 +630,7 @@ if ($isEdit && !empty($existingItems)) {
                                        placeholder="Type supplier name, company or phone..."
                                        autocomplete="off"
                                        value="<?= htmlspecialchars($selectedSupplierLabel) ?>">
-                                <div id="supplierAutocompleteMenu" class="dropdown-menu w-100 shadow-sm" style="max-height: 240px; overflow-y: auto;"></div>
+                                <div id="supplierAutocompleteMenu" class="dropdown-menu shadow-sm" style="min-width: 100%; width: max-content; max-width: min(440px, 90vw); max-height: 260px; overflow-y: auto; overflow-x: hidden; z-index: 1055;"></div>
                             </div>
                             <button type="button" class="btn btn-outline-secondary px-2 text-nowrap" id="viewSupplierBtn" title="View Suppliers">
                                 <i class="bi bi-eye"></i> View
@@ -1401,12 +1401,13 @@ if ($isEdit && !empty($existingItems)) {
             matches.forEach(function (sup) {
                 const item = document.createElement('button');
                 item.type = 'button';
-                item.className = 'dropdown-item d-flex justify-content-between align-items-center py-2';
+                item.className = 'dropdown-item d-flex flex-column align-items-start py-2';
+                item.style.whiteSpace = 'normal';
                 const left = document.createElement('span');
                 left.className = 'fw-semibold text-dark';
                 left.textContent = formatSupplierLabel(sup);
                 const right = document.createElement('small');
-                right.className = 'text-muted ms-2';
+                right.className = 'text-muted';
                 right.textContent = [sup.phone, sup.district].filter(Boolean).join(' • ');
                 item.appendChild(left);
                 item.appendChild(right);
