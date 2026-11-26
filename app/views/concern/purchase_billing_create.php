@@ -603,13 +603,8 @@ if ($isEdit && !empty($existingItems)) {
                         </div>
                     <?php endif; ?>
 
-<<<<<<< HEAD
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold mb-1">Supplier <span class="text-danger">*</span></label>
-=======
-                    <div class="<?= empty($selectedCid) ? 'col-lg-4 col-md-6' : 'col-md-4' ?>">
-                        <label class="form-label small fw-semibold">Supplier <span class="text-danger">*</span></label>
->>>>>>> 0723abdf94a6320bd8a3406e9ac1bda9910f065a
                         <?php
                             $selectedSupplierLabel = '';
                             if ($isEdit && !empty($bill['supplier_id'])) {
@@ -723,7 +718,6 @@ if ($isEdit && !empty($existingItems)) {
                             <option value="Include GST" <?= $defaultGlobalTaxMode === 'Include GST' ? 'selected' : '' ?>>Include GST</option>
                         </select>
                     </div>
-<<<<<<< HEAD
                     <div class="col-md-2">
                         <label class="form-label small fw-semibold mb-1">GST Type</label>
                         <select id="globalGstType" class="form-select form-select-sm" onchange="syncGlobalTaxControlsToAllRows()">
@@ -733,11 +727,6 @@ if ($isEdit && !empty($existingItems)) {
                             <option value="SGST" <?= $defaultGlobalGstType === 'SGST' ? 'selected' : '' ?>>SGST</option>
                             <option value="IGST" <?= $defaultGlobalGstType === 'IGST' ? 'selected' : '' ?>>IGST</option>
                         </select>
-=======
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-dark">Stock Status</label>
-                        <div class="form-control form-control-sm bg-white text-muted text-truncate" title="Pending - use Label Generation to add stock">Pending - use Label Generation to add stock</div>
->>>>>>> 0723abdf94a6320bd8a3406e9ac1bda9910f065a
                     </div>
                     <div class="col-md-1" id="globalTaxInputTypeWrap" style="<?= $defaultGlobalGstType === 'Exempted' ? 'display:none;' : '' ?>">
                         <label class="form-label small fw-semibold mb-1">Mode</label>

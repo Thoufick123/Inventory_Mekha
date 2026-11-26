@@ -273,18 +273,22 @@
             <?php endif; ?>
             <?php
             $grouped = [];
+            $combinedSidebarGroups = ['Stock', 'Shop', 'Sales', 'Finance'];
             foreach ($sidebarModules as $m) {
                 if ($m['code'] === 'variants' || $m['code'] === 'suppliers' || $m['code'] === 'catalog_mapping' || $m['code'] === 'purchase_damage' || $m['code'] === 'concern_dashboard' || $m['code'] === 'admin_concerns' || $m['code'] === 'dispatch' || $m['group_name'] === 'Masters') continue;
                 $groupName = $m['code'] === 'catalog_mapping' ? 'Purchase' : $m['group_name'];
+                if (in_array($groupName, $combinedSidebarGroups, true)) {
+                    $groupName = 'Modules';
+                }
                 $grouped[$groupName][] = $m;
             }
 
             foreach ($grouped as $groupName => $mods):
                 if ($groupName === 'Staff' || $groupName === 'Masters') continue;
-                // If Finance group, merge 'cash' and 'cash_flow' into a single 'Cash & Cash Flow' module
+                // If Finance/Modules group, merge 'cash' and 'cash_flow' into a single 'Cash & Cash Flow' module
                 $financeExpenseModule = null;
                 $hasFinanceCashFlow = false;
-                if ($groupName === 'Finance') {
+                if ($groupName === 'Finance' || $groupName === 'Modules') {
                     $hasCashOrFlow = false;
                     $mergedMods = [];
                     foreach ($mods as $m) {
@@ -388,6 +392,7 @@
                 $isTotalStaffActive = (isset($currentModule) && $currentModule === 'staff' && (empty($currentSubModule) || $currentSubModule === 'all')) && !str_contains($activeRoute, '/m/staff/create') && !str_contains($activeRoute, '/m/staff/roles');
                 $isRolesActive = (isset($currentModule) && $currentModule === 'staff' && isset($currentSubModule) && $currentSubModule === 'roles') || str_contains($activeRoute, '/m/staff/roles');
             ?>
+            <div class="nav-group-title">Staff</div>
             <button class="nav-link nav-group-toggle <?= $isStaffActive ? '' : 'collapsed' ?>" type="button" data-bs-toggle="collapse" data-bs-target="#submenuStaff" aria-expanded="<?= $isStaffActive ? 'true' : 'false' ?>" aria-controls="submenuStaff">
                 <i class="bi bi-people"></i>
                 <span>Staff</span>
