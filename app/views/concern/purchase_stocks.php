@@ -15,11 +15,41 @@
         .compact-purchase-stock-table .btn-sm {
             line-height: 1;
         }
+        .purchase-stock-action-btn {
+            width: 28px;
+            height: 28px;
+            padding: 0 !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px !important;
+        }
+        .purchase-stock-detail-card {
+            padding: 0.75rem 0.9rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #ffffff;
+            height: 100%;
+        }
+        .purchase-stock-detail-card.is-highlight {
+            background: #f8fafc;
+        }
+        .purchase-stock-detail-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 0.2rem;
+        }
+        .purchase-stock-history-table thead th,
+        .purchase-stock-history-table tbody td {
+            padding: 0.55rem 0.85rem;
+            vertical-align: middle;
+        }
     </style>
     <!-- Page Header & Action Bar -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
         <div class="d-flex align-items-center gap-3">
-            <div class="rounded-3 p-2.5 d-flex align-items-center justify-content-center text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); width: 48px; height: 48px;">
+            <div class="rounded-3 p-2 d-flex align-items-center justify-content-center text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); width: 48px; height: 48px;">
                 <i class="bi bi-boxes fs-4"></i>
             </div>
             <div>
@@ -29,12 +59,12 @@
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
             <?php if (\App\Core\Auth::can('purchase_stocks', 'export') && $activeTab !== 'damage'): ?>
-            <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . $activeTab . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2">
+            <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . $activeTab . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2">
                 <i class="bi bi-file-earmark-spreadsheet"></i> Export <?= match($activeTab) { 'rolls' => 'Rolls', 'garment_other' => 'Trims', 'finished_goods' => 'Finished Goods', default => 'Stocks' } ?> (CSV)
             </a>
             <?php endif; ?>
             <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
-            <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1.5 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
+            <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
                 <i class="bi bi-plus-lg"></i> Add Stock
             </button>
             <?php endif; ?>
@@ -256,7 +286,7 @@
                                 <th class="text-end">Total Valuation (₹)</th>
                                 <th class="text-start">Inward History</th>
                                 <th style="width: 100px;">Status</th>
-                                <th style="width: 80px;">Actions</th>
+                                <th style="width: 120px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -326,7 +356,7 @@
                                         </td>
                                         <td class="py-1 px-2">
                                             <div class="d-flex justify-content-center gap-1">
-                                            <button type="button" class="btn btn-outline-info btn-sm p-1"
+                                            <button type="button" class="btn btn-outline-info btn-sm purchase-stock-action-btn"
                                                 data-section-type="rolls"
                                                 data-concern-id="<?= (int)$cr['concern_id'] ?>"
                                                 data-color="<?= htmlspecialchars($cr['source_color'], ENT_QUOTES, 'UTF-8') ?>"
@@ -335,7 +365,7 @@
                                                 title="View roll stock details &amp; batches">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                            <button type="button" class="btn btn-outline-primary btn-sm p-1"
+                                            <button type="button" class="btn btn-outline-primary btn-sm purchase-stock-action-btn"
                                                 data-qr="<?= htmlspecialchars($qrPayload, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-label-concern="<?= htmlspecialchars($labelConcern, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-label-ref="<?= htmlspecialchars($labelRef, ENT_QUOTES, 'UTF-8') ?>"
@@ -350,7 +380,7 @@
                                                 <i class="bi bi-qr-code"></i>
                                             </button>
                                             <?php if ($canEditRollStock): ?>
-                                                <button type="button" class="btn btn-outline-secondary btn-sm p-1"
+                                                <button type="button" class="btn btn-outline-secondary btn-sm purchase-stock-action-btn"
                                                     data-concern-id="<?= (int)$cr['concern_id'] ?>"
                                                     data-source-color="<?= htmlspecialchars($cr['source_color'], ENT_QUOTES, 'UTF-8') ?>"
                                                     data-source-design="<?= htmlspecialchars($cr['source_design_name'], ENT_QUOTES, 'UTF-8') ?>"
@@ -368,7 +398,7 @@
                                                 </button>
                                             <?php endif; ?>
                                             <?php if ($canDeletePurchaseStock): ?>
-                                                <button type="button" class="btn btn-outline-danger btn-sm p-1"
+                                                <button type="button" class="btn btn-outline-danger btn-sm purchase-stock-action-btn"
                                                     data-section-type="rolls"
                                                     data-concern-id="<?= (int)$cr['concern_id'] ?>"
                                                     data-source-color="<?= htmlspecialchars($cr['source_color'], ENT_QUOTES, 'UTF-8') ?>"
@@ -622,7 +652,7 @@
                                                     <img src="<?= htmlspecialchars($r['photo_path']) ?>" alt="Roll Photo" class="rounded border shadow-sm" style="width: 36px; height: 36px; object-fit: cover;">
                                                 </a>
                                             <?php else: ?>
-                                                <span class="badge bg-light text-muted border p-1.5"><i class="bi bi-image"></i></span>
+                                                <span class="d-inline-flex align-items-center justify-content-center rounded border bg-light text-muted" style="width: 36px; height: 36px;"><i class="bi bi-image"></i></span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
@@ -703,10 +733,10 @@
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
-                                                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . $r['purchase_bill_id']) ?>" class="btn btn-outline-secondary btn-sm p-1" title="View Bill">
+                                                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . $r['purchase_bill_id']) ?>" class="btn btn-outline-secondary btn-sm purchase-stock-action-btn" title="View Bill">
                                                     <i class="bi bi-receipt"></i>
                                                 </a>
-                                                <a href="<?= \App\Core\Controller::url('/m/label_generation?tab=purchase_raw&roll=' . urlencode($r['item_code'])) ?>" class="btn btn-outline-primary btn-sm p-1" title="Print QR Label">
+                                                <a href="<?= \App\Core\Controller::url('/m/label_generation?tab=purchase_raw&roll=' . urlencode($r['item_code'])) ?>" class="btn btn-outline-primary btn-sm purchase-stock-action-btn" title="Print QR Label">
                                                     <i class="bi bi-qr-code"></i>
                                                 </a>
                                             </div>
@@ -739,7 +769,7 @@
                                 <th class="text-end">Stock Value (₹)</th>
                                 <th class="text-start">Purchase Bill Ref</th>
                                 <th style="width: 100px;">Status</th>
-                                <th style="width: 90px;">Actions</th>
+                                <th style="width: 120px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -833,7 +863,7 @@
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
-                                                <button type="button" class="btn btn-outline-info btn-sm p-1"
+                                                <button type="button" class="btn btn-outline-info btn-sm purchase-stock-action-btn"
                                                     data-section-type="garment_other"
                                                     data-item-id="<?= (int)$g['id'] ?>"
                                                     data-concern-id="<?= (int)$g['concern_id'] ?>"
@@ -841,7 +871,7 @@
                                                     title="View stock item details">
                                                     <i class="bi bi-eye"></i>
                                                 </button>
-                                                <button type="button" class="btn btn-outline-primary btn-sm p-1"
+                                                <button type="button" class="btn btn-outline-primary btn-sm purchase-stock-action-btn"
                                                     data-qr="<?= htmlspecialchars($labelCode, ENT_QUOTES, 'UTF-8') ?>"
                                                     data-label-concern="<?= htmlspecialchars($labelConcern, ENT_QUOTES, 'UTF-8') ?>"
                                                     data-label-ref="<?= htmlspecialchars($labelRef, ENT_QUOTES, 'UTF-8') ?>"
@@ -857,7 +887,7 @@
                                                     <i class="bi bi-qr-code"></i>
                                                 </button>
                                                 <?php if ($canEditPurchaseStock): ?>
-                                                    <button type="button" class="btn btn-outline-secondary btn-sm p-1" title="Edit this stock item"
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm purchase-stock-action-btn" title="Edit this stock item"
                                                         data-stock-type="garment_other"
                                                         data-item-id="<?= (int)$g['id'] ?>"
                                                         data-concern-id="<?= (int)$g['concern_id'] ?>"
@@ -875,7 +905,7 @@
                                                     </button>
                                                 <?php endif; ?>
                                                 <?php if ($canDeletePurchaseStock): ?>
-                                                    <button type="button" class="btn btn-outline-danger btn-sm p-1" title="Delete this stock item"
+                                                    <button type="button" class="btn btn-outline-danger btn-sm purchase-stock-action-btn" title="Delete this stock item"
                                                         data-section-type="garment_other"
                                                         data-item-id="<?= (int)$g['id'] ?>"
                                                         data-concern-id="<?= (int)$g['concern_id'] ?>"
@@ -917,7 +947,7 @@
                                 <th class="text-end">Stock Value (₹)</th>
                                 <th class="text-start">Purchase Bill Ref</th>
                                 <th style="width: 100px;">Status</th>
-                                <th style="width: 90px;">Actions</th>
+                                <th style="width: 120px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1022,7 +1052,7 @@
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
-                                                <button type="button" class="btn btn-outline-info btn-sm p-1"
+                                                <button type="button" class="btn btn-outline-info btn-sm purchase-stock-action-btn"
                                                     data-section-type="finished_goods"
                                                     data-item-id="<?= (int)$f['id'] ?>"
                                                     data-concern-id="<?= (int)$f['concern_id'] ?>"
@@ -1031,7 +1061,7 @@
                                                     <i class="bi bi-eye"></i>
                                                 </button>
                                                 <?php if (!empty($f['label_generation_complete']) && !empty($f['variant_id'])): ?>
-                                                    <button type="button" class="btn btn-outline-primary btn-sm p-1"
+                                                    <button type="button" class="btn btn-outline-primary btn-sm purchase-stock-action-btn"
                                                         data-qr="<?= htmlspecialchars($labelCode, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-label-concern="<?= htmlspecialchars($labelConcern, ENT_QUOTES, 'UTF-8') ?>"
                                                         data-label-ref="<?= htmlspecialchars($labelRef, ENT_QUOTES, 'UTF-8') ?>"
@@ -1049,7 +1079,7 @@
                                                     </button>
                                                 <?php endif; ?>
                                                 <?php if ($canEditPurchaseStock): ?>
-                                                    <button type="button" class="btn btn-outline-secondary btn-sm p-1" title="Edit this stock item"
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm purchase-stock-action-btn" title="Edit this stock item"
                                                         data-stock-type="finished_goods"
                                                         data-item-id="<?= (int)$f['id'] ?>"
                                                         data-concern-id="<?= (int)$f['concern_id'] ?>"
@@ -1067,7 +1097,7 @@
                                                     </button>
                                                 <?php endif; ?>
                                                 <?php if ($canDeletePurchaseStock): ?>
-                                                    <button type="button" class="btn btn-outline-danger btn-sm p-1" title="Delete this stock item"
+                                                    <button type="button" class="btn btn-outline-danger btn-sm purchase-stock-action-btn" title="Delete this stock item"
                                                         data-section-type="finished_goods"
                                                         data-item-id="<?= (int)$f['id'] ?>"
                                                         data-concern-id="<?= (int)$f['concern_id'] ?>"
@@ -1433,30 +1463,50 @@ function viewPurchaseStock(button) {
             return;
         }
         const item = data.item || {};
+        const formatInr = val => '₹' + (parseFloat(val || 0) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const detailCard = (colClass, label, valueHtml, highlight = false) => `
+            <div class="${colClass}">
+                <div class="purchase-stock-detail-card${highlight ? ' is-highlight' : ''}">
+                    <div class="purchase-stock-detail-label">${label}</div>
+                    <div>${valueHtml}</div>
+                </div>
+            </div>
+        `;
+
         if (data.section_type === 'rolls') {
             const batches = Array.isArray(data.batches) ? data.batches : [];
             let batchRows = batches.length ? batches.map(b => `
                 <tr>
-                    <td class="font-monospace small">${escapeHtmlHtml(b.bill_no || '-')}</td>
+                    <td class="font-monospace small fw-semibold text-primary">${escapeHtmlHtml(b.bill_no || '-')}</td>
                     <td class="small">${escapeHtmlHtml(b.supplier_name || 'Direct Entry')}</td>
-                    <td class="small text-end">${parseFloat(b.qty || 0).toFixed(2)} ${escapeHtmlHtml(b.unit || 'Rolls')}</td>
+                    <td class="small text-end fw-semibold">${parseFloat(b.qty || 0).toFixed(2)} ${escapeHtmlHtml(b.unit || 'Rolls')}</td>
                     <td class="small text-end">${parseFloat(b.net_weight || 0).toFixed(2)} kg</td>
-                    <td class="small text-end">₹${parseFloat(b.unit_price || 0).toFixed(2)}</td>
+                    <td class="small text-end fw-semibold">${formatInr(b.unit_price || 0)}</td>
                 </tr>
-            `).join('') : '<tr><td colspan="5" class="text-center text-muted small py-2">No individual batch records found.</td></tr>';
+            `).join('') : '<tr><td colspan="5" class="text-center text-muted small py-3">No individual batch records found.</td></tr>';
 
             bodyEl.innerHTML = `
-                <div class="row g-3 mb-3">
-                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Design / Pattern</div><div class="fw-bold">${escapeHtmlHtml(item.design_name || '-')}</div></div></div>
-                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Color / Shade</div><div class="fw-bold text-uppercase">${escapeHtmlHtml(item.color || '-')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Accumulated Stock</div><div class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Total Fabric Weight</div><div class="fw-bold">${parseFloat(item.net_weight || 0).toFixed(2)} kg</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Total Valuation</div><div class="fw-bold text-success">₹${parseFloat(item.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
+                <div class="row g-3 mb-4">
+                    ${detailCard('col-md-6', 'Design / Pattern', `<span class="fw-bold text-dark">${escapeHtmlHtml(item.design_name || '-')}</span>`, true)}
+                    ${detailCard('col-md-6', 'Color / Shade', `<span class="fw-bold text-uppercase text-dark">${escapeHtmlHtml(item.color || '-')}</span>`, true)}
+                    ${detailCard('col-md-4', 'Accumulated Stock', `<span class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</span>`)}
+                    ${detailCard('col-md-4', 'Total Fabric Weight', `<span class="fw-bold text-dark">${parseFloat(item.net_weight || 0).toFixed(2)} kg</span>`)}
+                    ${detailCard('col-md-4', 'Total Valuation', `<span class="fw-bold text-success">${formatInr(item.total_value || 0)}</span>`)}
                 </div>
-                <h6 class="fw-bold small text-uppercase text-muted mb-2">Inward Batch History (${batches.length})</h6>
-                <div class="table-responsive border rounded">
-                    <table class="table table-sm mb-0 align-middle">
-                        <thead class="table-light small"><tr><th>Bill #</th><th>Supplier</th><th class="text-end">Qty</th><th class="text-end">Weight</th><th class="text-end">Rate</th></tr></thead>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold small text-uppercase text-muted mb-0">Inward Batch History (${batches.length})</h6>
+                </div>
+                <div class="table-responsive border rounded-3">
+                    <table class="table table-sm table-hover mb-0 align-middle purchase-stock-history-table">
+                        <thead class="table-light small text-uppercase text-muted">
+                            <tr>
+                                <th>Bill #</th>
+                                <th>Supplier</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Weight</th>
+                                <th class="text-end">Rate</th>
+                            </tr>
+                        </thead>
                         <tbody>${batchRows}</tbody>
                     </table>
                 </div>
@@ -1464,14 +1514,14 @@ function viewPurchaseStock(button) {
         } else {
             bodyEl.innerHTML = `
                 <div class="row g-3">
-                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Item Name</div><div class="fw-bold">${escapeHtmlHtml(item.item_name || '-')}</div></div></div>
-                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Item Code / SKU</div><div class="fw-bold font-monospace">${escapeHtmlHtml(item.item_code || '-')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Color / Spec</div><div class="fw-semibold">${escapeHtmlHtml((item.color || '-') + ' / ' + (item.specification || '-'))}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Quantity</div><div class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Pieces')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Unit Price / MRP</div><div class="fw-bold">₹${parseFloat(item.unit_price || 0).toFixed(2)} / ₹${parseFloat(item.mrp || 0).toFixed(2)}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Total Value</div><div class="fw-bold text-success">₹${parseFloat(item.total_price || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Bill #</div><div class="fw-semibold font-monospace">${escapeHtmlHtml(item.bill_no || '-')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Supplier</div><div class="fw-semibold">${escapeHtmlHtml(item.supplier_name || 'Direct Entry')}</div></div></div>
+                    ${detailCard('col-md-6', 'Item Name', `<span class="fw-bold text-dark">${escapeHtmlHtml(item.item_name || '-')}</span>`, true)}
+                    ${detailCard('col-md-6', 'Item Code / SKU', `<span class="fw-bold font-monospace text-dark">${escapeHtmlHtml(item.item_code || '-')}</span>`, true)}
+                    ${detailCard('col-md-4', 'Color / Spec', `<span class="fw-semibold text-dark">${escapeHtmlHtml((item.color || '-') + ' / ' + (item.specification || '-'))}</span>`)}
+                    ${detailCard('col-md-4', 'Quantity', `<span class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Pieces')}</span>`)}
+                    ${detailCard('col-md-4', 'Unit Price / MRP', `<span class="fw-bold text-dark">${formatInr(item.unit_price || 0)} / ${formatInr(item.mrp || 0)}</span>`)}
+                    ${detailCard('col-md-4', 'Total Value', `<span class="fw-bold text-success">${formatInr(item.total_price || 0)}</span>`)}
+                    ${detailCard('col-md-4', 'Bill #', `<span class="fw-semibold font-monospace text-primary">${escapeHtmlHtml(item.bill_no || '-')}</span>`)}
+                    ${detailCard('col-md-4', 'Supplier', `<span class="fw-semibold text-dark">${escapeHtmlHtml(item.supplier_name || 'Direct Entry')}</span>`)}
                 </div>
             `;
         }
@@ -1531,12 +1581,15 @@ function confirmDeletePurchaseStock(button) {
 <!-- View Stock Details Modal -->
 <div class="modal fade" id="viewPurchaseStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header py-2">
-                <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-eye text-info me-1"></i> Purchase Stock Details</h5>
+        <div class="modal-content border-0 shadow rounded-3">
+            <div class="modal-header py-3 px-4 border-bottom">
+                <h5 class="modal-title fs-6 fw-bold mb-0"><i class="bi bi-eye text-info me-2"></i>Purchase Stock Details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="viewPurchaseStockBody"></div>
+            <div class="modal-body p-4" id="viewPurchaseStockBody"></div>
+            <div class="modal-footer py-2 px-4 bg-light border-top">
+                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
