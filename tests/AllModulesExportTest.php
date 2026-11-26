@@ -37,7 +37,6 @@ $endpoints = [
     'Stocks' => ['App\Controllers\StockController', 'exportStocks'],
     'Stock Ledger' => ['App\Controllers\StockController', 'exportLedger'],
     'Inwards' => ['App\Controllers\InwardController', 'exportInward'],
-    'Suppliers' => ['App\Controllers\PurchaseController', 'exportSuppliers'],
     'Purchase Billing' => ['App\Controllers\PurchaseController', 'exportBills'],
     'Purchase Damage' => ['App\Controllers\PurchaseController', 'exportDamage'],
     'Concern Damage' => ['App\Controllers\DamageController', 'exportConcernDamage'],
