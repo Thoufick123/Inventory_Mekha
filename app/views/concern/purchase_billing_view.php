@@ -150,9 +150,6 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     <strong>Purchase Date:</strong> <?= date('d-m-Y', strtotime($bill['bill_date'])) ?><br>
                     <strong>Supplier Invoice #:</strong> <?= htmlspecialchars($bill['supplier_invoice_no'] ?: '-') ?><br>
                     <strong>Payment Method:</strong> <span class="badge bg-light text-dark border text-capitalize"><?= htmlspecialchars(str_replace('_', ' ', $bill['payment_method'] ?? 'credit')) ?></span><br>
-                    <?php if (!empty($bill['payment_reference'])): ?>
-                        <strong>Payment Ref / UTR:</strong> <span class="font-monospace text-dark"><?= htmlspecialchars($bill['payment_reference']) ?></span><br>
-                    <?php endif; ?>
                     <strong>Paid Amount:</strong> ₹<?= number_format((float)($bill['paid_amount'] ?? 0), 2) ?><br>
                     <strong>Notes:</strong> <?= htmlspecialchars($bill['notes'] ?: 'None') ?>
                 </div>
@@ -574,9 +571,6 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                             Destination: Central Fabric & Trim Store, Inward Bay<br>
                             <strong>Payment Status:</strong> <span class="badge bg-light text-dark border text-uppercase"><?= htmlspecialchars($bill['payment_status']) ?></span> &bull; 
                             <strong>Method:</strong> <span class="text-capitalize fw-semibold text-dark"><?= htmlspecialchars(str_replace('_', ' ', $bill['payment_method'] ?? 'credit')) ?></span><br>
-                            <?php if (!empty($bill['payment_reference'])): ?>
-                                <strong>Payment Ref:</strong> <span class="font-monospace text-dark"><?= htmlspecialchars($bill['payment_reference']) ?></span> &bull; 
-                            <?php endif; ?>
                             <strong>Paid Amount:</strong> ₹<?= number_format((float)($bill['paid_amount'] ?? 0), 2) ?><br>
                             <strong>Inward Status:</strong> <span class="badge bg-light text-dark border text-uppercase"><?= htmlspecialchars($bill['inward_status']) ?></span>
                         </div>

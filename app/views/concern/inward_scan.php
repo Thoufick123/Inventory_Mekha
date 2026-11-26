@@ -1,5 +1,6 @@
 <?php
 // app/views/concern/inward_scan.php - Live Cross-Check, QR Scanning & Inward Reconcile
+$isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
 ?>
 <div class="container-fluid px-0">
     <!-- Breadcrumbs & Header -->
@@ -10,17 +11,19 @@
                     <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/') ?>" class="text-decoration-none text-muted">Home</a></li>
                     <li class="breadcrumb-item"><span class="text-muted">Warehouse</span></li>
                     <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/m/inward') ?>" class="text-decoration-none text-muted">Inward / GRN</a></li>
-                    <li class="breadcrumb-item active text-dark fw-medium" aria-current="page">Cross-Check Batch #<?= htmlspecialchars($outward['batch_no']) ?></li>
+                    <li class="breadcrumb-item active text-dark fw-medium" aria-current="page"><?= $isDamageTransfer ? 'Damage Outward' : 'Cross-Check Batch' ?> #<?= htmlspecialchars($isDamageTransfer ? $outward['outward_no'] : $outward['batch_no']) ?></li>
                 </ol>
             </nav>
             <h4 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
-                <i class="bi bi-box-arrow-in-down text-primary"></i> Complete Inward Shipment <span class="text-muted fs-6 font-monospace">#<?= htmlspecialchars($outward['batch_no']) ?></span>
+                <i class="bi bi-box-arrow-in-down text-primary"></i> <?= $isDamageTransfer ? 'Receive Damage Outward' : 'Complete Inward Shipment' ?> <span class="text-muted fs-6 font-monospace">#<?= htmlspecialchars($isDamageTransfer ? $outward['outward_no'] : $outward['batch_no']) ?></span>
             </h4>
         </div>
         <div class="d-flex gap-2">
-            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
-                <i class="bi bi-upc-scan"></i> Label Generation
-            </a>
+            <?php if (!$isDamageTransfer): ?>
+                <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
+                    <i class="bi bi-upc-scan"></i> Label Generation
+                </a>
+            <?php endif; ?>
             <?php if (!empty($outward['batch_id'])): ?>
             <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$outward['batch_id']) ?>" target="_blank" class="btn btn-outline-info btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
                 <i class="bi bi-printer"></i> Print Batch Labels
@@ -54,8 +57,8 @@
             <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white" style="border-left: 4px solid #10b981 !important;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="small fw-semibold text-uppercase text-muted" style="font-size: 0.7rem; letter-spacing: 0.05em;">INWARD VERIFIED (INTACT)</div>
-                        <div class="fs-4 fw-bold text-dark mt-1"><span id="statVerified"><?= number_format($totalCredited) ?></span> pcs</div>
+                        <div class="small fw-semibold text-uppercase text-muted" style="font-size: 0.7rem; letter-spacing: 0.05em;"><?= $isDamageTransfer ? 'DAMAGED STOCK RECEIVED' : 'INWARD VERIFIED (INTACT)' ?></div>
+                        <div class="fs-4 fw-bold text-dark mt-1"><span id="statVerified"><?= number_format($isDamageTransfer ? $totalCredited + $totalDamaged : $totalCredited) ?></span> pcs</div>
                     </div>
                     <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; background: #d1fae5; color: #10b981;">
                         <i class="bi bi-qr-code-scan fs-5"></i>
@@ -65,7 +68,7 @@
         </div>
 
         <!-- 3. Damaged / Inactive -->
-        <div class="col-12 col-sm-6 col-lg">
+        <div class="col-12 col-sm-6 col-lg <?= $isDamageTransfer ? 'd-none' : '' ?>">
             <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white" style="border-left: 4px solid #ef4444 !important;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
@@ -100,7 +103,7 @@
             <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white" style="border-left: 4px solid #06b6d4 !important;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="small fw-semibold text-uppercase text-muted" style="font-size: 0.7rem; letter-spacing: 0.05em;">VERIFICATION MATCH</div>
+                        <div class="small fw-semibold text-uppercase text-muted" style="font-size: 0.7rem; letter-spacing: 0.05em;"><?= $isDamageTransfer ? 'RECEIPT MATCH' : 'VERIFICATION MATCH' ?></div>
                         <div class="fs-4 fw-bold text-dark mt-1"><span id="statMatch"><?= $verificationMatch ?></span>%</div>
                     </div>
                     <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; background: #cffafe; color: #0891b2;">
@@ -115,18 +118,27 @@
     <div class="row g-3 mb-4">
         <!-- Left Column: Batch Carton QR & Outward Dispatch Details -->
         <div class="col-12 col-lg-4">
-            <!-- Batch Carton QR Code -->
-            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white mb-3 text-center">
-                <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.75rem;">
-                    <i class="bi bi-qr-code me-1 text-primary"></i> Batch Carton QR Code
-                </div>
-                <div class="d-flex justify-content-center py-2">
-                    <div id="batchCartonQrContainer" class="p-2 border rounded-2 bg-light d-flex align-items-center justify-content-center" style="min-width: 160px; min-height: 160px;">
-                        <div id="batchQrCanvas" style="width: 160px; height: 160px;"></div>
+            <?php if ($isDamageTransfer): ?>
+                <div class="card border-0 shadow-sm rounded-3 p-3 bg-danger bg-opacity-10 mb-3 text-center">
+                    <div class="small fw-bold text-danger text-uppercase mb-2" style="font-size: 0.75rem;">
+                        <i class="bi bi-exclamation-triangle me-1"></i> Damage Transfer Manifest
                     </div>
+                    <div class="fw-bold font-monospace text-dark fs-5"><?= htmlspecialchars($outward['outward_no']) ?></div>
+                    <div class="small text-muted mt-1">All received pieces remain quarantined.</div>
                 </div>
-                <div class="fw-bold font-monospace text-primary fs-6 mt-1"><?= htmlspecialchars($outward['batch_no']) ?></div>
-            </div>
+            <?php else: ?>
+                <div class="card border-0 shadow-sm rounded-3 p-3 bg-white mb-3 text-center">
+                    <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.75rem;">
+                        <i class="bi bi-qr-code me-1 text-primary"></i> Batch Carton QR Code
+                    </div>
+                    <div class="d-flex justify-content-center py-2">
+                        <div id="batchCartonQrContainer" class="p-2 border rounded-2 bg-light d-flex align-items-center justify-content-center" style="min-width: 160px; min-height: 160px;">
+                            <div id="batchQrCanvas" style="width: 160px; height: 160px;"></div>
+                        </div>
+                    </div>
+                    <div class="fw-bold font-monospace text-primary fs-6 mt-1"><?= htmlspecialchars($outward['batch_no']) ?></div>
+                </div>
+            <?php endif; ?>
 
             <!-- Outward Dispatch Details -->
             <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
@@ -137,30 +149,43 @@
                     <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 0.72rem;">Traceability</span>
                 </div>
 
-                <div class="small mb-2 d-flex justify-content-between">
-                    <span class="text-muted">Outward Gate Pass:</span>
-                    <span class="fw-bold font-monospace text-primary"><?= htmlspecialchars($outward['gate_pass_no'] ?: $outward['outward_no']) ?></span>
-                </div>
-                <div class="small mb-2 d-flex justify-content-between">
-                    <span class="text-muted">Production Batch:</span>
-                    <span class="fw-bold font-monospace text-dark"><?= htmlspecialchars($outward['batch_no']) ?></span>
-                </div>
-                <div class="small mb-2 d-flex justify-content-between">
-                    <span class="text-muted">Program #:</span>
-                    <span class="fw-semibold font-monospace text-muted"><?= htmlspecialchars($outward['program_no']) ?></span>
-                </div>
-                <div class="small mb-3 d-flex justify-content-between">
-                    <span class="text-muted">Product / Style:</span>
-                    <span class="fw-bold text-dark text-end"><?= htmlspecialchars($outward['program_name']) ?></span>
-                </div>
-
-                <div class="p-2.5 rounded-2" style="background: #fffbeb; border: 1px solid #fef3c7;">
-                    <div class="d-flex align-items-center justify-content-between mb-1">
-                        <span class="small fw-semibold text-dark"><i class="bi bi-geo-alt-fill text-warning me-1"></i> Origin Unit:</span>
-                        <span class="badge bg-warning bg-opacity-50 text-dark font-monospace"><?= htmlspecialchars($outward['source_unit_code']) ?></span>
+                <?php if ($isDamageTransfer): ?>
+                    <div class="small mb-2 d-flex justify-content-between">
+                        <span class="text-muted">Manifest:</span>
+                        <span class="fw-bold font-monospace text-primary"><?= htmlspecialchars($outward['outward_no']) ?></span>
                     </div>
-                    <div class="small fw-bold text-dark"><?= htmlspecialchars($outward['source_unit_name']) ?></div>
-                    <div class="small text-muted"><?= htmlspecialchars($outward['manager_name']) ?></div>
+                    <div class="small mb-2 d-flex justify-content-between">
+                        <span class="text-muted">Vehicle:</span>
+                        <span class="fw-semibold font-monospace text-dark"><?= htmlspecialchars($outward['vehicle_number'] ?: '—') ?></span>
+                    </div>
+                <?php else: ?>
+                    <div class="small mb-2 d-flex justify-content-between">
+                        <span class="text-muted">Outward Gate Pass:</span>
+                        <span class="fw-bold font-monospace text-primary"><?= htmlspecialchars($outward['gate_pass_no'] ?: $outward['outward_no']) ?></span>
+                    </div>
+                    <div class="small mb-2 d-flex justify-content-between">
+                        <span class="text-muted">Production Batch:</span>
+                        <span class="fw-bold font-monospace text-dark"><?= htmlspecialchars($outward['batch_no']) ?></span>
+                    </div>
+                    <div class="small mb-2 d-flex justify-content-between">
+                        <span class="text-muted">Program #:</span>
+                        <span class="fw-semibold font-monospace text-muted"><?= htmlspecialchars($outward['program_no']) ?></span>
+                    </div>
+                    <div class="small mb-3 d-flex justify-content-between">
+                        <span class="text-muted">Product / Style:</span>
+                        <span class="fw-bold text-dark text-end"><?= htmlspecialchars($outward['program_name']) ?></span>
+                    </div>
+                <?php endif; ?>
+
+                <div class="p-2.5 rounded-2" style="background: <?= $isDamageTransfer ? '#fff5f5' : '#fffbeb' ?>; border: 1px solid <?= $isDamageTransfer ? '#fecaca' : '#fef3c7' ?>;">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="small fw-semibold text-dark"><i class="bi bi-geo-alt-fill <?= $isDamageTransfer ? 'text-danger' : 'text-warning' ?> me-1"></i> <?= $isDamageTransfer ? 'Source Concern:' : 'Origin Unit:' ?></span>
+                        <span class="badge <?= $isDamageTransfer ? 'bg-danger bg-opacity-10 text-danger' : 'bg-warning bg-opacity-50 text-dark' ?> font-monospace"><?= htmlspecialchars($isDamageTransfer ? $outward['source_concern_code'] : $outward['source_unit_code']) ?></span>
+                    </div>
+                    <div class="small fw-bold text-dark"><?= htmlspecialchars($isDamageTransfer ? $outward['source_concern_name'] : $outward['source_unit_name']) ?></div>
+                    <?php if (!$isDamageTransfer): ?>
+                        <div class="small text-muted"><?= htmlspecialchars($outward['manager_name']) ?></div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -171,7 +196,7 @@
             <div class="card border-0 shadow-sm rounded-3 p-3 bg-white mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-1">
-                        <i class="bi bi-upc-scan text-primary"></i> Live Product & QR Cross-Check Scanner
+                        <i class="bi bi-upc-scan text-primary"></i> <?= $isDamageTransfer ? 'Live Damaged Stock Receipt Scanner' : 'Live Product & QR Cross-Check Scanner' ?>
                     </h6>
                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size: 0.72rem;">
                         <i class="bi bi-box-arrow-in-down me-1"></i> Inward to: <?= htmlspecialchars($outward['dest_warehouse_name']) ?> (<?= htmlspecialchars($outward['dest_warehouse_code']) ?>)
@@ -196,7 +221,7 @@
                     <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
                         <i class="bi bi-table text-primary"></i> Variant Breakdown & Inward Reconcile Table
                     </h6>
-                    <p class="small text-muted mb-0 mt-0.5">Outward cross-check and scanned received/damaged counts</p>
+                    <p class="small text-muted mb-0 mt-0.5"><?= $isDamageTransfer ? 'Scan the transferred damaged items; all received quantities remain quarantined.' : 'Outward cross-check and scanned received/damaged counts' ?></p>
                 </div>
 
                 <div class="table-responsive">
@@ -208,7 +233,7 @@
                                 <th>OUTWARD QR / CODE</th>
                                 <th>SIZE & COLOR</th>
                                 <th>OUTWARD EXP</th>
-                                <th style="width: 170px;">VERIFIED & DAMAGED</th>
+                                <th style="width: 170px;"><?= $isDamageTransfer ? 'DAMAGED RECEIVED' : 'VERIFIED & DAMAGED' ?></th>
                                 <th>DIFFERENCE</th>
                                 <th>STATUS</th>
                                 <th class="text-center" style="width: 70px;">ACTION</th>
@@ -257,7 +282,7 @@
                                     <div class="small text-muted font-monospace"><?= number_format($it['remaining_qty']) ?> Remaining</div>
                                 </td>
                                 <td>
-                                    <div class="d-flex gap-1 mb-1 align-items-center">
+                                    <div class="d-flex gap-1 mb-1 align-items-center <?= $isDamageTransfer ? 'd-none' : '' ?>">
                                         <span class="small fw-bold text-success text-uppercase" style="width: 55px; font-size: 0.68rem;">VERIFIED</span>
                                         <input type="number" min="0" max="<?= (int)$it['remaining_qty'] ?>" class="form-control form-control-sm text-center fw-bold border-success input-verified" style="background: #f0fdf4;" value="0" onchange="recalculateTotals()" onkeyup="recalculateTotals()">
                                     </div>
@@ -289,7 +314,7 @@
                 <div class="small fw-medium text-dark d-flex align-items-center gap-2">
                     <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
                     <div>
-                        <strong>Partial Inward Batch:</strong> <span id="bannerCreditedText"><?= (int)$totalCredited ?></span> pcs have already been credited. Scan or enter remaining <span id="bannerPendingText"><?= (int)$pendingMissing ?></span> pcs below to credit incremental stock to warehouse.
+                        <strong><?= $isDamageTransfer ? 'Partial Damage Outward:' : 'Partial Inward Batch:' ?></strong> <span id="bannerCreditedText"><?= $isDamageTransfer ? (int)($totalCredited + $totalDamaged) : (int)$totalCredited ?></span> pcs have already been received. Scan or enter remaining <span id="bannerPendingText"><?= (int)$pendingMissing ?></span> pcs below<?= $isDamageTransfer ? ' to quarantine them at this concern.' : ' to credit incremental stock to warehouse.' ?>
                     </div>
                 </div>
                 <span class="badge bg-danger text-white px-2.5 py-1.5 font-monospace fs-7 text-nowrap ms-2" id="bannerPendingBadge">
@@ -309,18 +334,20 @@
                 <input type="hidden" name="move_to_labels" id="submitMoveToLabels" value="0">
 
                 <div class="row g-2">
-                    <div class="col-12 col-md-8">
+                    <div class="col-12 <?= $isDamageTransfer ? '' : 'col-md-8' ?>">
                         <button type="submit" onclick="document.getElementById('submitMoveToLabels').value='0'" class="btn btn-success btn-lg w-100 fw-bold shadow py-3 d-flex align-items-center justify-content-center gap-2 text-uppercase" id="btnSubmitStock" style="letter-spacing: 0.03em;">
                             <i class="bi bi-box-arrow-in-down fs-4"></i>
-                            Update / Credit Inward Stock (+<span id="btnIncrementalQty">0</span> pcs) to <?= htmlspecialchars($outward['dest_warehouse_name']) ?>
+                            <?= $isDamageTransfer ? 'Receive Damaged Stock' : 'Update / Credit Inward Stock' ?> (+<span id="btnIncrementalQty">0</span> pcs) to <?= htmlspecialchars($outward['dest_warehouse_name']) ?>
                         </button>
                     </div>
+                    <?php if (!$isDamageTransfer): ?>
                     <div class="col-12 col-md-4">
                         <button type="submit" onclick="document.getElementById('submitMoveToLabels').value='1'" class="btn btn-primary btn-lg w-100 fw-bold shadow py-3 d-flex align-items-center justify-content-center gap-2 text-uppercase" id="btnSubmitAndLabels" title="Credit Stock and immediately proceed to Label Generation" style="letter-spacing: 0.03em;">
                             <i class="bi bi-upc-scan fs-4"></i>
                             Inward & Move to Labels
                         </button>
                     </div>
+                    <?php endif; ?>
                 </div>
             </form>
             <?php else: ?>
@@ -367,12 +394,12 @@
                     <div class="col-12 col-md-8 ps-md-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="small fw-bold text-uppercase text-muted" style="font-size: 0.72rem; letter-spacing: 0.05em;">
-                                <i class="bi bi-toggles me-1"></i> Dual Verification Mode:
+                            <i class="bi bi-toggles me-1"></i> <?= $isDamageTransfer ? 'Damage Receipt Mode:' : 'Dual Verification Mode:' ?>
                             </span>
-                            <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;">Shortcuts: Alt+G / Alt+D</span>
+                            <?php if (!$isDamageTransfer): ?><span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;">Shortcuts: Alt+G / Alt+D</span><?php endif; ?>
                         </div>
                         <div class="d-flex gap-2 mb-3">
-                            <button type="button" class="btn btn-success fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2" id="btnModeGood" onclick="setScanMode('good')">
+                            <button type="button" class="btn btn-success fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2 <?= $isDamageTransfer ? 'd-none' : '' ?>" id="btnModeGood" onclick="setScanMode('good')">
                                 <i class="bi bi-check-circle-fill"></i> Good / Intact (Alt+G)
                             </button>
                             <button type="button" class="btn btn-outline-danger fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2" id="btnModeDamaged" onclick="setScanMode('damaged')">
@@ -382,9 +409,9 @@
 
                         <div class="d-grid gap-2">
                             <button type="button" class="btn btn-success btn-lg fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2" id="btnInwardNextPiece" onclick="inwardNextPiece()">
-                                <i class="bi bi-check2-circle fs-5"></i> Inward Next Piece (+1 Good)
+                                <i class="bi bi-check2-circle fs-5"></i> Inward Next Piece (+1 <?= $isDamageTransfer ? 'Damaged' : 'Good' ?>)
                             </button>
-                            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" target="_blank" class="btn btn-outline-primary btn-sm fw-semibold d-flex align-items-center justify-content-center gap-1 shadow-none" id="modalLabelGenLink">
+                            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" target="_blank" class="btn btn-outline-primary btn-sm fw-semibold d-flex align-items-center justify-content-center gap-1 shadow-none <?= $isDamageTransfer ? 'd-none' : '' ?>" id="modalLabelGenLink">
                                 <i class="bi bi-upc-scan"></i> Move to Label Generation for this Variant
                             </a>
                         </div>
@@ -462,7 +489,7 @@
                     <div class="p-3 border rounded-3 bg-light">
                         <div class="row g-3">
                             <!-- Good / Intact Verification Controls -->
-                            <div class="col-12 col-md-6 border-end">
+                            <div class="col-12 col-md-6 border-end <?= $isDamageTransfer ? 'd-none' : '' ?>">
                                 <label class="form-label small fw-bold text-success text-uppercase mb-2 d-flex align-items-center gap-1">
                                     <i class="bi bi-check-circle-fill"></i> Verified Good Pieces (Available for Sale)
                                 </label>
@@ -481,7 +508,7 @@
                             <!-- Damaged / Defect Controls -->
                             <div class="col-12 col-md-6">
                                 <label class="form-label small fw-bold text-danger text-uppercase mb-2 d-flex align-items-center gap-1">
-                                    <i class="bi bi-slash-circle-fill"></i> Damaged Defect Pieces (Quarantine)
+                                    <i class="bi bi-slash-circle-fill"></i> <?= $isDamageTransfer ? 'Damaged Pieces (Remain in Quarantine)' : 'Damaged Defect Pieces (Quarantine)' ?>
                                 </label>
                                 <div class="input-group input-group-lg shadow-sm">
                                     <button type="button" class="btn btn-outline-danger fw-bold px-3" onclick="adjustModalCount('damaged', -1)">−</button>
@@ -516,8 +543,9 @@
 <!-- Interactive Logic for Image 2 & Image 3 -->
 <script>
 // Global State
+const isDamageTransfer = <?= json_encode($isDamageTransfer) ?>;
 let pieceData = [];
-let scanMode = 'good'; // 'good' or 'damaged'
+let scanMode = isDamageTransfer ? 'damaged' : 'good';
 let totalDispatchedConst = <?= (int)$totalDispatched ?>;
 let totalCreditedConst = <?= (int)$totalCredited ?>;
 let totalDamagedConst = <?= (int)$totalDamaged ?>;
@@ -665,7 +693,8 @@ function recalculateTotals() {
         const diffBadge = row.querySelector('.diff-badge');
         const statusBadge = row.querySelector('.status-badge');
 
-        const vVal = parseInt(vInput.value) || 0;
+        const vVal = isDamageTransfer ? 0 : (parseInt(vInput.value) || 0);
+        if (isDamageTransfer) vInput.value = 0;
         const dVal = parseInt(dInput.value) || 0;
         const maxVal = parseInt(vInput.getAttribute('max'), 10) || 0;
 
@@ -700,17 +729,20 @@ function recalculateTotals() {
     // Update Top KPIs
     const newVerifiedTotal = totalCreditedConst + incVerified;
     const newDamagedTotal = totalDamagedConst + incDamaged;
-    const newPendingTotal = Math.max(0, totalDispatchedConst - newVerifiedTotal - newDamagedTotal);
-    const newMatch = totalDispatchedConst > 0 ? Math.round((newVerifiedTotal / totalDispatchedConst) * 100) : 0;
+    const damageReceivedTotal = newVerifiedTotal + newDamagedTotal;
+    const newPendingTotal = Math.max(0, totalDispatchedConst - damageReceivedTotal);
+    const newMatch = totalDispatchedConst > 0
+        ? Math.round(((isDamageTransfer ? damageReceivedTotal : newVerifiedTotal) / totalDispatchedConst) * 100)
+        : 0;
 
-    document.getElementById('statVerified').textContent = newVerifiedTotal;
+    document.getElementById('statVerified').textContent = isDamageTransfer ? damageReceivedTotal : newVerifiedTotal;
     document.getElementById('statDamaged').textContent = newDamagedTotal;
     document.getElementById('statQuarantine').textContent = newDamagedTotal;
     document.getElementById('statPending').textContent = newPendingTotal;
     document.getElementById('statMatch').textContent = newMatch;
 
     // Update CTA button & banner
-    document.getElementById('btnIncrementalQty').textContent = incVerified;
+    document.getElementById('btnIncrementalQty').textContent = isDamageTransfer ? incDamaged : incVerified;
     document.getElementById('submitVerifiedQty').value = incVerified;
     document.getElementById('submitDamagedQty').value = incDamaged;
     const inwardItems = Array.from(document.querySelectorAll('#tableReconcile tbody tr')).map(row => {
@@ -724,7 +756,7 @@ function recalculateTotals() {
     }).filter(item => item.verified_qty > 0 || item.damaged_qty > 0);
     document.getElementById('submitItemsJson').value = JSON.stringify(inwardItems);
 
-    document.getElementById('bannerCreditedText').textContent = newVerifiedTotal;
+    document.getElementById('bannerCreditedText').textContent = isDamageTransfer ? damageReceivedTotal : newVerifiedTotal;
     document.getElementById('bannerPendingText').textContent = newPendingTotal;
     document.getElementById('bannerPendingBadge').textContent = `${newPendingTotal} pcs pending`;
 }
@@ -740,7 +772,10 @@ function validateCreditSubmission(e) {
         return false;
     }
 
-    if (!confirm(`Confirm Inward Acceptance?\n\nVerified: +${vQty} pcs will be credited directly to warehouse inventory.\nDamaged: ${dQty} pcs will be quarantined.`)) {
+    const confirmation = isDamageTransfer
+        ? `Confirm damage inward?\n\n${vQty + dQty} damaged pcs will be added to quarantined stock.`
+        : `Confirm Inward Acceptance?\n\nVerified: +${vQty} pcs will be credited directly to warehouse inventory.\nDamaged: ${dQty} pcs will be quarantined.`;
+    if (!confirm(confirmation)) {
         e.preventDefault();
         return false;
     }
@@ -855,6 +890,7 @@ function syncModalToRow() {
 }
 
 function adjustModalCount(type, delta) {
+    if (isDamageTransfer && type !== 'damaged') return;
     const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
     if (!row) return;
 
@@ -888,6 +924,7 @@ function adjustModalCount(type, delta) {
 }
 
 function onModalInputDirect(type) {
+    if (isDamageTransfer && type !== 'damaged') return;
     const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
     if (!row) return;
 
@@ -916,6 +953,7 @@ function onModalInputDirect(type) {
 }
 
 function verifyAllRemainingModal() {
+    if (isDamageTransfer) return;
     const row = document.getElementById(`rowVariant-${activeModalVariantId}`);
     if (!row) return;
 
@@ -950,6 +988,7 @@ function inwardNextPiece() {
 }
 
 function setScanMode(mode) {
+    if (isDamageTransfer) mode = 'damaged';
     scanMode = mode;
     const btnGood = document.getElementById('btnModeGood');
     const btnDamaged = document.getElementById('btnModeDamaged');
@@ -964,7 +1003,7 @@ function setScanMode(mode) {
         }
     } else {
         if (btnDamaged) btnDamaged.className = 'btn btn-danger fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2';
-        if (btnGood) btnGood.className = 'btn btn-outline-success fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2';
+        if (btnGood) btnGood.className = `btn btn-outline-success fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2${isDamageTransfer ? ' d-none' : ''}`;
         if (btnNext) {
             btnNext.className = 'btn btn-danger btn-lg w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2';
             btnNext.innerHTML = '<i class="bi bi-slash-circle fs-5"></i> Inward Next Piece (+1 Damaged)';

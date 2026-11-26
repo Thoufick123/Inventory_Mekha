@@ -174,7 +174,7 @@ class ProductAddingController extends Controller
                         FROM purchase_bills pb
                         LEFT JOIN suppliers s ON s.id = pb.supplier_id
                         LEFT JOIN concerns c ON c.id = pb.concern_id
-                        WHERE pb.id = ? AND pb.source_module = 'product_adding'";
+                        WHERE pb.id = ? AND pb.source_module IN ('product_adding', 'purchase_billing')";
             $billParams = [$billId];
             if ($cid) {
                 $billSql .= " AND pb.concern_id = ?";

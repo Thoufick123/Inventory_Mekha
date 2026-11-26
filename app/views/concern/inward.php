@@ -205,6 +205,9 @@
                                         <a href="<?= $scanUrl ?>" class="fw-bold text-decoration-none text-primary font-monospace"><?= htmlspecialchars($ib['batch_no']) ?></a>
                                         <div>
                                             <span class="badge bg-light text-muted border font-monospace" style="font-size: 0.7rem;"><i class="bi bi-send me-1"></i><?= htmlspecialchars($ib['outward_no']) ?></span>
+                                            <?php if (!empty($ib['damage_transfer'])): ?>
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.68rem;">DAMAGED STOCK</span>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </div>
@@ -248,8 +251,10 @@
                             </td>
                             <td class="text-end pe-3">
                                 <div class="d-flex align-items-center justify-content-end gap-1">
-                                    <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
-                                    <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
+                                    <?php if (empty($ib['damage_transfer'])): ?>
+                                        <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
+                                        <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
+                                    <?php endif; ?>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-info" title="Consignment Log"><i class="bi bi-clock-history"></i></a>
                                     <?php if (\App\Core\Auth::can('inward', 'edit')): ?>
@@ -260,7 +265,7 @@
                                     <?php endif; ?>
                                     <?php if (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
-                                        <i class="bi bi-box-arrow-in-down"></i> Inward (<?= $scanQty ?>)
+                                        <i class="bi bi-box-arrow-in-down"></i> <?= !empty($ib['damage_transfer']) ? 'Receive Damage' : 'Inward' ?> (<?= $scanQty ?>)
                                     </a>
                                     <?php endif; ?>
                                 </div>
@@ -298,6 +303,9 @@
                     <div>
                         <a href="<?= $scanUrl ?>" class="fw-bold fs-6 text-primary font-monospace text-decoration-none"><?= htmlspecialchars($ib['batch_no']) ?></a>
                         <div><span class="badge bg-light text-muted border font-monospace"><?= htmlspecialchars($ib['outward_no']) ?></span></div>
+                        <?php if (!empty($ib['damage_transfer'])): ?>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1">DAMAGED STOCK</span>
+                        <?php endif; ?>
                     </div>
                     <?php if ($ib['status_badge'] === 'partial'): ?>
                         <span class="badge bg-warning text-dark border border-warning px-2 py-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> Partial (<?= (int)$ib['short_qty'] ?> Short)</span>
@@ -333,12 +341,14 @@
                 <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
                     <small class="text-muted font-monospace"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></small>
                     <div class="d-flex align-items-center gap-1">
-                        <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
-                        <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
+                        <?php if (empty($ib['damage_transfer'])): ?>
+                            <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
+                            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
+                        <?php endif; ?>
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                         <?php if (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
-                            <i class="bi bi-box-arrow-in-down"></i> Inward (<?= $scanQty ?>)
+                            <i class="bi bi-box-arrow-in-down"></i> <?= !empty($ib['damage_transfer']) ? 'Receive Damage' : 'Inward' ?> (<?= $scanQty ?>)
                         </a>
                         <?php endif; ?>
                     </div>

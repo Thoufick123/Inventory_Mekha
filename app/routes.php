@@ -191,8 +191,11 @@ $router->post('/m/purchase_damage/delete', [PurchaseController::class, 'deleteDa
 // Concern Damage
 $router->get('/m/concern_damage', [DamageController::class, 'index'], 'concern_damage', 'view');
 $router->get('/m/concern_damage/new', [DamageController::class, 'entry'], 'concern_damage', 'add');
+$router->get('/m/concern_damage/outward', [DamageController::class, 'outward'], 'concern_damage', 'add');
 $router->get('/m/concern_damage/export', [DamageController::class, 'exportConcernDamage'], 'concern_damage', 'export');
 $router->post('/m/concern_damage/scan', [DamageController::class, 'scan'], 'concern_damage', 'add');
+$router->post('/m/concern_damage/outward/scan', [DamageController::class, 'scanOutward'], 'concern_damage', 'add');
+$router->post('/m/concern_damage/outward/store', [DamageController::class, 'storeOutward'], 'concern_damage', 'add');
 $router->post('/m/concern_damage/store', [DamageController::class, 'store'], 'concern_damage', 'add');
 $router->post('/m/concern_damage/update', [DamageController::class, 'update'], 'concern_damage', 'edit');
 $router->post('/m/concern_damage/delete', [DamageController::class, 'delete'], 'concern_damage', 'delete');

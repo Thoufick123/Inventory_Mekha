@@ -57,6 +57,7 @@ class WarehouseService {
         if (!in_array($currentStatus, ['dispatched', 'partial'], true)) {
             throw new Exception("Only dispatched or partially received consignments can be inwarded.");
         }
+        $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
 
         // 2. Fetch dispatched items
         $dispatchedItems = DB::fetchAll(
@@ -103,6 +104,10 @@ class WarehouseService {
             $srcVarId = (int)$item['source_variant_id'];
             $vQty = (float)($item['verified_qty'] ?? 0);
             $dQty = (float)($item['damaged_qty'] ?? 0);
+            if ($isDamageTransfer) {
+                $dQty += $vQty;
+                $vQty = 0.0;
+            }
 
             if ($vQty < 0 || $dQty < 0) {
                 throw new Exception("Inward quantities cannot be negative.");
@@ -178,6 +183,10 @@ class WarehouseService {
             $targetVarId = (int)$item['target_variant_id'];
             $vQty = (float)($item['verified_qty'] ?? 0);
             $dQty = (float)($item['damaged_qty'] ?? 0);
+            if ($isDamageTransfer) {
+                $dQty += $vQty;
+                $vQty = 0.0;
+            }
 
             if ($vQty <= 0 && $dQty <= 0) {
                 continue;
@@ -216,15 +225,27 @@ class WarehouseService {
 
             // Damaged / Quarantined stock -> Isolated from billing
             if ($dQty > 0) {
-                DamageService::recordInwardDamage(
-                    $destConcernId,
-                    $targetVarId,
-                    $inwardId,
-                    $dQty,
-                    $damageReason,
-                    (int)($outward['warehouse_id'] ?? 1),
-                    $userId
-                );
+                if ($isDamageTransfer) {
+                    $transferReason = "Transferred damaged stock from concern #{$outward['concern_id']} via outward {$outward['outward_no']}";
+                    DamageService::recordTransferredDamage(
+                        $destConcernId,
+                        $targetVarId,
+                        $inwardId,
+                        $dQty,
+                        $transferReason,
+                        $userId
+                    );
+                } else {
+                    DamageService::recordInwardDamage(
+                        $destConcernId,
+                        $targetVarId,
+                        $inwardId,
+                        $dQty,
+                        $damageReason,
+                        (int)($outward['warehouse_id'] ?? 1),
+                        $userId
+                    );
+                }
             }
 
             // Consume transit stock from origin concern

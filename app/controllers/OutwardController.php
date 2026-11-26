@@ -136,6 +136,7 @@ class OutwardController extends Controller {
             if (!in_array('dispatched_by_name', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `dispatched_by_name` VARCHAR(150) DEFAULT 'System Administrator' AFTER `driver_contact`");
             if (!in_array('total_boxes', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `total_boxes` INT DEFAULT 1 AFTER `warehouse_name`");
             if (!in_array('notes', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `notes` TEXT NULL AFTER `total_boxes`");
+            if (!in_array('damage_transfer', $outCols)) DB::query("ALTER TABLE `outwards` ADD COLUMN `damage_transfer` TINYINT(1) NOT NULL DEFAULT 0 AFTER `destination_concern_id`");
 
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
@@ -243,7 +244,8 @@ class OutwardController extends Controller {
                 LEFT JOIN variants v ON (b.variant_id = v.id OR (SELECT oi.variant_id FROM outward_items oi WHERE oi.outward_id = o.id LIMIT 1) = v.id)
                 LEFT JOIN production_programs p ON b.program_id = p.id
                 LEFT JOIN production_units pu ON o.production_unit_id = pu.id
-                WHERE 1=1";
+                WHERE 1=1
+                  AND COALESCE(o.damage_transfer, 0) = 0";
         $params = [];
 
         // Outward records belong to the source concern; destinations only receive them in Inward.

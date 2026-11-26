@@ -3,7 +3,7 @@
     <div class="d-flex align-items-center gap-1 text-secondary small mb-2">
         <a href="<?= \App\Core\Controller::url('/') ?>" class="text-decoration-none text-muted">Home</a>
         <span class="text-muted">/</span>
-        <span class="text-muted">Warehouse</span>
+        <span class="text-muted">Cash &amp; Cash Flow</span>
         <span class="text-muted">/</span>
         <span class="text-dark fw-semibold">Operational Expenses</span>
     </div>

@@ -5,9 +5,14 @@
             <p class="text-secondary small mb-0">Scan stock labels to quarantine damaged pieces, then track write-off, repair, salvage, or rework.</p>
         </div>
         <?php if ($canAddDamage): ?>
+            <div class="d-flex flex-wrap gap-2">
+            <a href="<?= \App\Core\Controller::url('/m/concern_damage/outward' . ($isSuperAdmin && $selectedCid ? '?concern_id=' . (int)$selectedCid : '')) ?>" class="btn btn-outline-danger shadow-sm fw-semibold">
+                <i class="bi bi-truck me-1"></i> Damage Outward
+            </a>
             <a href="<?= \App\Core\Controller::url('/m/concern_damage/new' . ($isSuperAdmin && $selectedCid ? '?concern_id=' . (int)$selectedCid : '')) ?>" class="btn btn-danger shadow-sm fw-semibold">
                 <i class="bi bi-qr-code-scan me-1"></i> Scan &amp; Log Damage / Rework
             </a>
+            </div>
         <?php endif; ?>
     </div>
 
