@@ -241,6 +241,7 @@ class QrService {
         }
 
         if ($res && $finishedGoodsCode) {
+            $normalizedCode = strtoupper(trim($code));
             $expectedCode = self::formatFinishedGoodsCode(
                 (int)$res['id'],
                 $res['main_category_code'] ?? $res['category_code'] ?? null,
@@ -250,7 +251,8 @@ class QrService {
                 $res['subcategory_name'] ?? null,
                 $res['sub_subcategory_name'] ?? null
             );
-            if (!hash_equals($expectedCode, strtoupper(trim($code)))) {
+            $expectedBrandCode = self::formatBrandVariantCode((int)$res['id']);
+            if (!hash_equals($expectedCode, $normalizedCode) && !hash_equals($expectedBrandCode, $normalizedCode)) {
                 return null;
             }
         }
