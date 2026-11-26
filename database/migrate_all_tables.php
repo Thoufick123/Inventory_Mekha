@@ -43,6 +43,13 @@ if (!in_array('destination_concern_id', $cols)) {
     echo "  . `destination_concern_id` already exists\n";
 }
 
+if (!in_array('damage_transfer', $cols)) {
+    DB::query("ALTER TABLE `outwards` ADD COLUMN `damage_transfer` TINYINT(1) NOT NULL DEFAULT 0 AFTER `destination_concern_id`");
+    echo "  + Added `damage_transfer` to `outwards`\n";
+} else {
+    echo "  . `damage_transfer` already exists\n";
+}
+
 DB::query("ALTER TABLE `outwards` MODIFY COLUMN `customer_id` INT NULL");
 DB::query("ALTER TABLE `outwards` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'prepared'");
 echo "  + Ensured `customer_id` is nullable and flexible `status` on `outwards`\n";

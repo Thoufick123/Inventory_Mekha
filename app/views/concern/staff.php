@@ -123,13 +123,6 @@
                             <td colspan="6" class="text-center py-5 text-muted">
                                 <i class="bi bi-people display-6 d-block mb-2 text-secondary opacity-50"></i>
                                 <?= $activeConcern ? 'No staff members recorded for this concern yet.' : 'Please select a concern above to load staff records.' ?>
-                                <?php if ($activeConcern && \App\Core\Auth::can('staff', 'add')): ?>
-                                    <div class="mt-2">
-                                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddStaff">
-                                            <i class="bi bi-person-plus-fill me-1"></i> Add First Staff Member
-                                        </button>
-                                    </div>
-                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php else: ?>

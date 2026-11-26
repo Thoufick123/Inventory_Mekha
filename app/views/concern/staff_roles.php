@@ -113,27 +113,11 @@ $activeTab = $activeTab ?? 'staff';
     include dirname(__DIR__) . '/partials/export_card.php';
     ?>
 
-    <!-- Mode Navigation Tabs -->
-    <ul class="nav nav-pills mb-4 bg-white p-2 rounded-3 shadow-xs border" id="pills-tab" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $activeTab === 'staff' ? 'active' : '' ?> fw-semibold d-flex align-items-center gap-2" 
-                    id="pills-staff-tab" data-bs-toggle="pill" data-bs-target="#pills-staff" type="button" role="tab">
-                <i class="bi bi-people"></i> Staff Directory & Role Assignment
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $activeTab === 'matrix' ? 'active' : '' ?> fw-semibold d-flex align-items-center gap-2" 
-                    id="pills-matrix-tab" data-bs-toggle="pill" data-bs-target="#pills-matrix" type="button" role="tab">
-                <i class="bi bi-ui-checks-grid"></i> Module CRUD Permissions Matrix
-            </button>
-        </li>
-    </ul>
-
     <div class="tab-content" id="pills-tabContent">
         <!-- ======================================================== -->
         <!-- TAB 1: STAFF DIRECTORY & ASSIGNED ROLES -->
         <!-- ======================================================== -->
-        <div class="tab-pane fade <?= $activeTab === 'staff' ? 'show active' : '' ?>" id="pills-staff" role="tabpanel">
+        <div class="tab-pane fade <?= $activeTab !== 'matrix' ? 'show active' : '' ?>" id="pills-staff" role="tabpanel">
             <!-- Filter & Search Toolbar -->
             <div class="card border-0 shadow-sm rounded-3 mb-4">
                 <div class="card-body p-3">

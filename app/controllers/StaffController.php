@@ -1591,7 +1591,7 @@ class StaffController extends Controller {
             DB::commit();
 
             $this->flash('success', "Role '{$name}' created and permissions provisioned successfully.");
-            $this->redirect('/m/staff/roles?tab=matrix&matrix_role_id=' . $newRoleId);
+            $this->redirect('/m/staff/roles');
         } catch (\Throwable $e) {
             DB::rollBack();
             error_log('StaffController storeRole error: ' . $e->getMessage());

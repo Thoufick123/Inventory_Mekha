@@ -189,9 +189,9 @@
                                 $grouped[$grp][] = $m;
                             }
                             ?>
-                            <?php foreach ($grouped as $groupName => $grpMods): ?>
+                            <?php foreach ($grouped as $groupName => $grpMods): $grpHash = md5($groupName); ?>
                                 <!-- GROUP HEADER -->
-                                <tr class="role-group-header" data-group="<?= htmlspecialchars(strtolower($groupName)) ?>">
+                                <tr class="role-group-header" data-group="<?= htmlspecialchars(strtolower($groupName)) ?>" data-group-hash="<?= $grpHash ?>">
                                     <td colspan="5" class="py-2.5 px-3">
                                         <div class="d-flex align-items-center gap-2">
                                             <i class="bi bi-folder-fill text-primary"></i>
@@ -202,16 +202,18 @@
                                         </div>
                                     </td>
                                     <td colspan="2" class="text-end py-2.5 px-3">
-                                        <div class="form-check form-switch d-inline-flex align-items-center gap-2 mb-0">
-                                            <label class="form-check-label small fw-semibold text-secondary mb-0 cursor-pointer" for="toggle_grp_<?= md5($groupName) ?>" style="font-size: 0.75rem;">Toggle Module</label>
-                                            <input class="form-check-input cursor-pointer" type="checkbox" id="toggle_grp_<?= md5($groupName) ?>" onchange="toggleModuleGroup('<?= md5($groupName) ?>', this.checked)">
+                                        <div class="d-inline-flex align-items-center justify-content-end gap-2">
+                                            <label class="small fw-semibold text-secondary mb-0 text-nowrap" for="toggle_grp_<?= $grpHash ?>" style="font-size: 0.75rem; cursor: pointer;">Toggle Module</label>
+                                            <div class="form-check form-switch m-0 ps-0">
+                                                <input class="form-check-input cursor-pointer group-toggle-switch" type="checkbox" id="toggle_grp_<?= $grpHash ?>" data-group-hash="<?= $grpHash ?>" style="float: none; margin-left: 0 !important;" onchange="toggleModuleGroup('<?= $grpHash ?>', this.checked)">
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
 
                                 <!-- SUBMODULE ROWS -->
                                 <?php foreach ($grpMods as $m): $mid = (int)$m['id']; ?>
-                                    <tr class="module-row group-child-<?= md5($groupName) ?>" data-mid="<?= $mid ?>" data-group="<?= htmlspecialchars(strtolower($groupName)) ?>" data-name="<?= htmlspecialchars(strtolower($m['name'])) ?>" data-code="<?= htmlspecialchars(strtolower($m['code'])) ?>">
+                                    <tr class="module-row group-child-<?= $grpHash ?>" data-mid="<?= $mid ?>" data-group="<?= htmlspecialchars(strtolower($groupName)) ?>" data-group-hash="<?= $grpHash ?>" data-name="<?= htmlspecialchars(strtolower($m['name'])) ?>" data-code="<?= htmlspecialchars(strtolower($m['code'])) ?>">
                                         <td class="ps-4">
                                             <div class="d-flex align-items-center gap-2.5">
                                                 <div style="width: 28px; height: 28px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;" class="text-secondary">
@@ -267,20 +269,30 @@ window.concernModules = <?= json_encode($concernModules ?? []) ?>;
 function filterRoleMatrixByConcern(cid) {
     const concernId = parseInt(cid) || 0;
     const allowed = (window.concernModules && window.concernModules[concernId]) ? window.concernModules[concernId] : [];
-    
-    let visibleCount = 0;
+    const searchTerm = (document.getElementById('search_matrix_input')?.value || '').trim().toLowerCase();
+
     const groupCount = {};
     document.querySelectorAll('.module-row').forEach(row => {
         const mid = parseInt(row.getAttribute('data-mid'));
         const grp = row.getAttribute('data-group');
-        if (!concernId || allowed.includes(mid)) {
+        const isAllowed = (!concernId || allowed.includes(mid));
+        row.setAttribute('data-concern-allowed', isAllowed ? '1' : '0');
+
+        const name = row.getAttribute('data-name') || '';
+        const code = row.getAttribute('data-code') || '';
+        const matchesSearch = (!searchTerm || name.includes(searchTerm) || code.includes(searchTerm));
+
+        if (isAllowed && matchesSearch) {
             row.style.display = '';
-            visibleCount++;
             groupCount[grp] = (groupCount[grp] || 0) + 1;
         } else {
             row.style.display = 'none';
-            // Uncheck hidden modules
-            row.querySelectorAll('.matrix-check').forEach(cb => cb.checked = false);
+            if (!isAllowed) {
+                row.querySelectorAll('.matrix-check').forEach(cb => {
+                    cb.checked = false;
+                    cb.indeterminate = false;
+                });
+            }
         }
     });
 
@@ -289,6 +301,7 @@ function filterRoleMatrixByConcern(cid) {
         header.style.display = (groupCount[grp] && groupCount[grp] > 0) ? '' : 'none';
     });
 
+    syncAllGroupToggles();
     updatePermCounter();
 }
 
@@ -313,42 +326,90 @@ document.addEventListener('DOMContentLoaded', () => {
     if (concernSelect && concernSelect.value) {
         filterRoleMatrixByConcern(concernSelect.value);
     } else {
+        document.querySelectorAll('.module-row').forEach(r => r.setAttribute('data-concern-allowed', '1'));
+        syncAllGroupToggles();
         updatePermCounter();
     }
 });
 
-function onPermChanged(mid) {
+function syncRowCheck(mid) {
     const rowCheck = document.getElementById('row_all_' + mid);
-    if (rowCheck) {
-        const cells = document.querySelectorAll('.perm-cell-' + mid);
-        let allChecked = true;
-        let anyChecked = false;
-        cells.forEach(c => {
-            if (c.checked) anyChecked = true;
-            else allChecked = false;
+    if (!rowCheck) return;
+    const cells = document.querySelectorAll('.perm-cell-' + mid);
+    let allChecked = cells.length > 0;
+    let anyChecked = false;
+    cells.forEach(c => {
+        if (c.checked) anyChecked = true;
+        else allChecked = false;
+    });
+    rowCheck.checked = allChecked;
+    rowCheck.indeterminate = (!allChecked && anyChecked);
+}
+
+function syncGroupToggle(grpHash) {
+    const grpSwitch = document.getElementById('toggle_grp_' + grpHash);
+    if (!grpSwitch) return;
+    const rows = document.querySelectorAll('.group-child-' + grpHash);
+    let totalCells = 0;
+    let checkedCells = 0;
+    rows.forEach(row => {
+        if (row.getAttribute('data-concern-allowed') === '0') return;
+        const cells = row.querySelectorAll('.matrix-check-view, .matrix-check-create, .matrix-check-edit, .matrix-check-delete');
+        cells.forEach(cb => {
+            totalCells++;
+            if (cb.checked) checkedCells++;
         });
-        rowCheck.checked = allChecked;
-        rowCheck.indeterminate = (!allChecked && anyChecked);
-    }
+    });
+    grpSwitch.checked = (totalCells > 0 && checkedCells === totalCells);
+    grpSwitch.indeterminate = (checkedCells > 0 && checkedCells < totalCells);
+}
+
+function syncAllGroupToggles() {
+    document.querySelectorAll('.group-toggle-switch').forEach(sw => {
+        const grpHash = sw.getAttribute('data-group-hash');
+        if (grpHash) syncGroupToggle(grpHash);
+    });
+}
+
+function onPermChanged(mid) {
+    syncRowCheck(mid);
+    const row = document.getElementById('row_all_' + mid)?.closest('tr');
+    const grpHash = row ? row.getAttribute('data-group-hash') : null;
+    if (grpHash) syncGroupToggle(grpHash);
     updatePermCounter();
 }
 
-function toggleRowAll(mid, check) {
+function toggleRowAll(mid, check, skipGroupSync = false) {
     document.querySelectorAll('.perm-cell-' + mid).forEach(cb => {
         cb.checked = check;
     });
     const rowCheck = document.getElementById('row_all_' + mid);
-    if (rowCheck) rowCheck.indeterminate = false;
+    if (rowCheck) {
+        rowCheck.checked = check;
+        rowCheck.indeterminate = false;
+    }
+    if (!skipGroupSync) {
+        const row = rowCheck ? rowCheck.closest('tr') : null;
+        const grpHash = row ? row.getAttribute('data-group-hash') : null;
+        if (grpHash) syncGroupToggle(grpHash);
+    }
     updatePermCounter();
 }
 
 function toggleModuleGroup(grpHash, check) {
     document.querySelectorAll('.group-child-' + grpHash).forEach(row => {
+        if (row.getAttribute('data-concern-allowed') === '0') return;
         const mid = row.getAttribute('data-mid');
         if (mid) {
-            toggleRowAll(mid, check);
+            toggleRowAll(mid, check, true);
         }
     });
+    const grpSwitch = document.getElementById('toggle_grp_' + grpHash);
+    if (grpSwitch) {
+        grpSwitch.checked = check;
+        grpSwitch.indeterminate = false;
+    }
+    updatePermCounter();
 }
 
 function toggleColumnAll(type, check) {
@@ -359,26 +420,23 @@ function toggleColumnAll(type, check) {
     const className = type === 'create' ? 'matrix-check-create' : ('matrix-check-' + type);
     document.querySelectorAll('.' + className).forEach(cb => {
         const tr = cb.closest('tr');
-        if (tr && tr.style.display !== 'none') {
+        if (tr && tr.getAttribute('data-concern-allowed') !== '0' && tr.style.display !== 'none') {
             cb.checked = check;
             const mid = tr.getAttribute('data-mid');
-            if (mid) onPermChanged(mid);
+            if (mid) syncRowCheck(mid);
         }
     });
+    syncAllGroupToggles();
     updatePermCounter();
 }
 
 function setMatrixAll(check) {
-    document.querySelectorAll('.matrix-check-view, .matrix-check-create, .matrix-check-edit, .matrix-check-delete').forEach(cb => {
-        const tr = cb.closest('tr');
-        if (tr && tr.style.display !== 'none') {
-            cb.checked = check;
-        }
+    document.querySelectorAll('.module-row').forEach(row => {
+        if (row.getAttribute('data-concern-allowed') === '0' || row.style.display === 'none') return;
+        const mid = row.getAttribute('data-mid');
+        if (mid) toggleRowAll(mid, check, true);
     });
-    document.querySelectorAll('.matrix-check-row').forEach(cb => {
-        cb.checked = check;
-        cb.indeterminate = false;
-    });
+    syncAllGroupToggles();
     updatePermCounter();
 }
 
@@ -386,7 +444,7 @@ function updatePermCounter() {
     let visibleTotal = 0;
     let checked = 0;
     document.querySelectorAll('.module-row').forEach(row => {
-        if (row.style.display !== 'none') {
+        if (row.getAttribute('data-concern-allowed') !== '0' && row.style.display !== 'none') {
             visibleTotal += 4;
             checked += row.querySelectorAll('.matrix-check-view:checked, .matrix-check-create:checked, .matrix-check-edit:checked, .matrix-check-delete:checked').length;
         }
@@ -399,14 +457,26 @@ function updatePermCounter() {
 
 function filterRoleModules(term) {
     const q = (term || '').trim().toLowerCase();
+    const groupCount = {};
     document.querySelectorAll('.module-row').forEach(row => {
+        if (row.getAttribute('data-concern-allowed') === '0') {
+            row.style.display = 'none';
+            return;
+        }
         const name = row.getAttribute('data-name') || '';
         const code = row.getAttribute('data-code') || '';
+        const grp = row.getAttribute('data-group');
         if (!q || name.includes(q) || code.includes(q)) {
             row.style.display = '';
+            groupCount[grp] = (groupCount[grp] || 0) + 1;
         } else {
             row.style.display = 'none';
         }
     });
+    document.querySelectorAll('.role-group-header').forEach(header => {
+        const grp = header.getAttribute('data-group');
+        header.style.display = (groupCount[grp] && groupCount[grp] > 0) ? '' : 'none';
+    });
+    updatePermCounter();
 }
 </script>
