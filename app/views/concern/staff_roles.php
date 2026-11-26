@@ -339,22 +339,7 @@ $activeTab = $activeTab ?? 'staff';
                     </div>
 
                     <!-- Bulk Actions Toolbar -->
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-2.5 bg-light rounded-3 mb-4 border">
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <span class="small fw-bold text-secondary text-uppercase" style="font-size: 0.72rem;">Quick Toggles:</span>
-                            <button type="button" class="btn btn-xs btn-outline-primary" onclick="setColumnPerm('view', true)">
-                                <i class="bi bi-check-all me-1"></i> Check All View
-                            </button>
-                            <button type="button" class="btn btn-xs btn-outline-success" onclick="setColumnPerm('add', true)">
-                                <i class="bi bi-check-all me-1"></i> Check All Create
-                            </button>
-                            <button type="button" class="btn btn-xs btn-outline-warning" onclick="setColumnPerm('edit', true)">
-                                <i class="bi bi-check-all me-1"></i> Check All Edit
-                            </button>
-                            <button type="button" class="btn btn-xs btn-outline-danger" onclick="setColumnPerm('delete', true)">
-                                <i class="bi bi-check-all me-1"></i> Check All Delete
-                            </button>
-                        </div>
+                    <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 p-2.5 bg-light rounded-3 mb-4 border">
                         <div class="d-flex align-items-center gap-2">
                             <button type="button" class="btn btn-xs btn-primary" onclick="setAllPerms(true)">
                                 <i class="bi bi-check-square me-1"></i> Select All (Full Access)
@@ -374,26 +359,25 @@ $activeTab = $activeTab ?? 'staff';
                             <table class="table table-bordered align-middle mb-0" id="matrixTable">
                                 <thead class="bg-light text-uppercase text-secondary" style="font-size: 0.75rem;">
                                     <tr>
-                                        <th style="width: 32%;">Module / Feature</th>
-                                        <th style="width: 14%;" class="text-center bg-primary bg-opacity-10 text-primary">
+                                        <th style="width: 40%;">Module / Feature</th>
+                                        <th style="width: 15%;" class="text-center bg-primary bg-opacity-10 text-primary">
                                             <i class="bi bi-eye-fill me-1"></i> View
                                         </th>
-                                        <th style="width: 14%;" class="text-center bg-success bg-opacity-10 text-success">
+                                        <th style="width: 15%;" class="text-center bg-success bg-opacity-10 text-success">
                                             <i class="bi bi-plus-circle-fill me-1"></i> Create (Add)
                                         </th>
-                                        <th style="width: 14%;" class="text-center bg-warning bg-opacity-10 text-warning text-dark">
+                                        <th style="width: 15%;" class="text-center bg-warning bg-opacity-10 text-warning text-dark">
                                             <i class="bi bi-pencil-fill me-1"></i> Edit (Update)
                                         </th>
-                                        <th style="width: 14%;" class="text-center bg-danger bg-opacity-10 text-danger">
+                                        <th style="width: 15%;" class="text-center bg-danger bg-opacity-10 text-danger">
                                             <i class="bi bi-trash-fill me-1"></i> Delete
                                         </th>
-                                        <th style="width: 12%;" class="text-center">Row Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($groupedModules as $grpName => $grpMods): ?>
                                         <tr class="table-secondary">
-                                            <td colspan="6" class="fw-bold text-dark py-2 px-3 text-uppercase" style="font-size: 0.78rem; letter-spacing: 0.05em;">
+                                            <td colspan="5" class="fw-bold text-dark py-2 px-3 text-uppercase" style="font-size: 0.78rem; letter-spacing: 0.05em;">
                                                 <i class="bi bi-folder2-open me-1.5 text-primary"></i> <?= htmlspecialchars($grpName) ?> Group
                                             </td>
                                         </tr>
@@ -438,14 +422,6 @@ $activeTab = $activeTab ?? 'staff';
                                                         <input class="form-check-input perm-delete perm-check-<?= $mid ?>" type="checkbox" 
                                                                name="perms[<?= $mid ?>][delete]" value="1" <?= !empty($p['can_delete']) ? 'checked' : '' ?>
                                                                style="width: 20px; height: 20px; cursor: pointer;">
-                                                    </div>
-                                                </td>
-                                                <!-- Row Quick Action -->
-                                                <td class="text-center">
-                                                    <div class="btn-group btn-group-sm">
-                                                        <button type="button" class="btn btn-outline-secondary btn-xs" title="Full Access (All Checked)" onclick="setRowPerm(<?= $mid ?>, true)">All</button>
-                                                        <button type="button" class="btn btn-outline-secondary btn-xs" title="Read Only (View Only)" onclick="setRowReadOnly(<?= $mid ?>)">View</button>
-                                                        <button type="button" class="btn btn-outline-secondary btn-xs" title="Clear Row" onclick="setRowPerm(<?= $mid ?>, false)">None</button>
                                                     </div>
                                                 </td>
                                             </tr>
