@@ -231,21 +231,13 @@
                             <?php foreach ($grouped as $groupName => $grpMods): $grpHash = md5($groupName); ?>
                                 <!-- GROUP HEADER -->
                                 <tr class="role-group-header" data-group="<?= htmlspecialchars(strtolower($groupName)) ?>" data-group-hash="<?= $grpHash ?>">
-                                    <td colspan="5" class="py-2.5 px-3">
+                                    <td colspan="7" class="py-2.5 px-3">
                                         <div class="d-flex align-items-center gap-2">
                                             <i class="bi bi-folder-fill text-primary"></i>
                                             <span class="fw-bold text-dark" style="font-size: 0.85rem;"><?= htmlspecialchars($groupName) ?></span>
                                             <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 font-monospace" style="font-size: 0.7rem;">
                                                 <?= count($grpMods) ?> submodules
                                             </span>
-                                        </div>
-                                    </td>
-                                    <td colspan="2" class="text-end py-2.5 px-3">
-                                        <div class="d-inline-flex align-items-center justify-content-end gap-2">
-                                            <label class="small fw-semibold text-secondary mb-0 text-nowrap" for="toggle_grp_<?= $grpHash ?>" style="font-size: 0.75rem; cursor: pointer;">Toggle Module</label>
-                                            <div class="form-check form-switch m-0 ps-0">
-                                                <input class="form-check-input cursor-pointer group-toggle-switch" type="checkbox" id="toggle_grp_<?= $grpHash ?>" data-group-hash="<?= $grpHash ?>" style="float: none; margin-left: 0 !important;" onchange="toggleModuleGroup('<?= $grpHash ?>', this.checked)">
-                                            </div>
                                         </div>
                                     </td>
                                 </tr>
