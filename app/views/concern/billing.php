@@ -157,8 +157,8 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         </div>
                     </div>
 
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-4">
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-md-6">
                             <label class="form-label text-secondary small fw-bold mb-1">BILLING FOR</label>
                             <div class="d-flex gap-2" id="billing_party_buttons" role="group" aria-label="Billing party type">
                                 <button type="button" class="btn btn-primary flex-fill active" data-billing-party="customer">
@@ -172,6 +172,33 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <option value="customer" selected>Customer</option>
                                 <option value="company">Company / Bulk</option>
                             </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="pos_customer_channel" class="form-label text-secondary small fw-bold mb-1">CUSTOMER CHANNEL / SOURCE *</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-primary"><i class="bi bi-diagram-3"></i></span>
+                                <select name="customer_channel" id="pos_customer_channel" class="form-select fw-semibold">
+                                    <?php
+                                        $channelsList = !empty($customerChannels) ? $customerChannels : [
+                                            ['channel_key' => 'direct', 'channel_name' => 'Direct Customer', 'is_order_channel' => 0],
+                                            ['channel_key' => 'website', 'channel_name' => 'Website Customer', 'is_order_channel' => 1],
+                                            ['channel_key' => 'whatsapp', 'channel_name' => 'WhatsApp Customer', 'is_order_channel' => 1],
+                                        ];
+                                        foreach ($channelsList as $ch):
+                                    ?>
+                                        <option value="<?= htmlspecialchars($ch['channel_key']) ?>"
+                                                data-order-channel="<?= !empty($ch['is_order_channel']) ? '1' : '0' ?>"
+                                                <?= ($ch['channel_key'] === 'direct') ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($ch['channel_name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (\App\Core\Auth::can('billing', 'add')): ?>
+                                <button type="button" class="btn btn-outline-primary fw-semibold text-nowrap" id="btn_add_customer_channel" data-bs-toggle="modal" data-bs-target="#modalAddCustomerChannel">
+                                    <i class="bi bi-plus-lg"></i> New
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
 
@@ -435,6 +462,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     </div>
                 </div>
 
+                <div id="order_channel_payment_fields" style="display: none;">
                 <div class="row g-2 mb-3">
                     <div class="col-12 col-md-4">
                         <div class="payment-detail-card h-100">
@@ -473,6 +501,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                             <input type="number" id="pending_cod_amount" class="form-control text-end fw-bold font-monospace" value="0.00" readonly>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 <!-- Cash Received & Change -->
@@ -1784,8 +1813,36 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    const customerChannelSelect = document.getElementById('pos_customer_channel');
+    const orderChannelPaymentFields = document.getElementById('order_channel_payment_fields');
+
+    function isOrderChannelSelected() {
+        if (!customerChannelSelect) return false;
+        const opt = customerChannelSelect.options[customerChannelSelect.selectedIndex];
+        return Boolean(opt && opt.dataset && opt.dataset.orderChannel === '1');
+    }
+
+    function updateCustomerChannelFields() {
+        const showOrderFields = isOrderChannelSelected();
+        if (orderChannelPaymentFields) {
+            orderChannelPaymentFields.style.display = showOrderFields ? 'block' : 'none';
+        }
+        if (!showOrderFields) {
+            if (shippingAmountInput) shippingAmountInput.value = '0.00';
+            if (paymentStatusSelect) paymentStatusSelect.value = 'paid';
+            if (advancePaidInput) advancePaidInput.value = '0.00';
+            if (pendingCodAmount) pendingCodAmount.value = '0.00';
+        }
+        calculateCartTotals();
+    }
+
+    if (customerChannelSelect) {
+        customerChannelSelect.addEventListener('change', updateCustomerChannelFields);
+    }
+
     // 5. Calculate Cart Totals
     function getPaidAmount(netPayable) {
+        if (!isOrderChannelSelected()) return netPayable;
         const status = paymentStatusSelect ? paymentStatusSelect.value : 'paid';
         if (status === 'unpaid') return 0;
         if (status === 'partial') {
@@ -1795,12 +1852,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updatePaymentStatusDetails(netPayable) {
-        const status = paymentStatusSelect ? paymentStatusSelect.value : 'paid';
-        const needsAdvance = status !== 'paid';
-        if (advancePaymentSection) advancePaymentSection.style.display = needsAdvance ? 'flex' : 'none';
+        const showOrderFields = isOrderChannelSelected();
+        const status = showOrderFields && paymentStatusSelect ? paymentStatusSelect.value : 'paid';
+        if (advancePaymentSection) {
+            advancePaymentSection.style.display = showOrderFields ? 'flex' : 'none';
+        }
         if (advancePaidInput) {
-            advancePaidInput.disabled = status === 'unpaid';
-            if (status === 'unpaid') advancePaidInput.value = '0.00';
+            advancePaidInput.disabled = !showOrderFields || status === 'unpaid' || status === 'paid';
+            if (!showOrderFields || status === 'unpaid') {
+                advancePaidInput.value = '0.00';
+            } else if (status === 'paid') {
+                advancePaidInput.value = netPayable.toFixed(2);
+            }
         }
         const paidAmount = getPaidAmount(netPayable);
         if (pendingCodAmount) pendingCodAmount.value = Math.max(0, netPayable - paidAmount).toFixed(2);
@@ -2069,8 +2132,78 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Initialize Empty State
+    // Initialize Empty State & Customer Channel Visibility
+    updateCustomerChannelFields();
     renderCart();
+
+    const saveNewChannelBtn = document.getElementById('btn_save_customer_channel');
+    if (saveNewChannelBtn && customerChannelSelect) {
+        saveNewChannelBtn.addEventListener('click', function () {
+            const nameInput = document.getElementById('new_channel_name');
+            const orderCheck = document.getElementById('new_channel_is_order');
+            const errBox = document.getElementById('new_channel_error');
+            const channelName = (nameInput ? nameInput.value : '').trim();
+            if (!channelName) {
+                if (errBox) {
+                    errBox.textContent = 'Please enter a customer channel / field name.';
+                    errBox.classList.remove('d-none');
+                }
+                return;
+            }
+            if (errBox) errBox.classList.add('d-none');
+            saveNewChannelBtn.disabled = true;
+
+            const body = new URLSearchParams({
+                csrf_token: '<?= htmlspecialchars($csrfToken ?? \App\Core\Csrf::token(), ENT_QUOTES, 'UTF-8') ?>',
+                channel_name: channelName,
+                is_order_channel: (orderCheck && orderCheck.checked) ? '1' : '0'
+            });
+
+            fetch('<?= \App\Core\Controller::url('/m/billing/channels/add') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: body.toString()
+            })
+            .then(r => r.json())
+            .then(data => {
+                saveNewChannelBtn.disabled = false;
+                if (!data || !data.success || !data.channel) {
+                    if (errBox) {
+                        errBox.textContent = (data && data.message) || 'Could not save customer channel.';
+                        errBox.classList.remove('d-none');
+                    }
+                    return;
+                }
+                const ch = data.channel;
+                let opt = Array.from(customerChannelSelect.options).find(o => o.value === ch.channel_key);
+                if (!opt) {
+                    opt = document.createElement('option');
+                    opt.value = ch.channel_key;
+                    opt.textContent = ch.channel_name;
+                    opt.dataset.orderChannel = ch.is_order_channel ? '1' : '0';
+                    customerChannelSelect.appendChild(opt);
+                }
+                customerChannelSelect.value = ch.channel_key;
+                updateCustomerChannelFields();
+                if (nameInput) nameInput.value = '';
+                if (orderCheck) orderCheck.checked = false;
+                const modalEl = document.getElementById('modalAddCustomerChannel');
+                if (modalEl && window.bootstrap) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                }
+            })
+            .catch(() => {
+                saveNewChannelBtn.disabled = false;
+                if (errBox) {
+                    errBox.textContent = 'Network error while saving customer channel.';
+                    errBox.classList.remove('d-none');
+                }
+            });
+        });
+    }
 });
 
 function printReceiptArea(format) {
@@ -2100,3 +2233,35 @@ function printReceiptArea(format) {
     printWindow.document.close();
 }
 </script>
+
+<!-- Modal: Add New Customer Channel / Field -->
+<div class="modal fade" id="modalAddCustomerChannel" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header py-3 border-bottom">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-plus-circle text-primary me-1"></i> Add Customer Channel / Field</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="new_channel_error" class="alert alert-danger py-2 px-3 small d-none"></div>
+                <div class="mb-3">
+                    <label for="new_channel_name" class="form-label small fw-bold text-secondary">Customer Type / Channel Name <span class="text-danger">*</span></label>
+                    <input type="text" id="new_channel_name" class="form-control" maxlength="80" placeholder="e.g. Instagram Order, Phone Order, Walk-in VIP">
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="new_channel_is_order">
+                    <label class="form-check-label small fw-semibold text-dark" for="new_channel_is_order">
+                        Enable Shipping, Payment Status, Advance Paid &amp; Pending fields
+                    </label>
+                    <div class="form-text small text-muted">Turn on for remote orders (like Website / WhatsApp). Leave off for direct walk-in bills.</div>
+                </div>
+            </div>
+            <div class="modal-footer py-2 border-top">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btn_save_customer_channel">
+                    <i class="bi bi-check-lg me-1"></i> Save Field
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

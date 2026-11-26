@@ -243,6 +243,7 @@ $router->post('/m/billing/store', [SalesController::class, 'storeInvoice'], 'bil
 $router->get('/shop/pos', [SalesController::class, 'billingOverview'], 'billing', 'view');
 $router->post('/shop/pos/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->post('/m/billing/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
+$router->post('/m/billing/channels/add', [SalesController::class, 'storeCustomerChannel'], 'billing', 'add');
 $router->get('/api/pos/variant-lookup', [SalesController::class, 'variantLookup'], 'billing', 'view');
 $router->get('/api/pos/customer-lookup', [SalesController::class, 'customerLookup'], 'billing', 'view');
 $router->get('/api/pos/production-batches', [SalesController::class, 'productionBatchLookup'], 'billing', 'view');
