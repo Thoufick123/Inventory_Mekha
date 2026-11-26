@@ -188,7 +188,6 @@
                         <th>Supplier</th>
                         <th>Fabric / Product</th>
                         <th>Qty</th>
-                        <th>Location</th>
                         <th>Reason</th>
                         <th>Status</th>
                         <th>Date</th>
@@ -197,7 +196,7 @@
                 </thead>
                 <tbody>
                     <?php if (empty($damages)): ?>
-                        <tr><td colspan="11" class="text-center py-4 text-muted">No purchase damage records.</td></tr>
+                        <tr><td colspan="10" class="text-center py-4 text-muted">No purchase damage records.</td></tr>
                     <?php else: ?>
                         <?php foreach ($damages as $damage): ?>
                             <tr>
@@ -220,7 +219,6 @@
                                     <small class="text-muted"><?= htmlspecialchars($damage['item_code'] ?: '—') ?></small>
                                 </td>
                                 <td class="fw-bold text-danger">-<?= number_format((float)$damage['qty'], 2) ?></td>
-                                <td><?= htmlspecialchars($damage['location'] ?: 'Main Store') ?></td>
                                 <td class="small"><?= htmlspecialchars($damage['reason'] ?: 'Unspecified defect') ?></td>
                                 <td><span class="badge bg-warning-subtle text-warning-emphasis"><?= htmlspecialchars($damage['action_taken'] ?: 'Quarantined') ?></span></td>
                                 <td class="small text-muted"><?= date('d M Y', strtotime($damage['created_at'])) ?></td>

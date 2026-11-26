@@ -64,17 +64,15 @@ if ($isEdit && !empty($existingItems)) {
 <?php if ($isProductAddingForm): ?>
 <style>
 .product-adding-bulk-checkbox {
-    -webkit-appearance: checkbox !important;
-    appearance: auto !important;
-    display: inline-block !important;
-    position: static !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    width: 1.15rem !important;
-    height: 1.15rem !important;
-    margin: 0 !important;
-    accent-color: #0d6efd;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+    border: 2px solid #64748b;
+    flex-shrink: 0;
+}
+.product-adding-bulk-checkbox:checked {
+    border-color: #0d6efd;
 }
 .fg-variant-matrix-scroll {
     max-width: 100%;
@@ -380,26 +378,23 @@ if ($isEdit && !empty($existingItems)) {
                                         && round($stockedQty, 2) < round((float)$purchaseQty, 2);
                                     ?>
                                     <tr>
-                                        <td class="text-center">
-                                            <label class="d-inline-flex align-items-center justify-content-center p-2 mb-0" style="cursor: pointer;" title="Click to select or clear this line">
-                                                <input
-                                                    class="form-check-input m-0 product-adding-bulk-checkbox"
-                                                    style="width: 1.1rem; height: 1.1rem;"
-                                                    type="checkbox"
-                                                    name="item_ids[]"
-                                                    value="<?= $savedItemId ?>"
-                                                    data-labels-complete="<?= $savedItem['labels_complete'] ? '1' : '0' ?>"
-                                                    data-in-stock="<?= $isSavedItemInStock ? '1' : '0' ?>"
-                                                    data-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
-                                                    data-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?>"
-                                                    data-default-label-count="<?= $defaultLabelQty ?>"
-                                                    data-generated-label-count="<?= $generatedLabelQty ?>"
-                                                    data-required-label-count="<?= $requiredLabelQty ?>"
-                                                    data-purchase-qty="<?= htmlspecialchars((string)$purchaseQty) ?>"
-                                                    data-stock-qty="<?= htmlspecialchars((string)$stockedQty) ?>"
-                                                    <?= $isSavedItemInStock ? '' : 'checked' ?>
-                                                    aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk actions">
-                                            </label>
+                                        <td class="text-center align-middle">
+                                            <input
+                                                class="form-check-input m-0 product-adding-bulk-checkbox"
+                                                type="checkbox"
+                                                name="item_ids[]"
+                                                value="<?= $savedItemId ?>"
+                                                data-labels-complete="<?= $savedItem['labels_complete'] ? '1' : '0' ?>"
+                                                data-in-stock="<?= $isSavedItemInStock ? '1' : '0' ?>"
+                                                data-item-name="<?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?>"
+                                                data-item-section="<?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?>"
+                                                data-default-label-count="<?= $defaultLabelQty ?>"
+                                                data-generated-label-count="<?= $generatedLabelQty ?>"
+                                                data-required-label-count="<?= $requiredLabelQty ?>"
+                                                data-purchase-qty="<?= htmlspecialchars((string)$purchaseQty) ?>"
+                                                data-stock-qty="<?= htmlspecialchars((string)$stockedQty) ?>"
+                                                <?= $isSavedItemInStock ? '' : 'checked' ?>
+                                                aria-label="Select <?= htmlspecialchars($savedItem['item_name']) ?> for bulk actions">
                                         </td>
                                         <td>
                                             <div class="fw-semibold"><?= htmlspecialchars($savedItem['item_name'] ?: 'Purchase item') ?></div>
@@ -2713,7 +2708,7 @@ function buildProductAddingVariantAttributeCell(type, cardId, rowIndex) {
     const subSubcategoryId = row?.querySelector('.fg-variant-sub-subcategory')?.value || '';
     const values = getProductAddingAttributeValues(type, categoryId, subcategoryId, subSubcategoryId);
     const name = `finished_goods[${cardId}][variants][${rowIndex}][${type}]`;
-    const required = type !== '' && type !== 'weight';
+    const required = false;
     const label = type.charAt(0).toUpperCase() + type.slice(1);
     if (values.length === 0) {
         return `<td><div class="fg-variant-attribute-control">
@@ -3129,7 +3124,7 @@ function buildProductAddingFields(id) {
                             <th>CATEGORY *</th>
                             <th>SUBCATEGORY</th>
                             <th>SUB-SUBCATEGORY</th>
-                            ${getProductAddingMatrixAttributeTypes().map(type => `<th data-attribute-type="${escapeHtml(type)}">${escapeHtml(type.toUpperCase())} *</th>`).join('')}
+                            ${getProductAddingMatrixAttributeTypes().map(type => `<th data-attribute-type="${escapeHtml(type)}">${escapeHtml(type.toUpperCase())}</th>`).join('')}
                             <th>QTY *</th>
                             <th>HSN CODE *</th>
                             <th>GST %</th>
@@ -5281,7 +5276,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllLinesButton = document.getElementById('productAddingSelectAllLines');
     if (bulkLabelForm && bulkStockButton && bulkStockForm) {
         const updateBulkStockButton = function () {
-            const selectedItems = Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]:checked'));
+            const selectedItems = Array.from(bulkLabelForm.querySelectorAll('input[type="checkbox"][name="item_ids[]"]:checked'));
             const eligibleItems = selectedItems.filter(function (input) {
                 return input.dataset.labelsComplete === '1' && input.dataset.inStock !== '1';
             });
@@ -5292,7 +5287,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         if (selectAllLinesButton) {
             selectAllLinesButton.addEventListener('click', function () {
-                bulkLabelForm.querySelectorAll('input[name="item_ids[]"]').forEach(function (input) {
+                bulkLabelForm.querySelectorAll('input[type="checkbox"][name="item_ids[]"]').forEach(function (input) {
                     if (input.dataset.inStock !== '1') {
                         input.checked = true;
                     }
@@ -5306,7 +5301,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         bulkLabelForm.addEventListener('change', function (event) {
-            if (event.target.matches('input[name="item_ids[]"]')) {
+            if (event.target.matches('input[type="checkbox"][name="item_ids[]"]')) {
                 updateBulkStockButton();
                 const feedback = document.getElementById('productAddingBulkLabelFeedback');
                 if (feedback) {
@@ -5319,7 +5314,7 @@ document.addEventListener('DOMContentLoaded', function() {
             bulkStockForm.querySelectorAll('input[name="item_ids[]"]').forEach(function (input) {
                 input.remove();
             });
-            const selectedItems = Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]:checked'));
+            const selectedItems = Array.from(bulkLabelForm.querySelectorAll('input[type="checkbox"][name="item_ids[]"]:checked'));
             const eligibleItems = selectedItems.filter(function (input) {
                 return input.dataset.labelsComplete === '1' && input.dataset.inStock !== '1';
             });
@@ -5661,14 +5656,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const countModalElement = document.getElementById('productAddingLabelCountModal');
     const countRows = document.getElementById('productAddingLabelCountRows');
     const countError = document.getElementById('productAddingLabelCountError');
-    const countModal = countModalElement && window.bootstrap
-        ? new bootstrap.Modal(countModalElement)
-        : null;
+    const getCountModal = function () {
+        if (!countModalElement || !window.bootstrap) return null;
+        return bootstrap.Modal.getOrCreateInstance(countModalElement);
+    };
     const previewFrame = document.getElementById('productAddingLabelPreviewFrame');
     const previewPanel = document.getElementById('productAddingLabelPreviewPanel');
     const bulkLabelFeedback = document.getElementById('productAddingBulkLabelFeedback');
     const bulkStockButton = document.getElementById('productAddingBulkStockButton');
-    if (!bulkLabelForm || !countModal || !countRows || !previewFrame || !previewPanel) return;
+    if (!bulkLabelForm || !countModalElement || !countRows || !previewFrame || !previewPanel) return;
 
     let pendingLabelForm = null;
 
@@ -5711,11 +5707,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     </tbody>
                 </table>
             </div>`;
-        countModal.show();
+        const modal = getCountModal();
+        if (modal) modal.show();
     };
 
     const selectedLineInputs = function () {
-        return Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]:checked'));
+        return Array.from(bulkLabelForm.querySelectorAll('input[type="checkbox"][name="item_ids[]"]:checked'));
     };
 
     const itemDataFromCheckbox = function (input) {
@@ -5804,44 +5801,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 pendingLabelForm.appendChild(hiddenCount);
             });
 
-            countModal.hide();
+            const modal = getCountModal();
+            if (modal) modal.hide();
             pendingLabelForm.submit();
             pendingLabelForm = null;
         });
     }
 
-    previewFrame.addEventListener('load', function () {
-        const previewDocument = previewFrame.contentDocument;
-        if (!previewDocument || !previewDocument.getElementById('labelGrid')) return;
-        previewPanel.classList.remove('d-none');
-        const contentHeight = Math.max(
-            previewDocument.documentElement.scrollHeight,
-            previewDocument.body ? previewDocument.body.scrollHeight : 0
-        );
-        previewFrame.style.height = `${Math.max(640, contentHeight + 8)}px`;
-        previewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    const applyGeneratedLabelCounts = function (event) {
+        const itemCounts = event?.data?.itemCounts;
+        if (!itemCounts || typeof itemCounts !== 'object') return;
 
-    window.addEventListener('message', function (event) {
-        if (event.origin !== window.location.origin || event.source !== previewFrame.contentWindow || !event.data) return;
-        if (event.data.type === 'product-adding-label-error') {
-            if (bulkLabelFeedback) {
-                bulkLabelFeedback.textContent = event.data.message || 'Could not generate labels.';
-                bulkLabelFeedback.classList.remove('d-none');
-            }
-            previewPanel.classList.remove('d-none');
-            previewFrame.style.height = '140px';
-            previewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            return;
-        }
-        if (
-            event.data.type !== 'product-adding-labels-generated' ||
-            !event.data.itemCounts ||
-            typeof event.data.itemCounts !== 'object'
-        ) return;
-
-        Object.keys(event.data.itemCounts).forEach(function (itemId) {
-            const checkbox = Array.from(bulkLabelForm.querySelectorAll('input[name="item_ids[]"]'))
+        Object.keys(itemCounts).forEach(function (itemId) {
+            const checkbox = Array.from(bulkLabelForm.querySelectorAll('input[type="checkbox"][name="item_ids[]"]'))
                 .find(function (input) { return input.value === itemId; });
             if (!checkbox) return;
 
@@ -5884,6 +5856,43 @@ document.addEventListener('DOMContentLoaded', function () {
                 ? `Add ${eligibleItems.length} label-complete selected line(s) to stock`
                 : 'Select pending lines with complete label coverage';
         }
+    };
+
+    previewFrame.addEventListener('load', function () {
+        const previewDocument = previewFrame.contentDocument;
+        if (!previewDocument || !previewDocument.getElementById('labelGrid')) return;
+        previewPanel.classList.remove('d-none');
+        if (previewFrame.contentWindow && previewFrame.contentWindow.__productAddingGeneratedItemCounts) {
+            applyGeneratedLabelCounts({ data: { itemCounts: previewFrame.contentWindow.__productAddingGeneratedItemCounts } });
+        }
+        const contentHeight = Math.max(
+            previewDocument.documentElement.scrollHeight,
+            previewDocument.body ? previewDocument.body.scrollHeight : 0
+        );
+        previewFrame.style.height = `${Math.max(640, contentHeight + 8)}px`;
+        previewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    window.addEventListener('message', function (event) {
+        if (event.origin !== window.location.origin || event.source !== previewFrame.contentWindow || !event.data) return;
+        if (event.data.type === 'product-adding-label-error') {
+            if (bulkLabelFeedback) {
+                bulkLabelFeedback.textContent = event.data.message || 'Could not generate labels.';
+                bulkLabelFeedback.classList.remove('d-none');
+            }
+            previewPanel.classList.remove('d-none');
+            previewFrame.style.height = '140px';
+            previewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+        if (
+            event.data.type !== 'product-adding-labels-generated' ||
+            !event.data.itemCounts ||
+            typeof event.data.itemCounts !== 'object'
+        ) return;
+
+        previewPanel.classList.remove('d-none');
+        applyGeneratedLabelCounts(event);
     });
 });
 </script>

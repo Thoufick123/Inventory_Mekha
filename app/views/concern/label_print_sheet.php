@@ -358,7 +358,9 @@ if (!empty($multiLabels)) {
                 : ($lbl['tag_code'] ?? ($lbl['item_code'] ?? 'Product Code'));
             $displayCode = $isProduction && !empty($lbl['variant_id'])
                 ? \App\Services\QrService::formatBrandVariantCode((int)$lbl['variant_id'])
-                : (!empty($lbl['variant_id']) ? (string)(int)$lbl['variant_id'] : $tCode);
+                : ($isPurchaseFinishedGoodsLabel
+                    ? $tCode
+                    : (!empty($lbl['variant_id']) ? (string)(int)$lbl['variant_id'] : $tCode));
             $iQr       = $isProduction && !empty($lbl['variant_id'])
                 ? $displayCode
                 : ($isLabelFinishedGoods && !empty($lbl['variant_id'])
@@ -395,6 +397,10 @@ if (!empty($multiLabels)) {
                             <div class="label-detail-row">
                                 <span class="detail-label"><?= htmlspecialchars($l1Name) ?>:</span>
                                 <span class="detail-val"><?= htmlspecialchars($l1Val) ?></span>
+                            </div>
+                            <div class="label-detail-row">
+                                <span class="detail-label">Design:</span>
+                                <span class="detail-val text-uppercase"><?= htmlspecialchars($dVal) ?></span>
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label"><?= htmlspecialchars($l2Name) ?>:</span>
@@ -596,6 +602,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     <?php if (($labelType ?? '') === 'product_adding'): ?>
     const generatedItemCounts = <?= json_encode($generatedItemCounts ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_FORCE_OBJECT) ?>;
+    window.__productAddingGeneratedItemCounts = generatedItemCounts;
     if (window.parent !== window) {
         window.parent.postMessage({
             type: 'product-adding-labels-generated',

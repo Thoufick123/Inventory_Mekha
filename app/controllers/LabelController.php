@@ -637,12 +637,15 @@ class LabelController extends Controller {
             "SELECT pbi.*, pb.bill_no, pb.bill_date, s.name AS supplier_name,
                     fg_concern.name AS item_concern_name,
                     v.product_code, v.name AS variant_name, v.size AS variant_size,
-                    v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes
+                    v.price AS variant_price, v.mrp AS variant_mrp, v.attributes AS variant_attributes,
+                    ssc.name AS sub_subcategory_name
              FROM purchase_bill_items pbi
              JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
              LEFT JOIN suppliers s ON s.id = pb.supplier_id
              LEFT JOIN concerns fg_concern ON fg_concern.id = pbi.concern_id
              LEFT JOIN variants v ON v.id = pbi.variant_id
+             LEFT JOIN catalogs cat ON cat.id = COALESCE(v.catalog_id, pbi.catalog_id)
+             LEFT JOIN sub_subcategories ssc ON ssc.id = cat.sub_sub_category_id
              WHERE pbi.purchase_bill_id = ? AND pbi.concern_id = ?
                AND pbi.id IN ({$placeholders})
              ORDER BY pbi.id ASC",
@@ -707,23 +710,31 @@ class LabelController extends Controller {
                 $labelColor = trim((string)($attributes['color'] ?? ''))
                     ?: trim((string)($item['color'] ?? ''))
                     ?: 'STANDARD';
-                $price = (float)($item['variant_mrp'] ?: ($item['mrp'] ?: $item['unit_price']));
+                $labelDesign = trim((string)($attributes['design'] ?? ''))
+                    ?: trim((string)($item['sub_subcategory_name'] ?? ''))
+                    ?: trim((string)($item['pattern'] ?? ''))
+                    ?: trim((string)($item['specification'] ?? ''))
+                    ?: 'STANDARD';
+                $price = (float)($item['variant_price'] ?: ($item['selling_price'] ?: ($item['variant_mrp'] ?: ($item['mrp'] ?: $item['unit_price']))));
+                $productCodeBadge = trim((string)($item['product_code'] ?? '')) ?: (string)$variantId;
                 $variantAttributes = self::buildLabelVariantAttributes($attributes, $variantSize);
                 $lineLabel = [
                     'concern_name' => $concernName,
                     'ref_no' => $bill['bill_no'],
                     'header_title' => $variantName,
-                    'label_1_name' => 'Product',
+                    'label_1_name' => 'Product Name',
                     'label_1_val' => $variantName,
                     'label_2_name' => 'Color',
                     'label_2_val' => $labelColor,
+                    'design' => $labelDesign,
                     'variant_id' => $variantId,
+                    'product_code' => $productCodeBadge,
                     'variant_size' => $variantSize,
                     'variant_attributes' => $variantAttributes,
                     'label_4_name' => 'Price',
                     'label_4_val' => '₹' . number_format($price, 2),
                     'price' => $price,
-                    'price_mrp' => $price,
+                    'price_mrp' => (float)($item['variant_mrp'] ?: ($item['mrp'] ?: $price)),
                     'tag_code' => $tagCode,
                     'qr_payload' => $tagCode,
                     'section_title' => 'PURCHASE FINISHED GOODS',

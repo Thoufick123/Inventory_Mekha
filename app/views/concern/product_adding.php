@@ -131,13 +131,8 @@
                 <h6 class="mb-0 fw-bold"><i class="bi bi-rulers text-primary me-2"></i>Size Variants and Opening Stock</h6>
             </div>
             <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label fw-semibold">Stock Location</label>
-                        <input type="text" name="location" class="form-control" value="Main Store">
-                    </div>
-                </div>
-                <div class="table-responsive mt-3">
+                <input type="hidden" name="location" value="Main Store">
+                <div class="table-responsive">
                     <table class="table align-middle">
                         <thead>
                             <tr>

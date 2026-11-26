@@ -2,17 +2,12 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h4 class="fw-bold mb-1 text-dark">Live Inventory Stocks</h4>
-            <p class="text-secondary small mb-0">Consolidated live balance by warehouse location, backed by append-only ledger audit trail.</p>
+            <p class="text-secondary small mb-0">Consolidated live inventory balance, backed by append-only ledger audit trail.</p>
         </div>
         <div class="d-flex gap-2">
             <a href="<?= \App\Core\Controller::url('/m/stock_ledger') ?>" class="btn btn-outline-secondary">
                 <i class="bi bi-clock-history me-1"></i> Stock Ledger
             </a>
-            <?php if (\App\Core\Auth::can('inward', 'add')): ?>
-            <a href="<?= \App\Core\Controller::url('/m/inward') ?>" class="btn btn-primary">
-                <i class="bi bi-box-arrow-in-down me-1"></i> Inward Entry
-            </a>
-            <?php endif; ?>
         </div>
     </div>
 
@@ -123,7 +118,7 @@
     ?>
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-box-seam me-2 text-primary"></i> Current Stock by Location</h6>
+            <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-box-seam me-2 text-primary"></i> Current Stock</h6>
             <span class="badge bg-light text-dark border"><?= count($stocks) ?> Stock Lines</span>
         </div>
         <div class="px-3 pt-3 border-bottom">
@@ -896,10 +891,6 @@
                             <span class="badge bg-primary text-white p-1 rounded" style="font-size:0.75rem;"><i class="bi bi-check-lg"></i></span>
                             <strong class="text-uppercase small fw-bold text-dark" id="quickQrConcern" style="letter-spacing:0.03em;">GRM Inventory</strong>
                         </div>
-                        <div class="d-flex align-items-center gap-1">
-                            <span class="badge bg-warning text-dark font-monospace fw-bold" id="quickQrSizeBadge">FREE</span>
-                            <span class="badge bg-light text-secondary border font-monospace" id="quickQrSkuBadge">SKU</span>
-                        </div>
                     </div>
                     <div class="d-flex align-items-center gap-3">
                         <div class="bg-white p-1 rounded border d-flex align-items-center justify-content-center flex-shrink-0" style="width: 104px; height: 104px;">
@@ -917,13 +908,10 @@
                     </div>
                 </div>
 
-                <!-- Action Buttons: Copy Code, Download QR, Print Labels -->
+                <!-- Action Buttons: Copy Code, Print Labels -->
                 <div class="d-flex flex-wrap gap-2 justify-content-end">
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="quickQrCopyBtn">
                         <i class="bi bi-clipboard me-1"></i> Copy Code
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-dark" id="quickQrDownloadBtn">
-                        <i class="bi bi-download me-1"></i> Download QR
                     </button>
                     <a href="#" id="quickQrPrintBtn" target="_blank" class="btn btn-sm btn-primary">
                         <i class="bi bi-printer me-1"></i> Print Labels
@@ -959,9 +947,8 @@
                     <input type="hidden" name="location" id="stockEditLocation">
 
                     <div class="alert alert-info py-2 px-3 small mb-3 d-flex align-items-center">
-                        <i class="bi bi-geo-alt-fill me-2 fs-5"></i>
+                        <i class="bi bi-info-circle-fill me-2 fs-5"></i>
                         <div>
-                            Editing stock line at location: <strong id="stockEditLocationBadge">Main Store</strong>. 
                             Any quantity change will be automatically logged to the stock ledger audit trail.
                         </div>
                     </div>

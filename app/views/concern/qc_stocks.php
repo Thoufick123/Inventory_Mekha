@@ -251,10 +251,7 @@
                         <input type="number" step="1" name="rejected_qty" id="inputRejectedQty" class="form-control form-control-sm" value="0" oninput="autoCalculatePassQty()">
                     </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Location / Bay</label>
-                    <input type="text" name="location" class="form-control form-control-sm" value="Main Store">
-                </div>
+                <input type="hidden" name="location" value="Main Store">
                 <div class="mb-2">
                     <label class="form-label small fw-semibold">Quality & Defect Observations</label>
                     <textarea name="defect_notes" class="form-control form-control-sm" rows="2" placeholder="Stitching neatness, measurements verified"></textarea>
