@@ -1199,11 +1199,12 @@ class SalesController extends Controller {
         $variantId = null;
         $finishedGoodsCode = QrService::parseFinishedGoodsCode($query);
         if ($finishedGoodsCode) {
-            if (!$cid || !QrService::lookupVariant($query, (int)$cid)) {
+            $lookedUpVariant = $cid ? QrService::lookupVariant($query, (int)$cid) : null;
+            if (!$lookedUpVariant) {
                 $this->renderJson(['success' => false, 'message' => "Item '{$query}' not found."], 404);
                 return;
             }
-            $variantId = (int)$finishedGoodsCode['variant_id'];
+            $variantId = (int)$lookedUpVariant['id'];
         }
 
         // Check if QR format like C1-S1-V5
