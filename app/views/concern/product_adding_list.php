@@ -191,6 +191,9 @@
                                     <div class="small text-muted mt-1"><?= (int)$bill['stocked_count'] ?> / <?= (int)$bill['item_count'] ?> stocked</div>
                                 </td>
                                 <td class="text-end">
+                                    <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-info text-nowrap" title="View Details">
+                                        <i class="bi bi-eye me-1"></i>View
+                                    </a>
                                     <?php if (($bill['source_module'] ?? '') === 'purchase_billing'): ?>
                                         <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'edit')): ?>
                                             <a href="<?= \App\Core\Controller::url('/m/product_adding/edit_purchase_bill?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap">

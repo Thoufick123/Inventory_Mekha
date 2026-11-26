@@ -424,7 +424,7 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
 <!-- MODAL: ADD TIER-1 CATEGORY -->
 <div class="modal fade" id="modalAddCategory" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <form action="<?= \App\Core\Controller::url($hierarchyPrefix . '/quick-category') ?>" method="POST" class="modal-content border-0 shadow">
+        <form action="<?= \App\Core\Controller::url($hierarchyPrefix . '/quick-category') ?>" method="POST" class="modal-content border-0 shadow hierarchy-quick-create-form">
             <input type="hidden" name="csrf_token" value="<?= $csrfVal ?>">
             <input type="hidden" name="tier" value="category">
             <input type="hidden" name="return_url" value="<?= htmlspecialchars($hierarchyReturn) ?>">
@@ -433,6 +433,7 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
+                <div class="hierarchy-form-feedback alert py-2 px-3 mb-3 small d-none" role="alert" aria-live="polite"></div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Category Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control" placeholder="e.g. Menswear, Kids, Maternity" required>
@@ -463,7 +464,7 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
 <!-- MODAL: ADD TIER-2 SUBCATEGORY -->
 <div class="modal fade" id="modalAddSubcategory" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <form action="<?= \App\Core\Controller::url($hierarchyPrefix . '/quick-category') ?>" method="POST" class="modal-content border-0 shadow">
+        <form action="<?= \App\Core\Controller::url($hierarchyPrefix . '/quick-category') ?>" method="POST" class="modal-content border-0 shadow hierarchy-quick-create-form">
             <input type="hidden" name="csrf_token" value="<?= $csrfVal ?>">
             <input type="hidden" name="tier" value="subcategory">
             <input type="hidden" name="return_url" value="<?= htmlspecialchars($hierarchyReturn) ?>">
@@ -472,6 +473,7 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
+                <div class="hierarchy-form-feedback alert py-2 px-3 mb-3 small d-none" role="alert" aria-live="polite"></div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Parent Main Category <span class="text-danger">*</span></label>
                     <select name="category_id" class="form-select" required>
@@ -501,7 +503,7 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
 <!-- MODAL: ADD TIER-3 SUB-SUBCATEGORY -->
 <div class="modal fade" id="modalAddSubSubcategory" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <form action="<?= \App\Core\Controller::url($hierarchyPrefix . '/quick-category') ?>" method="POST" class="modal-content border-0 shadow">
+        <form action="<?= \App\Core\Controller::url($hierarchyPrefix . '/quick-category') ?>" method="POST" class="modal-content border-0 shadow hierarchy-quick-create-form">
             <input type="hidden" name="csrf_token" value="<?= $csrfVal ?>">
             <input type="hidden" name="tier" value="subsubcategory">
             <input type="hidden" name="return_url" value="<?= htmlspecialchars($hierarchyReturn) ?>">
@@ -510,6 +512,7 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
+                <div class="hierarchy-form-feedback alert py-2 px-3 mb-3 small d-none" role="alert" aria-live="polite"></div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Parent Main Category <span class="text-danger">*</span></label>
                     <select name="category_id" id="modalTier3CatSelect" class="form-select" required onchange="loadSubcatsForModal(this.value)">
@@ -839,6 +842,64 @@ function loadSubcatsForModal(catId) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.hierarchy-quick-create-form').forEach(function(form) {
+        const feedback = form.querySelector('.hierarchy-form-feedback');
+        const submitButton = form.querySelector('button[type="submit"]');
+
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            if (!feedback || !submitButton || submitButton.disabled) return;
+
+            feedback.classList.add('d-none');
+            feedback.textContent = '';
+            submitButton.disabled = true;
+
+            try {
+                const formData = new FormData(form);
+                formData.append('ajax', '1');
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Unable to save this catalog entry.');
+                }
+
+                feedback.classList.remove('d-none', 'alert-danger');
+                feedback.classList.add('alert-success');
+                feedback.textContent = result.message || 'Catalog entry saved successfully.';
+
+                const returnUrl = form.querySelector('[name="return_url"]');
+                window.setTimeout(function() {
+                    window.location.assign(returnUrl ? returnUrl.value : window.location.href);
+                }, 700);
+            } catch (error) {
+                feedback.classList.remove('d-none', 'alert-success');
+                feedback.classList.add('alert-danger');
+                feedback.textContent = error instanceof Error
+                    ? error.message
+                    : 'Unable to save this catalog entry. Please try again.';
+                submitButton.disabled = false;
+            }
+        });
+
+        form.querySelectorAll('input, select, textarea').forEach(function(field) {
+            field.addEventListener('input', function() {
+                feedback.classList.add('d-none');
+                feedback.textContent = '';
+            });
+            field.addEventListener('change', function() {
+                feedback.classList.add('d-none');
+                feedback.textContent = '';
+            });
+        });
+    });
+
     const hsnSearch = document.getElementById('catalogHsnSearch');
     const hsnRows = Array.from(document.querySelectorAll('.catalog-hsn-row'));
     const hsnNoResults = document.getElementById('catalogHsnNoResults');
