@@ -29,6 +29,16 @@
         <?php endif; ?>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Production Outward & Dispatch (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download outward manifests, vehicle dispatch numbers, customer shipments & delivery statuses';
+    $exportUrl = \App\Core\Controller::url('/production/outward/export');
+    $currentModule = 'outward';
+    $prefix = 'out_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <!-- Main Card -->
     <div class="card border-0 shadow-sm rounded-3">
         <!-- Concern filter and search -->

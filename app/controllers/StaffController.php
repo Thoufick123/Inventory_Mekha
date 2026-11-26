@@ -878,6 +878,85 @@ class StaffController extends Controller {
         }
     }
 
+    public function exportRoles(): void {
+        ModuleGuard::enforce('staff', 'view');
+        $selectedCid = !empty($_GET['concern_id']) ? (int)$_GET['concern_id'] : Auth::concernId();
+        $format = strtolower($_GET['format'] ?? 'excel');
+        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $dateScope = ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
+
+        $sql = "SELECT s.*, c.name AS concern_name, c.code AS concern_code,
+                       u.email AS user_email, u.role_id, u.status AS user_status,
+                       r.name AS role_name
+                FROM staff s
+                JOIN concerns c ON s.concern_id = c.id
+                LEFT JOIN users u ON s.user_id = u.id
+                LEFT JOIN roles r ON u.role_id = r.id
+                WHERE 1=1";
+        $params = [];
+        if ($selectedCid) {
+            $sql .= " AND s.concern_id = ?";
+            $params[] = $selectedCid;
+        }
+        if ($dateScope['start_date'] && $dateScope['end_date']) {
+            $sql .= " AND DATE(s.created_at) BETWEEN ? AND ?";
+            $params[] = $dateScope['start_date'];
+            $params[] = $dateScope['end_date'];
+        }
+        $sql .= " ORDER BY s.id DESC";
+        $staffMembers = DB::fetchAll($sql, $params);
+
+        // Fetch authorized concerns per user
+        $userConcernsMap = [];
+        $userConcerns = DB::fetchAll("SELECT uc.user_id, c.name, c.code FROM user_concerns uc JOIN concerns c ON uc.concern_id = c.id WHERE c.status = 'active'");
+        foreach ($userConcerns as $uc) {
+            $userConcernsMap[$uc['user_id']][] = "{$uc['name']} ({$uc['code']})";
+        }
+
+        $headers = [
+            'Staff Code', 'Name', 'Home Concern', 'Designation / Dept', 'Login Account',
+            'System Role', 'Authorized Concerns', 'Status'
+        ];
+
+        $rows = [];
+        foreach ($staffMembers as $stf) {
+            $uid = $stf['user_id'] ?? null;
+            $authConcerns = ($uid && !empty($userConcernsMap[$uid])) ? implode(', ', $userConcernsMap[$uid]) : ($stf['concern_name'] ?? '-');
+            $rows[] = [
+                $stf['staff_code'],
+                $stf['name'],
+                $stf['concern_name'] ?? 'Consolidated',
+                $stf['designation'] ?: ($stf['department'] ?: 'General'),
+                $stf['user_email'] ?: ($stf['email'] ?: 'No Login'),
+                $stf['role_name'] ?: 'None (Staff Only)',
+                $authConcerns,
+                strtoupper($stf['status'] ?? 'ACTIVE')
+            ];
+        }
+
+        $totals = ['Total Records: ' . count($staffMembers), '', '', '', '', '', '', ''];
+        $metadata = [
+            'Report Title' => 'Staff Role & Module Access Assignment Register',
+            'Scope / Period' => $dateScope['label'] ?? 'All Time',
+            'Generated At' => date('d M Y, h:i A'),
+            'Total Staff'  => count($staffMembers),
+            'Concern'      => $selectedCid ? ($staffMembers[0]['concern_name'] ?? 'Concern #' . $selectedCid) : 'All Concerns'
+        ];
+
+        $filename = 'staff_roles_permissions_' . date('Ymd_His');
+
+        if ($format === 'pdf') {
+            ExportService::renderPdfView('Staff Role & Access Assignments', $metadata, $headers, $rows, $totals);
+        } elseif ($format === 'csv') {
+            ExportService::downloadCsv($filename, $headers, $rows, $totals);
+        } else {
+            ExportService::downloadExcel($filename, 'Staff Role & Access Assignments', $metadata, $headers, $rows, $totals);
+        }
+    }
+
     public function roles(): void {
         ModuleGuard::enforce('staff', 'view');
         $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
@@ -1002,11 +1081,12 @@ class StaffController extends Controller {
                 if (!$email) {
                     $email = $staff['email'] ?: ('staff_' . strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $staff['staff_code'])) . '@invento.com');
                 }
-                $existingUser = DB::fetch("SELECT id FROM users WHERE email = ?", [$email]);
+                $existingUser = DB::fetch("SELECT id, role_id FROM users WHERE email = ?", [$email]);
                 if ($existingUser) {
                     $userId = (int)$existingUser['id'];
+                    $effectiveRoleId = $roleId > 0 ? $roleId : ((int)($existingUser['role_id'] ?? 0) ?: 3);
                     $updateSql = "UPDATE users SET role_id = ?, status = 'active'";
-                    $uParams = [$roleId ?: 3];
+                    $uParams = [$effectiveRoleId];
                     if ($password) {
                         $updateSql .= ", password_hash = ?";
                         $uParams[] = password_hash($password, PASSWORD_BCRYPT);
@@ -1027,19 +1107,24 @@ class StaffController extends Controller {
 
                 DB::query("UPDATE staff SET user_id = ?, email = ? WHERE id = ?", [$userId, $email, $staffId]);
             } else {
-                $updateSql = "UPDATE users SET role_id = ?";
-                $uParams = [$roleId];
+                $setClauses = [];
+                $uParams = [];
+                if ($roleId > 0) {
+                    $setClauses[] = "role_id = ?";
+                    $uParams[] = $roleId;
+                }
                 if ($email) {
-                    $updateSql .= ", email = ?";
+                    $setClauses[] = "email = ?";
                     $uParams[] = $email;
                 }
                 if ($password) {
-                    $updateSql .= ", password_hash = ?";
+                    $setClauses[] = "password_hash = ?";
                     $uParams[] = password_hash($password, PASSWORD_BCRYPT);
                 }
-                $updateSql .= " WHERE id = ?";
-                $uParams[] = $userId;
-                DB::query($updateSql, $uParams);
+                if (!empty($setClauses)) {
+                    $uParams[] = $userId;
+                    DB::query("UPDATE users SET " . implode(', ', $setClauses) . " WHERE id = ?", $uParams);
+                }
 
                 if ($email) {
                     DB::query("UPDATE staff SET email = ? WHERE id = ?", [$email, $staffId]);

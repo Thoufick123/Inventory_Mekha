@@ -42,6 +42,16 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
         </div>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Stock Requisitions & Transfers (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download inter-concern indent requisitions, dispatch challans, received stock & transit audits';
+    $exportUrl = \App\Core\Controller::url('/production/stock-requests/export');
+    $currentModule = 'request';
+    $prefix = 'req_exp';
+    include dirname(dirname(__DIR__)) . '/partials/export_card.php';
+    ?>
+
     <!-- Filters & Search Toolbar -->
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body p-3">

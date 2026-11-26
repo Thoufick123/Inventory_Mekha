@@ -103,6 +103,16 @@ $activeTab = $activeTab ?? 'staff';
         </div>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Staff Roles & Module CRUD Permissions (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download staff login assignments, system roles, authorized concerns & access controls';
+    $exportUrl = \App\Core\Controller::url('/m/staff/export_roles');
+    $currentModule = 'staff';
+    $prefix = 'stf_role_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <!-- Mode Navigation Tabs -->
     <ul class="nav nav-pills mb-4 bg-white p-2 rounded-3 shadow-xs border" id="pills-tab" role="tablist">
         <li class="nav-item" role="presentation">
@@ -275,24 +285,7 @@ $activeTab = $activeTab ?? 'staff';
                                                 </form>
                                                 <?php endif; ?>
 
-                                                <!-- 2. Assign Role & Locations -->
-                                                <button type="button" class="btn btn-xs btn-primary shadow-xs" 
-                                                        title="Assign Role & Locations"
-                                                        onclick="openRoleAssignModal(<?= htmlspecialchars(json_encode([
-                                                            'id'            => $stf['id'],
-                                                            'name'          => $stf['name'],
-                                                            'staff_code'    => $stf['staff_code'],
-                                                            'concern_id'    => $stf['concern_id'],
-                                                            'concern_name'  => $stf['concern_name'],
-                                                            'concern_code'  => $stf['concern_code'],
-                                                            'email'         => $stf['user_email'] ?: $stf['email'],
-                                                            'role_id'       => $stf['role_id'] ?? 0,
-                                                            'assigned_cids' => array_column($assignedConcerns, 'id')
-                                                        ])) ?>)">
-                                                    <i class="bi bi-person-gear me-1"></i> Role
-                                                </button>
-
-                                                <!-- 3. Granular Access Matrix (Overrides) -->
+                                                <!-- 2. Granular Access Matrix (Overrides) -->
                                                 <?php if ($hasLogin): ?>
                                                     <button type="button" class="btn btn-xs btn-outline-dark shadow-xs" 
                                                             title="Configure Individual Custom Permissions"
@@ -831,10 +824,13 @@ function openRoleAssignModal(data) {
     document.getElementById('assign_password').value = '';
 
     const roleSelect = document.getElementById('assign_role_id');
-    if (data.role_id) {
-        roleSelect.value = data.role_id;
-    } else {
-        roleSelect.selectedIndex = 1;
+    const resolvedRoleId = data.role_id || (roleSelect ? roleSelect.value : '');
+    if (roleSelect) {
+        if (data.role_id) {
+            roleSelect.value = data.role_id;
+        } else {
+            roleSelect.selectedIndex = 1;
+        }
     }
 
     // Reset all concern checkboxes
@@ -858,7 +854,9 @@ function openRoleAssignModal(data) {
         bootstrap.Collapse.getInstance(collapseEl)?.hide();
     }
 
-    loadRolePermissionsForStaff(roleSelect.value);
+    if (resolvedRoleId) {
+        loadRolePermissionsForStaff(resolvedRoleId);
+    }
 
     const modalEl = document.getElementById('modalAssignRole');
     if (modalEl) {

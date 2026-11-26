@@ -12,6 +12,7 @@ use App\Core\ModuleGuard;
 use App\Services\StockService;
 use App\Services\DocumentNumberService;
 use App\Services\AuditService;
+use App\Services\ExportService;
 use Exception;
 
 class ProductionStockRequestController extends Controller {
@@ -169,6 +170,97 @@ class ProductionStockRequestController extends Controller {
             'toDate'           => $toDate,
             'selectedCid'      => $cid,
         ]);
+    }
+
+    public function export(): void {
+        ModuleGuard::enforce('request', 'view');
+        $cid = Auth::concernId();
+        $format = strtolower(trim((string)($_GET['format'] ?? 'excel')));
+        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $dateScope = ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
+
+        $sql = "SELECT psr.*,
+                       sc.name AS source_concern_name, sc.code AS source_concern_code,
+                       dc.name AS destination_concern_name, dc.code AS destination_concern_code,
+                       u.name AS requested_by_user,
+                       (SELECT COUNT(*) FROM production_stock_request_items WHERE request_id = psr.id) AS item_count,
+                       (SELECT COALESCE(SUM(requested_qty), 0) FROM production_stock_request_items WHERE request_id = psr.id) AS total_req_qty,
+                       (SELECT COALESCE(SUM(dispatched_qty), 0) FROM production_stock_request_items WHERE request_id = psr.id) AS total_disp_qty,
+                       (SELECT COALESCE(SUM(received_qty), 0) FROM production_stock_request_items WHERE request_id = psr.id) AS total_recv_qty
+                FROM production_stock_requests psr
+                LEFT JOIN concerns sc ON psr.source_concern_id = sc.id
+                LEFT JOIN concerns dc ON psr.destination_concern_id = dc.id
+                LEFT JOIN users u ON psr.requested_by = u.id
+                WHERE 1=1";
+        $params = [];
+        if ($cid) {
+            $sql .= " AND (psr.concern_id = ? OR psr.source_concern_id = ? OR psr.destination_concern_id = ?)";
+            $params[] = $cid;
+            $params[] = $cid;
+            $params[] = $cid;
+        }
+        if ($dateScope['start_date'] && $dateScope['end_date']) {
+            $sql .= " AND DATE(psr.created_at) BETWEEN ? AND ?";
+            $params[] = $dateScope['start_date'];
+            $params[] = $dateScope['end_date'];
+        }
+        $sql .= " ORDER BY psr.id DESC";
+        $requests = DB::fetchAll($sql, $params);
+
+        $headers = [
+            'Request No', 'Date', 'Source Unit', 'Destination Warehouse', 'Status',
+            'Items Count', 'Requested Qty', 'Dispatched Qty', 'Received Qty',
+            'Requested By', 'Dispatch Challan', 'Notes'
+        ];
+
+        $rows = [];
+        $totReq = 0; $totDisp = 0; $totRecv = 0;
+        foreach ($requests as $r) {
+            $reqQty = (float)($r['total_req_qty'] ?? 0);
+            $dispQty = (float)($r['total_disp_qty'] ?? 0);
+            $recvQty = (float)($r['total_recv_qty'] ?? 0);
+            $totReq += $reqQty;
+            $totDisp += $dispQty;
+            $totRecv += $recvQty;
+
+            $rows[] = [
+                $r['request_no'],
+                date('d M Y, h:i A', strtotime($r['created_at'])),
+                $r['source_concern_name'] ? "{$r['source_concern_name']} ({$r['source_concern_code']})" : 'Central Warehouse',
+                $r['destination_concern_name'] ? "{$r['destination_concern_name']} ({$r['destination_concern_code']})" : 'Main Facility',
+                strtoupper($r['status'] ?? 'PENDING'),
+                (int)($r['item_count'] ?? 0),
+                $reqQty,
+                $dispQty,
+                $recvQty,
+                $r['requested_by_user'] ?? 'Staff',
+                $r['dispatch_challan_no'] ?: '-',
+                $r['notes'] ?: '-'
+            ];
+        }
+
+        $totals = ['Total Requisitions: ' . count($requests), '', '', '', '', '', $totReq, $totDisp, $totRecv, '', '', ''];
+        $metadata = [
+            'Report Title' => 'Stock Requisitions & Transfer Register Report',
+            'Scope / Period' => $dateScope['label'] ?? 'All Time',
+            'Generated At' => date('d M Y, h:i A'),
+            'Total Requisitions' => count($requests),
+            'Total Requested Units' => number_format($totReq),
+            'Total Dispatched Units' => number_format($totDisp)
+        ];
+
+        $filename = 'stock_requisitions_' . date('Ymd_His');
+
+        if ($format === 'pdf') {
+            ExportService::renderPdfView('Stock Requisitions & Transfer Register Report', $metadata, $headers, $rows, $totals);
+        } elseif ($format === 'csv') {
+            ExportService::downloadCsv($filename, $headers, $rows, $totals);
+        } else {
+            ExportService::downloadExcel($filename, 'Stock Requisitions & Transfer Register Report', $metadata, $headers, $rows, $totals);
+        }
     }
 
     /**

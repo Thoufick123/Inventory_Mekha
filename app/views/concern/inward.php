@@ -93,6 +93,16 @@
         </div>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Production Inward Consignments (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download incoming outward shipments, warehouse stock credits & verified GRN pieces';
+    $exportUrl = \App\Core\Controller::url('/m/inward/export');
+    $currentModule = 'inward';
+    $prefix = 'inw_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <!-- 2. View Mode Switcher -->
     <div class="d-flex align-items-center gap-2 mb-3">
         <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.75rem;">VIEW MODE:</span>

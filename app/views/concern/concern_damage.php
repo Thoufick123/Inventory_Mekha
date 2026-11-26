@@ -44,6 +44,16 @@
         <?php endforeach; ?>
     </div>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Concern Damage & Rework Register (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download damaged stock tags, factory rework items, loss valuations & scrap resolutions';
+    $exportUrl = \App\Core\Controller::url('/m/concern_damage/export');
+    $currentModule = 'concern_damage';
+    $prefix = 'dmg_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <style>
         .damage-metric { border-left: 3px solid #dc3545 !important; background: #fff; }
         .damage-metric-warning { border-left-color: #ffc107 !important; background: #fffaf0; }

@@ -58,6 +58,16 @@
         </li>
     </ul>
 
+    <!-- Export Toolbar Card -->
+    <?php
+    $exportTitle = 'Export Fabric Cutting & Material Wastage (Excel, PDF, CSV)';
+    $exportSubtitle = 'Download production cutting batches, consumed fabric weights, cut pieces output & scrap records';
+    $exportUrl = \App\Core\Controller::url('/production/cutting/export');
+    $currentModule = 'cutting_wastage';
+    $prefix = 'cut_exp';
+    include dirname(__DIR__) . '/partials/export_card.php';
+    ?>
+
     <?php if ($activeTab === 'wastage'): ?>
         <!-- ========================================== -->
         <!-- TAB 2: WASTAGE SELLING & SCRAP SALES (IMAGE 3) -->
