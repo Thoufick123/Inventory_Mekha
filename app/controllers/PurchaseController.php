@@ -3,22 +3,23 @@
 
 namespace App\Controllers;
 
+use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\DB;
-use App\Core\Auth;
 use App\Core\ModuleGuard;
 use App\Services\AuditLog;
-use App\Services\StockService;
-use App\Services\NumberSeries;
 use App\Services\CloudinaryService;
-use App\Services\RollRegistryService;
-use App\Services\PurchaseDamageService;
-use App\Services\PurchaseBillSourceService;
-use App\Services\PurchaseStockItemOverrideService;
 use App\Services\ExportService;
+use App\Services\NumberSeries;
+use App\Services\PurchaseBillSourceService;
+use App\Services\PurchaseDamageService;
+use App\Services\PurchaseStockItemOverrideService;
+use App\Services\RollRegistryService;
+use App\Services\StockService;
 use Exception;
 
-class PurchaseController extends Controller {
+class PurchaseController extends Controller
+{
     private static bool $hsnMasterSchemaEnsured = false;
 
     private function ensureHsnMasterSchema(): void
@@ -39,7 +40,7 @@ class PurchaseController extends Controller {
 
     private function getBillAttachmentPaths(array $bill): array
     {
-        $paths = json_decode((string)($bill['attachment_paths'] ?? ''), true);
+        $paths = json_decode((string) ($bill['attachment_paths'] ?? ''), true);
         if (!is_array($paths)) {
             $paths = [];
         }
@@ -49,7 +50,7 @@ class PurchaseController extends Controller {
         }));
 
         if (empty($paths) && !empty($bill['attachment_path'])) {
-            $paths[] = (string)$bill['attachment_path'];
+            $paths[] = (string) $bill['attachment_path'];
         }
 
         return array_values(array_unique($paths));
@@ -74,16 +75,16 @@ class PurchaseController extends Controller {
         }
 
         $extensionsToMimeTypes = [
-            'jpg'  => ['image/jpeg'],
+            'jpg' => ['image/jpeg'],
             'jpeg' => ['image/jpeg'],
-            'png'  => ['image/png'],
+            'png' => ['image/png'],
             'webp' => ['image/webp'],
-            'pdf'  => ['application/pdf', 'application/x-pdf'],
+            'pdf' => ['application/pdf', 'application/x-pdf'],
         ];
         $filesToUpload = [];
 
         foreach ($files['name'] as $index => $originalName) {
-            $error = (int)($files['error'][$index] ?? UPLOAD_ERR_NO_FILE);
+            $error = (int) ($files['error'][$index] ?? UPLOAD_ERR_NO_FILE);
             if ($error === UPLOAD_ERR_NO_FILE) {
                 continue;
             }
@@ -91,8 +92,8 @@ class PurchaseController extends Controller {
                 throw new \RuntimeException('An attachment could not be uploaded. Please check the file size and try again.');
             }
 
-            $tmpPath = (string)($files['tmp_name'][$index] ?? '');
-            $size = (int)($files['size'][$index] ?? 0);
+            $tmpPath = (string) ($files['tmp_name'][$index] ?? '');
+            $size = (int) ($files['size'][$index] ?? 0);
             if ($tmpPath === '' || !is_file($tmpPath) || !is_readable($tmpPath)) {
                 throw new \RuntimeException('An attachment could not be read. Please choose the file again.');
             }
@@ -100,7 +101,7 @@ class PurchaseController extends Controller {
                 throw new \RuntimeException('Each attachment must be no larger than 5 MB.');
             }
 
-            $extension = strtolower(pathinfo((string)$originalName, PATHINFO_EXTENSION));
+            $extension = strtolower(pathinfo((string) $originalName, PATHINFO_EXTENSION));
             $mimeType = mime_content_type($tmpPath);
             if (
                 !isset($extensionsToMimeTypes[$extension]) ||
@@ -111,7 +112,7 @@ class PurchaseController extends Controller {
 
             $filesToUpload[] = [
                 'tmp_name' => $tmpPath,
-                'name' => (string)$originalName,
+                'name' => (string) $originalName,
             ];
         }
 
@@ -130,21 +131,22 @@ class PurchaseController extends Controller {
         return array_values(array_unique($existingPaths));
     }
 
-    public function storeSupplierAjax(): void {
+    public function storeSupplierAjax(): void
+    {
         $this->validateCsrf();
 
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
-        $name = trim((string)($_POST['name'] ?? ''));
-        $company = trim((string)($_POST['company_name'] ?? ''));
-        $phone = preg_replace('/\D/', '', trim((string)($_POST['phone'] ?? '')));
-        $email = trim((string)($_POST['email'] ?? ''));
-        $gstin = strtoupper(trim((string)($_POST['gstin'] ?? '')));
-        $address = trim((string)($_POST['address'] ?? ''));
-        $district = trim((string)($_POST['district'] ?? ''));
-        $state = trim((string)($_POST['state'] ?? ''));
+        $cid = Auth::concernId() ?: (int) ($_POST['concern_id'] ?? 0);
+        $name = trim((string) ($_POST['name'] ?? ''));
+        $company = trim((string) ($_POST['company_name'] ?? ''));
+        $phone = preg_replace('/\D/', '', trim((string) ($_POST['phone'] ?? '')));
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $gstin = strtoupper(trim((string) ($_POST['gstin'] ?? '')));
+        $address = trim((string) ($_POST['address'] ?? ''));
+        $district = trim((string) ($_POST['district'] ?? ''));
+        $state = trim((string) ($_POST['state'] ?? ''));
 
         $errors = [];
-        if (!$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ?", [$cid])) {
+        if (!$cid || !DB::fetchValue('SELECT id FROM concerns WHERE id = ?', [$cid])) {
             $errors[] = 'Select a valid concern.';
         }
         if (mb_strlen($name) < 2 || mb_strlen($name) > 150) {
@@ -168,10 +170,10 @@ class PurchaseController extends Controller {
         if (mb_strlen($district) < 2 || mb_strlen($state) < 2) {
             $errors[] = 'Enter a valid district and state.';
         }
-        if (!$errors && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND phone = ? LIMIT 1", [$cid, $phone])) {
+        if (!$errors && DB::fetchValue('SELECT id FROM suppliers WHERE concern_id = ? AND phone = ? LIMIT 1', [$cid, $phone])) {
             $errors[] = 'A supplier with this phone number is already registered in this concern.';
         }
-        if (!$errors && $gstin !== '' && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND gstin = ? LIMIT 1", [$cid, $gstin])) {
+        if (!$errors && $gstin !== '' && DB::fetchValue('SELECT id FROM suppliers WHERE concern_id = ? AND gstin = ? LIMIT 1', [$cid, $gstin])) {
             $errors[] = 'A supplier with this GSTIN is already registered in this concern.';
         }
         if ($errors) {
@@ -179,7 +181,7 @@ class PurchaseController extends Controller {
             return;
         }
 
-        $code = 'SUP-' . str_pad((string)((int)DB::fetchValue("SELECT COUNT(*) FROM suppliers WHERE concern_id = ?", [$cid]) + 1), 3, '0', STR_PAD_LEFT);
+        $code = 'SUP-' . str_pad((string) ((int) DB::fetchValue('SELECT COUNT(*) FROM suppliers WHERE concern_id = ?', [$cid]) + 1), 3, '0', STR_PAD_LEFT);
         DB::query(
             "INSERT INTO suppliers (concern_id, code, name, company_name, phone, email, gstin, address, city, district, state, status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
@@ -189,7 +191,7 @@ class PurchaseController extends Controller {
         $this->renderJson([
             'success' => true,
             'supplier' => [
-                'id' => (int)DB::lastInsertId(),
+                'id' => (int) DB::lastInsertId(),
                 'code' => $code,
                 'name' => $name,
                 'company_name' => $company,
@@ -203,29 +205,30 @@ class PurchaseController extends Controller {
         ]);
     }
 
-    public function updateSupplierAjax(): void {
+    public function updateSupplierAjax(): void
+    {
         $this->validateCsrf();
 
-        $id = (int)($_POST['supplier_id'] ?? 0);
+        $id = (int) ($_POST['supplier_id'] ?? 0);
         $cid = Auth::concernId();
         $existing = $cid
-            ? DB::fetch("SELECT * FROM suppliers WHERE id = ? AND concern_id = ?", [$id, $cid])
-            : DB::fetch("SELECT * FROM suppliers WHERE id = ?", [$id]);
+            ? DB::fetch('SELECT * FROM suppliers WHERE id = ? AND concern_id = ?', [$id, $cid])
+            : DB::fetch('SELECT * FROM suppliers WHERE id = ?', [$id]);
 
         if (!$existing) {
             $this->renderJson(['success' => false, 'message' => 'Supplier not found or access denied.'], 404);
             return;
         }
 
-        $targetCid = (int)$existing['concern_id'];
-        $name = trim((string)($_POST['name'] ?? ''));
-        $company = trim((string)($_POST['company_name'] ?? ''));
-        $phone = preg_replace('/\D/', '', trim((string)($_POST['phone'] ?? '')));
-        $email = trim((string)($_POST['email'] ?? ''));
-        $gstin = strtoupper(trim((string)($_POST['gstin'] ?? '')));
-        $address = trim((string)($_POST['address'] ?? ''));
-        $district = trim((string)($_POST['district'] ?? ''));
-        $state = trim((string)($_POST['state'] ?? ''));
+        $targetCid = (int) $existing['concern_id'];
+        $name = trim((string) ($_POST['name'] ?? ''));
+        $company = trim((string) ($_POST['company_name'] ?? ''));
+        $phone = preg_replace('/\D/', '', trim((string) ($_POST['phone'] ?? '')));
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $gstin = strtoupper(trim((string) ($_POST['gstin'] ?? '')));
+        $address = trim((string) ($_POST['address'] ?? ''));
+        $district = trim((string) ($_POST['district'] ?? ''));
+        $state = trim((string) ($_POST['state'] ?? ''));
 
         $errors = [];
         if (mb_strlen($name) < 2 || mb_strlen($name) > 150) {
@@ -249,10 +252,10 @@ class PurchaseController extends Controller {
         if (mb_strlen($district) < 2 || mb_strlen($state) < 2) {
             $errors[] = 'Enter a valid district and state.';
         }
-        if (!$errors && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND phone = ? AND id != ? LIMIT 1", [$targetCid, $phone, $id])) {
+        if (!$errors && DB::fetchValue('SELECT id FROM suppliers WHERE concern_id = ? AND phone = ? AND id != ? LIMIT 1', [$targetCid, $phone, $id])) {
             $errors[] = 'A supplier with this phone number is already registered in this concern.';
         }
-        if (!$errors && $gstin !== '' && DB::fetchValue("SELECT id FROM suppliers WHERE concern_id = ? AND gstin = ? AND id != ? LIMIT 1", [$targetCid, $gstin, $id])) {
+        if (!$errors && $gstin !== '' && DB::fetchValue('SELECT id FROM suppliers WHERE concern_id = ? AND gstin = ? AND id != ? LIMIT 1', [$targetCid, $gstin, $id])) {
             $errors[] = 'A supplier with this GSTIN is already registered in this concern.';
         }
         if ($errors) {
@@ -261,7 +264,7 @@ class PurchaseController extends Controller {
         }
 
         DB::query(
-            "UPDATE suppliers SET name = ?, company_name = ?, phone = ?, email = ?, gstin = ?, address = ?, city = ?, district = ?, state = ? WHERE id = ?",
+            'UPDATE suppliers SET name = ?, company_name = ?, phone = ?, email = ?, gstin = ?, address = ?, city = ?, district = ?, state = ? WHERE id = ?',
             [$name, $company, $phone, $email !== '' ? $email : null, $gstin !== '' ? $gstin : null, $address, $district, $district, $state, $id]
         );
 
@@ -282,21 +285,22 @@ class PurchaseController extends Controller {
         ]);
     }
 
-    public function deleteSupplierAjax(): void {
+    public function deleteSupplierAjax(): void
+    {
         $this->validateCsrf();
 
-        $id = (int)($_POST['supplier_id'] ?? 0);
+        $id = (int) ($_POST['supplier_id'] ?? 0);
         $cid = Auth::concernId();
         $supplier = $cid
-            ? DB::fetch("SELECT * FROM suppliers WHERE id = ? AND concern_id = ?", [$id, $cid])
-            : DB::fetch("SELECT * FROM suppliers WHERE id = ?", [$id]);
+            ? DB::fetch('SELECT * FROM suppliers WHERE id = ? AND concern_id = ?', [$id, $cid])
+            : DB::fetch('SELECT * FROM suppliers WHERE id = ?', [$id]);
 
         if (!$supplier) {
             $this->renderJson(['success' => false, 'message' => 'Supplier not found or access denied.'], 404);
             return;
         }
 
-        $hasBills = (int)DB::fetchValue("SELECT COUNT(*) FROM purchase_bills WHERE supplier_id = ?", [$id]);
+        $hasBills = (int) DB::fetchValue('SELECT COUNT(*) FROM purchase_bills WHERE supplier_id = ?', [$id]);
         if ($hasBills > 0) {
             DB::query("UPDATE suppliers SET status = 'inactive' WHERE id = ?", [$id]);
             $this->renderJson([
@@ -307,7 +311,7 @@ class PurchaseController extends Controller {
             return;
         }
 
-        DB::query("DELETE FROM suppliers WHERE id = ?", [$id]);
+        DB::query('DELETE FROM suppliers WHERE id = ?', [$id]);
         $this->renderJson([
             'success' => true,
             'deactivated' => false,
@@ -315,45 +319,46 @@ class PurchaseController extends Controller {
         ]);
     }
 
-    public function exportBills(): void {
+    public function exportBills(): void
+    {
         ModuleGuard::enforce('purchase_billing', 'view');
 
         $isSuperAdmin = Auth::isSuperAdmin();
         $cid = $isSuperAdmin
-            ? (int)($_GET['concern_id'] ?? 0)
+            ? (int) ($_GET['concern_id'] ?? 0)
             : Auth::concernId();
-        $format = strtolower(trim((string)($_GET['format'] ?? 'excel')));
-        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
-        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
-        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
-        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $format = strtolower(trim((string) ($_GET['format'] ?? 'excel')));
+        $period = is_scalar($_GET['period'] ?? null) ? (string) $_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string) $_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string) $_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string) $_GET['to_date'] : null;
         $dateScope = ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT pb.*, s.name AS supplier_name, con.name AS concern_name, con.code AS concern_code,
+        $sql = 'SELECT pb.*, s.name AS supplier_name, con.name AS concern_name, con.code AS concern_code,
                        (SELECT COUNT(*) FROM purchase_bill_items pbi WHERE pbi.purchase_bill_id = pb.id) AS items_count
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
-                LEFT JOIN concerns con ON pb.concern_id = con.id";
+                LEFT JOIN concerns con ON pb.concern_id = con.id';
         $where = [];
         $params = [];
         if ($cid) {
-            $where[] = "pb.concern_id = ?";
+            $where[] = 'pb.concern_id = ?';
             $params[] = $cid;
         }
         if ($dateScope['start_date'] && $dateScope['end_date']) {
-            $where[] = "DATE(pb.bill_date) BETWEEN ? AND ?";
+            $where[] = 'DATE(pb.bill_date) BETWEEN ? AND ?';
             $params[] = $dateScope['start_date'];
             $params[] = $dateScope['end_date'];
         }
         if (!empty($where)) {
-            $sql .= " WHERE " . implode(' AND ', $where);
+            $sql .= ' WHERE ' . implode(' AND ', $where);
         }
-        $sql .= " ORDER BY pb.id DESC";
+        $sql .= ' ORDER BY pb.id DESC';
         $bills = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Bill No.', 'Invoice No.', 'Date', 'Supplier', 'Items Qty', 
-            'Total (INR)', 'Tax (INR)', 'Net Amount (INR)', 'Paid (INR)', 
+            'Bill No.', 'Invoice No.', 'Date', 'Supplier', 'Items Qty',
+            'Total (INR)', 'Tax (INR)', 'Net Amount (INR)', 'Paid (INR)',
             'Payment Status', 'Inward Status', 'Concern'
         ];
 
@@ -361,8 +366,8 @@ class PurchaseController extends Controller {
         $sumNet = 0;
         $sumPaid = 0;
         foreach ($bills as $b) {
-            $net = (float)($b['net_amount'] ?? 0);
-            $paid = (float)($b['paid_amount'] ?? 0);
+            $net = (float) ($b['net_amount'] ?? 0);
+            $paid = (float) ($b['paid_amount'] ?? 0);
             $sumNet += $net;
             $sumPaid += $paid;
             $rows[] = [
@@ -370,9 +375,9 @@ class PurchaseController extends Controller {
                 $b['supplier_invoice_no'] ?: '-',
                 $b['bill_date'] ? date('d M Y', strtotime($b['bill_date'])) : '-',
                 $b['supplier_name'],
-                (int)($b['items_count'] ?? 0),
-                number_format((float)($b['total_amount'] ?? 0), 2),
-                number_format((float)($b['tax_amount'] ?? 0), 2),
+                (int) ($b['items_count'] ?? 0),
+                number_format((float) ($b['total_amount'] ?? 0), 2),
+                number_format((float) ($b['tax_amount'] ?? 0), 2),
                 number_format($net, 2),
                 number_format($paid, 2),
                 strtoupper($b['payment_status'] ?? 'PENDING'),
@@ -386,9 +391,9 @@ class PurchaseController extends Controller {
         $metadata = [
             'Report Title' => 'Purchase Invoices Register Report',
             'Generated At' => date('d M Y, h:i A'),
-            'Total Bills'  => count($bills),
-            'Date Filter'  => $dateScope['label'] ?? 'All Time',
-            'Concern'      => $cid ? ($bills[0]['concern_name'] ?? 'Concern #' . $cid) : 'All Concerns'
+            'Total Bills' => count($bills),
+            'Date Filter' => $dateScope['label'] ?? 'All Time',
+            'Concern' => $cid ? ($bills[0]['concern_name'] ?? 'Concern #' . $cid) : 'All Concerns'
         ];
 
         $filename = 'purchase_invoices_' . date('Ymd_His');
@@ -403,7 +408,8 @@ class PurchaseController extends Controller {
     }
 
     // 2. PURCHASE BILLING
-    public function billing(): void {
+    public function billing(): void
+    {
         PurchaseBillSourceService::ensureSchema();
         $cid = Auth::concernId();
 
@@ -418,94 +424,97 @@ class PurchaseController extends Controller {
                 LEFT JOIN concerns con ON pb.concern_id = con.id";
         $params = [];
         if ($cid) {
-            $sql .= " WHERE pb.concern_id = ?";
+            $sql .= ' WHERE pb.concern_id = ?';
             $params[] = $cid;
         }
-        $sql .= " ORDER BY pb.id DESC";
+        $sql .= ' ORDER BY pb.id DESC';
         $bills = PurchaseBillSourceService::attachInvoiceSyncStatus(DB::fetchAll($sql, $params), $cid);
 
         if ($cid) {
             $suppliers = DB::fetchAll("SELECT id, name, company_name FROM suppliers WHERE concern_id = ? AND status = 'active'", [$cid]);
-            $variants  = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
+            $variants = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active'", [$cid]);
         } else {
             $suppliers = DB::fetchAll("SELECT id, name, company_name FROM suppliers WHERE status = 'active'");
-            $variants  = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE status = 'active'");
+            $variants = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE status = 'active'");
         }
 
         $this->render('concern/purchase_billing', [
-            'pageTitle'     => 'Purchase Billing (Invoices)',
+            'pageTitle' => 'Purchase Billing (Invoices)',
             'currentModule' => 'purchase_billing',
-            'bills'         => $bills,
-            'suppliers'     => $suppliers,
-            'variants'      => $variants,
-            'selectedCid'   => $cid,
+            'bills' => $bills,
+            'suppliers' => $suppliers,
+            'variants' => $variants,
+            'selectedCid' => $cid,
         ]);
     }
 
-    public function createBill(): void {
+    public function createBill(): void
+    {
         $this->ensureHsnMasterSchema();
         $cid = Auth::concernId();
 
         if ($cid) {
             $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
-            $variants  = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
-            $hsnList   = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
+            $variants = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
+            $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
         } else {
             $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
-            $variants  = DB::fetchAll("SELECT id, concern_id, product_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
-            $hsnList   = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
+            $variants = DB::fetchAll("SELECT id, concern_id, product_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
+            $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
         }
 
         $allConcerns = [];
         if (Auth::isSuperAdmin()) {
-            $allConcerns = DB::fetchAll("SELECT id, name, code FROM concerns ORDER BY id ASC");
+            $allConcerns = DB::fetchAll('SELECT id, name, code FROM concerns ORDER BY id ASC');
         }
 
         $targetCid = $cid ?: 1;
         $savedRollSpecs = RollRegistryService::getSavedSpecs($targetCid);
-        $savedColors    = RollRegistryService::getSavedColors($targetCid);
-        $savedDesigns   = RollRegistryService::getSavedDesigns($targetCid);
+        $savedColors = RollRegistryService::getSavedColors($targetCid);
+        $savedDesigns = RollRegistryService::getSavedDesigns($targetCid);
 
         $this->render('concern/purchase_billing_create', [
-            'pageTitle'      => 'Record Production Purchase',
-            'currentModule'  => 'purchase_billing',
-            'suppliers'      => $suppliers,
-            'variants'       => $variants,
-            'selectedCid'    => $cid,
-            'allConcerns'    => $allConcerns,
-            'hsnList'        => $hsnList,
+            'pageTitle' => 'Record Production Purchase',
+            'currentModule' => 'purchase_billing',
+            'suppliers' => $suppliers,
+            'variants' => $variants,
+            'selectedCid' => $cid,
+            'allConcerns' => $allConcerns,
+            'hsnList' => $hsnList,
             'savedRollSpecs' => $savedRollSpecs,
-            'savedColors'    => $savedColors,
-            'savedDesigns'   => $savedDesigns,
+            'savedColors' => $savedColors,
+            'savedDesigns' => $savedDesigns,
             'quickSupplierSaveUrl' => \App\Core\Controller::url('/m/purchase_billing/suppliers/store'),
             'quickSupplierUpdateUrl' => \App\Core\Controller::url('/m/purchase_billing/suppliers/update'),
             'quickSupplierDeleteUrl' => \App\Core\Controller::url('/m/purchase_billing/suppliers/delete'),
-            'allowQuickSupplier'   => Auth::isSuperAdmin() || Auth::can('purchase_billing', 'add'),
+            'allowQuickSupplier' => Auth::isSuperAdmin() || Auth::can('purchase_billing', 'add'),
             'invoiceCheckUrl' => \App\Core\Controller::url('/m/purchase_billing/check_invoice'),
         ]);
     }
 
-    public function editBillFromProductAdding(): void {
+    public function editBillFromProductAdding(): void
+    {
         $_GET['product_adding_edit'] = '1';
         $this->editBill();
     }
 
-    public function editBill(): void {
+    public function editBill(): void
+    {
         $this->ensureHsnMasterSchema();
         $isProductAddingEdit = ($_GET['product_adding_edit'] ?? '') === '1';
         if ($isProductAddingEdit) {
             PurchaseBillSourceService::ensureSchema();
         }
         $cid = Auth::concernId();
-        $id = (int)($_GET['id'] ?? 0);
+        $id = (int) ($_GET['id'] ?? 0);
 
-        $sql = "SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company
+        $sql = 'SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
-                WHERE pb.id = ?";
+                WHERE pb.id = ?';
         $params = [$id];
         if ($cid) {
-            $sql .= " AND pb.concern_id = ?";
+            $sql .= ' AND pb.concern_id = ?';
             $params[] = $cid;
         }
 
@@ -517,7 +526,7 @@ class PurchaseController extends Controller {
         }
 
         if ($isProductAddingEdit) {
-            $stockedCount = (int)DB::fetchValue(
+            $stockedCount = (int) DB::fetchValue(
                 "SELECT COUNT(*)
                  FROM purchase_bill_items pbi
                  JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
@@ -532,27 +541,27 @@ class PurchaseController extends Controller {
             }
         }
 
-        $items = DB::fetchAll("SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC", [$id]);
+        $items = DB::fetchAll('SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC', [$id]);
 
         if ($cid) {
             $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
-            $variants  = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
-            $hsnList   = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
+            $variants = DB::fetchAll("SELECT id, product_code, name, price, size FROM variants WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]);
+            $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' AND (concern_id = ? OR concern_id IS NULL) ORDER BY hsn_code ASC", [$cid]);
         } else {
             $suppliers = DB::fetchAll("SELECT id, concern_id, code, name, company_name, phone, email, gstin, address, district, state FROM suppliers WHERE status = 'active' ORDER BY name ASC");
-            $variants  = DB::fetchAll("SELECT id, concern_id, product_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
-            $hsnList   = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
+            $variants = DB::fetchAll("SELECT id, concern_id, product_code, name, price, size FROM variants WHERE status = 'active' ORDER BY name ASC");
+            $hsnList = DB::fetchAll("SELECT code_type, hsn_code, description, category, gst_rate, rate_note FROM hsn_masters WHERE is_active = 1 AND code_type = 'HSN' ORDER BY hsn_code ASC");
         }
 
         $allConcerns = [];
         if (Auth::isSuperAdmin()) {
-            $allConcerns = DB::fetchAll("SELECT id, name, code FROM concerns ORDER BY id ASC");
+            $allConcerns = DB::fetchAll('SELECT id, name, code FROM concerns ORDER BY id ASC');
         }
 
-        $targetCid = $cid ?: (int)$bill['concern_id'];
+        $targetCid = $cid ?: (int) $bill['concern_id'];
         $savedRollSpecs = RollRegistryService::getSavedSpecs($targetCid);
-        $savedColors    = RollRegistryService::getSavedColors($targetCid);
-        $savedDesigns   = RollRegistryService::getSavedDesigns($targetCid);
+        $savedColors = RollRegistryService::getSavedColors($targetCid);
+        $savedDesigns = RollRegistryService::getSavedDesigns($targetCid);
 
         $categories = [];
         $subcategories = [];
@@ -568,61 +577,62 @@ class PurchaseController extends Controller {
             $subSubcategories = DB::fetchAll("SELECT id, concern_id, subcategory_id, name FROM sub_subcategories{$categoryScope} ORDER BY name ASC", $categoryParams);
             $productAttributes = DB::fetchAll(
                 $cid
-                    ? "SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order"
-                    : "SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes ORDER BY attribute_type, sort_order",
+                    ? 'SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order'
+                    : 'SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes ORDER BY attribute_type, sort_order',
                 $cid ? [$cid] : []
             );
         }
 
         $this->render('concern/purchase_billing_create', [
-            'pageTitle'      => ($isProductAddingEdit ? 'Edit Existing Purchase Invoice: #' : 'Edit Purchase Bill: #') . $bill['bill_no'],
-            'pageHeading'    => ($isProductAddingEdit ? 'Edit Existing Purchase Invoice: #' : 'Edit Purchase Bill: #') . $bill['bill_no'],
+            'pageTitle' => ($isProductAddingEdit ? 'Edit Existing Purchase Invoice: #' : 'Edit Purchase Bill: #') . $bill['bill_no'],
+            'pageHeading' => ($isProductAddingEdit ? 'Edit Existing Purchase Invoice: #' : 'Edit Purchase Bill: #') . $bill['bill_no'],
             'pageDescription' => $isProductAddingEdit
                 ? 'Review and update the existing Purchase Billing invoice before adding it to stock.'
                 : 'Update fabric rolls, garment supplies/accessories and finished goods for this bill.',
-            'currentModule'  => $isProductAddingEdit ? 'product_adding' : 'purchase_billing',
-            'suppliers'      => $suppliers,
-            'variants'       => $variants,
-            'selectedCid'    => $cid,
-            'allConcerns'    => $allConcerns,
-            'categories'     => $categories,
-            'subcategories'  => $subcategories,
+            'currentModule' => $isProductAddingEdit ? 'product_adding' : 'purchase_billing',
+            'suppliers' => $suppliers,
+            'variants' => $variants,
+            'selectedCid' => $cid,
+            'allConcerns' => $allConcerns,
+            'categories' => $categories,
+            'subcategories' => $subcategories,
             'subSubcategories' => $subSubcategories,
             'productAttributes' => $productAttributes,
-            'hsnList'        => $hsnList,
-            'bill'           => $bill,
-            'existingItems'  => $items,
+            'hsnList' => $hsnList,
+            'bill' => $bill,
+            'existingItems' => $items,
             'savedRollSpecs' => $savedRollSpecs,
-            'savedColors'    => $savedColors,
-            'savedDesigns'   => $savedDesigns,
-            'formAction'     => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/update_purchase_bill' : '/m/purchase_billing/update'),
-            'hsnSaveUrl'     => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/save_hsn' : '/m/purchase_billing/save_hsn'),
+            'savedColors' => $savedColors,
+            'savedDesigns' => $savedDesigns,
+            'formAction' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/update_purchase_bill' : '/m/purchase_billing/update'),
+            'hsnSaveUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/save_hsn' : '/m/purchase_billing/save_hsn'),
             'rollSpecSaveUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/save_roll_spec' : '/m/purchase_billing/save_roll_spec'),
             'quickCategorySaveUrl' => $isProductAddingEdit ? \App\Core\Controller::url('/m/product_adding/categories/store') : '',
             'quickAttributeSaveUrl' => $isProductAddingEdit ? \App\Core\Controller::url('/m/product_adding/attributes/store') : '',
-            'backUrl'        => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding' : '/m/purchase_billing'),
-            'backLabel'      => $isProductAddingEdit ? 'Back to Product Adding' : 'Back to Purchases',
-            'submitLabel'    => $isProductAddingEdit ? 'Update Existing Invoice' : 'Update Purchase Bill',
+            'backUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding' : '/m/purchase_billing'),
+            'backLabel' => $isProductAddingEdit ? 'Back to Product Adding' : 'Back to Purchases',
+            'submitLabel' => $isProductAddingEdit ? 'Update Existing Invoice' : 'Update Purchase Bill',
             'productAddingEdit' => $isProductAddingEdit,
             'quickSupplierSaveUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/suppliers/store' : '/m/purchase_billing/suppliers/store'),
             'quickSupplierUpdateUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/suppliers/update' : '/m/purchase_billing/suppliers/update'),
             'quickSupplierDeleteUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/suppliers/delete' : '/m/purchase_billing/suppliers/delete'),
-            'allowQuickSupplier'   => Auth::isSuperAdmin() || Auth::can($isProductAddingEdit ? 'product_adding' : 'purchase_billing', 'add'),
+            'allowQuickSupplier' => Auth::isSuperAdmin() || Auth::can($isProductAddingEdit ? 'product_adding' : 'purchase_billing', 'add'),
             'invoiceCheckUrl' => \App\Core\Controller::url($isProductAddingEdit ? '/m/product_adding/check_invoice' : '/m/purchase_billing/check_invoice'),
         ]);
     }
 
-    public function saveHsnAjax(): void {
+    public function saveHsnAjax(): void
+    {
         $this->ensureHsnMasterSchema();
         header('Content-Type: application/json; charset=utf-8');
-        $cid = Auth::concernId() ?: ((int)($_POST['concern_id'] ?? 0) ?: null);
+        $cid = Auth::concernId() ?: ((int) ($_POST['concern_id'] ?? 0) ?: null);
         $code = strtoupper(trim($_POST['hsn_code'] ?? ''));
         $codeType = 'HSN';
         $desc = trim($_POST['description'] ?? '');
         $category = trim($_POST['category'] ?? '');
         $rateNote = trim($_POST['rate_note'] ?? '');
-        $rateInput = trim((string)($_POST['gst_rate'] ?? ''));
-        $rate = $rateInput === '' ? null : (is_numeric($rateInput) ? (float)$rateInput : -1.0);
+        $rateInput = trim((string) ($_POST['gst_rate'] ?? ''));
+        $rate = $rateInput === '' ? null : (is_numeric($rateInput) ? (float) $rateInput : -1.0);
 
         if (!preg_match('/^\d{4}(?:\d{2}){0,2}$/', $code) || strlen($desc) > 255 || strlen($category) > 100 || strlen($rateNote) > 500 || ($rate === null || !is_finite($rate) || $rate < 0 || $rate > 100)) {
             echo json_encode(['success' => false, 'message' => 'Use a valid 4-, 6-, or 8-digit HSN code and GST percentage from 0 to 100.']);
@@ -631,16 +641,16 @@ class PurchaseController extends Controller {
 
         try {
             $existing = DB::fetch(
-                "SELECT id, concern_id, code_type, hsn_code, description, category, gst_rate, rate_note
+                'SELECT id, concern_id, code_type, hsn_code, description, category, gst_rate, rate_note
                  FROM hsn_masters
                  WHERE is_active = 1 AND code_type = ? AND hsn_code = ? AND (concern_id = ? OR concern_id IS NULL)
-                 ORDER BY concern_id DESC LIMIT 1",
+                 ORDER BY concern_id DESC LIMIT 1',
                 [$codeType, $code, $cid]
             );
 
             if (!$existing) {
                 DB::query(
-                    "INSERT INTO hsn_masters (concern_id, code_type, hsn_code, description, category, gst_rate, rate_note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+                    'INSERT INTO hsn_masters (concern_id, code_type, hsn_code, description, category, gst_rate, rate_note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
                     [$cid, $codeType, $code, $desc, $category, $rate, $rateNote]
                 );
                 $saved = [
@@ -655,7 +665,7 @@ class PurchaseController extends Controller {
                 $saved = $existing;
             } else {
                 DB::query(
-                    "UPDATE hsn_masters SET description = ?, category = ?, gst_rate = ?, rate_note = ?, is_active = 1 WHERE id = ?",
+                    'UPDATE hsn_masters SET description = ?, category = ?, gst_rate = ?, rate_note = ?, is_active = 1 WHERE id = ?',
                     [$desc, $category, $rate, $rateNote, $existing['id']]
                 );
                 $saved = [
@@ -684,16 +694,17 @@ class PurchaseController extends Controller {
         exit;
     }
 
-    public function saveRollSpecAjax(): void {
+    public function saveRollSpecAjax(): void
+    {
         header('Content-Type: application/json; charset=utf-8');
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 1);
+        $cid = Auth::concernId() ?: (int) ($_POST['concern_id'] ?? 1);
 
         $color = strtoupper(trim($_POST['color'] ?? ''));
         $designName = strtoupper(trim($_POST['design_name'] ?? ''));
-        $unitPrice = isset($_POST['unit_price']) && $_POST['unit_price'] !== '' ? (float)$_POST['unit_price'] : 0.0;
+        $unitPrice = isset($_POST['unit_price']) && $_POST['unit_price'] !== '' ? (float) $_POST['unit_price'] : 0.0;
         $hsnCode = trim($_POST['hsn_code'] ?? '');
-        $initialQty = isset($_POST['qty']) && $_POST['qty'] !== '' ? (float)$_POST['qty'] : 0.0;
-        $netWeight = isset($_POST['net_weight']) && $_POST['net_weight'] !== '' ? (float)$_POST['net_weight'] : 0.0;
+        $initialQty = isset($_POST['qty']) && $_POST['qty'] !== '' ? (float) $_POST['qty'] : 0.0;
+        $netWeight = isset($_POST['net_weight']) && $_POST['net_weight'] !== '' ? (float) $_POST['net_weight'] : 0.0;
         $supplierName = trim($_POST['supplier_name'] ?? '');
 
         if (empty($color) || empty($designName)) {
@@ -719,20 +730,21 @@ class PurchaseController extends Controller {
         exit;
     }
 
-    public function viewBill(): void {
+    public function viewBill(): void
+    {
         $cid = Auth::concernId();
-        $id = (int)($_GET['id'] ?? 0);
+        $id = (int) ($_GET['id'] ?? 0);
 
-        $sql = "SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company, s.phone AS supplier_phone,
+        $sql = 'SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company, s.phone AS supplier_phone,
                        s.gstin AS supplier_gstin, s.district AS supplier_district, s.state AS supplier_state,
                        con.name AS concern_name, con.code AS concern_code
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
                 LEFT JOIN concerns con ON pb.concern_id = con.id
-                WHERE pb.id = ?";
+                WHERE pb.id = ?';
         $params = [$id];
         if ($cid) {
-            $sql .= " AND pb.concern_id = ?";
+            $sql .= ' AND pb.concern_id = ?';
             $params[] = $cid;
         }
 
@@ -743,30 +755,32 @@ class PurchaseController extends Controller {
             return;
         }
 
-        $items = DB::fetchAll("SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC", [$id]);
+        $items = DB::fetchAll('SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC', [$id]);
 
+        $isProductAddingBill = ($bill['source_module'] ?? 'purchase_billing') === 'product_adding';
         $this->render('concern/purchase_billing_view', [
-            'pageTitle'     => 'Purchase Bill #' . $bill['bill_no'],
-            'currentModule' => 'purchase_billing',
-            'bill'          => $bill,
-            'items'         => $items,
+            'pageTitle'     => ($isProductAddingBill ? 'Product Adding Bill #' : 'Purchase Bill #') . $bill['bill_no'],
+            'currentModule' => $isProductAddingBill ? 'product_adding' : 'purchase_billing',
+            'bill' => $bill,
+            'items' => $items,
         ]);
     }
 
-    public function downloadItems(): void {
+    public function downloadItems(): void
+    {
         $cid = Auth::concernId();
-        $id = (int)($_GET['id'] ?? 0);
+        $id = (int) ($_GET['id'] ?? 0);
 
-        $sql = "SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company, s.phone AS supplier_phone,
+        $sql = 'SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company, s.phone AS supplier_phone,
                        s.gstin AS supplier_gstin, s.district AS supplier_district, s.state AS supplier_state,
                        con.name AS concern_name, con.code AS concern_code
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
                 LEFT JOIN concerns con ON pb.concern_id = con.id
-                WHERE pb.id = ?";
+                WHERE pb.id = ?';
         $params = [$id];
         if ($cid) {
-            $sql .= " AND pb.concern_id = ?";
+            $sql .= ' AND pb.concern_id = ?';
             $params[] = $cid;
         }
 
@@ -777,10 +791,10 @@ class PurchaseController extends Controller {
             return;
         }
 
-        $items = DB::fetchAll("SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC", [$id]);
+        $items = DB::fetchAll('SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? ORDER BY id ASC', [$id]);
 
         $cleanBillNo = preg_replace('/[^A-Za-z0-9_\-]/', '_', $bill['bill_no']);
-        $filename = "Purchase_Items_{$cleanBillNo}_" . date('Ymd_His') . ".csv";
+        $filename = "Purchase_Items_{$cleanBillNo}_" . date('Ymd_His') . '.csv';
 
         // Send headers for CSV download
         header('Content-Type: text/csv; charset=UTF-8');
@@ -790,7 +804,7 @@ class PurchaseController extends Controller {
 
         $out = fopen('php://output', 'w');
         // Add UTF-8 BOM so Excel opens it with proper encoding
-        fwrite($out, "\xEF\xBB\xBF");
+        fwrite($out, "\u{FEFF}");
 
         // Bill Header Information
         fputcsv($out, ['GRM INVENTORY - PURCHASE BILL ITEMS']);
@@ -799,7 +813,7 @@ class PurchaseController extends Controller {
         fputcsv($out, ['Supplier Invoice No', $bill['supplier_invoice_no'] ?: '-', 'GSTIN', $bill['supplier_gstin'] ?: '-']);
         fputcsv($out, ['Payment Status', ucfirst($bill['payment_status']), 'Payment Method', ucfirst($bill['payment_method'] ?? 'credit')]);
         fputcsv($out, ['Inward Status', ucfirst($bill['inward_status']), 'Total Net Value (INR)', number_format($bill['net_amount'], 2, '.', '')]);
-        fputcsv($out, []); // Blank separator line
+        fputcsv($out, []);  // Blank separator line
 
         // Items Column Headers
         fputcsv($out, [
@@ -823,32 +837,32 @@ class PurchaseController extends Controller {
         ]);
 
         $totalBase = 0.0;
-        $totalTax  = 0.0;
-        $totalNet  = 0.0;
-        $totalQty  = 0.0;
-        $totalWt   = 0.0;
+        $totalTax = 0.0;
+        $totalNet = 0.0;
+        $totalQty = 0.0;
+        $totalWt = 0.0;
 
         foreach ($items as $idx => $item) {
             $sectionLabel = match ($item['section_type'] ?? '') {
-                'rolls'          => 'Fabric Rolls',
-                'garment_other'  => 'Other Garment Supplies',
+                'rolls' => 'Fabric Rolls',
+                'garment_other' => 'Other Garment Supplies',
                 'finished_goods' => 'Finished Goods',
-                default          => ucfirst(str_replace('_', ' ', $item['section_type'] ?? 'General'))
+                default => ucfirst(str_replace('_', ' ', $item['section_type'] ?? 'General'))
             };
 
-            $qty       = (float)($item['qty'] ?? 1);
-            $weight    = (float)($item['net_weight'] ?? 0);
-            $unitPrice = (float)($item['unit_price'] ?? 0);
-            $baseVal   = (float)($item['total_price'] ?? 0);
-            $taxVal    = (float)($item['tax_amount'] ?? 0);
-            $totalVal  = $baseVal + $taxVal;
-            $gstRate   = (float)($item['gst_rate'] ?? 0);
+            $qty = (float) ($item['qty'] ?? 1);
+            $weight = (float) ($item['net_weight'] ?? 0);
+            $unitPrice = (float) ($item['unit_price'] ?? 0);
+            $baseVal = (float) ($item['total_price'] ?? 0);
+            $taxVal = (float) ($item['tax_amount'] ?? 0);
+            $totalVal = $baseVal + $taxVal;
+            $gstRate = (float) ($item['gst_rate'] ?? 0);
 
-            $totalQty  += $qty;
-            $totalWt   += $weight;
+            $totalQty += $qty;
+            $totalWt += $weight;
             $totalBase += $baseVal;
-            $totalTax  += $taxVal;
-            $totalNet  += $totalVal;
+            $totalTax += $taxVal;
+            $totalNet += $totalVal;
 
             fputcsv($out, [
                 $idx + 1,
@@ -912,9 +926,9 @@ class PurchaseController extends Controller {
         if ($gstType === 'Exempted') {
             return [
                 'itemBase' => $grossVal,
-                'itemTax'  => 0.0,
-                'gstRate'  => 0.0,
-                'total'    => $grossVal
+                'itemTax' => 0.0,
+                'gstRate' => 0.0,
+                'total' => $grossVal
             ];
         }
 
@@ -940,7 +954,7 @@ class PurchaseController extends Controller {
             } else {
                 $rate = round($sgstVal, 2);
             }
-        } else { // IGST
+        } else {  // IGST
             if ($isAmount) {
                 $tax = round($igstVal, 2);
             } else {
@@ -974,23 +988,23 @@ class PurchaseController extends Controller {
 
         return [
             'itemBase' => $base,
-            'itemTax'  => $tax,
-            'gstRate'  => $rate,
-            'total'    => $total
+            'itemTax' => $tax,
+            'gstRate' => $rate,
+            'total' => $total
         ];
     }
 
     private function supplierInvoiceNumberExists(int $concernId, int $supplierId, string $invoiceNo, ?int $excludeBillId = null): bool
     {
-        $sql = "SELECT id FROM purchase_bills
+        $sql = 'SELECT id FROM purchase_bills
                 WHERE concern_id = ? AND supplier_id = ?
-                  AND LOWER(TRIM(supplier_invoice_no)) = LOWER(TRIM(?))";
+                  AND LOWER(TRIM(supplier_invoice_no)) = LOWER(TRIM(?))';
         $params = [$concernId, $supplierId, $invoiceNo];
         if ($excludeBillId !== null) {
-            $sql .= " AND id != ?";
+            $sql .= ' AND id != ?';
             $params[] = $excludeBillId;
         }
-        return (bool)DB::fetchValue($sql . " LIMIT 1", $params);
+        return (bool) DB::fetchValue($sql . ' LIMIT 1', $params);
     }
 
     public function checkSupplierInvoiceNumberAjax(): void
@@ -998,11 +1012,11 @@ class PurchaseController extends Controller {
         $this->validateCsrf();
         PurchaseBillSourceService::ensureSchema();
 
-        $supplierId = (int)($_POST['supplier_id'] ?? 0);
-        $invoiceNo = trim((string)($_POST['supplier_invoice_no'] ?? ''));
-        $concernId = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $supplierId = (int) ($_POST['supplier_id'] ?? 0);
+        $invoiceNo = trim((string) ($_POST['supplier_invoice_no'] ?? ''));
+        $concernId = Auth::concernId() ?: (int) ($_POST['concern_id'] ?? 0);
         if (!$concernId && $supplierId > 0) {
-            $concernId = (int)DB::fetchValue('SELECT concern_id FROM suppliers WHERE id = ?', [$supplierId]);
+            $concernId = (int) DB::fetchValue('SELECT concern_id FROM suppliers WHERE id = ?', [$supplierId]);
         }
         if (!$concernId) {
             $this->renderJson(['success' => false, 'message' => 'Choose a concern before checking the invoice number.'], 422);
@@ -1013,7 +1027,7 @@ class PurchaseController extends Controller {
             return;
         }
 
-        $billId = (int)($_POST['bill_id'] ?? 0);
+        $billId = (int) ($_POST['bill_id'] ?? 0);
         $isProductAddingRequest = ($_POST['product_adding_redirect'] ?? '') === '1';
 
         if ($isProductAddingRequest) {
@@ -1041,17 +1055,17 @@ class PurchaseController extends Controller {
                 $paSql .= ' AND pb.id != ?';
                 $paParams[] = $billId;
             }
-            $addedQty = (float)(DB::fetchValue($paSql, $paParams) ?: 0);
+            $addedQty = (float) (DB::fetchValue($paSql, $paParams) ?: 0);
 
             if ($pbBill) {
-                $invoiceQty = (float)($pbBill['invoice_qty'] ?? 0);
+                $invoiceQty = (float) ($pbBill['invoice_qty'] ?? 0);
                 $remainingQty = max(0.0, $invoiceQty - $addedQty);
                 $this->renderJson([
                     'success' => true,
                     'duplicate' => false,
                     'matched_purchase_bill' => [
-                        'id' => (int)$pbBill['id'],
-                        'bill_no' => (string)$pbBill['bill_no'],
+                        'id' => (int) $pbBill['id'],
+                        'bill_no' => (string) $pbBill['bill_no'],
                         'invoice_qty' => $invoiceQty,
                         'product_adding_qty' => $addedQty,
                         'remaining_qty' => $remainingQty,
@@ -1089,7 +1103,8 @@ class PurchaseController extends Controller {
         $this->renderJson($response);
     }
 
-    public function storeBill(): void {
+    public function storeBill(): void
+    {
         $this->validateCsrf();
         PurchaseBillSourceService::ensureSchema();
         $isProductAddingInvoice = ($_POST['product_adding_redirect'] ?? '') === '1';
@@ -1099,11 +1114,11 @@ class PurchaseController extends Controller {
         $createRedirect = $isProductAddingInvoice
             ? '/m/product_adding'
             : '/m/purchase_billing/create';
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
-        $supplierId = (int)($_POST['supplier_id'] ?? 0);
+        $cid = Auth::concernId() ?: (int) ($_POST['concern_id'] ?? 0);
+        $supplierId = (int) ($_POST['supplier_id'] ?? 0);
 
         if (!$cid && $supplierId) {
-            $cid = (int)DB::fetchValue("SELECT concern_id FROM suppliers WHERE id = ?", [$supplierId]);
+            $cid = (int) DB::fetchValue('SELECT concern_id FROM suppliers WHERE id = ?', [$supplierId]);
         }
 
         if (!$cid) {
@@ -1118,7 +1133,7 @@ class PurchaseController extends Controller {
             return;
         }
 
-        $billDate          = !empty($_POST['bill_date']) ? $_POST['bill_date'] : date('Y-m-d');
+        $billDate = !empty($_POST['bill_date']) ? $_POST['bill_date'] : date('Y-m-d');
         $supplierInvoiceNo = trim($_POST['supplier_invoice_no'] ?? '');
         if (empty($supplierInvoiceNo)) {
             $this->flash('error', 'Invoice / Bill Number is required.');
@@ -1146,8 +1161,8 @@ class PurchaseController extends Controller {
                 [$cid, $supplierId, $supplierInvoiceNo]
             );
             if ($matchedPb) {
-                $matchedPurchaseBillQty = (float)($matchedPb['invoice_qty'] ?? 0);
-                $alreadyAddedProductAddingQty = (float)(DB::fetchValue(
+                $matchedPurchaseBillQty = (float) ($matchedPb['invoice_qty'] ?? 0);
+                $alreadyAddedProductAddingQty = (float) (DB::fetchValue(
                     "SELECT COALESCE(SUM(pbi.qty), 0)
                      FROM purchase_bills pb
                      JOIN purchase_bill_items pbi ON pbi.purchase_bill_id = pb.id
@@ -1163,30 +1178,30 @@ class PurchaseController extends Controller {
             }
         }
         $fabricDescription = trim($_POST['fabric_description'] ?? '');
-        $notes             = trim($_POST['notes'] ?? '');
-        $taxRate           = isset($_POST['tax_rate']) ? (float)$_POST['tax_rate'] : 5.0;
+        $notes = trim($_POST['notes'] ?? '');
+        $taxRate = isset($_POST['tax_rate']) ? (float) $_POST['tax_rate'] : 5.0;
 
         // Payment & Inward Settings
-        $paymentStatus    = trim($_POST['payment_status'] ?? 'unpaid');
-        $paymentMethod    = trim($_POST['payment_method'] ?? 'credit');
+        $paymentStatus = trim($_POST['payment_status'] ?? 'unpaid');
+        $paymentMethod = trim($_POST['payment_method'] ?? 'credit');
         $paymentReference = trim($_POST['payment_reference'] ?? '');
-        $paidAmount       = (float)($_POST['paid_amount'] ?? 0.0);
+        $paidAmount = (float) ($_POST['paid_amount'] ?? 0.0);
         // Stock inwarding must happen through the Label Generation Add to Stock action.
-        $inwardStatus     = 'pending';
+        $inwardStatus = 'pending';
 
         if (!in_array($paymentStatus, ['unpaid', 'partial', 'paid'], true)) {
             $paymentStatus = 'unpaid';
         }
 
         // Process Sections (Unified Purchase Billing items or 3-section Product Adding items)
-        $simpleItemsRaw  = $_POST['purchase_items'] ?? [];
-        $rollsRaw        = $_POST['rolls'] ?? [];
+        $simpleItemsRaw = $_POST['purchase_items'] ?? [];
+        $rollsRaw = $_POST['rolls'] ?? [];
         $garmentOtherRaw = $_POST['garment_other'] ?? [];
-        $finishedRaw     = $_POST['finished_goods'] ?? [];
+        $finishedRaw = $_POST['finished_goods'] ?? [];
 
         $itemsToInsert = [];
-        $totalAmount   = 0.0;
-        $totalTax      = 0.0;
+        $totalAmount = 0.0;
+        $totalTax = 0.0;
 
         if (!empty($simpleItemsRaw) && is_array($simpleItemsRaw)) {
             $itemsToInsert = $this->parseSimplePurchaseItems($simpleItemsRaw, $totalAmount, $totalTax);
@@ -1195,26 +1210,26 @@ class PurchaseController extends Controller {
         // 1. Fabric Rolls (Reference Image 1)
         if (is_array($rollsRaw)) {
             foreach ($rollsRaw as $idx => $r) {
-                $netWt = (float)($r['weight'] ?? ($r['net_weight'] ?? 0));
-                $price = (float)($r['price'] ?? ($r['rate'] ?? 0));
-                $rq    = max(1, (int)($r['rq'] ?? 1));
+                $netWt = (float) ($r['weight'] ?? ($r['net_weight'] ?? 0));
+                $price = (float) ($r['price'] ?? ($r['rate'] ?? 0));
+                $rq = max(1, (int) ($r['rq'] ?? 1));
 
                 if ($rq > 0 && $price > 0) {
-                    $taxMode  = trim($r['tax_mode'] ?? 'Exclude GST');
-                    $gstType  = trim($r['gst'] ?? ($r['gst_type'] ?? 'Exempted'));
-                    $taxType  = trim($r['tax_input_type'] ?? 'Percentage');
-                    $sgstVal  = (float)($r['sgst'] ?? 0);
-                    $cgstVal  = (float)($r['cgst'] ?? 0);
-                    $igstVal  = (float)($r['igst'] ?? 0);
-                    $fallback = (float)($r['gst_rate'] ?? 0);
+                    $taxMode = trim($r['tax_mode'] ?? 'Exclude GST');
+                    $gstType = trim($r['gst'] ?? ($r['gst_type'] ?? 'Exempted'));
+                    $taxType = trim($r['tax_input_type'] ?? 'Percentage');
+                    $sgstVal = (float) ($r['sgst'] ?? 0);
+                    $cgstVal = (float) ($r['cgst'] ?? 0);
+                    $igstVal = (float) ($r['igst'] ?? 0);
+                    $fallback = (float) ($r['gst_rate'] ?? 0);
 
                     $calc = $this->calculateLineTax($rq, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
                     $itemBase = $calc['itemBase'];
-                    $itemTax  = $calc['itemTax'];
-                    $gstRate  = $calc['gstRate'];
+                    $itemTax = $calc['itemTax'];
+                    $gstRate = $calc['gstRate'];
 
                     $totalAmount += $itemBase;
-                    $totalTax    += $itemTax;
+                    $totalTax += $itemTax;
 
                     // Handle roll sample photo upload if present (Cloudinary first, local fallback)
                     $rollPhotoPath = !empty($r['existing_photo']) ? trim($r['existing_photo']) : null;
@@ -1228,36 +1243,36 @@ class PurchaseController extends Controller {
 
                     $rawRollCode = trim($r['roll_code'] ?? '');
                     $rollPattern = trim($r['pattern'] ?? ($r['design_name'] ?? ''));
-                    $rollColor   = trim($r['color'] ?? ($r['shade'] ?? ''));
-                    $rollShade   = trim($r['shade'] ?? '');
-                    $rollSpec    = (!empty($rollShade) && strcasecmp($rollShade, $rollColor) !== 0) ? $rollShade : null;
-                    $rollName    = !empty($rawRollCode) ? $rawRollCode : (!empty($rollPattern) ? ($rollPattern . ' Fabric') : ('ROLL #' . $idx));
+                    $rollColor = trim($r['color'] ?? ($r['shade'] ?? ''));
+                    $rollShade = trim($r['shade'] ?? '');
+                    $rollSpec = (!empty($rollShade) && strcasecmp($rollShade, $rollColor) !== 0) ? $rollShade : null;
+                    $rollName = !empty($rawRollCode) ? $rawRollCode : (!empty($rollPattern) ? ($rollPattern . ' Fabric') : ('ROLL #' . $idx));
 
                     $itemsToInsert[] = [
-                        'section_type'  => 'rolls',
-                        'variant_id'    => !empty($r['variant_id']) ? (int)$r['variant_id'] : null,
-                        'item_name'     => $rollName,
-                        'item_code'     => trim($r['roll_code'] ?? ('ROLL #' . $idx)),
-                        'hsn_code'      => trim($r['hsn'] ?? ($r['hsn_code'] ?? '')),
+                        'section_type' => 'rolls',
+                        'variant_id' => !empty($r['variant_id']) ? (int) $r['variant_id'] : null,
+                        'item_name' => $rollName,
+                        'item_code' => trim($r['roll_code'] ?? ('ROLL #' . $idx)),
+                        'hsn_code' => trim($r['hsn'] ?? ($r['hsn_code'] ?? '')),
                         'specification' => $rollSpec,
-                        'color'         => $rollColor,
-                        'pattern'       => $rollPattern,
+                        'color' => $rollColor,
+                        'pattern' => $rollPattern,
                         'designs_count' => 1,
-                        'rq_qty'        => $rq,
-                        'unit'          => 'RQ',
-                        'gross_weight'  => $netWt,
-                        'net_weight'    => $netWt,
-                        'qty'           => $rq,
-                        'unit_price'    => $price,
-                        'gst_rate'      => $gstRate,
-                        'gst_type'      => $gstType,
-                        'tax_mode'      => $taxMode,
-                        'total_price'   => $itemBase,
-                        'tax_amount'    => $itemTax,
-                        'photo_path'    => $rollPhotoPath,
+                        'rq_qty' => $rq,
+                        'unit' => 'RQ',
+                        'gross_weight' => $netWt,
+                        'net_weight' => $netWt,
+                        'qty' => $rq,
+                        'unit_price' => $price,
+                        'gst_rate' => $gstRate,
+                        'gst_type' => $gstType,
+                        'tax_mode' => $taxMode,
+                        'total_price' => $itemBase,
+                        'tax_amount' => $itemTax,
+                        'photo_path' => $rollPhotoPath,
                         'category_name' => 'Fabric Rolls',
-                        'product_type'  => 'Roll',
-                        'mrp'           => null,
+                        'product_type' => 'Roll',
+                        'mrp' => null,
                         'selling_price' => null,
                     ];
                 }
@@ -1267,51 +1282,51 @@ class PurchaseController extends Controller {
         // 2. Other Garment Supplies (Exact same GST and HSN fields)
         if (is_array($garmentOtherRaw)) {
             foreach ($garmentOtherRaw as $idx => $g) {
-                $qty   = (float)($g['quantity'] ?? ($g['qty'] ?? 0));
-                $price = (float)($g['unit_price'] ?? ($g['rate'] ?? 0));
+                $qty = (float) ($g['quantity'] ?? ($g['qty'] ?? 0));
+                $price = (float) ($g['unit_price'] ?? ($g['rate'] ?? 0));
 
                 if ($qty > 0 && $price > 0) {
-                    $taxMode  = trim($g['tax_mode'] ?? 'Exclude GST');
-                    $gstType  = trim($g['gst'] ?? ($g['gst_type'] ?? 'Exempted'));
-                    $taxType  = trim($g['tax_input_type'] ?? 'Percentage');
-                    $sgstVal  = (float)($g['sgst'] ?? 0);
-                    $cgstVal  = (float)($g['cgst'] ?? 0);
-                    $igstVal  = (float)($g['igst'] ?? 0);
-                    $fallback = (float)($g['gst_rate'] ?? 0);
+                    $taxMode = trim($g['tax_mode'] ?? 'Exclude GST');
+                    $gstType = trim($g['gst'] ?? ($g['gst_type'] ?? 'Exempted'));
+                    $taxType = trim($g['tax_input_type'] ?? 'Percentage');
+                    $sgstVal = (float) ($g['sgst'] ?? 0);
+                    $cgstVal = (float) ($g['cgst'] ?? 0);
+                    $igstVal = (float) ($g['igst'] ?? 0);
+                    $fallback = (float) ($g['gst_rate'] ?? 0);
 
                     $calc = $this->calculateLineTax($qty, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
                     $itemBase = $calc['itemBase'];
-                    $itemTax  = $calc['itemTax'];
-                    $gstRate  = $calc['gstRate'];
+                    $itemTax = $calc['itemTax'];
+                    $gstRate = $calc['gstRate'];
 
                     $totalAmount += $itemBase;
-                    $totalTax    += $itemTax;
+                    $totalTax += $itemTax;
 
                     $itemsToInsert[] = [
-                        'section_type'  => 'garment_other',
-                        'variant_id'    => !empty($g['variant_id']) ? (int)$g['variant_id'] : null,
-                        'item_name'     => trim($g['item_name'] ?? 'Garment Supply'),
-                        'item_code'     => trim($g['product_no'] ?? ($g['item_code'] ?? '')),
-                        'hsn_code'      => trim($g['hsn'] ?? ''),
+                        'section_type' => 'garment_other',
+                        'variant_id' => !empty($g['variant_id']) ? (int) $g['variant_id'] : null,
+                        'item_name' => trim($g['item_name'] ?? 'Garment Supply'),
+                        'item_code' => trim($g['product_no'] ?? ($g['item_code'] ?? '')),
+                        'hsn_code' => trim($g['hsn'] ?? ''),
                         'specification' => trim($g['item_name'] ?? ''),
-                        'color'         => null,
-                        'pattern'       => null,
+                        'color' => null,
+                        'pattern' => null,
                         'designs_count' => 1,
-                        'rq_qty'        => 1,
-                        'unit'          => trim($g['unit'] ?? 'Pieces'),
-                        'gross_weight'  => null,
-                        'net_weight'    => null,
-                        'qty'           => $qty,
-                        'unit_price'    => $price,
-                        'gst_rate'      => $gstRate,
-                        'gst_type'      => $gstType,
-                        'tax_mode'      => $taxMode,
-                        'total_price'   => $itemBase,
-                        'tax_amount'    => $itemTax,
-                        'photo_path'    => null,
+                        'rq_qty' => 1,
+                        'unit' => trim($g['unit'] ?? 'Pieces'),
+                        'gross_weight' => null,
+                        'net_weight' => null,
+                        'qty' => $qty,
+                        'unit_price' => $price,
+                        'gst_rate' => $gstRate,
+                        'gst_type' => $gstType,
+                        'tax_mode' => $taxMode,
+                        'total_price' => $itemBase,
+                        'tax_amount' => $itemTax,
+                        'photo_path' => null,
                         'category_name' => 'Garment Other Supplies',
-                        'product_type'  => 'Supply / Trim',
-                        'mrp'           => null,
+                        'product_type' => 'Supply / Trim',
+                        'mrp' => null,
                         'selling_price' => null,
                     ];
                 }
@@ -1332,20 +1347,25 @@ class PurchaseController extends Controller {
                     if (!is_array($variantRow)) {
                         continue;
                     }
-                    $quantity = (float)($variantRow['quantity'] ?? 0);
-                    $supplierCost = (float)($variantRow['supplier_cost'] ?? 0);
-                    $sellingPrice = (float)($variantRow['selling_price'] ?? 0);
-                    $mrp = (float)($variantRow['mrp'] ?? 0);
-                    if (!is_finite($quantity) || !is_finite($supplierCost) || !is_finite($sellingPrice) || !is_finite($mrp)
-                        || $quantity <= 0 || $supplierCost <= 0
-                        || $sellingPrice <= $supplierCost || $mrp <= $sellingPrice) {
+                    $quantity = (float) ($variantRow['quantity'] ?? 0);
+                    $supplierCost = (float) ($variantRow['supplier_cost'] ?? 0);
+                    $sellingPrice = (float) ($variantRow['selling_price'] ?? 0);
+                    $mrp = (float) ($variantRow['mrp'] ?? 0);
+                    if (!is_finite($quantity) ||
+                            !is_finite($supplierCost) ||
+                            !is_finite($sellingPrice) ||
+                            !is_finite($mrp) ||
+                            $quantity <= 0 ||
+                            $supplierCost <= 0 ||
+                            $sellingPrice <= $supplierCost ||
+                            $mrp <= $sellingPrice) {
                         $this->flash('error', 'Every finished-goods variant must satisfy Supplier Cost < Selling Price < MRP and have a quantity greater than zero.');
                         $this->redirect($createRedirect);
                         return;
                     }
                     $expandedItem = array_merge($finishedItem, $variantRow);
-                    $expandedItem['catalog_style_name'] = trim((string)($finishedItem['product'] ?? ''));
-                    $expandedItem['product'] = trim((string)($variantRow['variant_name'] ?? ''));
+                    $expandedItem['catalog_style_name'] = trim((string) ($finishedItem['product'] ?? ''));
+                    $expandedItem['product'] = trim((string) ($variantRow['variant_name'] ?? ''));
                     $expandedItem['variant_name'] = $expandedItem['product'];
                     $expandedFinishedGoods[] = $expandedItem;
                 }
@@ -1355,8 +1375,8 @@ class PurchaseController extends Controller {
 
         if (is_array($finishedRaw)) {
             foreach ($finishedRaw as $idx => $f) {
-                $qty   = (float)($f['quantity'] ?? ($f['qty'] ?? 0));
-                $price = (float)($f['supplier_cost'] ?? ($f['unit_price'] ?? 0));
+                $qty = (float) ($f['quantity'] ?? ($f['qty'] ?? 0));
+                $price = (float) ($f['supplier_cost'] ?? ($f['unit_price'] ?? 0));
 
                 if ($qty > 0 && $price > 0) {
                     $catalogId = null;
@@ -1367,18 +1387,18 @@ class PurchaseController extends Controller {
                     $hsnCode = trim($f['hsn'] ?? '');
                     $size = trim($f['size'] ?? ($f['variant'] ?? ''));
                     $color = '';
-                    $mrp = (float)($f['mrp'] ?? 0);
-                    $sellingPrice = (float)($f['selling_price'] ?? 0);
-                    $catalogGstRate = (float)($f['catalog_gst_rate'] ?? 0);
+                    $mrp = (float) ($f['mrp'] ?? 0);
+                    $sellingPrice = (float) ($f['selling_price'] ?? 0);
+                    $catalogGstRate = (float) ($f['catalog_gst_rate'] ?? 0);
 
                     $catalogDraft = null;
                     if ($isProductAddingInvoice) {
-                        $categoryId = (int)($f['category_id'] ?? 0);
-                        $subcategoryId = (int)($f['subcategory_id'] ?? 0) ?: null;
-                        $subSubcategoryId = (int)($f['sub_sub_category_id'] ?? 0) ?: null;
-                        $size = trim((string)($f['size'] ?? ''));
-                        $color = trim((string)($f['color'] ?? ''));
-                        $hsnCode = strtoupper(trim((string)($f['hsn'] ?? '')));
+                        $categoryId = (int) ($f['category_id'] ?? 0);
+                        $subcategoryId = (int) ($f['subcategory_id'] ?? 0) ?: null;
+                        $subSubcategoryId = (int) ($f['sub_sub_category_id'] ?? 0) ?: null;
+                        $size = trim((string) ($f['size'] ?? ''));
+                        $color = trim((string) ($f['color'] ?? ''));
+                        $hsnCode = strtoupper(trim((string) ($f['hsn'] ?? '')));
                         $hsnMaster = DB::fetch(
                             "SELECT gst_rate FROM hsn_masters
                              WHERE hsn_code = ? AND code_type = 'HSN' AND is_active = 1
@@ -1386,37 +1406,67 @@ class PurchaseController extends Controller {
                              ORDER BY concern_id IS NULL ASC LIMIT 1",
                             [$hsnCode, $cid]
                         );
-                        if (!$hsnMaster || $hsnMaster['gst_rate'] === null || $hsnMaster['gst_rate'] === ''
-                            || !is_numeric($hsnMaster['gst_rate'])
-                            || (float)$hsnMaster['gst_rate'] < 0 || (float)$hsnMaster['gst_rate'] > 100) {
+                        if (!$hsnMaster ||
+                                $hsnMaster['gst_rate'] === null ||
+                                $hsnMaster['gst_rate'] === '' ||
+                                !is_numeric($hsnMaster['gst_rate']) ||
+                                (float) $hsnMaster['gst_rate'] < 0 ||
+                                (float) $hsnMaster['gst_rate'] > 100) {
                             $this->flash('error', 'Choose a registered HSN with a valid GST rate for every finished-goods variant.');
                             $this->redirect($createRedirect);
                             return;
                         }
-                        $catalogGstRate = (float)$hsnMaster['gst_rate'];
-                        $styleCode = strtoupper(trim((string)($f['style_code'] ?? '')));
-                        $styleName = trim((string)($f['catalog_style_name'] ?? $productName));
-                        $variantName = trim((string)($f['variant_name'] ?? $productName));
+                        $catalogGstRate = (float) $hsnMaster['gst_rate'];
+                        $styleCode = strtoupper(trim((string) ($f['style_code'] ?? '')));
+                        $styleName = trim((string) ($f['catalog_style_name'] ?? $productName));
+                        $variantName = trim((string) ($f['variant_name'] ?? $productName));
                         if ($variantName === '') {
                             $variantName = $styleName;
                         }
                         $productName = $variantName;
                         $customAttributes = [];
                         $reservedFields = [
-                            'product', 'item_name', 'sku', 'item_code', 'product_code', 'variant_id', 'catalog_id',
-                            'quantity', 'qty', 'supplier_cost', 'unit_price', 'hsn', 'size', 'variant',
-                            'color', 'style_code', 'category_id', 'subcategory_id', 'sub_sub_category_id',
-                            'catalog_gst_rate', 'tax_mode', 'gst', 'gst_type', 'tax_input_type',
-                            'gst_rate', 'sgst', 'cgst', 'igst', 'mrp', 'selling_price', 'weight',
-                            'catalog_style_name', 'variant_name',
+                            'product',
+                            'item_name',
+                            'sku',
+                            'item_code',
+                            'product_code',
+                            'variant_id',
+                            'catalog_id',
+                            'quantity',
+                            'qty',
+                            'supplier_cost',
+                            'unit_price',
+                            'hsn',
+                            'size',
+                            'variant',
+                            'color',
+                            'style_code',
+                            'category_id',
+                            'subcategory_id',
+                            'sub_sub_category_id',
+                            'catalog_gst_rate',
+                            'tax_mode',
+                            'gst',
+                            'gst_type',
+                            'tax_input_type',
+                            'gst_rate',
+                            'sgst',
+                            'cgst',
+                            'igst',
+                            'mrp',
+                            'selling_price',
+                            'weight',
+                            'catalog_style_name',
+                            'variant_name',
                         ];
                         foreach ($f as $key => $value) {
-                            if (in_array((string)$key, $reservedFields, true) || !is_scalar($value)) {
+                            if (in_array((string) $key, $reservedFields, true) || !is_scalar($value)) {
                                 continue;
                             }
-                            $value = trim((string)$value);
+                            $value = trim((string) $value);
                             if ($value !== '') {
-                                $customAttributes[(string)$key] = $value;
+                                $customAttributes[(string) $key] = $value;
                             }
                         }
                         $catalogDraft = [
@@ -1424,7 +1474,7 @@ class PurchaseController extends Controller {
                             'style_name' => $styleName,
                             'variant_name' => $variantName,
                             'product_code' => $itemCode,
-                            'weight' => (float)($f['weight'] ?? 0),
+                            'weight' => (float) ($f['weight'] ?? 0),
                             'category_id' => $categoryId,
                             'subcategory_id' => $subcategoryId,
                             'sub_sub_category_id' => $subSubcategoryId,
@@ -1439,14 +1489,15 @@ class PurchaseController extends Controller {
                         $categoryName = '';
                     }
 
-                    $taxMode  = trim($f['tax_mode'] ?? 'Exclude GST');
-                    $gstType  = trim($f['gst'] ?? ($f['gst_type'] ?? 'Exempted'));
-                    $taxType  = trim($f['tax_input_type'] ?? 'Percentage');
-                    $sgstVal  = (float)($f['sgst'] ?? 0);
-                    $cgstVal  = (float)($f['cgst'] ?? 0);
-                    $igstVal  = (float)($f['igst'] ?? 0);
-                    if (!in_array($taxType, ['Amount', 'Amount (₹)'], true)
-                        && $catalogGstRate >= 0 && $catalogGstRate <= 100) {
+                    $taxMode = trim($f['tax_mode'] ?? 'Exclude GST');
+                    $gstType = trim($f['gst'] ?? ($f['gst_type'] ?? 'Exempted'));
+                    $taxType = trim($f['tax_input_type'] ?? 'Percentage');
+                    $sgstVal = (float) ($f['sgst'] ?? 0);
+                    $cgstVal = (float) ($f['cgst'] ?? 0);
+                    $igstVal = (float) ($f['igst'] ?? 0);
+                    if (!in_array($taxType, ['Amount', 'Amount (₹)'], true) &&
+                            $catalogGstRate >= 0 &&
+                            $catalogGstRate <= 100) {
                         if ($gstType === 'Both (CGST and SGST)') {
                             $sgstVal = $catalogGstRate / 2;
                             $cgstVal = $catalogGstRate / 2;
@@ -1458,43 +1509,43 @@ class PurchaseController extends Controller {
                             $igstVal = $catalogGstRate;
                         }
                     }
-                    $fallback = $catalogGstRate > 0 ? $catalogGstRate : (float)($f['gst_rate'] ?? 0);
+                    $fallback = $catalogGstRate > 0 ? $catalogGstRate : (float) ($f['gst_rate'] ?? 0);
 
                     $calc = $this->calculateLineTax($qty, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
                     $itemBase = $calc['itemBase'];
-                    $itemTax  = $calc['itemTax'];
-                    $gstRate  = $calc['gstRate'];
+                    $itemTax = $calc['itemTax'];
+                    $gstRate = $calc['gstRate'];
 
                     $totalAmount += $itemBase;
-                    $totalTax    += $itemTax;
+                    $totalTax += $itemTax;
 
                     $itemsToInsert[] = [
-                        'section_type'  => 'finished_goods',
-                        'variant_id'    => $variantId,
-                        'catalog_id'    => $catalogId,
+                        'section_type' => 'finished_goods',
+                        'variant_id' => $variantId,
+                        'catalog_id' => $catalogId,
                         'catalog_draft' => $catalogDraft,
-                        'item_name'     => $productName,
-                        'item_code'     => $itemCode,
-                        'hsn_code'      => $hsnCode,
+                        'item_name' => $productName,
+                        'item_code' => $itemCode,
+                        'hsn_code' => $hsnCode,
                         'specification' => $size,
-                        'color'         => $color ?: null,
-                        'pattern'       => null,
+                        'color' => $color ?: null,
+                        'pattern' => null,
                         'designs_count' => 1,
-                        'rq_qty'        => 1,
-                        'unit'          => 'Pieces',
-                        'gross_weight'  => null,
-                        'net_weight'    => (float)($f['weight'] ?? 0),
-                        'qty'           => $qty,
-                        'unit_price'    => $price,
-                        'gst_rate'      => $gstRate,
-                        'gst_type'      => $gstType,
-                        'tax_mode'      => $taxMode,
-                        'total_price'   => $itemBase,
-                        'tax_amount'    => $itemTax,
-                        'photo_path'    => null,
+                        'rq_qty' => 1,
+                        'unit' => 'Pieces',
+                        'gross_weight' => null,
+                        'net_weight' => (float) ($f['weight'] ?? 0),
+                        'qty' => $qty,
+                        'unit_price' => $price,
+                        'gst_rate' => $gstRate,
+                        'gst_type' => $gstType,
+                        'tax_mode' => $taxMode,
+                        'total_price' => $itemBase,
+                        'tax_amount' => $itemTax,
+                        'photo_path' => null,
                         'category_name' => $categoryName,
-                        'product_type'  => trim($f['product_type'] ?? 'Individual Piece'),
-                        'mrp'           => $mrp,
+                        'product_type' => trim($f['product_type'] ?? 'Individual Piece'),
+                        'mrp' => $mrp,
                         'selling_price' => $sellingPrice,
                     ];
                 }
@@ -1502,38 +1553,38 @@ class PurchaseController extends Controller {
         }
 
         // Backward compatibility fallback for single-item modal submissions
-        if (empty($itemsToInsert) && !empty($_POST['variant_id']) && (float)($_POST['qty'] ?? 0) > 0) {
-            $varId = (int)$_POST['variant_id'];
-            $qty   = (float)$_POST['qty'];
-            $price = (float)$_POST['unit_price'];
-            $varName = DB::fetchValue("SELECT name FROM variants WHERE id = ?", [$varId]) ?: 'Product Item';
+        if (empty($itemsToInsert) && !empty($_POST['variant_id']) && (float) ($_POST['qty'] ?? 0) > 0) {
+            $varId = (int) $_POST['variant_id'];
+            $qty = (float) $_POST['qty'];
+            $price = (float) $_POST['unit_price'];
+            $varName = DB::fetchValue('SELECT name FROM variants WHERE id = ?', [$varId]) ?: 'Product Item';
             $itemTotal = round($qty * $price, 2);
             $totalAmount += $itemTotal;
             $itemsToInsert[] = [
-                'section_type'  => 'rolls',
-                'variant_id'    => $varId,
-                'item_name'     => $varName,
-                'item_code'     => 'SKU-' . $varId,
-                'hsn_code'      => null,
+                'section_type' => 'rolls',
+                'variant_id' => $varId,
+                'item_name' => $varName,
+                'item_code' => 'SKU-' . $varId,
+                'hsn_code' => null,
                 'specification' => '',
-                'color'         => null,
-                'pattern'       => null,
+                'color' => null,
+                'pattern' => null,
                 'designs_count' => 1,
-                'rq_qty'        => 1,
-                'unit'          => 'pcs',
-                'gross_weight'  => null,
-                'net_weight'    => null,
-                'qty'           => $qty,
-                'unit_price'    => $price,
-                'gst_rate'      => 0.00,
-                'gst_type'      => 'Exempted',
-                'tax_mode'      => 'Exclude GST',
-                'total_price'   => $itemTotal,
-                'tax_amount'    => 0.00,
-                'photo_path'    => null,
+                'rq_qty' => 1,
+                'unit' => 'pcs',
+                'gross_weight' => null,
+                'net_weight' => null,
+                'qty' => $qty,
+                'unit_price' => $price,
+                'gst_rate' => 0.0,
+                'gst_type' => 'Exempted',
+                'tax_mode' => 'Exclude GST',
+                'total_price' => $itemTotal,
+                'tax_amount' => 0.0,
+                'photo_path' => null,
                 'category_name' => 'General',
-                'product_type'  => 'Item',
-                'mrp'           => null,
+                'product_type' => 'Item',
+                'mrp' => null,
                 'selling_price' => null,
             ];
         }
@@ -1545,7 +1596,7 @@ class PurchaseController extends Controller {
         }
 
         if ($isProductAddingInvoice && $matchedPurchaseBillQty !== null) {
-            $newTotalQty = array_reduce($itemsToInsert, fn($carry, $it) => $carry + (float)($it['qty'] ?? 0), 0.0);
+            $newTotalQty = array_reduce($itemsToInsert, fn($carry, $it) => $carry + (float) ($it['qty'] ?? 0), 0.0);
             $remainingQty = max(0.0, $matchedPurchaseBillQty - $alreadyAddedProductAddingQty);
             if (($alreadyAddedProductAddingQty + $newTotalQty) > ($matchedPurchaseBillQty + 0.0001)) {
                 $this->flash(
@@ -1589,7 +1640,7 @@ class PurchaseController extends Controller {
                     $mappedProduct = $this->createProductAddingCatalogVariant(
                         $cid,
                         $item['catalog_draft'],
-                        (float)$item['unit_price'],
+                        (float) $item['unit_price'],
                         $catalogCache
                     );
                     $item['catalog_id'] = $mappedProduct['catalog_id'];
@@ -1602,27 +1653,27 @@ class PurchaseController extends Controller {
             unset($item);
 
             DB::query(
-                "INSERT INTO purchase_bills (
+                'INSERT INTO purchase_bills (
                     concern_id, bill_no, supplier_invoice_no, source_module, supplier_id, bill_date,
                     total_amount, tax_amount, net_amount, payment_status, payment_method, payment_reference, paid_amount,
                     inward_status, notes, attachment_path, attachment_paths, fabric_description, created_by, created_at
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
                 [
                     $cid, $billNo, $supplierInvoiceNo, $isProductAddingInvoice ? 'product_adding' : 'purchase_billing', $supplierId, $billDate,
                     $totalAmount, $totalTax, $netAmount, $paymentStatus, $paymentMethod, $paymentReference, $paidAmount,
                     $inwardStatus, $notes, $attachmentPath, $attachmentPathsJson, $fabricDescription, Auth::id()
                 ]
             );
-            $billId = (int)DB::lastInsertId();
+            $billId = (int) DB::lastInsertId();
 
             foreach ($itemsToInsert as $item) {
                 DB::query(
-                    "INSERT INTO purchase_bill_items (
+                    'INSERT INTO purchase_bill_items (
                         concern_id, purchase_bill_id, variant_id, section_type, item_name, item_code,
                         hsn_code, specification, color, pattern, designs_count, rq_qty, unit,
                         gross_weight, net_weight, qty, inward_status, unit_price, gst_rate, gst_type, tax_mode, total_price, tax_amount,
                         photo_path, category_name, product_type, mrp, selling_price
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         $cid,
                         $billId,
@@ -1654,11 +1705,11 @@ class PurchaseController extends Controller {
                         $item['selling_price'],
                     ]
                 );
-                $purchaseItemId = (int)DB::lastInsertId();
+                $purchaseItemId = (int) DB::lastInsertId();
                 if (!empty($item['catalog_id'])) {
                     DB::query(
-                        "UPDATE purchase_bill_items SET catalog_id = ? WHERE id = ?",
-                        [(int)$item['catalog_id'], $purchaseItemId]
+                        'UPDATE purchase_bill_items SET catalog_id = ? WHERE id = ?',
+                        [(int) $item['catalog_id'], $purchaseItemId]
                     );
                 }
 
@@ -1667,10 +1718,10 @@ class PurchaseController extends Controller {
                     try {
                         StockService::move(
                             $cid,
-                            (int)$item['variant_id'],
+                            (int) $item['variant_id'],
                             'Main Store',
-                            (float)$item['qty'],
-                            0.00,
+                            (float) $item['qty'],
+                            0.0,
                             'Purchase Inward',
                             $billId,
                             "Purchase Inward from Bill #{$billNo}"
@@ -1682,9 +1733,9 @@ class PurchaseController extends Controller {
 
                 // Ensure newly recorded HSN code is preserved in HSN master for future use
                 if (!empty($item['hsn_code']) && $item['hsn_code'] !== '-') {
-                    $existingHsn = DB::fetchValue("SELECT id FROM hsn_masters WHERE hsn_code = ? AND (concern_id = ? OR concern_id IS NULL)", [$item['hsn_code'], $cid]);
+                    $existingHsn = DB::fetchValue('SELECT id FROM hsn_masters WHERE hsn_code = ? AND (concern_id = ? OR concern_id IS NULL)', [$item['hsn_code'], $cid]);
                     if (!$existingHsn) {
-                        DB::query(                        "INSERT INTO hsn_masters (concern_id, code_type, hsn_code, description, gst_rate, created_at) VALUES (?, 'HSN', ?, ?, ?, NOW())", [
+                        DB::query("INSERT INTO hsn_masters (concern_id, code_type, hsn_code, description, gst_rate, created_at) VALUES (?, 'HSN', ?, ?, ?, NOW())", [
                             $cid,
                             $item['hsn_code'],
                             $item['item_name'] ?? 'Recorded HSN',
@@ -1737,19 +1788,19 @@ class PurchaseController extends Controller {
 
     private function createProductAddingCatalogVariant(int $concernId, array $draft, float $supplierCost, array &$catalogCache): array
     {
-        $styleCode = strtoupper(trim((string)($draft['style_code'] ?? '')));
-        $styleName = trim((string)($draft['style_name'] ?? ''));
-        $variantName = trim((string)($draft['variant_name'] ?? ''));
-        $requestedCode = strtoupper(trim((string)($draft['product_code'] ?? '')));
-        $categoryId = (int)($draft['category_id'] ?? 0);
-        $subcategoryId = (int)($draft['subcategory_id'] ?? 0) ?: null;
-        $subSubcategoryId = (int)($draft['sub_sub_category_id'] ?? 0) ?: null;
-        $size = trim((string)($draft['size'] ?? ''));
-        $color = trim((string)($draft['color'] ?? ''));
-        $weight = (float)($draft['weight'] ?? 0);
-        $hsnCode = strtoupper(trim((string)($draft['hsn_code'] ?? '')));
-        $sellingPrice = (float)($draft['selling_price'] ?? 0);
-        $mrp = (float)($draft['mrp'] ?? 0);
+        $styleCode = strtoupper(trim((string) ($draft['style_code'] ?? '')));
+        $styleName = trim((string) ($draft['style_name'] ?? ''));
+        $variantName = trim((string) ($draft['variant_name'] ?? ''));
+        $requestedCode = strtoupper(trim((string) ($draft['product_code'] ?? '')));
+        $categoryId = (int) ($draft['category_id'] ?? 0);
+        $subcategoryId = (int) ($draft['subcategory_id'] ?? 0) ?: null;
+        $subSubcategoryId = (int) ($draft['sub_sub_category_id'] ?? 0) ?: null;
+        $size = trim((string) ($draft['size'] ?? ''));
+        $color = trim((string) ($draft['color'] ?? ''));
+        $weight = (float) ($draft['weight'] ?? 0);
+        $hsnCode = strtoupper(trim((string) ($draft['hsn_code'] ?? '')));
+        $sellingPrice = (float) ($draft['selling_price'] ?? 0);
+        $mrp = (float) ($draft['mrp'] ?? 0);
 
         if ($styleName === '' && $variantName !== '') {
             $styleName = $variantName;
@@ -1804,10 +1855,10 @@ class PurchaseController extends Controller {
                 [$concernId]
             );
             if ($category) {
-                $categoryId = (int)$category['id'];
+                $categoryId = (int) $category['id'];
             } else {
                 DB::query("INSERT INTO categories (concern_id, name, code, status) VALUES (?, 'General', 'GEN', 'active')", [$concernId]);
-                $categoryId = (int)DB::lastInsertId();
+                $categoryId = (int) DB::lastInsertId();
                 $category = ['id' => $categoryId, 'name' => 'General'];
             }
         }
@@ -1829,9 +1880,9 @@ class PurchaseController extends Controller {
                 throw new Exception('Choose a subcategory before selecting a sub-subcategory.');
             }
             $subSubcategory = DB::fetch(
-                "SELECT id, name FROM sub_subcategories
+                'SELECT id, name FROM sub_subcategories
                  WHERE id = ? AND subcategory_id = ?
-                   AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                   AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)',
                 [$subSubcategoryId, $subcategoryId, $concernId]
             );
             if (!$subSubcategory) {
@@ -1850,8 +1901,8 @@ class PurchaseController extends Controller {
             throw new Exception('The selected HSN is not registered. Use Add HSN to create it first.');
         }
         $gstRate = $hsn['gst_rate'] !== null && $hsn['gst_rate'] !== ''
-            ? (float)$hsn['gst_rate']
-            : (float)($draft['gst_rate'] ?? -1);
+            ? (float) $hsn['gst_rate']
+            : (float) ($draft['gst_rate'] ?? -1);
         if ($gstRate < 0 || $gstRate > 100) {
             throw new Exception('Enter a valid GST rate for the selected HSN code.');
         }
@@ -1867,20 +1918,23 @@ class PurchaseController extends Controller {
             [$concernId]
         );
         foreach ($attributeTypes as $attributeType) {
-            $type = strtolower(trim((string)($attributeType['attribute_type'] ?? '')));
+            $type = strtolower(trim((string) ($attributeType['attribute_type'] ?? '')));
             if ($type !== '') {
                 $allowedAttributeTypes[$type] = true;
             }
         }
         $normalizedAttributes = [];
         foreach ($customAttributes as $type => $value) {
-            $type = strtolower(trim((string)$type));
-            $value = is_scalar($value) ? trim((string)$value) : '';
+            $type = strtolower(trim((string) $type));
+            $value = is_scalar($value) ? trim((string) $value) : '';
             if ($value === '') {
                 continue;
             }
-            if ($type === '' || !isset($allowedAttributeTypes[$type]) || strlen($type) > 50 || mb_strlen($value) > 100
-                || in_array($type, ['hsn', 'weight', 'allocated_qty', 'custom_attributes'], true)) {
+            if ($type === '' ||
+                    !isset($allowedAttributeTypes[$type]) ||
+                    strlen($type) > 50 ||
+                    mb_strlen($value) > 100 ||
+                    in_array($type, ['hsn', 'weight', 'allocated_qty', 'custom_attributes'], true)) {
                 throw new Exception('A submitted product attribute is invalid.');
             }
             $normalizedAttributes[$type] = $value;
@@ -1890,10 +1944,10 @@ class PurchaseController extends Controller {
         if (isset($catalogCache[$styleKey])) {
             $cached = $catalogCache[$styleKey];
             if (
-                $cached['style_name'] !== $styleName
-                || $cached['category_id'] !== $categoryId
-                || $cached['subcategory_id'] !== $subcategoryId
-                || $cached['sub_sub_category_id'] !== $subSubcategoryId
+                $cached['style_name'] !== $styleName ||
+                $cached['category_id'] !== $categoryId ||
+                $cached['subcategory_id'] !== $subcategoryId ||
+                $cached['sub_sub_category_id'] !== $subSubcategoryId
             ) {
                 throw new Exception('A style code can only be reused for variants with the same name and category hierarchy.');
             }
@@ -1905,9 +1959,9 @@ class PurchaseController extends Controller {
                 $styleCode = substr($styleCode, 0, 44) . '-' . strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
             }
 
-            $categoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)$category['name']) ?: 'CAT');
-            $subcategoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)($subcategory['name'] ?? '')) ?: 'SUB');
-            $subSubcategoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)($subSubcategory['name'] ?? '')) ?: 'SS');
+            $categoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $category['name']) ?: 'CAT');
+            $subcategoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($subcategory['name'] ?? '')) ?: 'SUB');
+            $subSubcategoryCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($subSubcategory['name'] ?? '')) ?: 'SS');
             $shortCode = substr($categoryCode, 0, 2) . substr($subcategoryCode, 0, 2) . substr($subSubcategoryCode, 0, 2);
             $hierarchyPath = implode(' > ', array_filter([
                 $category['name'] ?? '',
@@ -1922,20 +1976,32 @@ class PurchaseController extends Controller {
                     hsn_code, gst_rate, sizes, status, source_module, name, created_at
                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 'product_adding', ?, NOW())",
                 [
-                    $concernId, $styleCode, $styleCode, $shortCode, $categoryId, $subcategoryId, $subSubcategoryId,
-                    substr($categoryCode, 0, 10), substr($subcategoryCode, 0, 10), substr($subSubcategoryCode, 0, 10),
-                    $hierarchyPath, $hsnCode, $gstRate, json_encode([$size]), $styleName,
+                    $concernId,
+                    $styleCode,
+                    $styleCode,
+                    $shortCode,
+                    $categoryId,
+                    $subcategoryId,
+                    $subSubcategoryId,
+                    substr($categoryCode, 0, 10),
+                    substr($subcategoryCode, 0, 10),
+                    substr($subSubcategoryCode, 0, 10),
+                    $hierarchyPath,
+                    $hsnCode,
+                    $gstRate,
+                    json_encode([$size]),
+                    $styleName,
                 ]
             );
             $catalogCache[$styleKey] = [
-                'catalog_id' => (int)DB::lastInsertId(),
+                'catalog_id' => (int) DB::lastInsertId(),
                 'style_name' => $styleName,
                 'category_id' => $categoryId,
                 'subcategory_id' => $subcategoryId,
                 'sub_sub_category_id' => $subSubcategoryId,
                 'hsn_code' => $hsnCode,
                 'gst_rate' => $gstRate,
-                'category_name' => (string)$category['name'],
+                'category_name' => (string) $category['name'],
                 'sizes' => [$size],
             ];
         }
@@ -1962,9 +2028,9 @@ class PurchaseController extends Controller {
             'mrp' => $mrp,
             'custom_attributes' => $normalizedAttributes,
         ]);
-        $variantId = (int)$resolvedVariant['variant_id'];
-        $productCode = (string)$resolvedVariant['product_code'];
-        $resolvedCatalogId = (int)($resolvedVariant['catalog_id'] ?: $catalog['catalog_id']);
+        $variantId = (int) $resolvedVariant['variant_id'];
+        $productCode = (string) $resolvedVariant['product_code'];
+        $resolvedCatalogId = (int) ($resolvedVariant['catalog_id'] ?: $catalog['catalog_id']);
 
         $attributeValues = array_merge(['size' => $size, 'color' => $color], $normalizedAttributes);
         foreach ($attributeValues as $type => $value) {
@@ -1976,7 +2042,7 @@ class PurchaseController extends Controller {
             );
             $exists = false;
             foreach ($knownRows as $knownRow) {
-                $knownValues = preg_split('/[,;|]+/', (string)($knownRow['attribute_value'] ?? ''));
+                $knownValues = preg_split('/[,;|]+/', (string) ($knownRow['attribute_value'] ?? ''));
                 foreach ($knownValues as $knownValue) {
                     if (strcasecmp(trim($knownValue), $value) === 0) {
                         $exists = true;
@@ -1985,7 +2051,7 @@ class PurchaseController extends Controller {
                 }
             }
             if (!$exists) {
-                $sortOrder = (int)DB::fetchValue(
+                $sortOrder = (int) DB::fetchValue(
                     'SELECT COALESCE(MAX(sort_order), 0) + 1 FROM product_attributes WHERE concern_id = ?',
                     [$concernId]
                 );
@@ -2018,57 +2084,57 @@ class PurchaseController extends Controller {
             if (!is_array($row)) {
                 continue;
             }
-            $sectionType = trim((string)($row['product_type'] ?? 'rolls'));
+            $sectionType = trim((string) ($row['product_type'] ?? 'rolls'));
             if (!isset($typeLabels[$sectionType])) {
                 $sectionType = 'rolls';
             }
-            $name = trim((string)($row['name'] ?? ($row['item_name'] ?? '')));
-            $qty = (float)($row['qty'] ?? ($row['quantity'] ?? 0));
-            $price = (float)($row['price'] ?? ($row['unit_price'] ?? 0));
+            $name = trim((string) ($row['name'] ?? ($row['item_name'] ?? '')));
+            $qty = (float) ($row['qty'] ?? ($row['quantity'] ?? 0));
+            $price = (float) ($row['price'] ?? ($row['unit_price'] ?? 0));
 
             if ($name === '' || $qty <= 0 || $price <= 0) {
                 continue;
             }
 
-            $hsnCode = trim((string)($row['hsn'] ?? ($row['hsn_code'] ?? '')));
-            $taxMode = trim((string)($row['tax_mode'] ?? 'Exclude GST'));
-            $gstType = trim((string)($row['gst'] ?? ($row['gst_type'] ?? 'Exempted')));
-            $taxType = trim((string)($row['tax_input_type'] ?? 'Percentage'));
-            $sgstVal = (float)($row['sgst'] ?? 0);
-            $cgstVal = (float)($row['cgst'] ?? 0);
-            $igstVal = (float)($row['igst'] ?? 0);
-            $fallback = (float)($row['gst_rate'] ?? 0);
+            $hsnCode = trim((string) ($row['hsn'] ?? ($row['hsn_code'] ?? '')));
+            $taxMode = trim((string) ($row['tax_mode'] ?? 'Exclude GST'));
+            $gstType = trim((string) ($row['gst'] ?? ($row['gst_type'] ?? 'Exempted')));
+            $taxType = trim((string) ($row['tax_input_type'] ?? 'Percentage'));
+            $sgstVal = (float) ($row['sgst'] ?? 0);
+            $cgstVal = (float) ($row['cgst'] ?? 0);
+            $igstVal = (float) ($row['igst'] ?? 0);
+            $fallback = (float) ($row['gst_rate'] ?? 0);
 
             $calc = $this->calculateLineTax($qty, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
             $totalAmount += $calc['itemBase'];
             $totalTax += $calc['itemTax'];
 
             $items[] = [
-                'section_type'  => $sectionType,
-                'variant_id'    => null,
-                'catalog_id'    => null,
-                'item_name'     => $name,
-                'item_code'     => '',
-                'hsn_code'      => $hsnCode ?: null,
+                'section_type' => $sectionType,
+                'variant_id' => null,
+                'catalog_id' => null,
+                'item_name' => $name,
+                'item_code' => '',
+                'hsn_code' => $hsnCode ?: null,
                 'specification' => '',
-                'color'         => null,
-                'pattern'       => null,
+                'color' => null,
+                'pattern' => null,
                 'designs_count' => 1,
-                'rq_qty'        => $sectionType === 'rolls' ? max(1, (int)round($qty)) : 1,
-                'unit'          => $sectionType === 'rolls' ? 'Rolls' : 'Pieces',
-                'gross_weight'  => null,
-                'net_weight'    => null,
-                'qty'           => $qty,
-                'unit_price'    => $price,
-                'gst_rate'      => $calc['gstRate'],
-                'gst_type'      => $gstType,
-                'tax_mode'      => $taxMode,
-                'total_price'   => $calc['itemBase'],
-                'tax_amount'    => $calc['itemTax'],
-                'photo_path'    => null,
+                'rq_qty' => $sectionType === 'rolls' ? max(1, (int) round($qty)) : 1,
+                'unit' => $sectionType === 'rolls' ? 'Rolls' : 'Pieces',
+                'gross_weight' => null,
+                'net_weight' => null,
+                'qty' => $qty,
+                'unit_price' => $price,
+                'gst_rate' => $calc['gstRate'],
+                'gst_type' => $gstType,
+                'tax_mode' => $taxMode,
+                'total_price' => $calc['itemBase'],
+                'tax_amount' => $calc['itemTax'],
+                'photo_path' => null,
                 'category_name' => $typeLabels[$sectionType],
-                'product_type'  => $typeLabels[$sectionType],
-                'mrp'           => null,
+                'product_type' => $typeLabels[$sectionType],
+                'mrp' => null,
                 'selling_price' => null,
             ];
         }
@@ -2076,14 +2142,15 @@ class PurchaseController extends Controller {
         return $items;
     }
 
-    public function updateBill(): void {
+    public function updateBill(): void
+    {
         $this->validateCsrf();
         $isProductAddingEdit = ($_POST['product_adding_redirect'] ?? '') === '1';
         if ($isProductAddingEdit) {
             PurchaseBillSourceService::ensureSchema();
         }
-        $billId = (int)($_POST['bill_id'] ?? 0);
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $billId = (int) ($_POST['bill_id'] ?? 0);
+        $cid = Auth::concernId() ?: (int) ($_POST['concern_id'] ?? 0);
         $billListUrl = $isProductAddingEdit ? '/m/product_adding' : '/m/purchase_billing';
         $editBillUrl = $isProductAddingEdit
             ? '/m/product_adding/edit_purchase_bill?id=' . $billId
@@ -2097,11 +2164,11 @@ class PurchaseController extends Controller {
 
         $bill = null;
         if ($cid) {
-            $bill = DB::fetch("SELECT * FROM purchase_bills WHERE id = ? AND concern_id = ?", [$billId, $cid]);
+            $bill = DB::fetch('SELECT * FROM purchase_bills WHERE id = ? AND concern_id = ?', [$billId, $cid]);
         } else {
-            $bill = DB::fetch("SELECT * FROM purchase_bills WHERE id = ?", [$billId]);
+            $bill = DB::fetch('SELECT * FROM purchase_bills WHERE id = ?', [$billId]);
             if ($bill) {
-                $cid = (int)$bill['concern_id'];
+                $cid = (int) $bill['concern_id'];
             }
         }
 
@@ -2117,7 +2184,7 @@ class PurchaseController extends Controller {
         }
 
         if ($isProductAddingEdit) {
-            $inwardedItemCount = (int)DB::fetchValue(
+            $inwardedItemCount = (int) DB::fetchValue(
                 "SELECT COUNT(*)
                  FROM purchase_bill_items pbi
                  JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
@@ -2132,14 +2199,14 @@ class PurchaseController extends Controller {
             }
         }
 
-        $supplierId = (int)($_POST['supplier_id'] ?? $bill['supplier_id']);
+        $supplierId = (int) ($_POST['supplier_id'] ?? $bill['supplier_id']);
         if (!$supplierId) {
             $this->flash('error', 'Please select a registered supplier.');
             $this->redirect($editBillUrl);
             return;
         }
 
-        $billDate          = !empty($_POST['bill_date']) ? $_POST['bill_date'] : $bill['bill_date'];
+        $billDate = !empty($_POST['bill_date']) ? $_POST['bill_date'] : $bill['bill_date'];
         $supplierInvoiceNo = trim($_POST['supplier_invoice_no'] ?? '');
         if (empty($supplierInvoiceNo)) {
             $this->flash('error', 'Invoice / Bill Number is required.');
@@ -2152,25 +2219,25 @@ class PurchaseController extends Controller {
             return;
         }
         $fabricDescription = trim($_POST['fabric_description'] ?? '');
-        $notes             = trim($_POST['notes'] ?? '');
-        $paymentStatus     = trim($_POST['payment_status'] ?? ($bill['payment_status'] ?? 'unpaid'));
-        $paymentMethod     = trim($_POST['payment_method'] ?? ($bill['payment_method'] ?? 'credit'));
-        $paymentReference  = trim($_POST['payment_reference'] ?? ($bill['payment_reference'] ?? ''));
-        $paidAmount        = isset($_POST['paid_amount']) ? (float)$_POST['paid_amount'] : (float)($bill['paid_amount'] ?? 0.0);
-        $inwardStatus      = (($bill['inward_status'] ?? 'pending') === 'completed') ? 'completed' : 'pending';
+        $notes = trim($_POST['notes'] ?? '');
+        $paymentStatus = trim($_POST['payment_status'] ?? ($bill['payment_status'] ?? 'unpaid'));
+        $paymentMethod = trim($_POST['payment_method'] ?? ($bill['payment_method'] ?? 'credit'));
+        $paymentReference = trim($_POST['payment_reference'] ?? ($bill['payment_reference'] ?? ''));
+        $paidAmount = isset($_POST['paid_amount']) ? (float) $_POST['paid_amount'] : (float) ($bill['paid_amount'] ?? 0.0);
+        $inwardStatus = (($bill['inward_status'] ?? 'pending') === 'completed') ? 'completed' : 'pending';
 
         if (!in_array($paymentStatus, ['unpaid', 'partial', 'paid'], true)) {
             $paymentStatus = 'unpaid';
         }
         // Process sections
-        $simpleItemsRaw  = $_POST['purchase_items'] ?? [];
-        $rollsRaw        = $_POST['rolls'] ?? [];
+        $simpleItemsRaw = $_POST['purchase_items'] ?? [];
+        $rollsRaw = $_POST['rolls'] ?? [];
         $garmentOtherRaw = $_POST['garment_other'] ?? [];
-        $finishedRaw     = $_POST['finished_goods'] ?? [];
+        $finishedRaw = $_POST['finished_goods'] ?? [];
 
         $itemsToInsert = [];
-        $totalAmount   = 0.0;
-        $totalTax      = 0.0;
+        $totalAmount = 0.0;
+        $totalTax = 0.0;
 
         if (!empty($simpleItemsRaw) && is_array($simpleItemsRaw)) {
             $itemsToInsert = $this->parseSimplePurchaseItems($simpleItemsRaw, $totalAmount, $totalTax);
@@ -2179,26 +2246,26 @@ class PurchaseController extends Controller {
         // 1. Rolls
         if (is_array($rollsRaw)) {
             foreach ($rollsRaw as $idx => $r) {
-                $netWt = (float)($r['weight'] ?? ($r['net_weight'] ?? 0));
-                $price = (float)($r['price'] ?? ($r['rate'] ?? 0));
-                $rq    = max(1, (int)($r['rq'] ?? 1));
+                $netWt = (float) ($r['weight'] ?? ($r['net_weight'] ?? 0));
+                $price = (float) ($r['price'] ?? ($r['rate'] ?? 0));
+                $rq = max(1, (int) ($r['rq'] ?? 1));
 
                 if ($rq > 0 && $price > 0) {
-                    $taxMode  = trim($r['tax_mode'] ?? 'Exclude GST');
-                    $gstType  = trim($r['gst'] ?? ($r['gst_type'] ?? 'Exempted'));
-                    $taxType  = trim($r['tax_input_type'] ?? 'Percentage');
-                    $sgstVal  = (float)($r['sgst'] ?? 0);
-                    $cgstVal  = (float)($r['cgst'] ?? 0);
-                    $igstVal  = (float)($r['igst'] ?? 0);
-                    $fallback = (float)($r['gst_rate'] ?? 0);
+                    $taxMode = trim($r['tax_mode'] ?? 'Exclude GST');
+                    $gstType = trim($r['gst'] ?? ($r['gst_type'] ?? 'Exempted'));
+                    $taxType = trim($r['tax_input_type'] ?? 'Percentage');
+                    $sgstVal = (float) ($r['sgst'] ?? 0);
+                    $cgstVal = (float) ($r['cgst'] ?? 0);
+                    $igstVal = (float) ($r['igst'] ?? 0);
+                    $fallback = (float) ($r['gst_rate'] ?? 0);
 
                     $calc = $this->calculateLineTax($rq, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
                     $itemBase = $calc['itemBase'];
-                    $itemTax  = $calc['itemTax'];
-                    $gstRate  = $calc['gstRate'];
+                    $itemTax = $calc['itemTax'];
+                    $gstRate = $calc['gstRate'];
 
                     $totalAmount += $itemBase;
-                    $totalTax    += $itemTax;
+                    $totalTax += $itemTax;
 
                     // Handle roll photo upload (Cloudinary first, local disk fallback)
                     $rollPhotoPath = !empty($r['existing_photo']) ? trim($r['existing_photo']) : null;
@@ -2212,36 +2279,36 @@ class PurchaseController extends Controller {
 
                     $rawRollCode = trim($r['roll_code'] ?? '');
                     $rollPattern = trim($r['pattern'] ?? ($r['design_name'] ?? ''));
-                    $rollColor   = trim($r['color'] ?? ($r['shade'] ?? ''));
-                    $rollShade   = trim($r['shade'] ?? '');
-                    $rollSpec    = (!empty($rollShade) && strcasecmp($rollShade, $rollColor) !== 0) ? $rollShade : null;
-                    $rollName    = !empty($rawRollCode) ? $rawRollCode : (!empty($rollPattern) ? ($rollPattern . ' Fabric') : ('ROLL #' . $idx));
+                    $rollColor = trim($r['color'] ?? ($r['shade'] ?? ''));
+                    $rollShade = trim($r['shade'] ?? '');
+                    $rollSpec = (!empty($rollShade) && strcasecmp($rollShade, $rollColor) !== 0) ? $rollShade : null;
+                    $rollName = !empty($rawRollCode) ? $rawRollCode : (!empty($rollPattern) ? ($rollPattern . ' Fabric') : ('ROLL #' . $idx));
 
                     $itemsToInsert[] = [
-                        'section_type'  => 'rolls',
-                        'variant_id'    => !empty($r['variant_id']) ? (int)$r['variant_id'] : null,
-                        'item_name'     => $rollName,
-                        'item_code'     => trim($r['roll_code'] ?? ('ROLL #' . $idx)),
-                        'hsn_code'      => trim($r['hsn'] ?? ($r['hsn_code'] ?? '')),
+                        'section_type' => 'rolls',
+                        'variant_id' => !empty($r['variant_id']) ? (int) $r['variant_id'] : null,
+                        'item_name' => $rollName,
+                        'item_code' => trim($r['roll_code'] ?? ('ROLL #' . $idx)),
+                        'hsn_code' => trim($r['hsn'] ?? ($r['hsn_code'] ?? '')),
                         'specification' => $rollSpec,
-                        'color'         => $rollColor,
-                        'pattern'       => $rollPattern,
+                        'color' => $rollColor,
+                        'pattern' => $rollPattern,
                         'designs_count' => 1,
-                        'rq_qty'        => $rq,
-                        'unit'          => 'RQ',
-                        'gross_weight'  => $netWt,
-                        'net_weight'    => $netWt,
-                        'qty'           => $rq,
-                        'unit_price'    => $price,
-                        'gst_rate'      => $gstRate,
-                        'gst_type'      => $gstType,
-                        'tax_mode'      => $taxMode,
-                        'total_price'   => $itemBase,
-                        'tax_amount'    => $itemTax,
-                        'photo_path'    => $rollPhotoPath,
+                        'rq_qty' => $rq,
+                        'unit' => 'RQ',
+                        'gross_weight' => $netWt,
+                        'net_weight' => $netWt,
+                        'qty' => $rq,
+                        'unit_price' => $price,
+                        'gst_rate' => $gstRate,
+                        'gst_type' => $gstType,
+                        'tax_mode' => $taxMode,
+                        'total_price' => $itemBase,
+                        'tax_amount' => $itemTax,
+                        'photo_path' => $rollPhotoPath,
                         'category_name' => 'Fabric Rolls',
-                        'product_type'  => 'Roll',
-                        'mrp'           => null,
+                        'product_type' => 'Roll',
+                        'mrp' => null,
                         'selling_price' => null,
                     ];
                 }
@@ -2251,51 +2318,51 @@ class PurchaseController extends Controller {
         // 2. Garment Other (Exact same GST and HSN fields)
         if (is_array($garmentOtherRaw)) {
             foreach ($garmentOtherRaw as $idx => $g) {
-                $qty   = (float)($g['quantity'] ?? ($g['qty'] ?? 0));
-                $price = (float)($g['unit_price'] ?? ($g['rate'] ?? 0));
+                $qty = (float) ($g['quantity'] ?? ($g['qty'] ?? 0));
+                $price = (float) ($g['unit_price'] ?? ($g['rate'] ?? 0));
 
                 if ($qty > 0 && $price > 0) {
-                    $taxMode  = trim($g['tax_mode'] ?? 'Exclude GST');
-                    $gstType  = trim($g['gst'] ?? ($g['gst_type'] ?? 'Exempted'));
-                    $taxType  = trim($g['tax_input_type'] ?? 'Percentage');
-                    $sgstVal  = (float)($g['sgst'] ?? 0);
-                    $cgstVal  = (float)($g['cgst'] ?? 0);
-                    $igstVal  = (float)($g['igst'] ?? 0);
-                    $fallback = (float)($g['gst_rate'] ?? 0);
+                    $taxMode = trim($g['tax_mode'] ?? 'Exclude GST');
+                    $gstType = trim($g['gst'] ?? ($g['gst_type'] ?? 'Exempted'));
+                    $taxType = trim($g['tax_input_type'] ?? 'Percentage');
+                    $sgstVal = (float) ($g['sgst'] ?? 0);
+                    $cgstVal = (float) ($g['cgst'] ?? 0);
+                    $igstVal = (float) ($g['igst'] ?? 0);
+                    $fallback = (float) ($g['gst_rate'] ?? 0);
 
                     $calc = $this->calculateLineTax($qty, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
                     $itemBase = $calc['itemBase'];
-                    $itemTax  = $calc['itemTax'];
-                    $gstRate  = $calc['gstRate'];
+                    $itemTax = $calc['itemTax'];
+                    $gstRate = $calc['gstRate'];
 
                     $totalAmount += $itemBase;
-                    $totalTax    += $itemTax;
+                    $totalTax += $itemTax;
 
                     $itemsToInsert[] = [
-                        'section_type'  => 'garment_other',
-                        'variant_id'    => !empty($g['variant_id']) ? (int)$g['variant_id'] : null,
-                        'item_name'     => trim($g['item_name'] ?? 'Garment Supply'),
-                        'item_code'     => trim($g['product_no'] ?? ($g['item_code'] ?? '')),
-                        'hsn_code'      => trim($g['hsn'] ?? ''),
+                        'section_type' => 'garment_other',
+                        'variant_id' => !empty($g['variant_id']) ? (int) $g['variant_id'] : null,
+                        'item_name' => trim($g['item_name'] ?? 'Garment Supply'),
+                        'item_code' => trim($g['product_no'] ?? ($g['item_code'] ?? '')),
+                        'hsn_code' => trim($g['hsn'] ?? ''),
                         'specification' => trim($g['item_name'] ?? ''),
-                        'color'         => null,
-                        'pattern'       => null,
+                        'color' => null,
+                        'pattern' => null,
                         'designs_count' => 1,
-                        'rq_qty'        => 1,
-                        'unit'          => trim($g['unit'] ?? 'Pieces'),
-                        'gross_weight'  => null,
-                        'net_weight'    => null,
-                        'qty'           => $qty,
-                        'unit_price'    => $price,
-                        'gst_rate'      => $gstRate,
-                        'gst_type'      => $gstType,
-                        'tax_mode'      => $taxMode,
-                        'total_price'   => $itemBase,
-                        'tax_amount'    => $itemTax,
-                        'photo_path'    => null,
+                        'rq_qty' => 1,
+                        'unit' => trim($g['unit'] ?? 'Pieces'),
+                        'gross_weight' => null,
+                        'net_weight' => null,
+                        'qty' => $qty,
+                        'unit_price' => $price,
+                        'gst_rate' => $gstRate,
+                        'gst_type' => $gstType,
+                        'tax_mode' => $taxMode,
+                        'total_price' => $itemBase,
+                        'tax_amount' => $itemTax,
+                        'photo_path' => null,
                         'category_name' => 'Garment Other Supplies',
-                        'product_type'  => 'Supply / Trim',
-                        'mrp'           => null,
+                        'product_type' => 'Supply / Trim',
+                        'mrp' => null,
                         'selling_price' => null,
                     ];
                 }
@@ -2305,52 +2372,52 @@ class PurchaseController extends Controller {
         // 3. Finished Goods (Exact same GST and HSN fields)
         if (is_array($finishedRaw)) {
             foreach ($finishedRaw as $idx => $f) {
-                $qty   = (float)($f['quantity'] ?? ($f['qty'] ?? 0));
-                $price = (float)($f['supplier_cost'] ?? ($f['unit_price'] ?? 0));
+                $qty = (float) ($f['quantity'] ?? ($f['qty'] ?? 0));
+                $price = (float) ($f['supplier_cost'] ?? ($f['unit_price'] ?? 0));
 
                 if ($qty > 0 && $price > 0) {
-                    $taxMode  = trim($f['tax_mode'] ?? 'Exclude GST');
-                    $gstType  = trim($f['gst'] ?? ($f['gst_type'] ?? 'Exempted'));
-                    $taxType  = trim($f['tax_input_type'] ?? 'Percentage');
-                    $sgstVal  = (float)($f['sgst'] ?? 0);
-                    $cgstVal  = (float)($f['cgst'] ?? 0);
-                    $igstVal  = (float)($f['igst'] ?? 0);
-                    $fallback = (float)($f['gst_rate'] ?? 0);
+                    $taxMode = trim($f['tax_mode'] ?? 'Exclude GST');
+                    $gstType = trim($f['gst'] ?? ($f['gst_type'] ?? 'Exempted'));
+                    $taxType = trim($f['tax_input_type'] ?? 'Percentage');
+                    $sgstVal = (float) ($f['sgst'] ?? 0);
+                    $cgstVal = (float) ($f['cgst'] ?? 0);
+                    $igstVal = (float) ($f['igst'] ?? 0);
+                    $fallback = (float) ($f['gst_rate'] ?? 0);
 
                     $calc = $this->calculateLineTax($qty, $price, $taxMode, $gstType, $taxType, $sgstVal, $cgstVal, $igstVal, $fallback);
                     $itemBase = $calc['itemBase'];
-                    $itemTax  = $calc['itemTax'];
-                    $gstRate  = $calc['gstRate'];
+                    $itemTax = $calc['itemTax'];
+                    $gstRate = $calc['gstRate'];
 
                     $totalAmount += $itemBase;
-                    $totalTax    += $itemTax;
+                    $totalTax += $itemTax;
 
                     $itemsToInsert[] = [
-                        'section_type'  => 'finished_goods',
-                        'variant_id'    => !empty($f['variant_id']) ? (int)$f['variant_id'] : null,
-                        'item_name'     => trim($f['product'] ?? ($f['item_name'] ?? 'Finished Garment')),
-                        'item_code'     => trim($f['sku'] ?? ($f['item_code'] ?? '')),
-                        'hsn_code'      => trim($f['hsn'] ?? ''),
+                        'section_type' => 'finished_goods',
+                        'variant_id' => !empty($f['variant_id']) ? (int) $f['variant_id'] : null,
+                        'item_name' => trim($f['product'] ?? ($f['item_name'] ?? 'Finished Garment')),
+                        'item_code' => trim($f['sku'] ?? ($f['item_code'] ?? '')),
+                        'hsn_code' => trim($f['hsn'] ?? ''),
                         'specification' => trim($f['variant'] ?? ($f['size'] ?? '')),
-                        'color'         => null,
-                        'pattern'       => null,
+                        'color' => null,
+                        'pattern' => null,
                         'designs_count' => 1,
-                        'rq_qty'        => 1,
-                        'unit'          => 'Pieces',
-                        'gross_weight'  => null,
-                        'net_weight'    => (float)($f['weight'] ?? 0),
-                        'qty'           => $qty,
-                        'unit_price'    => $price,
-                        'gst_rate'      => $gstRate,
-                        'gst_type'      => $gstType,
-                        'tax_mode'      => $taxMode,
-                        'total_price'   => $itemBase,
-                        'tax_amount'    => $itemTax,
-                        'photo_path'    => null,
+                        'rq_qty' => 1,
+                        'unit' => 'Pieces',
+                        'gross_weight' => null,
+                        'net_weight' => (float) ($f['weight'] ?? 0),
+                        'qty' => $qty,
+                        'unit_price' => $price,
+                        'gst_rate' => $gstRate,
+                        'gst_type' => $gstType,
+                        'tax_mode' => $taxMode,
+                        'total_price' => $itemBase,
+                        'tax_amount' => $itemTax,
+                        'photo_path' => null,
                         'category_name' => trim($f['category'] ?? 'Apparel Finished Goods'),
-                        'product_type'  => trim($f['product_type'] ?? 'Individual Piece'),
-                        'mrp'           => (float)($f['mrp'] ?? 0),
-                        'selling_price' => (float)($f['selling_price'] ?? 0),
+                        'product_type' => trim($f['product_type'] ?? 'Individual Piece'),
+                        'mrp' => (float) ($f['mrp'] ?? 0),
+                        'selling_price' => (float) ($f['selling_price'] ?? 0),
                     ];
                 }
             }
@@ -2393,7 +2460,7 @@ class PurchaseController extends Controller {
                 throw new \RuntimeException('Purchase Bill not found or access denied.');
             }
             if ($isProductAddingEdit) {
-                $lockedStockedCount = (int)DB::fetchValue(
+                $lockedStockedCount = (int) DB::fetchValue(
                     "SELECT COUNT(*)
                      FROM purchase_bill_items pbi
                      JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
@@ -2428,16 +2495,16 @@ class PurchaseController extends Controller {
             );
 
             // Re-insert items
-            DB::query("DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?", [$billId]);
+            DB::query('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?', [$billId]);
 
             foreach ($itemsToInsert as $item) {
                 DB::query(
-                    "INSERT INTO purchase_bill_items (
+                    'INSERT INTO purchase_bill_items (
                         concern_id, purchase_bill_id, variant_id, section_type, item_name, item_code,
                         hsn_code, specification, color, pattern, designs_count, rq_qty, unit,
                         gross_weight, net_weight, qty, inward_status, unit_price, gst_rate, gst_type, tax_mode, total_price, tax_amount,
                         photo_path, category_name, product_type, mrp, selling_price
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         $cid,
                         $billId,
@@ -2471,9 +2538,9 @@ class PurchaseController extends Controller {
                 );
 
                 if (!empty($item['hsn_code']) && $item['hsn_code'] !== '-') {
-                    $existingHsn = DB::fetchValue("SELECT id FROM hsn_masters WHERE hsn_code = ? AND (concern_id = ? OR concern_id IS NULL)", [$item['hsn_code'], $cid]);
+                    $existingHsn = DB::fetchValue('SELECT id FROM hsn_masters WHERE hsn_code = ? AND (concern_id = ? OR concern_id IS NULL)', [$item['hsn_code'], $cid]);
                     if (!$existingHsn) {
-                        DB::query(                        "INSERT INTO hsn_masters (concern_id, code_type, hsn_code, description, gst_rate, created_at) VALUES (?, 'HSN', ?, ?, ?, NOW())", [
+                        DB::query("INSERT INTO hsn_masters (concern_id, code_type, hsn_code, description, gst_rate, created_at) VALUES (?, 'HSN', ?, ?, ?, NOW())", [
                             $cid,
                             $item['hsn_code'],
                             $item['item_name'] ?? 'Recorded HSN',
@@ -2488,7 +2555,7 @@ class PurchaseController extends Controller {
             // Synchronize and consolidate fabric roll specifications & accumulated stock
             RollRegistryService::syncSpecs($cid);
 
-            $this->flash('success', "Purchase Bill '#{$bill['bill_no']}' updated successfully for ₹" . number_format($netAmount, 2) . " (" . count($itemsToInsert) . " items)!");
+            $this->flash('success', "Purchase Bill '#{$bill['bill_no']}' updated successfully for ₹" . number_format($netAmount, 2) . ' (' . count($itemsToInsert) . ' items)!');
             $this->redirect($isProductAddingEdit ? '/m/product_adding/create?bill_id=' . $billId : '/m/purchase_billing');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -2497,16 +2564,17 @@ class PurchaseController extends Controller {
         }
     }
 
-    public function updateBillStatus(): void {
+    public function updateBillStatus(): void
+    {
         $this->validateCsrf();
-        $id = (int)($_POST['bill_id'] ?? 0);
+        $id = (int) ($_POST['bill_id'] ?? 0);
         $cid = Auth::concernId();
 
         $bill = null;
         if ($cid) {
-            $bill = DB::fetch("SELECT * FROM purchase_bills WHERE id = ? AND concern_id = ?", [$id, $cid]);
+            $bill = DB::fetch('SELECT * FROM purchase_bills WHERE id = ? AND concern_id = ?', [$id, $cid]);
         } else {
-            $bill = DB::fetch("SELECT * FROM purchase_bills WHERE id = ?", [$id]);
+            $bill = DB::fetch('SELECT * FROM purchase_bills WHERE id = ?', [$id]);
         }
 
         if (!$bill) {
@@ -2516,14 +2584,14 @@ class PurchaseController extends Controller {
         }
 
         $paymentStatus = trim($_POST['payment_status'] ?? 'unpaid');
-        $inwardStatus  = $bill['inward_status'] ?? 'pending';
-        $notes         = trim($_POST['notes'] ?? '');
+        $inwardStatus = $bill['inward_status'] ?? 'pending';
+        $notes = trim($_POST['notes'] ?? '');
 
         if (!in_array($paymentStatus, ['unpaid', 'partial', 'paid'], true)) {
             $paymentStatus = 'unpaid';
         }
         DB::query(
-            "UPDATE purchase_bills SET payment_status = ?, inward_status = ?, notes = ? WHERE id = ?",
+            'UPDATE purchase_bills SET payment_status = ?, inward_status = ?, notes = ? WHERE id = ?',
             [$paymentStatus, $inwardStatus, $notes, $id]
         );
 
@@ -2536,7 +2604,7 @@ class PurchaseController extends Controller {
         ModuleGuard::enforce('product_adding', 'delete');
         $this->validateCsrf();
 
-        $billId = (int)($_POST['bill_id'] ?? 0);
+        $billId = (int) ($_POST['bill_id'] ?? 0);
         $concernId = Auth::concernId();
         if ($billId <= 0) {
             $this->flash('error', 'Invalid purchase bill ID.');
@@ -2562,12 +2630,12 @@ class PurchaseController extends Controller {
                 throw new \RuntimeException('Purchase Bill not found or access denied.');
             }
 
-            $sourceModule = (string)($bill['source_module'] ?? 'purchase_billing');
+            $sourceModule = (string) ($bill['source_module'] ?? 'purchase_billing');
             if (!in_array($sourceModule, ['product_adding', 'purchase_billing'], true)) {
                 throw new \RuntimeException('This bill cannot be deleted from Product Adding.');
             }
 
-            $billConcernId = (int)$bill['concern_id'];
+            $billConcernId = (int) $bill['concern_id'];
             $items = DB::fetchAll(
                 'SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? AND concern_id = ? ORDER BY id ASC FOR UPDATE',
                 [$billId, $billConcernId]
@@ -2576,7 +2644,7 @@ class PurchaseController extends Controller {
                 if (!$items) {
                     throw new \RuntimeException('This Purchase Billing invoice has no line items and cannot be deleted from Product Adding.');
                 }
-                $stockedCount = (int)DB::fetchValue(
+                $stockedCount = (int) DB::fetchValue(
                     "SELECT COUNT(*)
                      FROM purchase_bill_items
                      WHERE purchase_bill_id = ?
@@ -2588,7 +2656,7 @@ class PurchaseController extends Controller {
                 }
             }
 
-            $itemIds = array_map(static fn(array $item): int => (int)$item['id'], $items);
+            $itemIds = array_map(static fn(array $item): int => (int) $item['id'], $items);
             $this->assertProductAddingBillHasNoDependents($itemIds);
             $this->reverseUnusedPurchaseBillStock($billConcernId, $billId, $items);
 
@@ -2599,9 +2667,9 @@ class PurchaseController extends Controller {
                 [
                     'bill_no' => $bill['bill_no'],
                     'source_module' => $sourceModule,
-                    'supplier_id' => (int)$bill['supplier_id'],
+                    'supplier_id' => (int) $bill['supplier_id'],
                     'item_count' => count($items),
-                    'net_amount' => (float)$bill['net_amount'],
+                    'net_amount' => (float) $bill['net_amount'],
                 ],
                 null
             );
@@ -2658,7 +2726,7 @@ class PurchaseController extends Controller {
 
     private function reverseUnusedPurchaseBillStock(int $concernId, int $billId, array $items): void
     {
-        $itemIds = array_map(static fn(array $item): int => (int)$item['id'], $items);
+        $itemIds = array_map(static fn(array $item): int => (int) $item['id'], $items);
         $sourceItemRefs = '';
         $sourceParams = [];
         if ($itemIds) {
@@ -2679,24 +2747,24 @@ class PurchaseController extends Controller {
 
         $movements = [];
         foreach ($sourceRows as $row) {
-            $variantId = (int)$row['variant_id'];
-            $location = (string)$row['location'];
+            $variantId = (int) $row['variant_id'];
+            $location = (string) $row['location'];
             $key = $variantId . "\0" . $location;
             if (!isset($movements[$key])) {
                 $movements[$key] = [
                     'variant_id' => $variantId,
                     'location' => $location,
                     'qty' => 0.0,
-                    'first_ledger_id' => (int)$row['id'],
+                    'first_ledger_id' => (int) $row['id'],
                 ];
             }
-            $movements[$key]['qty'] += (float)$row['qty_in'] - (float)$row['qty_out'];
-            $movements[$key]['first_ledger_id'] = min($movements[$key]['first_ledger_id'], (int)$row['id']);
+            $movements[$key]['qty'] += (float) $row['qty_in'] - (float) $row['qty_out'];
+            $movements[$key]['first_ledger_id'] = min($movements[$key]['first_ledger_id'], (int) $row['id']);
         }
 
         ksort($movements);
         foreach ($movements as $movement) {
-            $qty = round((float)$movement['qty'], 2);
+            $qty = round((float) $movement['qty'], 2);
             if ($qty < -0.0001) {
                 throw new \RuntimeException('The bill stock ledger has an invalid negative balance; deletion was stopped without changing stock.');
             }
@@ -2704,13 +2772,13 @@ class PurchaseController extends Controller {
                 continue;
             }
 
-            $variantId = (int)$movement['variant_id'];
-            $location = (string)$movement['location'];
+            $variantId = (int) $movement['variant_id'];
+            $location = (string) $movement['location'];
             $stock = DB::fetch(
                 'SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE',
                 [$concernId, $variantId, $location]
             );
-            if (!$stock || (float)$stock['qty'] + 0.0001 < $qty) {
+            if (!$stock || (float) $stock['qty'] + 0.0001 < $qty) {
                 throw new \RuntimeException('Some bill stock is no longer available at its original location, so it cannot be safely reversed.');
             }
 
@@ -2722,7 +2790,7 @@ class PurchaseController extends Controller {
                                  {$sourceItemRefs}
                              )
                            ORDER BY id ASC LIMIT 1 FOR UPDATE";
-            $outflowParams = [$concernId, $variantId, $location, (int)$movement['first_ledger_id'], $billId];
+            $outflowParams = [$concernId, $variantId, $location, (int) $movement['first_ledger_id'], $billId];
             if ($itemIds) {
                 $outflowParams = array_merge($outflowParams, $itemIds);
             }
@@ -2744,16 +2812,17 @@ class PurchaseController extends Controller {
         }
     }
 
-    public function deleteBill(): void {
+    public function deleteBill(): void
+    {
         $this->validateCsrf();
-        $id = (int)($_POST['bill_id'] ?? 0);
+        $id = (int) ($_POST['bill_id'] ?? 0);
         $cid = Auth::concernId();
 
         $bill = null;
         if ($cid) {
-            $bill = DB::fetch("SELECT * FROM purchase_bills WHERE id = ? AND concern_id = ?", [$id, $cid]);
+            $bill = DB::fetch('SELECT * FROM purchase_bills WHERE id = ? AND concern_id = ?', [$id, $cid]);
         } else {
-            $bill = DB::fetch("SELECT * FROM purchase_bills WHERE id = ?", [$id]);
+            $bill = DB::fetch('SELECT * FROM purchase_bills WHERE id = ?', [$id]);
         }
 
         if (!$bill) {
@@ -2765,8 +2834,8 @@ class PurchaseController extends Controller {
         PurchaseBillSourceService::ensureSchema();
         DB::beginTransaction();
         try {
-            DB::query("DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?", [$id]);
-            DB::query("DELETE FROM purchase_bills WHERE id = ?", [$id]);
+            DB::query('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?', [$id]);
+            DB::query('DELETE FROM purchase_bills WHERE id = ?', [$id]);
             DB::commit();
 
             // Synchronize and consolidate fabric roll specifications & accumulated stock
@@ -2782,7 +2851,8 @@ class PurchaseController extends Controller {
     }
 
     // 3. PURCHASE DAMAGE
-    public static function fetchPurchaseDamageData(?int $cid): array {
+    public static function fetchPurchaseDamageData(?int $cid): array
+    {
         PurchaseDamageService::initTable();
         $sql = "SELECT history_source, record_id, damage_no, concern_id, concern_name, supplier_name,
                        item_name, item_code, item_type, tag_code, qty, location, reason, notes,
@@ -2830,42 +2900,44 @@ class PurchaseController extends Controller {
                 ) damage_history";
         $params = [];
         if ($cid) {
-            $sql .= " WHERE damage_history.concern_id = ?";
+            $sql .= ' WHERE damage_history.concern_id = ?';
             $params[] = $cid;
         }
-        $sql .= " ORDER BY damage_history.created_at DESC LIMIT 200";
+        $sql .= ' ORDER BY damage_history.created_at DESC LIMIT 200';
         $damages = DB::fetchAll($sql, $params);
-        $damageReasons = $cid ? PurchaseDamageService::getDamageReasons((int)$cid) : [];
+        $damageReasons = $cid ? PurchaseDamageService::getDamageReasons((int) $cid) : [];
         return [
             'damages' => $damages,
             'damageReasons' => $damageReasons,
         ];
     }
 
-    public function damage(): void {
+    public function damage(): void
+    {
         $isSuperAdmin = Auth::isSuperAdmin();
         $cid = Auth::concernId();
         if ($isSuperAdmin) {
-            $cid = (int)($_GET['concern_id'] ?? 0) ?: null;
+            $cid = (int) ($_GET['concern_id'] ?? 0) ?: null;
         }
         $this->redirect('/m/purchase_stocks?tab=damage' . ($isSuperAdmin && $cid ? '&concern_id=' . $cid : ''));
     }
 
-    public function exportDamage(): void {
+    public function exportDamage(): void
+    {
         ModuleGuard::enforce('purchase_stocks', 'view');
         PurchaseDamageService::initTable();
 
         $isSuperAdmin = Auth::isSuperAdmin();
         $cid = $isSuperAdmin
-            ? (int)($_GET['concern_id'] ?? 0)
+            ? (int) ($_GET['concern_id'] ?? 0)
             : Auth::concernId();
         $format = is_scalar($_GET['format'] ?? null)
-            ? strtolower(trim((string)$_GET['format']))
+            ? strtolower(trim((string) $_GET['format']))
             : 'excel';
-        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
-        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
-        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
-        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $period = is_scalar($_GET['period'] ?? null) ? (string) $_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string) $_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string) $_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string) $_GET['to_date'] : null;
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
         $sql = "SELECT history_source, record_id, damage_no, concern_id, concern_name, supplier_name,
@@ -2930,18 +3002,30 @@ class PurchaseController extends Controller {
         $damages = DB::fetchAll($sql, $params);
 
         $headers = [
-            'Damage No.', 'Date', 'Concern', 'Supplier', 'Fabric / Product', 'Item Code',
-            'Item Type', 'Quantity', 'Damaged Weight', 'Estimated Loss', 'Location',
-            'Reason', 'Notes', 'Status', 'Record Source',
+            'Damage No.',
+            'Date',
+            'Concern',
+            'Supplier',
+            'Fabric / Product',
+            'Item Code',
+            'Item Type',
+            'Quantity',
+            'Damaged Weight',
+            'Estimated Loss',
+            'Location',
+            'Reason',
+            'Notes',
+            'Status',
+            'Record Source',
         ];
         $rows = [];
         $totalQty = 0.0;
         $totalWeight = 0.0;
         $totalLoss = 0.0;
         foreach ($damages as $damage) {
-            $totalQty += (float)$damage['qty'];
-            $totalWeight += (float)$damage['damaged_weight'];
-            $totalLoss += (float)$damage['estimated_loss'];
+            $totalQty += (float) $damage['qty'];
+            $totalWeight += (float) $damage['damaged_weight'];
+            $totalLoss += (float) $damage['estimated_loss'];
             $rows[] = [
                 $damage['damage_no'],
                 date('d M Y, h:i A', strtotime($damage['created_at'])),
@@ -2950,9 +3034,9 @@ class PurchaseController extends Controller {
                 $damage['item_name'],
                 $damage['tag_code'] ?: ($damage['item_code'] ?: '—'),
                 $damage['item_type'],
-                (float)$damage['qty'],
-                (float)$damage['damaged_weight'],
-                '₹' . number_format((float)$damage['estimated_loss'], 2),
+                (float) $damage['qty'],
+                (float) $damage['damaged_weight'],
+                '₹' . number_format((float) $damage['estimated_loss'], 2),
                 $damage['location'] ?: 'Main Store',
                 $damage['reason'] ?: 'Unspecified defect',
                 $damage['notes'] ?: '',
@@ -2962,19 +3046,32 @@ class PurchaseController extends Controller {
         }
 
         $concernName = $cid
-            ? (string)(DB::fetchValue('SELECT name FROM concerns WHERE id = ?', [$cid]) ?: 'Selected Concern')
+            ? (string) (DB::fetchValue('SELECT name FROM concerns WHERE id = ?', [$cid]) ?: 'Selected Concern')
             : 'All Concerns';
         $metadata = [
             'Concern / Outlet' => $concernName,
             'Period Scope' => $dateScope['label'],
-            'Total Records' => (string)count($damages),
+            'Total Records' => (string) count($damages),
             'Total Quantity' => number_format($totalQty, 2),
             'Damaged Weight' => number_format($totalWeight, 2),
             'Estimated Loss' => '₹' . number_format($totalLoss, 2),
         ];
         $totals = [
-            'Totals: ' . count($damages) . ' records', '', '', '', '', '', '',
-            $totalQty, $totalWeight, '₹' . number_format($totalLoss, 2), '', '', '', '', '',
+            'Totals: ' . count($damages) . ' records',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            $totalQty,
+            $totalWeight,
+            '₹' . number_format($totalLoss, 2),
+            '',
+            '',
+            '',
+            '',
+            '',
         ];
         $filename = 'purchase_damage_' . date('Ymd_His');
 
@@ -2987,10 +3084,11 @@ class PurchaseController extends Controller {
         }
     }
 
-    public function scanPurchaseDamageTag(): void {
+    public function scanPurchaseDamageTag(): void
+    {
         $this->validateCsrf();
         $cid = Auth::isSuperAdmin()
-            ? (int)($_POST['concern_id'] ?? 0)
+            ? (int) ($_POST['concern_id'] ?? 0)
             : Auth::concernId();
         if (!$cid) {
             $this->renderJson(['success' => false, 'message' => 'Select a concern before scanning labels.'], 422);
@@ -2998,19 +3096,20 @@ class PurchaseController extends Controller {
         }
 
         try {
-            $item = PurchaseDamageService::resolveTag($cid, (string)($_POST['tag_code'] ?? ''));
+            $item = PurchaseDamageService::resolveTag($cid, (string) ($_POST['tag_code'] ?? ''));
             $this->renderJson(['success' => true, 'item' => $item]);
         } catch (\RuntimeException $e) {
             $this->renderJson(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }
 
-    public function addDamageReason(): void {
+    public function addDamageReason(): void
+    {
         ModuleGuard::enforce('purchase_stocks', 'add');
         $this->validateCsrf();
 
         $cid = Auth::isSuperAdmin()
-            ? (int)($_POST['concern_id'] ?? 0)
+            ? (int) ($_POST['concern_id'] ?? 0)
             : Auth::concernId();
         $reason = $_POST['reason'] ?? null;
         if (!$cid || !is_scalar($reason)) {
@@ -3019,7 +3118,7 @@ class PurchaseController extends Controller {
         }
 
         try {
-            $savedReason = PurchaseDamageService::addDamageReason($cid, (string)$reason, Auth::id());
+            $savedReason = PurchaseDamageService::addDamageReason($cid, (string) $reason, Auth::id());
             $this->renderJson([
                 'success' => true,
                 'reason' => $savedReason,
@@ -3030,10 +3129,11 @@ class PurchaseController extends Controller {
         }
     }
 
-    public function storeDamage(): void {
+    public function storeDamage(): void
+    {
         $this->validateCsrf();
         $cid = Auth::isSuperAdmin()
-            ? (int)($_POST['concern_id'] ?? 0)
+            ? (int) ($_POST['concern_id'] ?? 0)
             : Auth::concernId();
 
         if (!$cid) {
@@ -3051,12 +3151,12 @@ class PurchaseController extends Controller {
             $result = PurchaseDamageService::saveScannedDamage(
                 $cid,
                 $scannedItems,
-                trim((string)($_POST['reason'] ?? '')),
-                trim((string)($_POST['notes'] ?? '')),
+                trim((string) ($_POST['reason'] ?? '')),
+                trim((string) ($_POST['notes'] ?? '')),
                 Auth::id()
             );
 
-            $quarantinedQty = number_format((float)$result['count'], 2);
+            $quarantinedQty = number_format((float) $result['count'], 2);
             $this->flash(
                 'success',
                 "Purchase Damage '{$result['damage_no']}' quarantined {$quarantinedQty} unit(s); stock was updated."
@@ -3068,13 +3168,14 @@ class PurchaseController extends Controller {
         $this->redirect('/m/purchase_stocks?tab=damage' . (Auth::isSuperAdmin() && $cid ? '&concern_id=' . $cid : ''));
     }
 
-    public function updateDamageRecord(): void {
+    public function updateDamageRecord(): void
+    {
         ModuleGuard::enforce('purchase_stocks', 'edit');
         $this->validateCsrf();
 
-        $damageId = (int)($_POST['damage_id'] ?? 0);
+        $damageId = (int) ($_POST['damage_id'] ?? 0);
         $concernId = Auth::isSuperAdmin()
-            ? (int)($_POST['concern_id'] ?? 0)
+            ? (int) ($_POST['concern_id'] ?? 0)
             : Auth::concernId();
         $returnUrl = '/m/purchase_stocks?tab=damage' . (Auth::isSuperAdmin() && $concernId ? '&concern_id=' . $concernId : '');
 
@@ -3082,17 +3183,20 @@ class PurchaseController extends Controller {
         $reason = $_POST['reason'] ?? null;
         $notes = $_POST['notes'] ?? '';
         if (
-            !$damageId || !$concernId ||
-            !is_scalar($rawQty) || !is_numeric($rawQty) ||
-            !is_scalar($reason) || !is_scalar($notes)
+            !$damageId ||
+            !$concernId ||
+            !is_scalar($rawQty) ||
+            !is_numeric($rawQty) ||
+            !is_scalar($reason) ||
+            !is_scalar($notes)
         ) {
             $this->flash('error', 'Enter valid quarantine record details.');
             $this->redirect($returnUrl);
             return;
         }
-        $qty = (float)$rawQty;
-        $reason = trim((string)$reason);
-        $notes = trim((string)$notes);
+        $qty = (float) $rawQty;
+        $reason = trim((string) $reason);
+        $notes = trim((string) $notes);
         if (!is_finite($qty) || $qty <= 0 || $qty > 500 || $reason === '' || strlen($reason) > 255 || strlen($notes) > 2000) {
             $this->flash('error', 'Enter a valid quantity, reason, and notes within the allowed limits.');
             $this->redirect($returnUrl);
@@ -3123,13 +3227,14 @@ class PurchaseController extends Controller {
         $this->redirect($returnUrl);
     }
 
-    public function deleteDamageRecord(): void {
+    public function deleteDamageRecord(): void
+    {
         ModuleGuard::enforce('purchase_stocks', 'delete');
         $this->validateCsrf();
 
-        $damageId = (int)($_POST['damage_id'] ?? 0);
+        $damageId = (int) ($_POST['damage_id'] ?? 0);
         $concernId = Auth::isSuperAdmin()
-            ? (int)($_POST['concern_id'] ?? 0)
+            ? (int) ($_POST['concern_id'] ?? 0)
             : Auth::concernId();
         $returnUrl = '/m/purchase_stocks?tab=damage' . (Auth::isSuperAdmin() && $concernId ? '&concern_id=' . $concernId : '');
 

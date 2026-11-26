@@ -283,7 +283,11 @@
                                             <td class="text-center pe-3 py-2">
                                                 <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
                                                         title="Print Labels for this Variant"
-                                                        onclick="const r = this.closest('tr'); const q = r ? (r.querySelector('.input-stitch-qty')?.value || <?= (int)$it['stitching_qty'] ?>) : <?= (int)$it['stitching_qty'] ?>; openStitchingVariantLabelModal(<?= (int)$it['id'] ?>, <?= json_encode($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])) ?>, <?= json_encode('Product Code: ' . ($it['product_code'] ?: 'N/A')) ?> + ' • stitched qty ' + q, q);">
+                                                        data-item-id="<?= (int)$it['id'] ?>"
+                                                        data-variant-name="<?= htmlspecialchars($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])) ?>"
+                                                        data-product-code="<?= htmlspecialchars($it['product_code'] ?: 'N/A') ?>"
+                                                        data-default-qty="<?= (int)$it['stitching_qty'] ?>"
+                                                        onclick="openStitchingVariantModalFromRow(this)">
                                                     <i class="bi bi-printer me-1"></i>Print
                                                 </button>
                                             </td>
@@ -676,6 +680,17 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <?php include __DIR__ . '/partials/stitching_label_print_js.php'; ?>
 <script>
+function openStitchingVariantModalFromRow(btn) {
+    const row = btn.closest('tr');
+    const itemId = parseInt(btn.getAttribute('data-item-id'), 10) || 0;
+    const name = btn.getAttribute('data-variant-name') || 'Variant';
+    const code = btn.getAttribute('data-product-code') || 'N/A';
+    const defQty = parseInt(btn.getAttribute('data-default-qty'), 10) || 1;
+    const qtyEl = row ? row.querySelector('.input-stitch-qty') : null;
+    const q = Math.max(1, parseInt(qtyEl ? qtyEl.value : defQty, 10) || defQty || 1);
+    openStitchingVariantLabelModal(itemId, name, 'Product Code: ' + code + ' • stitched qty ' + q, q);
+}
+
 function openStitchingBatchModalFromEditTable(batchId) {
     const items = [];
     document.querySelectorAll('#tbodyStitchingItems tr').forEach(function(tr) {

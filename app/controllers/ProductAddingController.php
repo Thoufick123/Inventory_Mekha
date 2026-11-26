@@ -6,18 +6,18 @@ use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\ModuleGuard;
-use App\Services\StockService;
-use App\Services\RollRegistryService;
+use App\Services\ExportService;
 use App\Services\PurchaseBillSourceService;
 use App\Services\PurchaseStockItemOverrideService;
-use App\Services\ExportService;
+use App\Services\RollRegistryService;
+use App\Services\StockService;
 use Exception;
 
 class ProductAddingController extends Controller
 {
     public function index(): void
     {
-        $billId = (int)($_GET['bill_id'] ?? 0);
+        $billId = (int) ($_GET['bill_id'] ?? 0);
         if ($billId > 0 || isset($_GET['variant_ids'])) {
             $this->renderPurchaseForm($billId);
             return;
@@ -37,11 +37,11 @@ class ProductAddingController extends Controller
         PurchaseBillSourceService::ensureSchema();
         $cid = Auth::concernId();
 
-        $format = strtolower(trim((string)($_GET['format'] ?? 'excel')));
-        $period = is_scalar($_GET['period'] ?? null) ? (string)$_GET['period'] : 'all';
-        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string)$_GET['single_date'] : null;
-        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string)$_GET['from_date'] : null;
-        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string)$_GET['to_date'] : null;
+        $format = strtolower(trim((string) ($_GET['format'] ?? 'excel')));
+        $period = is_scalar($_GET['period'] ?? null) ? (string) $_GET['period'] : 'all';
+        $singleDate = is_scalar($_GET['single_date'] ?? null) ? (string) $_GET['single_date'] : null;
+        $fromDate = is_scalar($_GET['from_date'] ?? null) ? (string) $_GET['from_date'] : null;
+        $toDate = is_scalar($_GET['to_date'] ?? null) ? (string) $_GET['to_date'] : null;
         $dateScope = ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
         $itemStatsSql = "SELECT pbi.purchase_bill_id,
@@ -54,14 +54,7 @@ class ProductAddingController extends Controller
                          FROM purchase_bill_items pbi
                          JOIN purchase_bills status_bill ON status_bill.id = pbi.purchase_bill_id
                          GROUP BY pbi.purchase_bill_id";
-        $eligibleBillsSql = "(
-                                pb.source_module = 'product_adding'
-                                OR (
-                                    pb.source_module = 'purchase_billing'
-                                    AND COALESCE(item_stats.item_count, 0) > 0
-                                    AND COALESCE(item_stats.stocked_count, 0) = 0
-                                )
-                             )";
+        $eligibleBillsSql = "pb.source_module = 'product_adding'";
 
         PurchaseBillSourceService::ensureSchema();
         $billSql = "SELECT pb.id, pb.concern_id, pb.supplier_id, pb.bill_no, pb.supplier_invoice_no, pb.bill_date,
@@ -103,10 +96,10 @@ class ProductAddingController extends Controller
         $sumNet = 0;
 
         foreach ($bills as $b) {
-            $qty = (float)($b['total_qty'] ?? 0);
-            $taxable = (float)($b['total_amount'] ?? 0);
-            $tax = (float)($b['tax_amount'] ?? 0);
-            $net = (float)($b['net_amount'] ?? 0);
+            $qty = (float) ($b['total_qty'] ?? 0);
+            $taxable = (float) ($b['total_amount'] ?? 0);
+            $tax = (float) ($b['tax_amount'] ?? 0);
+            $net = (float) ($b['net_amount'] ?? 0);
 
             $sumQty += $qty;
             $sumTaxable += $taxable;
@@ -126,7 +119,7 @@ class ProductAddingController extends Controller
                 $b['supplier_name'] ?: ($b['supplier_company'] ?: '-'),
                 $b['concern_name'] ?? 'Consolidated',
                 $b['bill_date'] ? date('d M Y', strtotime($b['bill_date'])) : '-',
-                (int)($b['item_count'] ?? 0),
+                (int) ($b['item_count'] ?? 0),
                 $qty,
                 number_format($taxable, 2),
                 number_format($tax, 2),
@@ -146,9 +139,9 @@ class ProductAddingController extends Controller
             'Report Title' => 'Product Adding & Purchase Bills Register',
             'Scope / Period' => $dateScope['label'] ?? 'All Time',
             'Generated At' => date('d M Y, h:i A'),
-            'Total Bills'  => count($bills),
+            'Total Bills' => count($bills),
             'Total Net Purchases' => 'INR ' . number_format($sumNet, 2),
-            'Concern'      => $cid ? ($bills[0]['concern_name'] ?? 'Concern #' . $cid) : 'All Concerns'
+            'Concern' => $cid ? ($bills[0]['concern_name'] ?? 'Concern #' . $cid) : 'All Concerns'
         ];
 
         $filename = 'product_adding_bills_' . date('Ymd_His');
@@ -178,7 +171,7 @@ class ProductAddingController extends Controller
                         WHERE pb.id = ? AND pb.source_module IN ('product_adding', 'purchase_billing')";
             $billParams = [$billId];
             if ($cid) {
-                $billSql .= " AND pb.concern_id = ?";
+                $billSql .= ' AND pb.concern_id = ?';
                 $billParams[] = $cid;
             }
             $savedBill = DB::fetch($billSql, $billParams);
@@ -217,12 +210,12 @@ class ProductAddingController extends Controller
                 );
                 $savedBillItems = PurchaseStockItemOverrideService::applyToItems($savedBillItems, false);
                 foreach ($savedBillItems as &$savedItem) {
-                    $savedItem['required_label_qty'] = (int)ceil((float)($savedItem['purchase_qty_original'] ?? $savedItem['qty']));
-                    $savedItem['generated_label_qty'] = max(0, (int)$savedItem['generated_label_qty']);
+                    $savedItem['required_label_qty'] = (int) ceil((float) ($savedItem['purchase_qty_original'] ?? $savedItem['qty']));
+                    $savedItem['generated_label_qty'] = max(0, (int) $savedItem['generated_label_qty']);
                     $savedItem['labels_complete'] = $savedItem['generated_label_qty'] > 0;
                     $savedItem['stocked_qty'] = $savedItem['section_type'] === 'finished_goods'
-                        ? min((float)$savedItem['qty'], max(0, (float)$savedItem['finished_goods_inward_qty']))
-                        : (float)$savedItem['qty'];
+                        ? min((float) $savedItem['qty'], max(0, (float) $savedItem['finished_goods_inward_qty']))
+                        : (float) $savedItem['qty'];
                     $savedItem['default_label_qty'] = $savedItem['generated_label_qty'] > 0
                         ? $savedItem['generated_label_qty']
                         : $savedItem['required_label_qty'];
@@ -241,7 +234,7 @@ class ProductAddingController extends Controller
         }
 
         $allConcerns = Auth::isSuperAdmin()
-            ? DB::fetchAll("SELECT id, name, code FROM concerns ORDER BY id ASC")
+            ? DB::fetchAll('SELECT id, name, code FROM concerns ORDER BY id ASC')
             : [];
         $targetCid = $cid ?: 1;
         $categoryScope = $cid
@@ -259,8 +252,8 @@ class ProductAddingController extends Controller
         );
         $productAttributes = DB::fetchAll(
             $cid
-                ? "SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order"
-                : "SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes ORDER BY attribute_type, sort_order",
+                ? 'SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order'
+                : 'SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes ORDER BY attribute_type, sort_order',
             $cid ? [$cid] : []
         );
         $this->render('concern/purchase_billing_create', [
@@ -317,14 +310,7 @@ class ProductAddingController extends Controller
                          FROM purchase_bill_items pbi
                          JOIN purchase_bills status_bill ON status_bill.id = pbi.purchase_bill_id
                          GROUP BY pbi.purchase_bill_id";
-        $eligibleBillsSql = "(
-                                pb.source_module = 'product_adding'
-                                OR (
-                                    pb.source_module = 'purchase_billing'
-                                    AND COALESCE(item_stats.item_count, 0) > 0
-                                    AND COALESCE(item_stats.stocked_count, 0) = 0
-                                )
-                             )";
+        $eligibleBillsSql = "pb.source_module = 'product_adding'";
 
         $summarySql = "SELECT COUNT(*) AS total_bills,
                               COALESCE(SUM(pb.net_amount), 0) AS total_net,
@@ -420,29 +406,29 @@ class ProductAddingController extends Controller
 
     public function subcategories(): void
     {
-        $categoryId = (int)($_GET['category_id'] ?? 0);
+        $categoryId = (int) ($_GET['category_id'] ?? 0);
         $cid = Auth::concernId();
         $sql = "SELECT id, name, code FROM subcategories WHERE category_id = ? AND status = 'active'";
         $params = [$categoryId];
         if ($cid) {
-            $sql .= " AND concern_id = ?";
+            $sql .= ' AND concern_id = ?';
             $params[] = $cid;
         }
-        $sql .= " ORDER BY name ASC";
+        $sql .= ' ORDER BY name ASC';
         $this->renderJson(['success' => true, 'items' => DB::fetchAll($sql, $params)]);
     }
 
     public function subSubcategories(): void
     {
-        $subcategoryId = (int)($_GET['subcategory_id'] ?? 0);
+        $subcategoryId = (int) ($_GET['subcategory_id'] ?? 0);
         $cid = Auth::concernId();
         $sql = "SELECT id, name, code FROM sub_subcategories WHERE subcategory_id = ? AND status = 'active'";
         $params = [$subcategoryId];
         if ($cid) {
-            $sql .= " AND concern_id = ?";
+            $sql .= ' AND concern_id = ?';
             $params[] = $cid;
         }
-        $sql .= " ORDER BY name ASC";
+        $sql .= ' ORDER BY name ASC';
         $this->renderJson(['success' => true, 'items' => DB::fetchAll($sql, $params)]);
     }
 
@@ -452,13 +438,13 @@ class ProductAddingController extends Controller
         header('Content-Type: application/json');
 
         $userConcernId = Auth::concernId();
-        $requestedConcernId = (int)($_POST['concern_id'] ?? 0);
+        $requestedConcernId = (int) ($_POST['concern_id'] ?? 0);
         $concernId = Auth::isSuperAdmin()
-            ? ($requestedConcernId ?: (int)($userConcernId ?? 0))
-            : (int)($userConcernId ?? 0);
-        $tier = trim((string)($_POST['tier'] ?? ''));
-        $name = trim((string)($_POST['name'] ?? ''));
-        $code = strtoupper(trim((string)($_POST['code'] ?? '')));
+            ? ($requestedConcernId ?: (int) ($userConcernId ?? 0))
+            : (int) ($userConcernId ?? 0);
+        $tier = trim((string) ($_POST['tier'] ?? ''));
+        $name = trim((string) ($_POST['name'] ?? ''));
+        $code = strtoupper(trim((string) ($_POST['code'] ?? '')));
 
         $respond = static function (bool $success, array $data = [], int $status = 200): void {
             http_response_code($status);
@@ -492,7 +478,7 @@ class ProductAddingController extends Controller
                     [$concernId, $name]
                 );
                 if ($duplicate) {
-                    $respond(false, ['message' => 'That category already exists.', 'existing_id' => (int)$duplicate['id']], 409);
+                    $respond(false, ['message' => 'That category already exists.', 'existing_id' => (int) $duplicate['id']], 409);
                 }
                 $dupCode = DB::fetch(
                     "SELECT id FROM categories
@@ -502,7 +488,7 @@ class ProductAddingController extends Controller
                     [$concernId, $code]
                 );
                 if ($dupCode) {
-                    $respond(false, ['message' => "Category code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int)$dupCode['id']], 409);
+                    $respond(false, ['message' => "Category code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int) $dupCode['id']], 409);
                 }
 
                 DB::query(
@@ -511,10 +497,10 @@ class ProductAddingController extends Controller
                     [$concernId, $name, $code]
                 );
                 $parentId = null;
-                $id = (int)DB::lastInsertId();
+                $id = (int) DB::lastInsertId();
                 $categoryId = $id;
             } elseif ($tier === 'subcategory') {
-                $parentId = (int)($_POST['category_id'] ?? 0);
+                $parentId = (int) ($_POST['category_id'] ?? 0);
                 $parent = DB::fetch(
                     "SELECT id FROM categories
                      WHERE id = ? AND status = 'active'
@@ -532,7 +518,7 @@ class ProductAddingController extends Controller
                     [$parentId, $concernId, $name]
                 );
                 if ($duplicate) {
-                    $respond(false, ['message' => 'That subcategory already exists under the selected category.', 'existing_id' => (int)$duplicate['id']], 409);
+                    $respond(false, ['message' => 'That subcategory already exists under the selected category.', 'existing_id' => (int) $duplicate['id']], 409);
                 }
                 $dupCode = DB::fetch(
                     "SELECT id FROM subcategories
@@ -542,7 +528,7 @@ class ProductAddingController extends Controller
                     [$concernId, $code]
                 );
                 if ($dupCode) {
-                    $respond(false, ['message' => "Subcategory code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int)$dupCode['id']], 409);
+                    $respond(false, ['message' => "Subcategory code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int) $dupCode['id']], 409);
                 }
 
                 DB::query(
@@ -551,10 +537,10 @@ class ProductAddingController extends Controller
                     [$concernId, $parentId, $name, $code]
                 );
                 $categoryId = $parentId;
-                $id = (int)DB::lastInsertId();
+                $id = (int) DB::lastInsertId();
             } else {
-                $parentId = (int)($_POST['subcategory_id'] ?? 0);
-                $categoryId = (int)($_POST['category_id'] ?? 0);
+                $parentId = (int) ($_POST['subcategory_id'] ?? 0);
+                $categoryId = (int) ($_POST['category_id'] ?? 0);
                 $parent = DB::fetch(
                     "SELECT id FROM subcategories
                      WHERE id = ? AND category_id = ? AND status = 'active'
@@ -572,7 +558,7 @@ class ProductAddingController extends Controller
                     [$parentId, $concernId, $name]
                 );
                 if ($duplicate) {
-                    $respond(false, ['message' => 'That sub-subcategory already exists under the selected subcategory.', 'existing_id' => (int)$duplicate['id']], 409);
+                    $respond(false, ['message' => 'That sub-subcategory already exists under the selected subcategory.', 'existing_id' => (int) $duplicate['id']], 409);
                 }
                 $dupCode = DB::fetch(
                     "SELECT id FROM sub_subcategories
@@ -582,7 +568,7 @@ class ProductAddingController extends Controller
                     [$concernId, $code]
                 );
                 if ($dupCode) {
-                    $respond(false, ['message' => "Sub-subcategory code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int)$dupCode['id']], 409);
+                    $respond(false, ['message' => "Sub-subcategory code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int) $dupCode['id']], 409);
                 }
 
                 DB::query(
@@ -590,8 +576,8 @@ class ProductAddingController extends Controller
                      VALUES (?, ?, ?, ?, 'active', NOW())",
                     [$concernId, $parentId, $name, $code]
                 );
-                $categoryId = (int)($_POST['category_id'] ?? 0);
-                $id = (int)DB::lastInsertId();
+                $categoryId = (int) ($_POST['category_id'] ?? 0);
+                $id = (int) DB::lastInsertId();
             }
 
             $respond(true, [
@@ -615,16 +601,16 @@ class ProductAddingController extends Controller
         header('Content-Type: application/json');
 
         $userConcernId = Auth::concernId();
-        $requestedConcernId = (int)($_POST['concern_id'] ?? 0);
+        $requestedConcernId = (int) ($_POST['concern_id'] ?? 0);
         $concernId = Auth::isSuperAdmin()
-            ? ($requestedConcernId ?: (int)($userConcernId ?? 0))
-            : (int)($userConcernId ?? 0);
-        $type = strtolower(trim((string)($_POST['attribute_type'] ?? '')));
-        $attributeName = trim((string)($_POST['attribute_name'] ?? ''));
-        $value = trim((string)($_POST['attribute_value'] ?? ''));
-        $categoryId = max(0, (int)($_POST['category_id'] ?? 0));
-        $subcategoryId = max(0, (int)($_POST['subcategory_id'] ?? 0));
-        $subSubcategoryId = max(0, (int)($_POST['sub_sub_category_id'] ?? 0));
+            ? ($requestedConcernId ?: (int) ($userConcernId ?? 0))
+            : (int) ($userConcernId ?? 0);
+        $type = strtolower(trim((string) ($_POST['attribute_type'] ?? '')));
+        $attributeName = trim((string) ($_POST['attribute_name'] ?? ''));
+        $value = trim((string) ($_POST['attribute_value'] ?? ''));
+        $categoryId = max(0, (int) ($_POST['category_id'] ?? 0));
+        $subcategoryId = max(0, (int) ($_POST['subcategory_id'] ?? 0));
+        $subSubcategoryId = max(0, (int) ($_POST['sub_sub_category_id'] ?? 0));
 
         $respond = static function (bool $success, array $data = [], int $status = 200): void {
             http_response_code($status);
@@ -642,12 +628,39 @@ class ProductAddingController extends Controller
             $respond(false, ['message' => 'Attribute names must start with a letter and contain only letters, numbers, or underscores.'], 422);
         }
         $reservedTypes = [
-            'product', 'item_name', 'sku', 'item_code', 'variant_id', 'catalog_id',
-            'quantity', 'qty', 'supplier_cost', 'unit_price', 'hsn', 'hsn_code', 'variant',
-            'style_code', 'category_id', 'subcategory_id', 'sub_sub_category_id',
-            'catalog_gst_rate', 'tax_mode', 'gst', 'gst_type', 'tax_input_type',
-            'gst_rate', 'sgst', 'cgst', 'igst', 'mrp', 'selling_price', 'weight',
-            'allocated_qty', 'custom_attributes', 'catalog_style_name', 'variant_name',
+            'product',
+            'item_name',
+            'sku',
+            'item_code',
+            'variant_id',
+            'catalog_id',
+            'quantity',
+            'qty',
+            'supplier_cost',
+            'unit_price',
+            'hsn',
+            'hsn_code',
+            'variant',
+            'style_code',
+            'category_id',
+            'subcategory_id',
+            'sub_sub_category_id',
+            'catalog_gst_rate',
+            'tax_mode',
+            'gst',
+            'gst_type',
+            'tax_input_type',
+            'gst_rate',
+            'sgst',
+            'cgst',
+            'igst',
+            'mrp',
+            'selling_price',
+            'weight',
+            'allocated_qty',
+            'custom_attributes',
+            'catalog_style_name',
+            'variant_name',
         ];
         if (in_array($type, $reservedTypes, true)) {
             $respond(false, ['message' => 'That attribute name is reserved for a built-in product field.'], 422);
@@ -661,24 +674,24 @@ class ProductAddingController extends Controller
 
         try {
             $existing = DB::fetch(
-                "SELECT id, attribute_name, attribute_value FROM product_attributes
+                'SELECT id, attribute_name, attribute_value FROM product_attributes
                  WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
                    AND LOWER(TRIM(attribute_type)) = LOWER(TRIM(?))
                    AND LOWER(TRIM(attribute_value)) = LOWER(TRIM(?))
                    AND (category_id IS NULL OR category_id = ?)
                    AND (subcategory_id IS NULL OR subcategory_id = ?)
                    AND (sub_sub_category_id IS NULL OR sub_sub_category_id = ?)
-                 LIMIT 1",
+                 LIMIT 1',
                 [$concernId, $type, $value, $categoryId ?: null, $subcategoryId ?: null, $subSubcategoryId ?: null]
             );
             if ($existing) {
                 $respond(false, [
                     'message' => "Duplicate Error: Attribute value '{$value}' already exists under '{$attributeName}'. Duplicates are not allowed.",
-                    'existing_id' => (int)$existing['id'],
+                    'existing_id' => (int) $existing['id'],
                 ], 409);
             }
 
-            $sortOrder = (int)DB::fetchValue(
+            $sortOrder = (int) DB::fetchValue(
                 'SELECT COALESCE(MAX(sort_order), 0) + 1 FROM product_attributes
                  WHERE concern_id = ? AND LOWER(TRIM(attribute_type)) = LOWER(TRIM(?))',
                 [$concernId, $type]
@@ -689,10 +702,10 @@ class ProductAddingController extends Controller
                     attribute_type, attribute_name, attribute_value, sort_order
                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                 [$concernId, $categoryId ?: null, $subcategoryId ?: null, $subSubcategoryId ?: null,
-                 $type, $attributeName, $value, $sortOrder]
+                    $type, $attributeName, $value, $sortOrder]
             );
             $respond(true, [
-                'id' => (int)DB::lastInsertId(),
+                'id' => (int) DB::lastInsertId(),
                 'concern_id' => $concernId,
                 'category_id' => $categoryId ?: null,
                 'subcategory_id' => $subcategoryId ?: null,
@@ -719,15 +732,15 @@ class ProductAddingController extends Controller
 
         $styleCode = strtoupper(trim($_POST['style_code'] ?? ''));
         $styleName = trim($_POST['name'] ?? '');
-        $categoryId = (int)($_POST['category_id'] ?? 0);
-        $subcategoryId = (int)($_POST['subcategory_id'] ?? 0) ?: null;
-        $subSubcategoryId = (int)($_POST['sub_sub_category_id'] ?? 0) ?: null;
+        $categoryId = (int) ($_POST['category_id'] ?? 0);
+        $subcategoryId = (int) ($_POST['subcategory_id'] ?? 0) ?: null;
+        $subSubcategoryId = (int) ($_POST['sub_sub_category_id'] ?? 0) ?: null;
         $hsnCode = trim($_POST['hsn_code'] ?? '');
-        $gstRate = (float)($_POST['gst_rate'] ?? 0);
+        $gstRate = (float) ($_POST['gst_rate'] ?? 0);
         $color = trim($_POST['color'] ?? '');
-        $costPrice = (float)($_POST['cost_price'] ?? 0);
-        $mrp = (float)($_POST['mrp'] ?? 0);
-        $sellingPrice = (float)($_POST['price'] ?? 0);
+        $costPrice = (float) ($_POST['cost_price'] ?? 0);
+        $mrp = (float) ($_POST['mrp'] ?? 0);
+        $sellingPrice = (float) ($_POST['price'] ?? 0);
         $location = trim($_POST['location'] ?? 'Main Store') ?: 'Main Store';
         $sizes = $_POST['sizes'] ?? [];
         $quantities = $_POST['quantities'] ?? [];
@@ -747,21 +760,21 @@ class ProductAddingController extends Controller
 
         DB::beginTransaction();
         try {
-            $cat = DB::fetch("SELECT * FROM categories WHERE id = ? AND (concern_id = ? OR concern_id = 1)", [$categoryId, $cid]);
+            $cat = DB::fetch('SELECT * FROM categories WHERE id = ? AND (concern_id = ? OR concern_id = 1)', [$categoryId, $cid]);
             if (!$cat) {
                 throw new Exception('The selected category is not valid for this concern.');
             }
 
-            $sub = $subcategoryId ? DB::fetch("SELECT * FROM subcategories WHERE id = ? AND (concern_id = ? OR concern_id = 1)", [$subcategoryId, $cid]) : null;
-            $subSub = $subSubcategoryId ? DB::fetch("SELECT * FROM sub_subcategories WHERE id = ? AND (concern_id = ? OR concern_id = 1)", [$subSubcategoryId, $cid]) : null;
+            $sub = $subcategoryId ? DB::fetch('SELECT * FROM subcategories WHERE id = ? AND (concern_id = ? OR concern_id = 1)', [$subcategoryId, $cid]) : null;
+            $subSub = $subSubcategoryId ? DB::fetch('SELECT * FROM sub_subcategories WHERE id = ? AND (concern_id = ? OR concern_id = 1)', [$subSubcategoryId, $cid]) : null;
 
-            $mainCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)($cat['code'] ?? $cat['name'])) ?: 'XX');
-            $subCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)($sub['code'] ?? $sub['name'] ?? '')) ?: 'XX');
-            $subSubCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string)($subSub['code'] ?? $subSub['name'] ?? '')) ?: 'XX');
+            $mainCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($cat['code'] ?? $cat['name'])) ?: 'XX');
+            $subCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($sub['code'] ?? $sub['name'] ?? '')) ?: 'XX');
+            $subSubCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($subSub['code'] ?? $subSub['name'] ?? '')) ?: 'XX');
             $wholeCode = substr($mainCode, 0, 2) . substr($subCode, 0, 2) . substr($subSubCode, 0, 2);
             $path = implode(' > ', array_filter([$cat['name'] ?? '', $sub['name'] ?? '', $subSub['name'] ?? '']));
 
-            $catalogId = (int)DB::fetchValue(
+            $catalogId = (int) DB::fetchValue(
                 "SELECT id FROM catalogs WHERE concern_id = ? AND style_code = ? AND source_module = 'product_adding' LIMIT 1",
                 [$cid, $styleCode]
             );
@@ -776,24 +789,24 @@ class ProductAddingController extends Controller
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 'product_adding', ?, NOW())",
                     [$cid, $styleCode, $styleCode, $wholeCode, $categoryId, $subcategoryId, $subSubcategoryId, substr($mainCode, 0, 10), substr($subCode, 0, 10), substr($subSubCode, 0, 10), $path, $hsnCode, $gstRate, json_encode(array_values($sizes)), $styleName]
                 );
-                $catalogId = (int)DB::lastInsertId();
+                $catalogId = (int) DB::lastInsertId();
             }
 
             $createdIds = [];
             $totalQty = 0.0;
             foreach ($sizes as $index => $size) {
-                $size = trim((string)$size);
+                $size = trim((string) $size);
                 if ($size === '') {
                     continue;
                 }
-                $qty = (float)($quantities[$size] ?? 0);
+                $qty = (float) ($quantities[$size] ?? 0);
                 $colorKey = strtoupper(preg_replace('/[^A-Z0-9]/', '', $color) ?: 'GEN');
                 $sizeKey = strtoupper(preg_replace('/[^A-Z0-9]/', '', $size) ?: 'OS');
                 $baseSku = strtoupper(trim($styleCode . '-' . $sizeKey . '-' . $colorKey));
 
                 $sku = $baseSku;
                 $sequence = 1;
-                while (DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND product_code = ?", [$cid, $sku])) {
+                while (DB::fetch('SELECT id FROM variants WHERE concern_id = ? AND product_code = ?', [$cid, $sku])) {
                     $sequence++;
                     $sku = $baseSku . '-' . $sequence;
                 }
@@ -808,7 +821,7 @@ class ProductAddingController extends Controller
                      VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 0, 'pcs', ?, ?, ?, ?, 0, CURDATE(), 'active', NOW())",
                     [$cid, $catalogId, $sku, $styleName . ' - ' . $size . ($color !== '' ? ' - ' . $color : ''), $categoryId, $subcategoryId, $size, json_encode($attributes), $costPrice, $sellingPrice, $mrp]
                 );
-                $variantId = (int)DB::lastInsertId();
+                $variantId = (int) DB::lastInsertId();
                 $createdIds[] = $variantId;
 
                 if ($qty > 0) {
@@ -830,13 +843,13 @@ class ProductAddingController extends Controller
         }
 
         $this->flash('success', 'Product created successfully. ' . count($createdIds) . ' size variant(s) added; opening stock credited: ' . number_format($totalQty, 2) . '.');
-        $this->redirect('/m/product_adding?variant_ids=' . implode(',', $createdIds) . '&qty=' . max(1, (int)ceil($totalQty)));
+        $this->redirect('/m/product_adding?variant_ids=' . implode(',', $createdIds) . '&qty=' . max(1, (int) ceil($totalQty)));
     }
 
     private function ensureSchema(): void
     {
         try {
-            $catalogColumns = array_column(DB::fetchAll("DESCRIBE catalogs"), 'Field');
+            $catalogColumns = array_column(DB::fetchAll('DESCRIBE catalogs'), 'Field');
             $requiredCatalogColumns = [
                 'style_code' => 'VARCHAR(50) NULL',
                 'short_code' => 'VARCHAR(50) NULL',
@@ -857,28 +870,28 @@ class ProductAddingController extends Controller
                 }
             }
 
-            $variantColumns = array_column(DB::fetchAll("DESCRIBE variants"), 'Field');
+            $variantColumns = array_column(DB::fetchAll('DESCRIBE variants'), 'Field');
             if (!in_array('catalog_id', $variantColumns, true)) {
-                DB::query("ALTER TABLE variants ADD COLUMN catalog_id INT NULL AFTER concern_id");
+                DB::query('ALTER TABLE variants ADD COLUMN catalog_id INT NULL AFTER concern_id');
             }
             if (!in_array('cost_price', $variantColumns, true)) {
-                DB::query("ALTER TABLE variants ADD COLUMN cost_price DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER attributes");
+                DB::query('ALTER TABLE variants ADD COLUMN cost_price DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER attributes');
             }
 
-            $categoryColumns = array_column(DB::fetchAll("DESCRIBE categories"), 'Field');
+            $categoryColumns = array_column(DB::fetchAll('DESCRIBE categories'), 'Field');
             if (!in_array('code', $categoryColumns, true)) {
-                DB::query("ALTER TABLE categories ADD COLUMN code VARCHAR(20) NULL AFTER name");
+                DB::query('ALTER TABLE categories ADD COLUMN code VARCHAR(20) NULL AFTER name');
             }
             if (!in_array('default_hsn', $categoryColumns, true)) {
-                DB::query("ALTER TABLE categories ADD COLUMN default_hsn VARCHAR(50) NULL AFTER code");
+                DB::query('ALTER TABLE categories ADD COLUMN default_hsn VARCHAR(50) NULL AFTER code');
             }
             if (!in_array('default_gst_rate', $categoryColumns, true)) {
-                DB::query("ALTER TABLE categories ADD COLUMN default_gst_rate DECIMAL(5,2) NULL DEFAULT NULL AFTER default_hsn");
+                DB::query('ALTER TABLE categories ADD COLUMN default_gst_rate DECIMAL(5,2) NULL DEFAULT NULL AFTER default_hsn');
             }
 
-            $purchaseItemColumns = array_column(DB::fetchAll("DESCRIBE purchase_bill_items"), 'Field');
+            $purchaseItemColumns = array_column(DB::fetchAll('DESCRIBE purchase_bill_items'), 'Field');
             if (!in_array('catalog_id', $purchaseItemColumns, true)) {
-                DB::query("ALTER TABLE purchase_bill_items ADD COLUMN catalog_id INT NULL AFTER variant_id");
+                DB::query('ALTER TABLE purchase_bill_items ADD COLUMN catalog_id INT NULL AFTER variant_id');
             }
 
             DB::query("CREATE TABLE IF NOT EXISTS sub_subcategories (

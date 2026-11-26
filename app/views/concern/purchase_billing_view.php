@@ -101,7 +101,7 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                 <i class="bi bi-download me-1"></i> Download Purchase Items
             </a>
             <?php endif; ?>
-            <a href="<?= \App\Core\Controller::url('/m/purchase_billing') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
+            <a href="<?= \App\Core\Controller::url(($bill['source_module'] ?? 'purchase_billing') === 'product_adding' ? '/m/product_adding' : '/m/purchase_billing') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Back to Bills
             </a>
         </div>
