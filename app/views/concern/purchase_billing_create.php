@@ -667,7 +667,6 @@ if ($isEdit && !empty($existingItems)) {
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="small text-muted mb-3">The first count defaults to purchase quantity; later prints default to the latest count. The latest count becomes stock quantity on inward. Choose 1–500 labels per line (up to 2,000 labels per print).</p>
                         <div id="productAddingLabelCountRows"></div>
                         <div id="productAddingLabelCountError" class="small text-danger mt-2" role="alert"></div>
                     </div>
