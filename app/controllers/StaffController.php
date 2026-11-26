@@ -1081,11 +1081,12 @@ class StaffController extends Controller {
                 if (!$email) {
                     $email = $staff['email'] ?: ('staff_' . strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $staff['staff_code'])) . '@invento.com');
                 }
-                $existingUser = DB::fetch("SELECT id FROM users WHERE email = ?", [$email]);
+                $existingUser = DB::fetch("SELECT id, role_id FROM users WHERE email = ?", [$email]);
                 if ($existingUser) {
                     $userId = (int)$existingUser['id'];
+                    $effectiveRoleId = $roleId > 0 ? $roleId : ((int)($existingUser['role_id'] ?? 0) ?: 3);
                     $updateSql = "UPDATE users SET role_id = ?, status = 'active'";
-                    $uParams = [$roleId ?: 3];
+                    $uParams = [$effectiveRoleId];
                     if ($password) {
                         $updateSql .= ", password_hash = ?";
                         $uParams[] = password_hash($password, PASSWORD_BCRYPT);
@@ -1106,19 +1107,24 @@ class StaffController extends Controller {
 
                 DB::query("UPDATE staff SET user_id = ?, email = ? WHERE id = ?", [$userId, $email, $staffId]);
             } else {
-                $updateSql = "UPDATE users SET role_id = ?";
-                $uParams = [$roleId];
+                $setClauses = [];
+                $uParams = [];
+                if ($roleId > 0) {
+                    $setClauses[] = "role_id = ?";
+                    $uParams[] = $roleId;
+                }
                 if ($email) {
-                    $updateSql .= ", email = ?";
+                    $setClauses[] = "email = ?";
                     $uParams[] = $email;
                 }
                 if ($password) {
-                    $updateSql .= ", password_hash = ?";
+                    $setClauses[] = "password_hash = ?";
                     $uParams[] = password_hash($password, PASSWORD_BCRYPT);
                 }
-                $updateSql .= " WHERE id = ?";
-                $uParams[] = $userId;
-                DB::query($updateSql, $uParams);
+                if (!empty($setClauses)) {
+                    $uParams[] = $userId;
+                    DB::query("UPDATE users SET " . implode(', ', $setClauses) . " WHERE id = ?", $uParams);
+                }
 
                 if ($email) {
                     DB::query("UPDATE staff SET email = ? WHERE id = ?", [$email, $staffId]);

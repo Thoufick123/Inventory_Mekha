@@ -332,19 +332,13 @@
                     </div>
                 </div>
 
-                <!-- 2. FULL NAME & DESIGNATION -->
+                <!-- 2. FULL NAME -->
                 <div class="row g-3 mb-3">
-                    <div class="col-md-6">
+                    <div class="col-12">
                         <label class="form-label small fw-bold text-secondary text-uppercase mb-1">
                             <i class="bi bi-person me-1 text-primary"></i> Full Name *
                         </label>
                         <input type="text" name="name" class="form-control" required placeholder="e.g. Ramesh Kumar">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold text-secondary text-uppercase mb-1">
-                            <i class="bi bi-briefcase me-1 text-primary"></i> Role Assign *
-                        </label>
-                        <input type="text" name="designation" class="form-control" required placeholder="e.g. Cutting Master / Tailor / Supervisor">
                     </div>
                 </div>
 
