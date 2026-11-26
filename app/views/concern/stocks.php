@@ -169,8 +169,9 @@
                                         $color = trim($cm[1]);
                                     }
                                     $hsn = trim((string)($variantAttributes['hsn'] ?? ($s['catalog_hsn'] ?? '')));
-                                    $fgCode = \App\Services\QrService::formatBrandVariantCode((int)$s['variant_id'])
-                                        ?: \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']);
+                                    $labelVariantId = (int)($s['canonical_variant_id'] ?? $s['variant_id']);
+                                    $fgCode = \App\Services\QrService::formatBrandVariantCode($labelVariantId)
+                                        ?: \App\Services\QrService::generateFinishedGoodsCode($labelVariantId);
                                     $qrPayload = !empty($fgCode)
                                         ? $fgCode
                                         : (!empty($s['qr_payload'])
