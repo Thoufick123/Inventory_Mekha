@@ -29,6 +29,11 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+            <button type="button" class="btn btn-dark shadow-sm fw-semibold" onclick="printStitchingBatchLabels(<?= (int)$batch['id'] ?>)">
+                <i class="bi bi-printer-fill me-1"></i> Print All Labels
+            </button>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/production/stitching') ?>" class="btn btn-light border shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
             </a>
@@ -209,7 +214,10 @@
                                         <th class="text-center py-2.5" style="width: 110px;">Per Pc Wt (kg) <span class="text-danger">*</span></th>
                                         <th class="text-center py-2.5" style="width: 110px;">Total Wt (kg) <span class="text-danger">*</span></th>
                                         <th class="text-center py-2.5" style="width: 125px;">Base Price (₹) <span class="text-danger">*</span></th>
-                                        <th class="text-center pe-3 py-2.5" style="width: 125px;">Discount Price (₹) <span class="text-danger">*</span></th>
+                                        <th class="text-center py-2.5" style="width: 125px;">Discount Price (₹) <span class="text-danger">*</span></th>
+                                        <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                        <th class="text-center pe-3 py-2.5" style="width: 90px;">Labels</th>
+                                        <?php endif; ?>
                                     </tr>
                                 </thead>
                                 <tbody id="tbodyStitchingItems">
@@ -262,7 +270,7 @@
                                                     <div class="invalid-feedback">Required</div>
                                                 </div>
                                             </td>
-                                            <td class="text-center pe-3 py-2">
+                                            <td class="text-center py-2">
                                                 <div class="input-group input-group-sm has-validation">
                                                     <span class="input-group-text">₹</span>
                                                     <input type="number" step="0.01" name="items[<?= (int)$it['id'] ?>][discount_price]" 
@@ -271,6 +279,15 @@
                                                     <div class="invalid-feedback">Required</div>
                                                 </div>
                                             </td>
+                                            <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                            <td class="text-center pe-3 py-2">
+                                                <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
+                                                        title="Print Labels for this Variant"
+                                                        onclick="const r = this.closest('tr'); const q = r ? (r.querySelector('.input-stitch-qty')?.value || <?= (int)$it['stitching_qty'] ?>) : <?= (int)$it['stitching_qty'] ?>; printStitchingVariantLabel(<?= (int)$it['id'] ?>, q);">
+                                                    <i class="bi bi-printer me-1"></i>Print
+                                                </button>
+                                            </td>
+                                            <?php endif; ?>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -657,3 +674,4 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+<?php include __DIR__ . '/partials/stitching_label_print_js.php'; ?>

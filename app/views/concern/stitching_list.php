@@ -202,6 +202,13 @@
                                                        class="btn btn-outline-secondary" title="View Batch Details">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
+                                                    <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                                    <button type="button" class="btn btn-outline-dark"
+                                                            title="Print All Variant Labels"
+                                                            onclick="printStitchingBatchLabels(<?= (int)$b['id'] ?>)">
+                                                        <i class="bi bi-printer"></i>
+                                                    </button>
+                                                    <?php endif; ?>
                                                     <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
                                                     <a href="<?= \App\Core\Controller::url('/production/stitching/edit?id=' . $b['id']) ?>" 
                                                        class="btn btn-outline-primary" title="Edit Batch">
@@ -1060,3 +1067,4 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+<?php include __DIR__ . '/partials/stitching_label_print_js.php'; ?>

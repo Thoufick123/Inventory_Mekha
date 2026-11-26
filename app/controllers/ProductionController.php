@@ -6269,6 +6269,7 @@ class ProductionController extends Controller {
             'batch'         => $batch,
             'items'         => $items,
             'wastageSales'  => $wastageSales,
+            'csrfToken'     => Auth::csrfToken(),
         ]);
     }
 
