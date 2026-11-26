@@ -15,7 +15,7 @@
     <!-- Header Section -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-3">
-            <div class="p-2.5 rounded-3 bg-primary-subtle text-primary border border-primary-subtle shadow-xs">
+            <div class="p-2 rounded-3 bg-primary-subtle text-primary border border-primary-subtle shadow-xs">
                 <i class="bi bi-pencil-square fs-4"></i>
             </div>
             <div>
@@ -24,7 +24,7 @@
             </div>
         </div>
         <div>
-            <a href="<?= \App\Core\Controller::url('/production/catalog?tab=programs') ?>" class="btn btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1.5 shadow-sm fw-semibold">
+            <a href="<?= \App\Core\Controller::url('/production/catalog?tab=programs') ?>" class="btn btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-2 shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left"></i> Back to Programs
             </a>
         </div>
@@ -194,6 +194,7 @@
     </form>
 </div>
 
+<?php include __DIR__ . '/partials/program_roll_picker_assets.php'; ?>
 <script>
 // Data from server
 const AVAILABLE_ROLLS = <?= json_encode($availableRolls) ?>;
@@ -251,70 +252,10 @@ function createRollCardHtml(index, rollData = null) {
     const selectedSubSubId = rollData ? rollData.sub_sub_category_id : '';
     const selectedCatalogId = rollData ? rollData.catalog_id : '';
 
-    let rollOptionsHtml = '<option value="">-- Select Fabric Roll --</option>';
-    let selectedRollObject = null;
-
-    // Group rolls by specification (Design/Item Name & Color) matching Purchase Stocks Consolidated Registry
-    const specGroups = {};
-    AVAILABLE_ROLLS.forEach(r => {
-        const specName = (r.design_name || r.pattern || r.item_name || 'Fabric Roll').toUpperCase();
-        const specColor = (r.color || 'STANDARD').toUpperCase();
-        const groupKey = `${specName} • ${specColor}`;
-        if (!specGroups[groupKey]) {
-            specGroups[groupKey] = {
-                title: groupKey,
-                totalStock: r.design_accumulated_stock || r.remaining_qty,
-                unit: r.unit || 'kg',
-                unitPrice: r.unit_price || 0,
-                billNo: r.bill_no || '',
-                supplier: r.supplier_display || '',
-                rolls: []
-            };
-        }
-        specGroups[groupKey].rolls.push(r);
-    });
-
-    for (const [key, grp] of Object.entries(specGroups)) {
-        const groupBill = grp.billNo ? ` • Bill #${grp.billNo}` : '';
-        const groupSup = grp.supplier ? ` • ${grp.supplier}` : '';
-        const groupRate = grp.unitPrice > 0 ? ` • ₹${grp.unitPrice.toFixed(2)}` : '';
-        const optgroupLabel = `${grp.title} (Accumulated Stock: ${grp.totalStock.toFixed(2)} ${grp.unit}${groupRate}${groupBill}${groupSup})`;
-
-        rollOptionsHtml += `<optgroup label="${optgroupLabel}">`;
-        grp.rolls.forEach((r, bIdx) => {
-            const isSelected = selectedRollId && (String(r.id) === String(selectedRollId));
-            if (isSelected) selectedRollObject = r;
-            const tagText = r.tag_code ? `[${r.tag_code}] ` : (r.item_code ? `[${r.item_code}] ` : `Roll #${r.id} `);
-            const colorText = r.color ? ` - ${r.color}` : '';
-            const priceText = r.unit_price > 0 ? ` • ₹${parseFloat(r.unit_price).toFixed(2)}` : '';
-            const stockStr = ` • Stock: ${parseFloat(r.remaining_qty).toFixed(2)} ${r.unit || 'kg'}`;
-            const billInfo = r.bill_no ? ` • Bill #${r.bill_no}` : '';
-            const supInfo = r.supplier_display ? ` • ${r.supplier_display}` : '';
-            const batchNum = grp.rolls.length > 1 ? ` (Batch #${bIdx + 1} of ${grp.totalStock.toFixed(2)} ${grp.unit})` : '';
-
-            rollOptionsHtml += `<option value="${r.id}" ${isSelected ? 'selected' : ''} 
-                data-remaining="${r.remaining_qty}" 
-                data-stock="${r.remaining_qty}" 
-                data-accumulated="${r.design_accumulated_stock || r.remaining_qty}"
-                data-total="${r.total_qty}" 
-                data-unit="${r.unit || 'kg'}" 
-                data-color="${r.color || ''}" 
-                data-pattern="${r.pattern || ''}" 
-                data-name="${r.item_name || ''}"
-                data-price="${r.unit_price || 0.00}"
-                data-weight="${r.weight || 0.00}"
-                data-catalog-id="${r.catalog_id || ''}"
-                data-catalog-code="${r.catalog_style_code || ''}"
-                data-catalog-name="${r.catalog_name || ''}"
-                data-category-id="${r.category_id || ''}"
-                data-subcategory-id="${r.subcategory_id || ''}"
-                data-subsubcategory-id="${r.sub_sub_category_id || ''}"
-                data-hierarchy="${r.hierarchy_path || ''}">
-                ${tagText}${r.item_name}${colorText}${stockStr}${batchNum}${priceText}${billInfo}${supInfo}
-            </option>`;
-        });
-        rollOptionsHtml += `</optgroup>`;
-    }
+    const rollOptionsHtml = window.ProgramRollPicker.buildSelectOptionsHtml(AVAILABLE_ROLLS, selectedRollId);
+    const selectedRollObject = selectedRollId
+        ? (AVAILABLE_ROLLS.find(r => String(r.id) === String(selectedRollId)) || null)
+        : null;
 
     let catOptionsHtml = '<option value="">-- Select Main Category --</option>';
     CATEGORIES.forEach(c => {
@@ -348,18 +289,34 @@ function createRollCardHtml(index, rollData = null) {
     <div class="card border rounded-3 p-3 bg-white roll-card shadow-xs mb-3" id="${cardId}" data-index="${index}">
         <input type="hidden" name="rolls[${index}][program_roll_id]" class="input-program-roll-id" value="${rollData ? (rollData.program_roll_id || rollData.id || '') : ''}">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-2.5 py-1 roll-index-badge">Roll #${index + 1}</span>
-            <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-2 btn-remove-roll" onclick="removeRollCard('${cardId}')" title="Remove this roll">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-2 py-1 roll-index-badge">Roll #${index + 1}</span>
+            <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2 btn-remove-roll" onclick="removeRollCard('${cardId}')" title="Remove this roll">
                 <i class="bi bi-trash me-1"></i> Remove
             </button>
         </div>
 
         <!-- 1. Select Raw Material Roll * -->
         <div class="mb-3">
-            <label class="form-label small fw-semibold text-dark mb-1">Select Raw Material Roll <span class="text-danger">*</span></label>
-            <select name="rolls[${index}][purchase_bill_item_id]" class="form-select select-roll-item" id="rollSelect_${index}" onchange="handleRollSelectionChange(${index})" required>
+            <label class="form-label small fw-semibold text-dark mb-1">Select Raw Material Roll &amp; Supplier <span class="text-danger">*</span></label>
+            <select name="rolls[${index}][purchase_bill_item_id]" class="form-select select-roll-item d-none" id="rollSelect_${index}" onchange="handleRollSelectionChange(${index})" required>
                 ${rollOptionsHtml}
             </select>
+            <div class="roll-picker-wrap">
+                <button type="button" class="roll-picker-btn" aria-expanded="false">
+                    <div class="roll-picker-btn-main"></div>
+                    <i class="bi bi-chevron-down text-muted flex-shrink-0 small"></i>
+                </button>
+                <div class="roll-picker-menu d-none">
+                    <div class="roll-picker-search-bar">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control border-start-0 ps-0 roll-picker-search" placeholder="Search fabric, color, code, supplier, or bill #...">
+                        </div>
+                    </div>
+                    <div class="roll-picker-list"></div>
+                </div>
+            </div>
+            <div class="roll-selected-summary d-none"></div>
         </div>
 
         <!-- 2. Roll Qty, Roll Weight, Roll Price matching Image 1 -->
@@ -443,6 +400,10 @@ function addRollCard(rollData = null) {
     const container = document.getElementById('rollsContainer');
     const index = rollCardCounter++;
     container.insertAdjacentHTML('beforeend', createRollCardHtml(index, rollData));
+    const cardEl = document.getElementById(`rollCard_${index}`);
+    if (cardEl && window.ProgramRollPicker) {
+        window.ProgramRollPicker.attach(cardEl, AVAILABLE_ROLLS, id => getEffectiveRollStock(id, index));
+    }
     
     // If existing subcategory/sub-sub were selected, populate them
     if (rollData && rollData.category_id) {
@@ -572,6 +533,10 @@ function handleRollSelectionChange(index) {
             catalogBadge.className = 'badge bg-white text-secondary border roll-catalog-badge';
         }
         if (errorDiv) errorDiv.classList.add('d-none');
+        if (window.ProgramRollPicker) {
+            const cardEl = document.getElementById(`rollCard_${index}`);
+            if (cardEl) window.ProgramRollPicker.refreshCard(cardEl, AVAILABLE_ROLLS, id => getEffectiveRollStock(id, index));
+        }
         updateAllRollCardsStock(index);
         recalcSummary();
         return;
@@ -758,7 +723,7 @@ function updateAllRollCardsStock(skipIndex = null) {
         }
     });
 
-    // Update option labels in all select dropdowns
+    // Update option labels and custom picker summary across all roll cards
     cards.forEach(card => {
         const idx = card.getAttribute('data-index');
         const select = card.querySelector('.select-roll-item');
@@ -772,23 +737,18 @@ function updateAllRollCardsStock(skipIndex = null) {
                 const info = getEffectiveRollStock(optRollId, idx);
                 opt.dataset.remaining = info.remainingForCard;
 
-                const tagText = baseRoll.tag_code ? `[${baseRoll.tag_code}] ` : (baseRoll.item_code ? `[${baseRoll.item_code}] ` : `Roll #${baseRoll.id} `);
-                const colorText = baseRoll.color ? ` - ${baseRoll.color}` : '';
-                const priceText = baseRoll.unit_price > 0 ? ` • ₹${parseFloat(baseRoll.unit_price).toFixed(2)}` : '';
-                const billInfo = baseRoll.bill_no ? ` • Bill #${baseRoll.bill_no}` : '';
+                const specTitle = `${(baseRoll.design_name || baseRoll.pattern || baseRoll.item_name || 'Fabric Roll').toUpperCase()} • ${(baseRoll.color || 'STANDARD').toUpperCase()}`;
                 const supInfo = baseRoll.supplier_display ? ` • ${baseRoll.supplier_display}` : '';
+                const billInfo = baseRoll.bill_no ? ` • Bill #${baseRoll.bill_no}` : '';
+                const stockStr = info.remainingForCard <= 0
+                    ? ` • OUT OF STOCK (0.00 ${baseRoll.unit || 'kg'})`
+                    : ` • Stock: ${info.remainingForCard.toFixed(2)} ${baseRoll.unit || 'kg'}`;
 
-                let stockStr = '';
-                if (info.remainingForCard <= 0) {
-                    stockStr = ` • OUT OF STOCK (0.00 ${baseRoll.unit || 'kg'})`;
-                } else if (info.allocatedInOthers > 0) {
-                    stockStr = ` • Stock: ${info.remainingForCard.toFixed(2)} ${baseRoll.unit || 'kg'} (Bal)`;
-                } else {
-                    stockStr = ` • Stock: ${info.remainingForCard.toFixed(2)} ${baseRoll.unit || 'kg'}`;
-                }
-
-                opt.text = `${tagText}${baseRoll.item_name}${colorText}${stockStr}${priceText}${billInfo}${supInfo}`;
+                opt.text = `${specTitle}${supInfo}${billInfo}${stockStr}`;
             });
+        }
+        if (window.ProgramRollPicker) {
+            window.ProgramRollPicker.refreshCard(card, AVAILABLE_ROLLS, id => getEffectiveRollStock(id, idx));
         }
     });
 }
@@ -924,12 +884,6 @@ document.getElementById('btnAddRollCard').addEventListener('click', () => {
     addRollCard();
 });
 
-document.getElementById('btnFocusScanner')?.addEventListener('click', () => {
-    const input = document.getElementById('scannerInput');
-    input.focus();
-    input.select();
-});
-
 // Form submission validation
 const formEdit = document.getElementById('formEditProgram');
 if (formEdit) {
@@ -947,12 +901,17 @@ if (formEdit) {
         cards.forEach(card => {
             const idx = card.getAttribute('data-index');
             const sel = card.querySelector('.select-roll-item');
+            const pickerBtn = card.querySelector('.roll-picker-btn');
             const qtyInp = card.querySelector('.input-allocated-qty');
 
             if (!sel || !sel.value) {
                 isValid = false;
                 if (sel) sel.classList.add('is-invalid');
-                if (!firstInvalid) firstInvalid = sel;
+                if (pickerBtn) pickerBtn.classList.add('is-invalid');
+                if (!firstInvalid) firstInvalid = pickerBtn || sel;
+            } else {
+                if (sel) sel.classList.remove('is-invalid');
+                if (pickerBtn) pickerBtn.classList.remove('is-invalid');
             }
 
             if (!validateRollAllocatedQty(idx)) {
