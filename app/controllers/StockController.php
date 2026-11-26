@@ -1268,13 +1268,13 @@ class StockController extends Controller {
         }
         $sql .= " ORDER BY sl.id DESC";
         $ledger = DB::fetchAll($sql, $params);
-        $qrTagCodes = [];
+        $unifiedCodes = [];
         foreach ($ledger as &$entry) {
             $variantId = (int)$entry['variant_id'];
-            if (!array_key_exists($variantId, $qrTagCodes)) {
-                $qrTagCodes[$variantId] = \App\Services\QrService::generateFinishedGoodsCode($variantId) ?? '';
+            if (!array_key_exists($variantId, $unifiedCodes)) {
+                $unifiedCodes[$variantId] = \App\Services\QrService::generateFinishedGoodsCode($variantId) ?: ($entry['product_code'] ?? '');
             }
-            $entry['qr_tag_code'] = $qrTagCodes[$variantId];
+            $entry['product_code'] = $unifiedCodes[$variantId];
         }
         unset($entry);
 
@@ -1412,15 +1412,15 @@ class StockController extends Controller {
         }
         $sql .= " ORDER BY sl.id DESC";
         $ledger = DB::fetchAll($sql, $params);
-        $qrTagCodes = [];
+        $unifiedCodes = [];
 
         $rows = [];
         $totIn = 0;
         $totOut = 0;
         foreach ($ledger as $l) {
             $variantId = (int)$l['variant_id'];
-            if (!array_key_exists($variantId, $qrTagCodes)) {
-                $qrTagCodes[$variantId] = \App\Services\QrService::generateFinishedGoodsCode($variantId) ?? '';
+            if (!array_key_exists($variantId, $unifiedCodes)) {
+                $unifiedCodes[$variantId] = \App\Services\QrService::generateFinishedGoodsCode($variantId) ?: ($l['product_code'] ?? '');
             }
             $in = (float)($l['qty_in'] ?? 0);
             $out = (float)($l['qty_out'] ?? 0);
@@ -1429,13 +1429,11 @@ class StockController extends Controller {
             $rows[] = [
                 '#' . $l['id'],
                 date('d M Y, h:i A', strtotime($l['created_at'])),
-                $l['product_code'],
-                $qrTagCodes[$variantId],
+                $unifiedCodes[$variantId],
                 $l['variant_name'],
                 $l['ref_module'] ?: 'Movement',
                 $in,
                 $out,
-                $l['location'] ?? 'Main Store',
                 $l['ref_id'] ? '#' . $l['ref_id'] : '-',
                 $l['note'] ?: '-',
                 $l['user_name'] ?? 'System',
@@ -1444,11 +1442,11 @@ class StockController extends Controller {
         }
 
         $headers = [
-            'ID', 'Date & Time', 'Product Code', 'Product QR / Tag Code', 'Variant Name', 'Module',
-            'Qty In (+)', 'Qty Out (-)', 'Location', 'Ref ID', 'Notes', 'User', 'Concern'
+            'ID', 'Date & Time', 'Product Code', 'Variant Name', 'Module',
+            'Qty In (+)', 'Qty Out (-)', 'Ref ID', 'Notes', 'User', 'Concern'
         ];
 
-        $totals = ['Total: ' . count($ledger) . ' Records', '', '', '', '', '', $totIn, $totOut, '', '', '', '', ''];
+        $totals = ['Total: ' . count($ledger) . ' Records', '', '', '', '', $totIn, $totOut, '', '', '', ''];
         $metadata = [
             'Report Title' => 'Stock Movement Ledger (Audit Trail)',
             'Scope / Period' => $dateScope['label'],

@@ -1509,8 +1509,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const availableQty = Math.max(0, Math.floor(Number(v.available_qty) || 0));
                     if (availableQty <= 0) {
                         playPosBeep('error');
-                        if (scannerStatus) scannerStatus.textContent = 'Out of stock at Main Store.';
-                        showPosInlineError('No available stock for this product at Main Store.');
+                        if (scannerStatus) scannerStatus.textContent = 'Out of stock.';
+                        showPosInlineError('No available stock for this product.');
                         return;
                     }
                     if (v.gst_pct === null || !Number.isFinite(Number(v.gst_pct))) {
@@ -1533,7 +1533,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 ? 'Only ' + remainingQty + ' more available.'
                                 : 'Available stock already in cart.';
                         }
-                        showPosInlineError('Available at Main Store: ' + availableQty + '. Already in cart: ' + currentQty + '. You can add only ' + remainingQty + ' more.');
+                        showPosInlineError('Available stock: ' + availableQty + '. Already in cart: ' + currentQty + '. You can add only ' + remainingQty + ' more.');
                         return;
                     }
 
@@ -1754,7 +1754,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const maxQty = maxQuantityForCartLine(idx);
                     const requestedQty = Math.max(1, parseInt(this.value, 10) || 1);
                     if (requestedQty > maxQty) {
-                        showPosInlineError('Only ' + maxQty + ' units are available for this item at Main Store.');
+                        showPosInlineError('Only ' + maxQty + ' units are available for this item.');
                     }
                     cart[idx].qty = Math.min(requestedQty, maxQty);
                     if (cart[idx].qty < 1) {

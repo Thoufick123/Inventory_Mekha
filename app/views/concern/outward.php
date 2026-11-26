@@ -827,7 +827,7 @@ function addScannedVariant(v) {
     const id = parseInt(v.id);
     const stock = parseInt(v.stock_qty || 0, 10);
     if (parseInt(v.concern_id, 10) !== getSelectedFgConcernId() || stock <= 0) {
-        document.getElementById('outwardScanFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i> This item has no available good stock in the selected concern Main Store.</span>';
+        document.getElementById('outwardScanFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i> This item has no available good stock in the selected concern.</span>';
         playScannerBeep('error');
         return false;
     }
@@ -1023,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 item.qty > item.stock
             )) {
                 e.preventDefault();
-                alert('One or more finished-good quantities exceed the available good Main Store stock.');
+                alert('One or more finished-good quantities exceed the available good stock.');
                 return false;
             }
         });

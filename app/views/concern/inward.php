@@ -372,7 +372,6 @@
                         <th class="ps-3">Inward & GRN</th>
                         <th>Supplier / Source</th>
                         <th>Date</th>
-                        <th>Warehouse Bay</th>
                         <th>Accepted Qty</th>
                         <th>Rejected Qty</th>
                         <th>Status</th>
@@ -382,7 +381,7 @@
                 <tbody>
                     <?php if (empty($inwards)): ?>
                         <tr>
-                            <td colspan="8" class="text-center py-4 text-muted small">No direct vendor inwards recorded.</td>
+                            <td colspan="7" class="text-center py-4 text-muted small">No direct vendor inwards recorded.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($inwards as $inw): ?>
@@ -395,7 +394,6 @@
                             </td>
                             <td><?= htmlspecialchars($inw['supplier_name'] ?: ($inw['production_unit_name'] ?: 'Direct Inward')) ?></td>
                             <td class="small text-muted font-monospace"><?= date('d M Y', strtotime($inw['inward_date'])) ?></td>
-                            <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($inw['location'] ?: 'Main Store') ?></span></td>
                             <td><span class="badge bg-success text-white fw-bold">+<?= number_format($inw['total_accepted_qty'] ?: $inw['total_qty'], 2) ?></span></td>
                             <td>
                                 <?php if ((float)$inw['total_rejected_qty'] > 0): ?>
@@ -429,12 +427,9 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
+                <input type="hidden" name="location" value="Main Store">
                 <div class="row g-3 mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold">Receiving Warehouse Bay <span class="text-danger">*</span></label>
-                        <input type="text" name="location" class="form-control form-control-sm" value="Main Store" required>
-                    </div>
-                    <div class="col-md-6">
+                    <div class="col-md-12">
                         <label class="form-label small fw-semibold">Delivery Vehicle Number</label>
                         <input type="text" name="vehicle_number" class="form-control form-control-sm" placeholder="e.g. TN-38-AB-1234">
                     </div>

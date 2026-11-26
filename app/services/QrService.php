@@ -75,6 +75,18 @@ class QrService {
 
     public static function parseFinishedGoodsCode(string $code): ?array {
         $code = strtoupper(trim($code));
+        if (preg_match('/^\d+$/', $code)) {
+            $idDigits = ltrim($code, '0');
+            if ($idDigits !== '') {
+                $variantId = filter_var($idDigits, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                if ($variantId !== false) {
+                    return [
+                        'variant_id' => $variantId,
+                        'raw' => $code,
+                    ];
+                }
+            }
+        }
         if (preg_match('/^GRMV(\d+)$/', $code, $matches)) {
             $idDigits = ltrim($matches[1], '0');
             if ($idDigits !== '') {
@@ -168,15 +180,7 @@ class QrService {
             return null;
         }
 
-        return self::formatFinishedGoodsCode(
-            (int)$variant['id'],
-            $variant['category_code'] ?? null,
-            $variant['subcategory_code'] ?? null,
-            $variant['sub_subcategory_code'] ?? null,
-            $variant['category_name'] ?? null,
-            $variant['subcategory_name'] ?? null,
-            $variant['sub_subcategory_name'] ?? null
-        );
+        return str_pad((string)$variant['id'], 3, '0', STR_PAD_LEFT);
     }
 
     /**
