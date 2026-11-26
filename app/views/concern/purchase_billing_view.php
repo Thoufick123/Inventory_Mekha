@@ -508,11 +508,7 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
     <div class="tab-pane fade" id="paneInvoicePrint" role="tabpanel">
         <div class="card border-0 shadow-sm rounded-3 p-4 bg-white invoice-print-container" id="printableInvoiceCard">
             <!-- Screen Toolbar: Print & Download Actions -->
-            <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom d-print-none">
-                <div>
-                    <span class="badge bg-primary-subtle text-primary border px-2 py-1"><i class="bi bi-printer me-1"></i> Standard Purchase Tax Invoice</span>
-                    <span class="text-muted small ms-2">Official printable format with GST audit ledger and sign-off columns.</span>
-                </div>
+            <div class="d-flex justify-content-end align-items-center mb-4 pb-3 border-bottom d-print-none">
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1" onclick="window.print()">
                         <i class="bi bi-printer-fill me-1"></i> Print / Save as PDF
@@ -535,11 +531,7 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                             <h3 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($bill['concern_name'] ?: 'GRM Inventory') ?></h3>
                         </div>
                         <div class="text-muted small">
-                            <strong>Concern Unit:</strong> <?= htmlspecialchars($bill['concern_code'] ?: 'GRM') ?> &bull;
-                            <strong>Receiving Facility:</strong> Central Production Unit & Warehousing &bull; Tamil Nadu
-                        </div>
-                        <div class="mt-2">
-                            <span class="badge bg-dark text-white font-monospace text-uppercase px-2 py-1 print-invoice-badge" style="font-size: 0.75rem;">PURCHASE TAX INVOICE & GOODS INWARD VOUCHER</span>
+                            <strong>Concern Unit:</strong> <?= htmlspecialchars($bill['concern_code'] ?: 'GRM') ?>
                         </div>
                     </div>
                     <div class="col-4 text-end">
@@ -568,7 +560,6 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                         <div class="fw-bold text-uppercase text-muted mb-1" style="font-size: 0.72rem; letter-spacing: 0.05em;">Billed & Delivered To (Consignee)</div>
                         <div class="fw-bold text-dark fs-6"><?= htmlspecialchars($bill['concern_name'] ?: 'GRM Inventory') ?></div>
                         <div class="text-muted mt-1">
-                            Destination: Central Fabric & Trim Store, Inward Bay<br>
                             <strong>Payment Status:</strong> <span class="badge bg-light text-dark border text-uppercase"><?= htmlspecialchars($bill['payment_status']) ?></span> &bull; 
                             <strong>Method:</strong> <span class="text-capitalize fw-semibold text-dark"><?= htmlspecialchars(str_replace('_', ' ', $bill['payment_method'] ?? 'credit')) ?></span><br>
                             <strong>Paid Amount:</strong> ₹<?= number_format((float)($bill['paid_amount'] ?? 0), 2) ?><br>
