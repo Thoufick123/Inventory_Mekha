@@ -33,14 +33,14 @@
     window.printStitchingBatchLabels = function(batchId) {
         const id = parseInt(batchId, 10) || 0;
         if (id <= 0) return;
-        submitLabelPrintForm({ batch_id: id });
+        submitLabelPrintForm({ prod_print_mode: 'batch', batch_id: id });
     };
 
     window.printStitchingVariantLabel = function(itemId, qty) {
         const id = parseInt(itemId, 10) || 0;
         if (id <= 0) return;
         const count = Math.max(1, parseInt(qty, 10) || 1);
-        submitLabelPrintForm({ item_id: id, qty: count });
+        submitLabelPrintForm({ prod_print_mode: 'variant', item_id: id, qty: count });
     };
 })();
 </script>
