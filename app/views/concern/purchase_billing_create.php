@@ -464,6 +464,11 @@ if ($isEdit && !empty($existingItems)) {
                                                     disabled
                                                     title="Generate enough labels first">Add stock</button>
                                             <?php endif; ?>
+                                            <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'edit') || \App\Core\Auth::can('purchase_billing', 'edit')): ?>
+                                                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/edit?id=' . (int)$savedBill['id']) ?>" class="btn btn-sm btn-outline-secondary ms-1" title="Edit bill">
+                                                    <i class="bi bi-pencil-square me-1"></i>Edit
+                                                </a>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -914,13 +919,12 @@ if ($isEdit && !empty($existingItems)) {
                             <table class="table table-sm table-bordered align-middle mb-0" id="otherEntryTable" style="table-layout: fixed; width: 100%;">
                                 <thead class="table-light small text-uppercase text-muted text-nowrap">
                                     <tr>
-                                        <th class="text-center px-1" style="width: 3%;">#</th>
-                                        <th class="px-1" style="width: 11%;">Code</th>
-                                        <th class="px-1" style="width: 21%;">Item Name <span class="text-danger">*</span></th>
-                                        <th class="px-1" style="width: 8%;">Qty <span class="text-danger">*</span></th>
-                                        <th class="px-1" style="width: 12%;">Unit <span class="text-danger">*</span></th>
-                                        <th class="px-1" style="width: 10%;">Price (₹) <span class="text-danger">*</span></th>
-                                        <th class="px-1" style="width: 13%;">HSN</th>
+                                        <th class="text-center px-1" style="width: 4%;">#</th>
+                                        <th class="px-1" style="width: 25%;">Item Name <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 9%;">Qty <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 14%;">Unit <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 12%;">Price (₹) <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 14%;">HSN</th>
                                         <th class="px-1" style="width: 18%;">GST</th>
                                         <th class="text-center px-1" style="width: 4%;">Del</th>
                                     </tr>
@@ -948,7 +952,6 @@ if ($isEdit && !empty($existingItems)) {
                                     <thead class="table-light">
                                         <tr>
                                             <th style="width: 40px;">#</th>
-                                            <th>OTHER PRODUCT NO/CODE</th>
                                             <th>ITEM NAME / DESCRIPTION</th>
                                             <th>HSN</th>
                                             <th>QUANTITY</th>
@@ -961,7 +964,7 @@ if ($isEdit && !empty($existingItems)) {
                                         </tr>
                                     </thead>
                                     <tbody id="otherSuppliesTableBody">
-                                        <tr><td colspan="11" class="text-center py-3 text-muted">Add garment supplies to see their purchase details.</td></tr>
+                                        <tr><td colspan="10" class="text-center py-3 text-muted">Add garment supplies to see their purchase details.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -4521,13 +4524,11 @@ function addOtherRow() {
     tr.innerHTML = `
         <td class="text-center px-1 fw-bold text-dark font-monospace small">${otherCounter}</td>
         <td class="px-1">
-            <input type="text" name="garment_other[${otherCounter}][product_no]" class="form-control form-control-sm px-1 font-monospace text-uppercase other-input-code" placeholder="TRIM-0${otherCounter}" value="" oninput="syncOtherTable()">
-        </td>
-        <td class="px-1">
+            <input type="hidden" name="garment_other[${otherCounter}][product_no]" class="other-input-code" value="">
             <input type="text" name="garment_other[${otherCounter}][item_name]" class="form-control form-control-sm px-1 other-input-name" placeholder="Item name" value="" required oninput="syncOtherTable()">
         </td>
         <td class="px-1">
-            <input type="number" step="0.01" min="0.01" name="garment_other[${otherCounter}][quantity]" class="form-control form-control-sm px-1 text-end other-input-qty" placeholder="0" value="" required oninput="syncOtherTable()">
+            <input type="number" step="1" min="1" name="garment_other[${otherCounter}][quantity]" class="form-control form-control-sm px-1 text-end other-input-qty" placeholder="0" value="" required oninput="syncOtherTable()">
         </td>
         <td class="px-1">
             <div class="input-group input-group-sm">
@@ -4595,7 +4596,7 @@ function syncOtherTable() {
 
     if (cards.length === 0) {
         document.getElementById('noSuppliesPlaceholder').classList.remove('d-none');
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-3 text-muted">Add garment supplies to see their purchase details.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center py-3 text-muted">Add garment supplies to see their purchase details.</td></tr>';
         document.getElementById('overviewOtherVal').textContent = '₹0.00';
         recalcOverallSummary();
         return;
@@ -4606,7 +4607,6 @@ function syncOtherTable() {
     let totalOtherTax = 0;
 
     cards.forEach(function(card, idx) {
-        const code = card.querySelector('.other-input-code')?.value || '-';
         const name = card.querySelector('.other-input-name')?.value || '-';
         const hsn = card.querySelector('.other-input-hsn')?.value || '-';
         const qty = parseFloat(card.querySelector('.other-input-qty')?.value) || 0;
@@ -4620,7 +4620,6 @@ function syncOtherTable() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${idx + 1}</td>
-            <td class="font-monospace fw-semibold text-dark">${code}</td>
             <td class="fw-semibold text-dark text-start">${name}</td>
             <td class="font-monospace">${hsn}</td>
             <td class="fw-semibold">${qty.toFixed(2)}</td>
@@ -4943,7 +4942,7 @@ function addSimplePurchaseRow(initialData = null) {
             </div>
         </td>
         <td class="px-1">
-            <input type="number" step="0.01" min="0.01" class="form-control form-control-sm px-1 text-end simple-input-qty" name="purchase_items[${id}][qty]" value="${qty}" required oninput="syncSimplePurchaseTable()">
+            <input type="number" step="1" min="1" class="form-control form-control-sm px-1 text-end simple-input-qty" name="purchase_items[${id}][qty]" value="${qty}" required oninput="syncSimplePurchaseTable()">
         </td>
         <td class="px-1">
             <input type="number" step="0.01" min="0" class="form-control form-control-sm px-1 text-end simple-input-price" name="purchase_items[${id}][price]" value="${price}" required oninput="syncSimplePurchaseTable()">
@@ -5269,6 +5268,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    const wholeNumberQtySelector = '.fg-variant-qty, [data-quick-fill-field="quantity"], .fg-input-qty, .other-input-qty, .simple-input-qty';
+    document.addEventListener('keydown', function (event) {
+        if (!event.target.matches(wholeNumberQtySelector)) return;
+        if (['.', ',', 'e', 'E', '+', '-'].includes(event.key)) {
+            event.preventDefault();
+        }
+    });
+    document.addEventListener('input', function (event) {
+        if (!event.target.matches(wholeNumberQtySelector)) return;
+        const cleaned = event.target.value.replace(/[^0-9]/g, '');
+        if (event.target.value !== cleaned) {
+            event.target.value = cleaned;
+        }
+    });
 
     const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
     const bulkStockButton = document.getElementById('productAddingBulkStockButton');
@@ -5651,6 +5665,21 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
+    const wholeNumberQtySelector = '.fg-variant-qty, [data-quick-fill-field="quantity"], .fg-input-qty, .other-input-qty, .simple-input-qty';
+    document.addEventListener('keydown', function (event) {
+        if (!event.target.matches(wholeNumberQtySelector)) return;
+        if (['.', ',', 'e', 'E', '+', '-'].includes(event.key)) {
+            event.preventDefault();
+        }
+    });
+    document.addEventListener('input', function (event) {
+        if (!event.target.matches(wholeNumberQtySelector)) return;
+        const cleaned = event.target.value.replace(/[^0-9]/g, '');
+        if (event.target.value !== cleaned) {
+            event.target.value = cleaned;
+        }
+    });
 
     const bulkLabelForm = document.getElementById('productAddingBulkLabelForm');
     const countModalElement = document.getElementById('productAddingLabelCountModal');

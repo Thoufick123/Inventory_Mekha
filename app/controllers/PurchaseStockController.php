@@ -416,15 +416,16 @@ class PurchaseStockController extends Controller {
             }
 
             $batches = DB::fetchAll(
-                "SELECT pbi.id, pbi.item_code, pbi.item_name, pbi.qty, pbi.net_weight, pbi.unit, pbi.unit_price, pbi.total_price,
-                        pb.bill_no, pb.bill_date, COALESCE(s.company_name, s.name, 'Direct Entry') AS supplier_name
+                "SELECT pbi.id, pbi.item_code, pbi.item_name, pbi.hsn_code, pbi.qty, pbi.net_weight, pbi.unit, pbi.unit_price, pbi.total_price,
+                        pb.bill_no, pb.supplier_invoice_no, pb.bill_date, pb.payment_status,
+                        COALESCE(s.company_name, s.name, 'Direct Entry') AS supplier_name
                  FROM purchase_bill_items pbi
                  JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
                  LEFT JOIN suppliers s ON pb.supplier_id = s.id
                  WHERE pbi.concern_id = ?
                    AND pbi.section_type = 'rolls'
                    AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'
-                   AND UPPER(TRIM(pbi.color)) = ?
+                   AND UPPER(TRIM(COALESCE(NULLIF(pbi.color, ''), 'STANDARD'))) = ?
                    AND UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) = ?
                  ORDER BY pbi.id DESC",
                 [$concernId, $color, $design]

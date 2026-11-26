@@ -1437,8 +1437,8 @@ function viewPurchaseStock(button) {
             const batches = Array.isArray(data.batches) ? data.batches : [];
             let batchRows = batches.length ? batches.map(b => `
                 <tr>
-                    <td class="font-monospace small">${escapeHtmlHtml(b.bill_no || '-')}</td>
-                    <td class="small">${escapeHtmlHtml(b.supplier_name || 'Direct Entry')}</td>
+                    <td class="font-monospace small">${escapeHtmlHtml(b.bill_no || '-')}${b.supplier_invoice_no ? `<div class="text-muted" style="font-size:0.72rem;">Inv: ${escapeHtmlHtml(b.supplier_invoice_no)}</div>` : ''}</td>
+                    <td class="small">${escapeHtmlHtml(b.supplier_name || 'Direct Entry')}${b.bill_date ? `<div class="text-muted" style="font-size:0.72rem;">${escapeHtmlHtml(b.bill_date)}</div>` : ''}</td>
                     <td class="small text-end">${parseFloat(b.qty || 0).toFixed(2)} ${escapeHtmlHtml(b.unit || 'Rolls')}</td>
                     <td class="small text-end">${parseFloat(b.net_weight || 0).toFixed(2)} kg</td>
                     <td class="small text-end">₹${parseFloat(b.unit_price || 0).toFixed(2)}</td>
@@ -1447,11 +1447,13 @@ function viewPurchaseStock(button) {
 
             bodyEl.innerHTML = `
                 <div class="row g-3 mb-3">
-                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Design / Pattern</div><div class="fw-bold">${escapeHtmlHtml(item.design_name || '-')}</div></div></div>
-                    <div class="col-md-6"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Color / Shade</div><div class="fw-bold text-uppercase">${escapeHtmlHtml(item.color || '-')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Accumulated Stock</div><div class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Total Fabric Weight</div><div class="fw-bold">${parseFloat(item.net_weight || 0).toFixed(2)} kg</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border"><div class="small text-muted">Total Valuation</div><div class="fw-bold text-success">₹${parseFloat(item.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Design / Pattern</div><div class="fw-bold">${escapeHtmlHtml(item.design_name || '-')}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Color / Shade</div><div class="fw-bold text-uppercase">${escapeHtmlHtml(item.color || '-')}</div></div></div>
+                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">HSN Code</div><div class="fw-bold font-monospace">${escapeHtmlHtml(item.hsn_code || '-')}</div></div></div>
+                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Accumulated Stock</div><div class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</div></div></div>
+                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Total Fabric Weight</div><div class="fw-bold">${parseFloat(item.net_weight || 0).toFixed(2)} kg</div></div></div>
+                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Unit Rate</div><div class="fw-bold">₹${parseFloat(item.last_unit_price || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
+                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Total Valuation</div><div class="fw-bold text-success">₹${parseFloat(item.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
                 </div>
                 <h6 class="fw-bold small text-uppercase text-muted mb-2">Inward Batch History (${batches.length})</h6>
                 <div class="table-responsive border rounded">

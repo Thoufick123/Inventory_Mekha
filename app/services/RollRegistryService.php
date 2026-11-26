@@ -91,7 +91,7 @@ class RollRegistryService {
         // Aggregate unique (concern_id, color, design_name) from purchase_bill_items
         // Deducting rolls allocated to production programs and rolls quarantined as damages
         $sql = "SELECT pbi.concern_id,
-                       UPPER(TRIM(pbi.color)) AS color,
+                       UPPER(TRIM(COALESCE(NULLIF(pbi.color, ''), 'STANDARD'))) AS color,
                        UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) AS design_name,
                        SUM(GREATEST(0.00, {$stockQty} - COALESCE(prog.allocated_qty, 0.00) - COALESCE(dmg.damaged_qty, 0.00))) AS total_qty,
                        SUM(GREATEST(0.00, COALESCE(pbi.net_weight, 0.00) - COALESCE(prog.allocated_weight, 0.00) - COALESCE(dmg.damaged_weight, 0.00))) AS total_weight,
@@ -125,10 +125,9 @@ class RollRegistryService {
                 ) dmg ON dmg.purchase_bill_item_id = pbi.id
                 WHERE pbi.section_type = 'rolls'
                   AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'
-                  AND pbi.color IS NOT NULL AND TRIM(pbi.color) != ''
-                  AND (pbi.pattern IS NOT NULL AND TRIM(pbi.pattern) != '' OR pbi.item_name IS NOT NULL)
+                  AND (TRIM(COALESCE(pbi.pattern, '')) != '' OR TRIM(COALESCE(pbi.item_name, '')) != '')
                   {$whereClause}
-                GROUP BY pbi.concern_id, UPPER(TRIM(pbi.color)), UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name)))";
+                GROUP BY pbi.concern_id, UPPER(TRIM(COALESCE(NULLIF(pbi.color, ''), 'STANDARD'))), UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name)))";
 
         $rows = DB::fetchAll($sql, $params);
 
@@ -574,7 +573,7 @@ class RollRegistryService {
                  WHERE pbi.concern_id = frs.concern_id
                    AND pbi.section_type = 'rolls'
                    AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'
-                   AND UPPER(TRIM(pbi.color)) = frs.color
+                   AND UPPER(TRIM(COALESCE(NULLIF(pbi.color, ''), 'STANDARD'))) = frs.color
                    AND UPPER(TRIM(COALESCE(NULLIF(pbi.pattern, ''), pbi.item_name))) = frs.design_name
                  ORDER BY pbi.id DESC
                  LIMIT 1

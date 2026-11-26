@@ -5,10 +5,12 @@ namespace App\Services;
 use App\Core\DB;
 use RuntimeException;
 
-class PurchaseDamageService {
+class PurchaseDamageService
+{
     private static bool $tableChecked = false;
 
-    public static function initTable(): void {
+    public static function initTable(): void
+    {
         if (self::$tableChecked || DB::pdo()->inTransaction()) {
             return;
         }
@@ -42,16 +44,16 @@ class PurchaseDamageService {
             CONSTRAINT `fk_pdq_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-        $columns = DB::fetchAll("SHOW COLUMNS FROM purchase_damage_quarantine");
+        $columns = DB::fetchAll('SHOW COLUMNS FROM purchase_damage_quarantine');
         $existingColumns = array_column($columns, 'Field');
         if (!in_array('roll_source_color', $existingColumns, true)) {
-            DB::query("ALTER TABLE purchase_damage_quarantine ADD COLUMN roll_source_color VARCHAR(100) NULL AFTER tag_code");
+            DB::query('ALTER TABLE purchase_damage_quarantine ADD COLUMN roll_source_color VARCHAR(100) NULL AFTER tag_code');
         }
         if (!in_array('roll_source_design_name', $existingColumns, true)) {
-            DB::query("ALTER TABLE purchase_damage_quarantine ADD COLUMN roll_source_design_name VARCHAR(150) NULL AFTER roll_source_color");
+            DB::query('ALTER TABLE purchase_damage_quarantine ADD COLUMN roll_source_design_name VARCHAR(150) NULL AFTER roll_source_color');
         }
 
-        DB::query("CREATE TABLE IF NOT EXISTS `purchase_damage_reasons` (
+        DB::query('CREATE TABLE IF NOT EXISTS `purchase_damage_reasons` (
             `id` INT AUTO_INCREMENT PRIMARY KEY,
             `concern_id` INT NOT NULL,
             `reason` VARCHAR(255) NOT NULL,
@@ -59,17 +61,18 @@ class PurchaseDamageService {
             `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY `uq_pdr_concern_reason` (`concern_id`, `reason`),
             CONSTRAINT `fk_pdr_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
 
         self::backfillRollDamageItemIds();
     }
 
-    public static function backfillRollDamageItemIds(?int $concernId = null): void {
+    public static function backfillRollDamageItemIds(?int $concernId = null): void
+    {
         try {
             $where = "item_type = 'rolls' AND (purchase_bill_item_id IS NULL OR purchase_bill_item_id = 0)";
             $params = [];
             if ($concernId) {
-                $where .= " AND concern_id = ?";
+                $where .= ' AND concern_id = ?';
                 $params[] = $concernId;
             }
             $unlinked = DB::fetchAll("SELECT id, concern_id, tag_code, roll_source_color, roll_source_design_name, item_name, item_code FROM purchase_damage_quarantine WHERE {$where}", $params);
@@ -78,11 +81,11 @@ class PurchaseDamageService {
             }
 
             foreach ($unlinked as $u) {
-                $uCid = (int)$u['concern_id'];
-                $uTag = strtoupper(trim((string)$u['tag_code']));
-                $uColor = strtoupper(trim((string)$u['roll_source_color']));
-                $uDesign = strtoupper(trim((string)$u['roll_source_design_name']));
-                $uItemName = strtoupper(trim((string)$u['item_name']));
+                $uCid = (int) $u['concern_id'];
+                $uTag = strtoupper(trim((string) $u['tag_code']));
+                $uColor = strtoupper(trim((string) $u['roll_source_color']));
+                $uDesign = strtoupper(trim((string) $u['roll_source_design_name']));
+                $uItemName = strtoupper(trim((string) $u['item_name']));
 
                 $pbiList = DB::fetchAll(
                     "SELECT id, item_code, item_name, color, pattern, specification 
@@ -99,12 +102,12 @@ class PurchaseDamageService {
                         $pbi['item_name'] ?: 'Fabric',
                         $pbi['color'] ?? '',
                         $pbi['pattern'] ?: ($pbi['specification'] ?? ''),
-                        (string)$pbi['id']
+                        (string) $pbi['id']
                     )));
-                    $pbiCode = strtoupper(trim((string)$pbi['item_code']));
+                    $pbiCode = strtoupper(trim((string) $pbi['item_code']));
                     if (($uTag !== '' && ($candTag === $uTag || $pbiCode === $uTag)) ||
-                        ($u['item_code'] && $pbiCode === strtoupper(trim((string)$u['item_code'])))) {
-                        $matchedPbiId = (int)$pbi['id'];
+                            ($u['item_code'] && $pbiCode === strtoupper(trim((string) $u['item_code'])))) {
+                        $matchedPbiId = (int) $pbi['id'];
                         break;
                     }
                 }
@@ -112,13 +115,13 @@ class PurchaseDamageService {
                 // Second pass: Match by Color & Design/Pattern or Item Name
                 if (!$matchedPbiId) {
                     foreach ($pbiList as $pbi) {
-                        $pbiColor = strtoupper(trim((string)$pbi['color']));
-                        $pbiDesign = strtoupper(trim((string)($pbi['pattern'] ?: $pbi['item_name'])));
-                        $pbiName = strtoupper(trim((string)$pbi['item_name']));
+                        $pbiColor = strtoupper(trim((string) $pbi['color']));
+                        $pbiDesign = strtoupper(trim((string) ($pbi['pattern'] ?: $pbi['item_name'])));
+                        $pbiName = strtoupper(trim((string) $pbi['item_name']));
 
                         if ($uColor !== '' && $pbiColor === $uColor) {
                             if (($uDesign !== '' && $pbiDesign === $uDesign) || ($uItemName !== '' && $pbiName === $uItemName)) {
-                                $matchedPbiId = (int)$pbi['id'];
+                                $matchedPbiId = (int) $pbi['id'];
                                 break;
                             }
                         }
@@ -127,8 +130,8 @@ class PurchaseDamageService {
 
                 if ($matchedPbiId) {
                     DB::query(
-                        "UPDATE purchase_damage_quarantine SET purchase_bill_item_id = ? WHERE id = ?",
-                        [$matchedPbiId, (int)$u['id']]
+                        'UPDATE purchase_damage_quarantine SET purchase_bill_item_id = ? WHERE id = ?',
+                        [$matchedPbiId, (int) $u['id']]
                     );
                 }
             }
@@ -137,19 +140,21 @@ class PurchaseDamageService {
         }
     }
 
-    public static function getDamageReasons(int $concernId): array {
+    public static function getDamageReasons(int $concernId): array
+    {
         self::initTable();
         if (!$concernId) {
             return [];
         }
 
         return DB::fetchAll(
-            "SELECT reason FROM purchase_damage_reasons WHERE concern_id = ? ORDER BY reason ASC",
+            'SELECT reason FROM purchase_damage_reasons WHERE concern_id = ? ORDER BY reason ASC',
             [$concernId]
         );
     }
 
-    public static function addDamageReason(int $concernId, string $reason, ?int $userId): string {
+    public static function addDamageReason(int $concernId, string $reason, ?int $userId): string
+    {
         self::initTable();
         $reason = trim($reason);
         if (!$concernId || $reason === '' || strlen($reason) > 255) {
@@ -157,14 +162,14 @@ class PurchaseDamageService {
         }
 
         DB::query(
-            "INSERT INTO purchase_damage_reasons (concern_id, reason, created_by)
+            'INSERT INTO purchase_damage_reasons (concern_id, reason, created_by)
              VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)",
+             ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)',
             [$concernId, $reason, $userId]
         );
-        $reasonId = (int)DB::lastInsertId();
+        $reasonId = (int) DB::lastInsertId();
         $saved = DB::fetch(
-            "SELECT reason FROM purchase_damage_reasons WHERE id = ? AND concern_id = ?",
+            'SELECT reason FROM purchase_damage_reasons WHERE id = ? AND concern_id = ?',
             [$reasonId, $concernId]
         );
         if (!$saved) {
@@ -256,21 +261,31 @@ class PurchaseDamageService {
         );
         $otherDamageByItem = [];
         foreach ($otherDamages as $row) {
-            $otherDamageByItem[(int)$row['purchase_bill_item_id']] = $row;
+            $otherDamageByItem[(int) $row['purchase_bill_item_id']] = $row;
         }
+
+        $parsedFg = QrService::parseFinishedGoodsCode($tagCode);
+        $parsedFgVariantId = (int)($parsedFg['variant_id'] ?? 0);
 
         $matches = [];
         foreach ($purchaseItems as $item) {
             $section = $item['section_type'];
             $tag = self::tagForPurchaseItem($item);
-            if ($tag !== $tagCode) {
+            $itemCode = strtoupper(trim((string) ($item['item_code'] ?? '')));
+            $variantProductCode = strtoupper(trim((string) ($item['variant_product_code'] ?? '')));
+            $itemVariantId = (int) ($item['variant_id'] ?? 0);
+            $isMatch = ($tag === $tagCode)
+                || ($itemCode !== '' && $itemCode === $tagCode)
+                || ($variantProductCode !== '' && $variantProductCode === $tagCode)
+                || ($section === 'finished_goods' && $parsedFgVariantId > 0 && $itemVariantId === $parsedFgVariantId);
+            if (!$isMatch) {
                 continue;
             }
 
             if ($section === 'rolls') {
-                $sourceColor = strtoupper(trim((string)$item['color']));
-                $sourceDesign = strtoupper(trim((string)($item['pattern'] ?: $item['item_name'])));
-                if ($sourceColor === '' || $sourceDesign === '') {
+                $sourceColor = strtoupper(trim((string) ($item['color'] ?? ''))) ?: 'STANDARD';
+                $sourceDesign = strtoupper(trim((string) ($item['pattern'] ?: $item['item_name'])));
+                if ($sourceDesign === '') {
                     continue;
                 }
 
@@ -283,11 +298,11 @@ class PurchaseDamageService {
                     'item_name' => $item['item_name'] ?: 'Fabric Roll',
                     'item_code' => $item['item_code'] ?: ('ROLL-' . $item['id']),
                     'tag_code' => $tag,
-                    'available_qty' => $row ? (float)$row['qty'] : 0.0,
-                    'unit_weight' => $row && (float)$row['qty'] > 0 ? (float)$row['net_weight'] / (float)$row['qty'] : 0.0,
-                    'unit_loss' => $row && (float)$row['qty'] > 0 ? (float)$row['total_value'] / (float)$row['qty'] : 0.0,
+                    'available_qty' => $row ? (float) $row['qty'] : 0.0,
+                    'unit_weight' => $row && (float) $row['qty'] > 0 ? (float) $row['net_weight'] / (float) $row['qty'] : 0.0,
+                    'unit_loss' => $row && (float) $row['qty'] > 0 ? (float) $row['total_value'] / (float) $row['qty'] : 0.0,
                     'supplier_name' => $item['supplier_name'] ?? '',
-                    'purchase_bill_item_id' => (int)$item['id'],
+                    'purchase_bill_item_id' => (int) $item['id'],
                     'variant_id' => null,
                     'roll_row' => $row,
                     'source_items' => [],
@@ -296,11 +311,11 @@ class PurchaseDamageService {
             }
 
             if ($section === 'garment_other') {
-                $itemId = (int)$item['id'];
+                $itemId = (int) $item['id'];
                 $priorDamage = $otherDamageByItem[$itemId] ?? ['damaged_qty' => 0, 'damaged_weight' => 0, 'estimated_loss' => 0];
-                $qty = max(0.0, (float)$item['qty'] - (float)$priorDamage['damaged_qty']);
-                $remainingWeight = max(0.0, (float)$item['net_weight'] - (float)$priorDamage['damaged_weight']);
-                $remainingValue = max(0.0, (float)$item['total_price'] - (float)$priorDamage['estimated_loss']);
+                $qty = max(0.0, (float) $item['qty'] - (float) $priorDamage['damaged_qty']);
+                $remainingWeight = max(0.0, (float) $item['net_weight'] - (float) $priorDamage['damaged_weight']);
+                $remainingValue = max(0.0, (float) $item['total_price'] - (float) $priorDamage['estimated_loss']);
                 $key = hash('sha256', "garment_other\0" . $tag . "\0" . $itemId);
 
                 $matches[$key] = [
@@ -326,14 +341,14 @@ class PurchaseDamageService {
                 continue;
             }
 
-            $variantId = (int)($item['variant_id'] ?? 0);
+            $variantId = (int) ($item['variant_id'] ?? 0);
             if (!$variantId || !$item['variant_name']) {
                 continue;
             }
-            $purchasedRemaining = max(0.0, (float)$item['purchased_qty'] - (float)$item['quarantined_qty']);
-            $available = min((float)$item['live_qty'], $purchasedRemaining);
-            $weightRemaining = max(0.0, (float)$item['purchased_weight'] - (float)$item['quarantined_weight']);
-            $valueRemaining = max(0.0, (float)$item['purchased_value'] - (float)$item['quarantined_loss']);
+            $purchasedRemaining = max(0.0, (float) $item['purchased_qty'] - (float) $item['quarantined_qty']);
+            $available = min((float) $item['live_qty'], $purchasedRemaining);
+            $weightRemaining = max(0.0, (float) $item['purchased_weight'] - (float) $item['quarantined_weight']);
+            $valueRemaining = max(0.0, (float) $item['purchased_value'] - (float) $item['quarantined_loss']);
             $key = hash('sha256', "finished_goods\0" . $variantId);
 
             $matches[$key] = [
@@ -386,7 +401,7 @@ class PurchaseDamageService {
             throw new RuntimeException('Damage reason or notes exceed the allowed length.');
         }
         if (!DB::fetch(
-            "SELECT id FROM purchase_damage_reasons WHERE concern_id = ? AND reason = ?",
+            'SELECT id FROM purchase_damage_reasons WHERE concern_id = ? AND reason = ?',
             [$concernId, trim($reason)]
         )) {
             throw new RuntimeException('Select a damage reason configured for this concern.');
@@ -406,15 +421,15 @@ class PurchaseDamageService {
             if ((!is_string($tagCode) && !is_numeric($tagCode)) || !is_scalar($rawQty) || !is_numeric($rawQty)) {
                 throw new RuntimeException('The scanned label list contains an invalid value.');
             }
-            $tagCode = strtoupper(trim((string)$tagCode));
+            $tagCode = strtoupper(trim((string) $tagCode));
             if ($tagCode === '' || strlen($tagCode) > 30) {
                 throw new RuntimeException('The scanned label list contains an invalid code.');
             }
-            $qty = (float)$rawQty;
+            $qty = (float) $rawQty;
             if (!is_finite($qty) || $qty <= 0 || abs($qty - round($qty)) > 0.000001) {
                 throw new RuntimeException('Enter a whole-number quantity greater than zero.');
             }
-            $tagQuantities[$tagCode] = ($tagQuantities[$tagCode] ?? 0) + (int)round($qty);
+            $tagQuantities[$tagCode] = ($tagQuantities[$tagCode] ?? 0) + (int) round($qty);
         }
 
         $grouped = [];
@@ -437,8 +452,8 @@ class PurchaseDamageService {
 
             foreach ($grouped as $group) {
                 $item = $group['item'];
-                $qty = (float)$group['qty'];
-                if ($qty - (float)$item['available_qty'] > 0.00001) {
+                $qty = (float) $group['qty'];
+                if ($qty - (float) $item['available_qty'] > 0.00001) {
                     throw new RuntimeException("Only {$item['available_qty']} unit(s) remain for {$item['item_name']}.");
                 }
 
@@ -447,33 +462,33 @@ class PurchaseDamageService {
 
                 if ($item['item_type'] === 'rolls') {
                     $base = DB::fetch(
-                        "SELECT * FROM fabric_roll_specs
-                         WHERE concern_id = ? AND color = ? AND design_name = ? FOR UPDATE",
+                        'SELECT * FROM fabric_roll_specs
+                         WHERE concern_id = ? AND color = ? AND design_name = ? FOR UPDATE',
                         [$concernId, $item['roll_row']['source_color'], $item['roll_row']['source_design_name']]
                     );
                     if (!$base) {
                         throw new RuntimeException('The scanned roll is no longer available in Purchase Stock.');
                     }
                     $current = DB::fetch(
-                        "SELECT * FROM fabric_roll_spec_overrides
-                         WHERE concern_id = ? AND source_color = ? AND source_design_name = ? FOR UPDATE",
+                        'SELECT * FROM fabric_roll_spec_overrides
+                         WHERE concern_id = ? AND source_color = ? AND source_design_name = ? FOR UPDATE',
                         [$concernId, $item['roll_row']['source_color'], $item['roll_row']['source_design_name']]
                     );
                     if (!$current) {
                         $current = $base;
                     }
-                    if ($qty - (float)$current['qty'] > 0.00001) {
+                    if ($qty - (float) $current['qty'] > 0.00001) {
                         throw new RuntimeException("Only {$current['qty']} roll(s) remain for {$item['item_name']}.");
                     }
-                    $weight = (float)$current['qty'] > 0
-                        ? (float)$current['net_weight'] / (float)$current['qty'] * $qty
+                    $weight = (float) $current['qty'] > 0
+                        ? (float) $current['net_weight'] / (float) $current['qty'] * $qty
                         : 0.0;
-                    $loss = (float)$current['qty'] > 0
-                        ? (float)$current['total_value'] / (float)$current['qty'] * $qty
+                    $loss = (float) $current['qty'] > 0
+                        ? (float) $current['total_value'] / (float) $current['qty'] * $qty
                         : 0.0;
-                    $newQty = max(0.0, (float)$current['qty'] - $qty);
-                    $newWeight = max(0.0, (float)$current['net_weight'] - $weight);
-                    $newValue = max(0.0, (float)$current['total_value'] - $loss);
+                    $newQty = max(0.0, (float) $current['qty'] - $qty);
+                    $newWeight = max(0.0, (float) $current['net_weight'] - $weight);
+                    $newValue = max(0.0, (float) $current['total_value'] - $loss);
                     $saved = RollRegistryService::saveConsolidatedOverride(
                         $concernId,
                         $item['roll_row']['source_color'],
@@ -501,12 +516,12 @@ class PurchaseDamageService {
 
                 if ($item['item_type'] === 'garment_other') {
                     $source = DB::fetch(
-                        "SELECT pbi.*, s.name AS supplier_name
+                        'SELECT pbi.*, s.name AS supplier_name
                          FROM purchase_bill_items pbi
                          JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
                          LEFT JOIN suppliers s ON s.id = pb.supplier_id
                          WHERE pbi.id = ? AND pbi.concern_id = ?
-                         FOR UPDATE",
+                         FOR UPDATE',
                         [$item['purchase_bill_item_id'], $concernId]
                     );
                     $prior = DB::fetch(
@@ -517,17 +532,17 @@ class PurchaseDamageService {
                          WHERE concern_id = ? AND purchase_bill_item_id = ? AND item_type = 'garment_other'",
                         [$concernId, $item['purchase_bill_item_id']]
                     );
-                    $remainingQty = max(0.0, (float)$source['qty'] - (float)$prior['damaged_qty']);
+                    $remainingQty = max(0.0, (float) $source['qty'] - (float) $prior['damaged_qty']);
                     if ($qty - $remainingQty > 0.00001) {
                         throw new RuntimeException("Only {$remainingQty} unit(s) remain for {$item['item_name']}.");
                     }
-                    $unitWeight = max(0.0, (float)$source['net_weight'] - (float)$prior['damaged_weight']) / $remainingQty;
-                    $unitLoss = max(0.0, (float)$source['total_price'] - (float)$prior['estimated_loss']) / $remainingQty;
+                    $unitWeight = max(0.0, (float) $source['net_weight'] - (float) $prior['damaged_weight']) / $remainingQty;
+                    $unitLoss = max(0.0, (float) $source['total_price'] - (float) $prior['estimated_loss']) / $remainingQty;
                     self::insertQuarantineRow(
                         $concernId,
                         $damageNo,
                         $item,
-                        (int)$source['id'],
+                        (int) $source['id'],
                         null,
                         $qty,
                         $unitWeight * $qty,
@@ -543,7 +558,7 @@ class PurchaseDamageService {
                     continue;
                 }
 
-                $currentQty = StockService::getQty($concernId, (int)$item['variant_id']);
+                $currentQty = StockService::getQty($concernId, (int) $item['variant_id']);
                 if ($qty - $currentQty > 0.00001) {
                     throw new RuntimeException("Only {$currentQty} unit(s) remain for {$item['item_name']}.");
                 }
@@ -552,7 +567,7 @@ class PurchaseDamageService {
                     $damageNo,
                     $item,
                     null,
-                    (int)$item['variant_id'],
+                    (int) $item['variant_id'],
                     $qty,
                     $weight,
                     $loss,
@@ -562,7 +577,7 @@ class PurchaseDamageService {
                 );
                 StockService::move(
                     $concernId,
-                    (int)$item['variant_id'],
+                    (int) $item['variant_id'],
                     'Main Store',
                     0.0,
                     $qty,
@@ -611,26 +626,26 @@ class PurchaseDamageService {
         DB::beginTransaction();
         try {
             $record = DB::fetch(
-                "SELECT * FROM purchase_damage_quarantine
-                 WHERE id = ? AND concern_id = ? FOR UPDATE",
+                'SELECT * FROM purchase_damage_quarantine
+                 WHERE id = ? AND concern_id = ? FOR UPDATE',
                 [$damageId, $concernId]
             );
             if (!$record || ($record['status'] ?? '') !== 'Quarantined') {
                 throw new RuntimeException('This quarantine record is no longer available to edit.');
             }
 
-            $oldQty = (float)$record['qty'];
-            $unitWeight = $oldQty > 0 ? (float)$record['damaged_weight'] / $oldQty : 0.0;
-            $unitLoss = $oldQty > 0 ? (float)$record['estimated_loss'] / $oldQty : 0.0;
+            $oldQty = (float) $record['qty'];
+            $unitWeight = $oldQty > 0 ? (float) $record['damaged_weight'] / $oldQty : 0.0;
+            $unitLoss = $oldQty > 0 ? (float) $record['estimated_loss'] / $oldQty : 0.0;
             $newWeight = round($unitWeight * $newQty, 2);
             $newLoss = round($unitLoss * $newQty, 2);
 
             self::reconcileQuarantineStock($concernId, $record, $newQty, $newWeight, $newLoss, $userId);
 
             DB::query(
-                "UPDATE purchase_damage_quarantine
+                'UPDATE purchase_damage_quarantine
                  SET qty = ?, damaged_weight = ?, estimated_loss = ?, reason = ?, notes = ?
-                 WHERE id = ? AND concern_id = ?",
+                 WHERE id = ? AND concern_id = ?',
                 [
                     $newQty,
                     $newWeight,
@@ -642,7 +657,7 @@ class PurchaseDamageService {
                 ]
             );
             $after = DB::fetch(
-                "SELECT * FROM purchase_damage_quarantine WHERE id = ? AND concern_id = ?",
+                'SELECT * FROM purchase_damage_quarantine WHERE id = ? AND concern_id = ?',
                 [$damageId, $concernId]
             );
             DB::commit();
@@ -670,8 +685,8 @@ class PurchaseDamageService {
         DB::beginTransaction();
         try {
             $record = DB::fetch(
-                "SELECT * FROM purchase_damage_quarantine
-                 WHERE id = ? AND concern_id = ? FOR UPDATE",
+                'SELECT * FROM purchase_damage_quarantine
+                 WHERE id = ? AND concern_id = ? FOR UPDATE',
                 [$damageId, $concernId]
             );
             if (!$record || ($record['status'] ?? '') !== 'Quarantined') {
@@ -680,7 +695,7 @@ class PurchaseDamageService {
 
             self::reconcileQuarantineStock($concernId, $record, 0.0, 0.0, 0.0, $userId);
             DB::query(
-                "DELETE FROM purchase_damage_quarantine WHERE id = ? AND concern_id = ?",
+                'DELETE FROM purchase_damage_quarantine WHERE id = ? AND concern_id = ?',
                 [$damageId, $concernId]
             );
             DB::commit();
@@ -700,28 +715,28 @@ class PurchaseDamageService {
         float $newLoss,
         ?int $userId
     ): void {
-        $oldQty = (float)$record['qty'];
-        $oldWeight = (float)$record['damaged_weight'];
-        $oldLoss = (float)$record['estimated_loss'];
+        $oldQty = (float) $record['qty'];
+        $oldWeight = (float) $record['damaged_weight'];
+        $oldLoss = (float) $record['estimated_loss'];
 
         if ($record['item_type'] === 'rolls') {
             [$sourceColor, $sourceDesign] = self::rollSourceCoordinates($concernId, $record);
             $base = DB::fetch(
-                "SELECT * FROM fabric_roll_specs
-                 WHERE concern_id = ? AND color = ? AND design_name = ? FOR UPDATE",
+                'SELECT * FROM fabric_roll_specs
+                 WHERE concern_id = ? AND color = ? AND design_name = ? FOR UPDATE',
                 [$concernId, $sourceColor, $sourceDesign]
             );
             if (!$base) {
                 throw new RuntimeException('The source fabric roll specification could not be found.');
             }
             $current = DB::fetch(
-                "SELECT * FROM fabric_roll_spec_overrides
-                 WHERE concern_id = ? AND source_color = ? AND source_design_name = ? FOR UPDATE",
+                'SELECT * FROM fabric_roll_spec_overrides
+                 WHERE concern_id = ? AND source_color = ? AND source_design_name = ? FOR UPDATE',
                 [$concernId, $sourceColor, $sourceDesign]
             ) ?: $base;
 
             $qtyDelta = $newQty - $oldQty;
-            if ($qtyDelta > 0 && (float)$current['qty'] < $qtyDelta) {
+            if ($qtyDelta > 0 && (float) $current['qty'] < $qtyDelta) {
                 throw new RuntimeException('The remaining fabric roll stock is too low for this quantity.');
             }
             $saved = RollRegistryService::saveConsolidatedOverride(
@@ -732,11 +747,11 @@ class PurchaseDamageService {
                     'color' => $current['color'],
                     'design_name' => $current['design_name'],
                     'hsn_code' => $current['hsn_code'] ?? '',
-                    'qty' => max(0.0, (float)$current['qty'] - $qtyDelta),
-                    'net_weight' => max(0.0, (float)$current['net_weight'] - ($newWeight - $oldWeight)),
+                    'qty' => max(0.0, (float) $current['qty'] - $qtyDelta),
+                    'net_weight' => max(0.0, (float) $current['net_weight'] - ($newWeight - $oldWeight)),
                     'unit' => $current['unit'],
                     'last_unit_price' => $current['last_unit_price'],
-                    'total_value' => max(0.0, (float)$current['total_value'] - ($newLoss - $oldLoss)),
+                    'total_value' => max(0.0, (float) $current['total_value'] - ($newLoss - $oldLoss)),
                 ]
             );
             if (!$saved) {
@@ -745,9 +760,9 @@ class PurchaseDamageService {
 
             if (empty($record['roll_source_color']) || empty($record['roll_source_design_name'])) {
                 DB::query(
-                    "UPDATE purchase_damage_quarantine
+                    'UPDATE purchase_damage_quarantine
                      SET roll_source_color = ?, roll_source_design_name = ?
-                     WHERE id = ? AND concern_id = ?",
+                     WHERE id = ? AND concern_id = ?',
                     [$sourceColor, $sourceDesign, $record['id'], $concernId]
                 );
             }
@@ -767,21 +782,21 @@ class PurchaseDamageService {
                 throw new RuntimeException('The source garment supply could not be found.');
             }
             $source = PurchaseStockItemOverrideService::applyToItems([$source])[0];
-            $otherDamagedQty = (float)DB::fetchValue(
+            $otherDamagedQty = (float) DB::fetchValue(
                 "SELECT COALESCE(SUM(qty), 0)
                  FROM purchase_damage_quarantine
                  WHERE concern_id = ? AND purchase_bill_item_id = ? AND item_type = 'garment_other' AND id <> ?",
                 [$concernId, $record['purchase_bill_item_id'], $record['id']]
             );
-            if ($newQty > max(0.0, (float)$source['qty'] - $otherDamagedQty)) {
+            if ($newQty > max(0.0, (float) $source['qty'] - $otherDamagedQty)) {
                 throw new RuntimeException('The revised quantity exceeds the available supply stock.');
             }
             return;
         }
 
         if ($record['item_type'] === 'finished_goods') {
-            $variantId = (int)$record['variant_id'];
-            $purchasedQty = (float)DB::fetchValue(
+            $variantId = (int) $record['variant_id'];
+            $purchasedQty = (float) DB::fetchValue(
                 "SELECT COALESCE(SUM(COALESCE(stock_override.qty, pbi.qty)), 0)
                  FROM purchase_bill_items pbi
                  JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
@@ -793,7 +808,7 @@ class PurchaseDamageService {
                    AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
                 [$concernId, $variantId]
             );
-            $otherDamagedQty = (float)DB::fetchValue(
+            $otherDamagedQty = (float) DB::fetchValue(
                 "SELECT COALESCE(SUM(qty), 0)
                  FROM purchase_damage_quarantine
                  WHERE concern_id = ? AND variant_id = ? AND item_type = 'finished_goods' AND id <> ?",
@@ -812,7 +827,7 @@ class PurchaseDamageService {
                     $qtyDelta < 0 ? abs($qtyDelta) : 0.0,
                     $qtyDelta > 0 ? $qtyDelta : 0.0,
                     'Purchase Damage Correction',
-                    (int)$record['id'],
+                    (int) $record['id'],
                     "Purchase Damage {$record['damage_no']} quantity adjustment",
                     $userId
                 );
@@ -823,9 +838,10 @@ class PurchaseDamageService {
         throw new RuntimeException('This quarantine item type cannot be edited.');
     }
 
-    private static function rollSourceCoordinates(int $concernId, array $record): array {
-        $sourceColor = strtoupper(trim((string)($record['roll_source_color'] ?? '')));
-        $sourceDesign = strtoupper(trim((string)($record['roll_source_design_name'] ?? '')));
+    private static function rollSourceCoordinates(int $concernId, array $record): array
+    {
+        $sourceColor = strtoupper(trim((string) ($record['roll_source_color'] ?? '')));
+        $sourceDesign = strtoupper(trim((string) ($record['roll_source_design_name'] ?? '')));
         if ($sourceColor !== '' && $sourceDesign !== '') {
             return [$sourceColor, $sourceDesign];
         }
@@ -841,11 +857,11 @@ class PurchaseDamageService {
         );
         $items = PurchaseStockItemOverrideService::applyToItems($items);
         foreach ($items as $item) {
-            if (self::tagForPurchaseItem($item) !== strtoupper(trim((string)$record['tag_code']))) {
+            if (self::tagForPurchaseItem($item) !== strtoupper(trim((string) $record['tag_code']))) {
                 continue;
             }
-            $sourceColor = strtoupper(trim((string)$item['color']));
-            $sourceDesign = strtoupper(trim((string)($item['pattern'] ?: $item['item_name'])));
+            $sourceColor = strtoupper(trim((string) $item['color']));
+            $sourceDesign = strtoupper(trim((string) ($item['pattern'] ?: $item['item_name'])));
             if ($sourceColor === '' || $sourceDesign === '') {
                 break;
             }
@@ -855,14 +871,18 @@ class PurchaseDamageService {
         throw new RuntimeException('Could not map this older roll quarantine record to its source stock. No stock was changed.');
     }
 
-    private static function tagForPurchaseItem(array $item): string {
+    private static function tagForPurchaseItem(array $item): string
+    {
         $section = $item['section_type'];
         if ($section === 'rolls' || $section === 'garment_other') {
+            $design = trim((string)($item['pattern'] ?? ''))
+                ?: trim((string)($item['specification'] ?? ''))
+                ?: ($section === 'rolls' ? 'PLAIN' : 'STANDARD');
             return QrService::generateTagCode(
                 $item['item_name'] ?: ($section === 'rolls' ? 'Fabric' : 'Trims'),
                 $item['color'] ?? '',
-                $item['pattern'] ?: ($item['specification'] ?? ''),
-                (string)$item['id']
+                $design,
+                (string) $item['id']
             );
         }
 
@@ -870,7 +890,7 @@ class PurchaseDamageService {
             $item['variant_name'] ?: ($item['item_name'] ?: 'Garment'),
             $item['color'] ?? '',
             $item['specification'] ?? '',
-            (string)$item['id']
+            (string) $item['id']
         );
     }
 
@@ -914,6 +934,6 @@ class PurchaseDamageService {
                 $userId,
             ]
         );
-        return (int)DB::lastInsertId();
+        return (int) DB::lastInsertId();
     }
 }

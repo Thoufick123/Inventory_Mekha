@@ -34,18 +34,20 @@ class VariantService
 
         // Search existing active variants in the same concern with matching core fields
         $candidates = DB::fetchAll(
-            "SELECT * FROM variants
-             WHERE concern_id = ?
-               AND status = 'active'
-               AND LOWER(TRIM(name)) = LOWER(TRIM(?))
-               AND category_id = ?
-               AND COALESCE(subcategory_id, 0) = ?
-               AND COALESCE(sub_sub_category_id, 0) = ?
-               AND LOWER(TRIM(COALESCE(size, ''))) = LOWER(TRIM(?))
-               AND ROUND(price, 2) = ?
-               AND ROUND(cost_price, 2) = ?
-               AND ROUND(mrp, 2) = ?
-             ORDER BY id ASC",
+            "SELECT v.*, c.hsn_code AS catalog_hsn
+             FROM variants v
+             LEFT JOIN catalogs c ON c.id = v.catalog_id
+             WHERE v.concern_id = ?
+               AND v.status = 'active'
+               AND LOWER(TRIM(v.name)) = LOWER(TRIM(?))
+               AND v.category_id = ?
+               AND COALESCE(v.subcategory_id, 0) = ?
+               AND COALESCE(v.sub_sub_category_id, c.sub_sub_category_id, 0) = ?
+               AND LOWER(TRIM(COALESCE(v.size, ''))) = LOWER(TRIM(?))
+               AND ROUND(v.price, 2) = ?
+               AND ROUND(v.cost_price, 2) = ?
+               AND ROUND(v.mrp, 2) = ?
+             ORDER BY v.id ASC",
             [
                 $concernId,
                 $name,
@@ -64,7 +66,7 @@ class VariantService
             $candAttrs = is_array($candAttrs) ? $candAttrs : [];
 
             $candColor = trim((string)($candAttrs['color'] ?? 'Standard'));
-            $candHsn = strtoupper(trim((string)($candAttrs['hsn'] ?? '')));
+            $candHsn = strtoupper(trim((string)($candAttrs['hsn'] ?? ($cand['catalog_hsn'] ?? ''))));
             $candWeight = round((float)($cand['weight'] ?? ($candAttrs['weight'] ?? 0)), 3);
             $candCustom = self::extractCustomAttributes($candAttrs);
 

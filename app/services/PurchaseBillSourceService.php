@@ -22,6 +22,22 @@ class PurchaseBillSourceService
                  AFTER supplier_invoice_no"
             );
         }
+        if (!in_array('purchase_billing_completed', $columns, true)) {
+            DB::query(
+                "ALTER TABLE purchase_bills
+                 ADD COLUMN purchase_billing_completed TINYINT(1) NOT NULL DEFAULT 0
+                 AFTER source_module"
+            );
+            DB::query("UPDATE purchase_bills SET purchase_billing_completed = 1 WHERE COALESCE(NULLIF(source_module, ''), 'purchase_billing') = 'purchase_billing'");
+        }
+        if (!in_array('product_adding_completed', $columns, true)) {
+            DB::query(
+                "ALTER TABLE purchase_bills
+                 ADD COLUMN product_adding_completed TINYINT(1) NOT NULL DEFAULT 0
+                 AFTER purchase_billing_completed"
+            );
+            DB::query("UPDATE purchase_bills SET product_adding_completed = 1 WHERE source_module = 'product_adding'");
+        }
         $labelColumns = array_column(DB::fetchAll('SHOW COLUMNS FROM label_jobs'), 'Field');
         if (!in_array('source_module', $labelColumns, true)) {
             DB::query(
@@ -89,18 +105,20 @@ class PurchaseBillSourceService
             $bill['pa_total_qty'] = $entry['pa_qty'];
             $bill['qty_mismatch'] = false;
 
-            if ($entry['has_pb'] && $entry['has_pa']) {
-                if (abs($entry['pb_qty'] - $entry['pa_qty']) > 0.0001) {
+            $hasPb = $entry['has_pb'] || !empty($bill['purchase_billing_completed']);
+            $hasPa = $entry['has_pa'] || !empty($bill['product_adding_completed']);
+            if ($hasPb && $hasPa) {
+                if ($entry['has_pb'] && $entry['has_pa'] && abs($entry['pb_qty'] - $entry['pa_qty']) > 0.0001) {
                     $bill['sync_status'] = 'qty_mismatch';
                     $bill['sync_label'] = 'Qty Mismatch (PB: ' . $fmtQty($entry['pb_qty']) . ' vs PA: ' . $fmtQty($entry['pa_qty']) . ')';
                     $bill['sync_badge_class'] = 'bg-danger-subtle text-danger border border-danger';
                     $bill['qty_mismatch'] = true;
                 } else {
                     $bill['sync_status'] = 'completed';
-                    $bill['sync_label'] = 'Completed';
+                    $bill['sync_label'] = 'Matched';
                     $bill['sync_badge_class'] = 'bg-success-subtle text-success border border-success';
                 }
-            } elseif ($entry['has_pb']) {
+            } elseif ($hasPb) {
                 $bill['sync_status'] = 'product_adding_pending';
                 $bill['sync_label'] = 'Product Adding Pending';
                 $bill['sync_badge_class'] = 'bg-warning-subtle text-warning border border-warning';
