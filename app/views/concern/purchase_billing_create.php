@@ -221,6 +221,122 @@ if ($isEdit && !empty($existingItems)) {
         overflow: auto;
     }
 }
+#rollsEntryTable td.roll-photo-td {
+    overflow: hidden;
+    max-width: 0;
+}
+.roll-photo-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    width: 100%;
+    max-width: 100%;
+    height: 38px;
+    padding: 0 0.35rem;
+    border: 1.5px dashed #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin: 0;
+}
+.roll-photo-upload-btn:hover {
+    border-color: #4f46e5;
+    background: #eef2ff;
+    color: #4f46e5;
+}
+.roll-photo-preview-inline {
+    width: 100%;
+    max-width: 100%;
+}
+.roll-photo-preview-chip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    max-width: 100%;
+    height: 38px;
+    padding: 2px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    overflow: hidden;
+}
+@media (max-width: 1150px) {
+    .roll-photo-upload-btn span {
+        display: none;
+    }
+}
+.roll-photo-thumb-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+}
+.roll-photo-thumb-link img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.roll-photo-action-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    font-size: 0.7rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.roll-photo-change-btn {
+    background: #ffffff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+.roll-photo-change-btn:hover {
+    border-color: #4f46e5;
+    color: #4f46e5;
+    background: #eef2ff;
+}
+.roll-photo-clear-btn {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+.roll-photo-clear-btn:hover {
+    background: #fee2e2;
+    border-color: #f87171;
+    color: #b91c1c;
+}
+.roll-delete-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+}
 </style>
 <?php endif; ?>
 <div class="container-fluid px-0">
@@ -812,15 +928,15 @@ if ($isEdit && !empty($existingItems)) {
                                     <tr>
                                         <th class="text-center px-1" style="width: 3%;">#</th>
                                         <th class="px-1" style="width: 13%;">Fabric Name <span class="text-danger">*</span></th>
-                                        <th class="px-1" style="width: 11%;">Color <span class="text-danger">*</span></th>
-                                        <th class="px-1" style="width: 11%;">Pattern <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 10%;">Color <span class="text-danger">*</span></th>
+                                        <th class="px-1" style="width: 10%;">Pattern <span class="text-danger">*</span></th>
                                         <th class="px-1" style="width: 7%;">Qty <span class="text-danger">*</span></th>
                                         <th class="px-1" style="width: 9%;">Weight (kg) <span class="text-danger">*</span></th>
                                         <th class="px-1" style="width: 9%;">Price (₹) <span class="text-danger">*</span></th>
                                         <th class="px-1" style="width: 12%;">HSN</th>
-                                        <th class="px-1" style="width: 14%;">GST</th>
-                                        <th class="px-1" style="width: 8%;">Photo</th>
-                                        <th class="text-center px-1" style="width: 3%;">Del</th>
+                                        <th class="px-1" style="width: 13%;">GST</th>
+                                        <th class="px-1 text-center" style="width: 10%;">Photo</th>
+                                        <th class="text-center px-1" style="width: 4%;">Del</th>
                                     </tr>
                                 </thead>
                                 <tbody id="rollsContainer"></tbody>
@@ -1891,6 +2007,21 @@ if ($isEdit && !empty($existingItems)) {
     </div>
 </div>
 
+<!-- Roll Photo Preview Modal -->
+<div class="modal fade" id="modalRollPhotoPreview" tabindex="-1" aria-labelledby="modalRollPhotoPreviewTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-3">
+            <div class="modal-header py-2 px-3 border-bottom">
+                <h6 class="modal-title fw-bold text-truncate mb-0" id="modalRollPhotoPreviewTitle">Roll Photo</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 text-center bg-light">
+                <img id="modalRollPhotoPreviewImg" src="" alt="Roll Photo Preview" class="img-fluid rounded border shadow-sm" style="max-height: 70vh; object-fit: contain;">
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const isEditMode = <?= $isEdit ? 'true' : 'false' ?>;
 const existingRolls = <?= json_encode($existingRolls) ?>;
@@ -2176,12 +2307,62 @@ function applyCreatedHsn(hsn) {
     if (modal) modal.hide();
 }
 
+function renderRollPhotoPreviewChip(rollId, photoUrl, photoName = 'Roll Photo') {
+    const previewContainer = document.getElementById(`photoPreview_${rollId}`);
+    const triggerEl = document.getElementById(`rollPhotoTrigger_${rollId}`);
+    if (!previewContainer) return;
+
+    const safeUrl = escapeHtml(photoUrl);
+    const safeName = escapeHtml(photoName || 'Roll Photo');
+    previewContainer.innerHTML = `
+        <div class="roll-photo-preview-chip" title="${safeName}">
+            <a href="${safeUrl}" target="_blank" rel="noopener" class="roll-photo-thumb-link" title="View full image: ${safeName}" onclick="return openRollPhotoModal(event, ${rollId})">
+                <img src="${safeUrl}" alt="${safeName}">
+            </a>
+            <label for="rollPhotoInput_${rollId}" class="roll-photo-action-btn roll-photo-change-btn" title="Change photo (${safeName})">
+                <i class="bi bi-pencil"></i>
+            </label>
+            <button type="button" class="roll-photo-action-btn roll-photo-clear-btn" onclick="clearRollPhoto(${rollId})" title="Remove photo">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    `;
+    previewContainer.classList.remove('d-none');
+    if (triggerEl) triggerEl.classList.add('d-none');
+}
+
+function resetRollPhotoPreview(rollId) {
+    const previewContainer = document.getElementById(`photoPreview_${rollId}`);
+    const triggerEl = document.getElementById(`rollPhotoTrigger_${rollId}`);
+    if (previewContainer) {
+        previewContainer.innerHTML = '';
+        previewContainer.classList.add('d-none');
+    }
+    if (triggerEl) triggerEl.classList.remove('d-none');
+}
+
+function openRollPhotoModal(event, rollId) {
+    const card = document.getElementById(`rollCard_${rollId}`);
+    const photoUrl = card?.dataset?.photoUrl || '';
+    const photoName = card?.dataset?.photoName || 'Roll Photo';
+    const modalEl = document.getElementById('modalRollPhotoPreview');
+    const modalImg = document.getElementById('modalRollPhotoPreviewImg');
+    const modalTitle = document.getElementById('modalRollPhotoPreviewTitle');
+    if (photoUrl && modalEl && modalImg && window.bootstrap?.Modal) {
+        if (event) event.preventDefault();
+        modalImg.src = photoUrl;
+        if (modalTitle) modalTitle.textContent = photoName;
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        return false;
+    }
+    return true;
+}
+
 function previewRollPhoto(input, rollId) {
     const card = document.getElementById(`rollCard_${rollId}`);
     if (!card) return;
 
     const file = input.files && input.files[0];
-    const previewContainer = document.getElementById(`photoPreview_${rollId}`);
 
     if (file) {
         const reader = new FileReader();
@@ -2189,27 +2370,14 @@ function previewRollPhoto(input, rollId) {
             const dataUrl = e.target.result;
             card.dataset.photoUrl = dataUrl;
             card.dataset.photoName = file.name;
-
-            if (previewContainer) {
-                previewContainer.innerHTML = `
-                    <div class="d-inline-flex align-items-center gap-2 p-1 px-2 mt-1 bg-white border rounded shadow-sm">
-                        <a href="${dataUrl}" target="_blank" title="View Full Image">
-                            <img src="${dataUrl}" class="rounded border" style="width: 32px; height: 32px; object-fit: cover;" alt="Preview">
-                        </a>
-                        <span class="small fw-semibold text-truncate text-dark" style="max-width: 180px;">${file.name}</span>
-                        <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1" onclick="clearRollPhoto(${rollId})" title="Remove photo">
-                            <i class="bi bi-x-circle-fill"></i>
-                        </button>
-                    </div>
-                `;
-            }
+            renderRollPhotoPreviewChip(rollId, dataUrl, file.name);
             syncRollsTable();
         };
         reader.readAsDataURL(file);
     } else {
         delete card.dataset.photoUrl;
         delete card.dataset.photoName;
-        if (previewContainer) previewContainer.innerHTML = '';
+        resetRollPhotoPreview(rollId);
         syncRollsTable();
     }
 }
@@ -2219,10 +2387,11 @@ function clearRollPhoto(rollId) {
     if (!card) return;
     const fileInput = card.querySelector('.roll-input-photo');
     if (fileInput) fileInput.value = '';
+    const existingPhotoInput = card.querySelector('input[name$="[existing_photo]"]');
+    if (existingPhotoInput) existingPhotoInput.value = '';
     delete card.dataset.photoUrl;
     delete card.dataset.photoName;
-    const previewContainer = document.getElementById(`photoPreview_${rollId}`);
-    if (previewContainer) previewContainer.innerHTML = '';
+    resetRollPhotoPreview(rollId);
     syncRollsTable();
 }
 
@@ -4222,12 +4391,16 @@ function addRollRow() {
                 </div>
             </div>
         </td>
-        <td class="px-1">
-            <input type="file" name="rolls[${rollCounter}][photo]" class="form-control form-control-sm px-1 roll-input-photo" accept=".jpg,.jpeg,.png,.webp" onchange="previewRollPhoto(this, ${rollCounter})">
-            <div class="roll-photo-preview-inline mt-1" id="photoPreview_${rollCounter}"></div>
+        <td class="px-1 roll-photo-td">
+            <input type="file" name="rolls[${rollCounter}][photo]" id="rollPhotoInput_${rollCounter}" class="visually-hidden roll-input-photo" accept=".jpg,.jpeg,.png,.webp" onchange="previewRollPhoto(this, ${rollCounter})">
+            <label for="rollPhotoInput_${rollCounter}" id="rollPhotoTrigger_${rollCounter}" class="roll-photo-upload-btn" title="Upload roll photo">
+                <i class="bi bi-cloud-arrow-up"></i>
+                <span>Upload</span>
+            </label>
+            <div class="roll-photo-preview-inline d-none" id="photoPreview_${rollCounter}"></div>
         </td>
         <td class="text-center px-1">
-            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete Roll" onclick="removeRollRow(${rollCounter})">
+            <button type="button" class="btn btn-outline-danger btn-sm roll-delete-btn" title="Delete Roll" onclick="removeRollRow(${rollCounter})">
                 <i class="bi bi-trash3"></i>
             </button>
         </td>
@@ -5161,11 +5334,10 @@ function loadInitialData() {
                 const photoUrl = (existingPhoto.startsWith('http://') || existingPhoto.startsWith('https://'))
                     ? existingPhoto
                     : ('<?= \App\Core\Controller::url('/') ?>' + existingPhoto.replace(/^\/+/, ''));
+                const existingPhotoName = existingPhoto.split('/').pop() || 'Roll Photo';
                 row.dataset.photoUrl = photoUrl;
-                const previewEl = document.getElementById('photoPreview_' + rollCounter);
-                if (previewEl) {
-                    previewEl.innerHTML = `<a href="${photoUrl}" target="_blank" class="small text-decoration-none">View Photo</a>`;
-                }
+                row.dataset.photoName = existingPhotoName;
+                renderRollPhotoPreviewChip(rollCounter, photoUrl, existingPhotoName);
             }
             if (row.querySelector('.roll-input-code')) row.querySelector('.roll-input-code').value = r.item_code || r.item_name || '';
             if (row.querySelector('.roll-input-color')) row.querySelector('.roll-input-color').value = r.color || '';
