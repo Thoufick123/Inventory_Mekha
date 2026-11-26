@@ -169,7 +169,9 @@
                                         $color = trim($cm[1]);
                                     }
                                     $hsn = trim((string)($variantAttributes['hsn'] ?? ($s['catalog_hsn'] ?? '')));
-                                    $fgCode = \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']);
+                                    $fgCode = ($s['stock_source'] ?? '') === 'own'
+                                        ? (\App\Services\QrService::formatBrandVariantCode((int)$s['variant_id']) ?: \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']))
+                                        : \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']);
                                     $qrPayload = !empty($fgCode)
                                         ? $fgCode
                                         : (!empty($s['qr_payload'])
@@ -787,14 +789,11 @@
                         <div class="bg-white p-1 rounded border d-flex align-items-center justify-content-center flex-shrink-0" style="width: 104px; height: 104px;">
                             <div id="quickQrBox"></div>
                         </div>
-                        <div class="flex-grow-1 overflow-hidden" style="line-height: 1.35; font-size: 0.8rem;">
-                            <div class="fw-bold text-dark text-uppercase mb-1 text-truncate" id="quickQrTitle">Product Name</div>
-                            <div class="text-break"><span class="text-muted">Product Name:</span> <strong class="text-dark" id="quickQrProduct">Product</strong></div>
-                            <div class="text-truncate"><span class="text-muted">Design:</span> <strong class="text-dark text-uppercase" id="quickQrDesign">STANDARD</strong></div>
-                            <div class="text-truncate"><span class="text-muted">Color:</span> <strong class="text-dark text-uppercase" id="quickQrColor">-</strong></div>
+                        <div class="flex-grow-1 overflow-hidden" style="line-height: 1.5; font-size: 0.84rem;">
                             <div class="text-truncate"><span class="text-muted">Size:</span> <strong class="text-dark text-uppercase fw-bold" id="quickQrSize">Free</strong></div>
-                            <div class="text-truncate"><span class="text-muted">Price:</span> <strong class="text-success fw-bold" id="quickQrPrice">₹0.00</strong></div>
-                            <div class="text-truncate"><span class="text-muted">Product Code:</span> <strong class="font-monospace text-primary fw-bold" id="quickQrPayload">-</strong></div>
+                            <div class="text-truncate"><span class="text-muted">Base Price:</span> <strong class="text-dark fw-semibold" id="quickQrMrp">₹0.00</strong></div>
+                            <div class="text-truncate"><span class="text-muted">Discount Price:</span> <strong class="text-success fw-bold" id="quickQrPrice">₹0.00</strong></div>
+                            <div class="text-truncate"><span class="text-muted">QR Code:</span> <strong class="font-monospace text-primary fw-bold" id="quickQrPayload">-</strong></div>
                         </div>
                     </div>
                 </div>
@@ -1199,23 +1198,19 @@ function populateQuickQr(d) {
     if (!d) return;
     const payload = d.qrPayload || d.productCode || '';
     const sku = d.productCode || '-';
-    const name = d.variantName || 'Product';
-    const productName = d.productName || name;
-    const design = d.design || 'STANDARD';
-    const color = d.color || '-';
     const size = d.size || 'Free';
-    const price = d.price ? ('₹' + parseFloat(d.price).toFixed(2)) : '₹0.00';
+    const rawPrice = parseFloat(String(d.price || '0').replace(/,/g, '')) || 0;
+    const rawMrp = parseFloat(String(d.mrp || '0').replace(/,/g, '')) || rawPrice;
+    const price = '₹' + rawPrice.toFixed(2);
+    const mrp = '₹' + rawMrp.toFixed(2);
     const concern = d.concernName || 'GRM Inventory';
     const printUrl = d.printUrl || '#';
 
     if (document.getElementById('quickQrConcern')) document.getElementById('quickQrConcern').textContent = concern;
     if (document.getElementById('quickQrSizeBadge')) document.getElementById('quickQrSizeBadge').textContent = (size || 'FREE').toUpperCase();
     if (document.getElementById('quickQrSkuBadge')) document.getElementById('quickQrSkuBadge').textContent = sku;
-    if (document.getElementById('quickQrTitle')) document.getElementById('quickQrTitle').textContent = name;
-    if (document.getElementById('quickQrProduct')) document.getElementById('quickQrProduct').textContent = productName;
-    if (document.getElementById('quickQrDesign')) document.getElementById('quickQrDesign').textContent = design.toUpperCase();
-    if (document.getElementById('quickQrColor')) document.getElementById('quickQrColor').textContent = color.toUpperCase();
     if (document.getElementById('quickQrSize')) document.getElementById('quickQrSize').textContent = size;
+    if (document.getElementById('quickQrMrp')) document.getElementById('quickQrMrp').textContent = mrp;
     if (document.getElementById('quickQrPrice')) document.getElementById('quickQrPrice').textContent = price;
     if (document.getElementById('quickQrPayload')) document.getElementById('quickQrPayload').textContent = payload || '-';
 
