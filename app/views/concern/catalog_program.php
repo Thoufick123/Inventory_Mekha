@@ -275,13 +275,12 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                 <th>Planned Qty</th>
                                 <th>Start Date</th>
                                 <th>Target Date</th>
-                                <th>Status</th>
                                 <th class="text-center" style="width: 130px;">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($programs)): ?>
-                                <tr><td colspan="9" class="text-center py-4 text-muted">No scheduled production programs.</td></tr>
+                                <tr><td colspan="8" class="text-center py-4 text-muted">No scheduled production programs.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($programs as $p): ?>
                                     <tr>
@@ -365,11 +364,6 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                         <td><span class="fw-bold text-primary"><?= number_format((float)($p['planned_qty'] ?? 0), 2) ?></span> <span class="small text-muted">Units</span></td>
                                         <td><?= date('d M Y', strtotime($p['start_date'])) ?></td>
                                         <td><?= date('d M Y', strtotime($p['target_date'])) ?></td>
-                                        <td>
-                                            <span class="badge <?= $p['status'] === 'completed' ? 'bg-success' : ($p['status'] === 'cancelled' ? 'bg-secondary' : 'bg-primary') ?>">
-                                                <?= ucfirst(str_replace('_', ' ', $p['status'])) ?>
-                                            </span>
-                                        </td>
                                         <td class="text-center">
                                             <div class="d-inline-flex align-items-center gap-1">
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-3 p-1.5" title="Quick View Program" onclick="showProgramDetails(<?= $p['id'] ?>)">
