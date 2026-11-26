@@ -106,7 +106,7 @@ $activeTab = $activeTab ?? 'staff';
     <!-- Export Toolbar Card -->
     <?php
     $exportTitle = 'Export Staff Roles & Module CRUD Permissions (Excel, PDF, CSV)';
-    $exportSubtitle = 'Download staff login assignments, system roles, authorized concerns & access controls';
+    $exportSubtitle = '';
     $exportUrl = \App\Core\Controller::url('/m/staff/export_roles');
     $currentModule = 'staff';
     $prefix = 'stf_role_exp';
@@ -179,7 +179,6 @@ $activeTab = $activeTab ?? 'staff';
                                 <th class="py-3">Home Concern</th>
                                 <th class="py-3">Designation / Dept</th>
                                 <th class="py-3">Login Account</th>
-                                <th class="py-3">Assigned Role</th>
                                 <th class="py-3">Authorized Locations</th>
                                 <th class="text-end pe-4 py-3">Action</th>
                             </tr>
@@ -187,7 +186,7 @@ $activeTab = $activeTab ?? 'staff';
                         <tbody class="border-top-0">
                             <?php if (empty($staffMembers)): ?>
                                 <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
+                                    <td colspan="6" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
                                         No staff members found matching criteria.
                                     </td>
@@ -235,15 +234,6 @@ $activeTab = $activeTab ?? 'staff';
                                                 <small class="text-success fw-semibold">Login Active</small>
                                             <?php else: ?>
                                                 <span class="badge bg-secondary bg-opacity-10 text-secondary border">No Login Account</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if ($assignedRoleName): ?>
-                                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1.5 fw-semibold">
-                                                    <i class="bi bi-shield-check me-1"></i><?= htmlspecialchars($assignedRoleName) ?>
-                                                </span>
-                                            <?php else: ?>
-                                                <span class="badge bg-light text-muted border px-2.5 py-1.5">Unassigned</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
