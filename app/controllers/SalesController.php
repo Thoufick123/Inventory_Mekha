@@ -975,26 +975,23 @@ class SalesController extends Controller {
             } catch (\Throwable $e) {}
         }
 
-        $defaults = [
-            ['direct', 'Direct Customer', 0, 1],
-            ['website', 'Website Customer', 1, 0],
-            ['whatsapp', 'WhatsApp Customer', 1, 0],
-        ];
-        foreach ($defaults as [$key, $name, $isOrder, $isDef]) {
-            try {
-                $exists = DB::fetchValue(
-                    "SELECT id FROM pos_customer_channels WHERE concern_id = ? AND channel_key = ?",
-                    [$concernId, $key]
-                );
-                if (!$exists) {
+        try {
+            $existingCount = (int)DB::fetchValue("SELECT COUNT(*) FROM pos_customer_channels WHERE concern_id = ?", [$concernId]);
+            if ($existingCount === 0) {
+                $defaults = [
+                    ['direct', 'Direct Customer', 0, 1],
+                    ['website', 'Website Customer', 1, 0],
+                    ['whatsapp', 'WhatsApp Customer', 1, 0],
+                ];
+                foreach ($defaults as [$key, $name, $isOrder, $isDef]) {
                     DB::query(
                         "INSERT INTO pos_customer_channels (concern_id, channel_key, channel_name, is_order_channel, is_default)
                          VALUES (?, ?, ?, ?, ?)",
                         [$concernId, $key, $name, $isOrder, $isDef]
                     );
                 }
-            } catch (\Throwable $e) {}
-        }
+            }
+        } catch (\Throwable $e) {}
 
         try {
             $rows = DB::fetchAll(
@@ -1125,13 +1122,6 @@ class SalesController extends Controller {
             return;
         }
 
-        // Preserve is_order_channel behavior for core built-in channels if needed
-        if (in_array($existing['channel_key'], ['website', 'whatsapp'], true)) {
-            $isOrderChannel = 1;
-        } elseif ($existing['channel_key'] === 'direct') {
-            $isOrderChannel = 0;
-        }
-
         DB::query(
             "UPDATE pos_customer_channels SET channel_name = ?, is_order_channel = ? WHERE id = ? AND concern_id = ?",
             [$channelName, $isOrderChannel, $channelId, $cid]
@@ -1178,8 +1168,9 @@ class SalesController extends Controller {
             return;
         }
 
-        if (in_array($existing['channel_key'], ['direct', 'website', 'whatsapp'], true)) {
-            $this->renderJson(['success' => false, 'message' => 'Built-in default channels cannot be deleted.'], 400);
+        $totalCount = (int)DB::fetchValue("SELECT COUNT(*) FROM pos_customer_channels WHERE concern_id = ?", [$cid]);
+        if ($totalCount <= 1) {
+            $this->renderJson(['success' => false, 'message' => 'At least one customer channel must remain.'], 400);
             return;
         }
 
