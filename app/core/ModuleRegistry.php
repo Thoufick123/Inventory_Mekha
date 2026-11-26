@@ -20,7 +20,6 @@ class ModuleRegistry
             ['code' => 'catalog_program', 'name' => 'Catalog & Program', 'icon' => 'bi-journal-bookmark', 'sort_order' => 30, 'group_name' => 'Production', 'is_super_admin_only' => 0],
             ['code' => 'cutting_wastage', 'name' => 'Cutting & Wastage', 'icon' => 'bi-scissors', 'sort_order' => 31, 'group_name' => 'Production', 'is_super_admin_only' => 0],
             ['code' => 'stitching_wastage', 'name' => 'Stitching & Wastage', 'icon' => 'bi-layers', 'sort_order' => 32, 'group_name' => 'Production', 'is_super_admin_only' => 0],
-            ['code' => 'label_generation', 'name' => 'Label Generation', 'icon' => 'bi-qr-code', 'sort_order' => 33, 'group_name' => 'Production', 'is_super_admin_only' => 0],
             ['code' => 'qc_stocks', 'name' => 'QC Stocks', 'icon' => 'bi-shield-check', 'sort_order' => 34, 'group_name' => 'Production', 'is_super_admin_only' => 0],
             ['code' => 'inward', 'name' => 'Inward', 'icon' => 'bi-box-arrow-in-down', 'sort_order' => 40, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'stocks', 'name' => 'Stocks', 'icon' => 'bi-boxes', 'sort_order' => 41, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
@@ -53,7 +52,7 @@ class ModuleRegistry
         $merged = [];
         foreach ($databaseModules as $module) {
             $code = (string)$module['code'];
-            if ($code !== 'batch') {
+            if ($code !== 'batch' && $code !== 'label_generation') {
                 $merged[$code] = $module;
             }
         }

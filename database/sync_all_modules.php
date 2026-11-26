@@ -30,7 +30,6 @@ $masterModules = [
     ['code' => 'catalog_program',   'name' => 'Catalog & Program',   'icon' => 'bi-journal-bookmark', 'sort' => 30, 'group' => 'Production',  'admin_only' => 0],
     ['code' => 'cutting_wastage',   'name' => 'Cutting & Wastage',    'icon' => 'bi-scissors',         'sort' => 31, 'group' => 'Production',  'admin_only' => 0],
     ['code' => 'stitching_wastage', 'name' => 'Stitching & Wastage',  'icon' => 'bi-layers',           'sort' => 32, 'group' => 'Production',  'admin_only' => 0],
-    ['code' => 'label_generation',  'name' => 'Label Generation',     'icon' => 'bi-qr-code',          'sort' => 33, 'group' => 'Production',  'admin_only' => 0],
     ['code' => 'qc_stocks',         'name' => 'QC Stocks',            'icon' => 'bi-shield-check',     'sort' => 34, 'group' => 'Production',  'admin_only' => 0],
     ['code' => 'inward',            'name' => 'Inward',               'icon' => 'bi-box-arrow-in-down','sort' => 40, 'group' => 'Stock',       'admin_only' => 0],
     ['code' => 'stocks',            'name' => 'Stocks',               'icon' => 'bi-boxes',            'sort' => 41, 'group' => 'Stock',       'admin_only' => 0],

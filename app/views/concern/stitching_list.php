@@ -202,7 +202,7 @@
                                                        class="btn btn-outline-secondary" title="View Batch Details">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
-                                                    <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                                    <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                                     <button type="button" class="btn btn-outline-dark"
                                                             title="Print All Variant Labels"
                                                             onclick='openStitchingBatchLabelModal(<?= (int)$b['id'] ?>, <?= htmlspecialchars(json_encode($b['label_items'] ?? []), ENT_QUOTES) ?>)'>

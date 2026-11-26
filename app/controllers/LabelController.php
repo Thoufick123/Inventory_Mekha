@@ -569,7 +569,15 @@ class LabelController extends Controller {
      * Generate & render printable label sheet for any of the 3 sections
      */
     public function generate(): void {
-        ModuleGuard::enforce('label_generation', 'add');
+        if (
+            !Auth::isSuperAdmin()
+            && !Auth::can('label_generation', 'add')
+            && !Auth::can('stitching_wastage', 'view')
+            && !Auth::can('product_adding', 'view')
+            && !Auth::can('stocks', 'view')
+        ) {
+            ModuleGuard::enforce('stitching_wastage', 'view');
+        }
         $this->validateCsrf();
         $this->renderGeneratedLabels(false);
     }
