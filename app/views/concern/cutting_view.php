@@ -102,14 +102,6 @@
                             <td class="fw-bold font-monospace text-primary small"><?= htmlspecialchars($batch['batch_no'] ?: $batch['log_no']) ?></td>
                         </tr>
                         <tr>
-                            <td class="text-muted small">Status:</td>
-                            <td>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">
-                                    <?= ucfirst(str_replace('_', ' ', $batch['status'])) ?>
-                                </span>
-                            </td>
-                        </tr>
-                        <tr>
                             <td class="text-muted small">Cutting Master:</td>
                             <td class="fw-semibold text-dark small"><?= htmlspecialchars($batch['master_name'] ?: 'Not Assigned') ?></td>
                         </tr>

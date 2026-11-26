@@ -352,7 +352,7 @@
                                     (str_contains($activeRoute, 'qc'));
                     } else {
                         $isActive = (isset($currentModule) && $currentModule === $m['code']) || 
-                                    (str_contains($activeRoute, $m['code']));
+                                    (bool)preg_match('#(?:^|/m/)' . preg_quote($m['code'], '#') . '(?:/|$)#', $activeRoute);
                     }
                 ?>
                     <?php if ($m['code'] === 'cash_flow' && $hasFinanceCashFlow && $financeExpenseModule !== null):

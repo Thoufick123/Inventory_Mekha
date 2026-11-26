@@ -34,13 +34,20 @@ $checks['View renders Product QR Code Card in details modal'] =
     && strpos($viewSource, 'id="detailProductQrBox"') !== false
     && strpos($viewSource, 'id="detailQrTagCode"') !== false
     && strpos($viewSource, 'id="detailQrSkuCode"') !== false
-    && strpos($viewSource, 'id="detailQrStyleCode"') !== false
-    && strpos($viewSource, 'id="detailQrWholeCode"') !== false;
+    && strpos($viewSource, 'id="detailQrStyleCode"') === false
+    && strpos($viewSource, 'id="detailQrWholeCode"') === false;
 
-$checks['View includes QR action buttons (Print, Copy, Download)'] =
+$checks['View includes QR action buttons (Print, Copy) without detail download'] =
     strpos($viewSource, 'id="detailBtnPrintLabel"') !== false
     && strpos($viewSource, 'id="detailBtnCopyQr"') !== false
-    && strpos($viewSource, 'id="detailBtnDownloadQr"') !== false;
+    && strpos($viewSource, 'id="detailBtnDownloadQr"') === false
+    && strpos($viewSource, 'id="quickQrDownloadBtn"') !== false;
+
+$checks['View removes purchase invoice details from stock modal'] =
+    strpos($viewSource, 'Purchase Billing & Invoice Information') === false
+    && strpos($viewSource, 'id="purchaseInvoiceCard"') === false
+    && strpos($viewSource, 'id="detailSupplierInvoiceNo"') === false
+    && strpos($viewSource, 'data.purchase_bill') === false;
 
 $checks['View renders Production Journey Card in details modal'] =
     strpos($viewSource, 'id="productionJourneyCard"') !== false

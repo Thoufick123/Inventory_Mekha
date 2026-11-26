@@ -63,11 +63,12 @@ class ProductAddingController extends Controller
                                 )
                              )";
 
+        PurchaseBillSourceService::ensureSchema();
         $billSql = "SELECT pb.id, pb.concern_id, pb.supplier_id, pb.bill_no, pb.supplier_invoice_no, pb.bill_date,
                            pb.total_amount, pb.tax_amount, pb.net_amount, pb.payment_status, pb.inward_status,
                            s.name AS supplier_name, s.company_name AS supplier_company,
                            c.name AS concern_name,
-                           pb.source_module,
+                           pb.source_module, pb.purchase_billing_completed, pb.product_adding_completed,
                            COALESCE(item_stats.item_count, 0) AS item_count,
                            COALESCE(item_stats.total_qty, 0) AS total_qty,
                            COALESCE(item_stats.stocked_count, 0) AS stocked_count
@@ -340,11 +341,12 @@ class ProductAddingController extends Controller
         }
         $summary = DB::fetch($summarySql, $summaryParams) ?: [];
 
+        PurchaseBillSourceService::ensureSchema();
         $billSql = "SELECT pb.id, pb.concern_id, pb.supplier_id, pb.bill_no, pb.supplier_invoice_no, pb.bill_date,
                            pb.total_amount, pb.tax_amount, pb.net_amount, pb.payment_status, pb.inward_status,
                            s.name AS supplier_name, s.company_name AS supplier_company,
                            c.name AS concern_name,
-                           pb.source_module,
+                           pb.source_module, pb.purchase_billing_completed, pb.product_adding_completed,
                            COALESCE(item_stats.item_count, 0) AS item_count,
                            COALESCE(item_stats.total_qty, 0) AS total_qty,
                            COALESCE(item_stats.stocked_count, 0) AS stocked_count
@@ -492,6 +494,16 @@ class ProductAddingController extends Controller
                 if ($duplicate) {
                     $respond(false, ['message' => 'That category already exists.', 'existing_id' => (int)$duplicate['id']], 409);
                 }
+                $dupCode = DB::fetch(
+                    "SELECT id FROM categories
+                     WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                       AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'
+                     LIMIT 1",
+                    [$concernId, $code]
+                );
+                if ($dupCode) {
+                    $respond(false, ['message' => "Category code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int)$dupCode['id']], 409);
+                }
 
                 DB::query(
                     "INSERT INTO categories (concern_id, name, code, default_hsn, default_gst_rate, status, created_at)
@@ -522,6 +534,16 @@ class ProductAddingController extends Controller
                 if ($duplicate) {
                     $respond(false, ['message' => 'That subcategory already exists under the selected category.', 'existing_id' => (int)$duplicate['id']], 409);
                 }
+                $dupCode = DB::fetch(
+                    "SELECT id FROM subcategories
+                     WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                       AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'
+                     LIMIT 1",
+                    [$concernId, $code]
+                );
+                if ($dupCode) {
+                    $respond(false, ['message' => "Subcategory code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int)$dupCode['id']], 409);
+                }
 
                 DB::query(
                     "INSERT INTO subcategories (concern_id, category_id, name, code, status, created_at)
@@ -551,6 +573,16 @@ class ProductAddingController extends Controller
                 );
                 if ($duplicate) {
                     $respond(false, ['message' => 'That sub-subcategory already exists under the selected subcategory.', 'existing_id' => (int)$duplicate['id']], 409);
+                }
+                $dupCode = DB::fetch(
+                    "SELECT id FROM sub_subcategories
+                     WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                       AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'
+                     LIMIT 1",
+                    [$concernId, $code]
+                );
+                if ($dupCode) {
+                    $respond(false, ['message' => "Sub-subcategory code '{$code}' already exists. Duplicates are not allowed.", 'existing_id' => (int)$dupCode['id']], 409);
                 }
 
                 DB::query(
@@ -640,17 +672,10 @@ class ProductAddingController extends Controller
                 [$concernId, $type, $value, $categoryId ?: null, $subcategoryId ?: null, $subSubcategoryId ?: null]
             );
             if ($existing) {
-                $respond(true, [
-                    'id' => (int)$existing['id'],
-                    'concern_id' => $concernId,
-                    'category_id' => $categoryId ?: null,
-                    'subcategory_id' => $subcategoryId ?: null,
-                    'sub_sub_category_id' => $subSubcategoryId ?: null,
-                    'attribute_type' => $type,
-                    'attribute_name' => (string)$existing['attribute_name'],
-                    'attribute_value' => (string)$existing['attribute_value'],
-                    'existing' => true,
-                ]);
+                $respond(false, [
+                    'message' => "Duplicate Error: Attribute value '{$value}' already exists under '{$attributeName}'. Duplicates are not allowed.",
+                    'existing_id' => (int)$existing['id'],
+                ], 409);
             }
 
             $sortOrder = (int)DB::fetchValue(

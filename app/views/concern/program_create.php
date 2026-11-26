@@ -15,7 +15,7 @@
     <!-- Header Section matching Image 2 -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-3">
-            <div class="p-2.5 rounded-3 bg-primary-subtle text-primary border border-primary-subtle shadow-xs">
+            <div class="p-2 rounded-3 bg-primary-subtle text-primary border border-primary-subtle shadow-xs">
                 <i class="bi bi-calendar-plus fs-4"></i>
             </div>
             <div>
@@ -23,7 +23,7 @@
             </div>
         </div>
         <div>
-            <a href="<?= \App\Core\Controller::url('/production/catalog?tab=programs') ?>" class="btn btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1.5 shadow-sm fw-semibold">
+            <a href="<?= \App\Core\Controller::url('/production/catalog?tab=programs') ?>" class="btn btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-2 shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left"></i> Back to Programs
             </a>
         </div>
@@ -85,10 +85,7 @@
                                 <h6 class="mb-0 fw-bold text-dark">2. Raw Material Rolls & Per-Roll Catalog Hierarchy</h6>
                             </div>
                         </div>
-                        <div class="d-flex align-items-center gap-1.5">
-                            <button type="button" class="btn btn-sm btn-outline-success rounded-3 fw-semibold" id="btnFocusScanner">
-                                <i class="bi bi-upc-scan me-1"></i> Scan Roll
-                            </button>
+                        <div class="d-flex align-items-center gap-2">
                             <button type="button" class="btn btn-sm btn-primary rounded-3 fw-semibold shadow-xs" id="btnAddRollCard">
                                 <i class="bi bi-plus-circle me-1"></i> Add Roll
                             </button>
@@ -98,11 +95,11 @@
                         
                         <!-- Scanner Banner matching Image 2 -->
                         <div class="p-3 rounded-3 border mb-4" style="background: #f0fdf4; border-color: #bbf7d0 !important;">
-                            <div class="d-flex justify-content-between align-items-center mb-1.5 flex-wrap gap-1">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
                                 <div class="d-flex align-items-center gap-2">
                                     <i class="bi bi-upc-scan text-success fs-5"></i>
                                     <span class="fw-bold small text-dark">Scan Fabric Roll Barcode / QR Tag</span>
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5" style="font-size: 0.68rem;">Auto-Add Ready</span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1" style="font-size: 0.68rem;">Auto-Add Ready</span>
                                 </div>
                             </div>
                             <div class="input-group">
@@ -197,6 +194,7 @@
     </form>
 </div>
 
+<?php include __DIR__ . '/partials/program_roll_picker_assets.php'; ?>
 <script>
 // Available Rolls JSON data from backend with out-of-qty calculations
 const availableRollsData = <?= json_encode($availableRolls, JSON_UNESCAPED_UNICODE) ?>;
@@ -242,73 +240,7 @@ function getEffectiveRollStock(rollItemId, currentCardElementOrIndex = null) {
 }
 
 function createRollCardHtml(index, preselectedRollId = null) {
-    // Group rolls by specification (Design/Item Name & Color) matching Purchase Stocks Consolidated Registry
-    const specGroups = {};
-    availableRollsData.forEach(r => {
-        const specName = (r.design_name || r.pattern || r.item_name || 'Fabric Roll').toUpperCase();
-        const specColor = (r.color || 'STANDARD').toUpperCase();
-        const groupKey = `${specName} • ${specColor}`;
-        if (!specGroups[groupKey]) {
-            specGroups[groupKey] = {
-                title: groupKey,
-                totalStock: r.design_accumulated_stock || r.remaining_qty,
-                unit: r.unit || 'kg',
-                unitPrice: r.unit_price || 0,
-                billNo: r.bill_no || '',
-                supplier: r.supplier_display || '',
-                rolls: []
-            };
-        }
-        specGroups[groupKey].rolls.push(r);
-    });
-
-    let rollOptionsHtml = '<option value="">-- Select Fabric Roll --</option>';
-    for (const [key, grp] of Object.entries(specGroups)) {
-        const groupBill = grp.billNo ? ` • Bill #${grp.billNo}` : '';
-        const groupSup = grp.supplier ? ` • ${grp.supplier}` : '';
-        const groupRate = grp.unitPrice > 0 ? ` • ₹${grp.unitPrice.toFixed(2)}` : '';
-        const optgroupLabel = `${grp.title} (Accumulated Stock: ${grp.totalStock.toFixed(2)} ${grp.unit}${groupRate}${groupBill}${groupSup})`;
-
-        rollOptionsHtml += `<optgroup label="${optgroupLabel}">`;
-        grp.rolls.forEach((r, bIdx) => {
-            const isSel = (preselectedRollId && String(preselectedRollId) === String(r.id)) ? 'selected' : '';
-            const tag = r.tag_code ? `[${r.tag_code}] ` : (r.item_code ? `[${r.item_code}] ` : `Roll #${r.id} `);
-            const col = r.color ? ` - ${r.color}` : '';
-            const price = r.unit_price > 0 ? ` • ₹${r.unit_price.toFixed(2)}` : '';
-            const stockStr = ` • Stock: ${r.remaining_qty.toFixed(2)} ${r.unit || 'kg'}`;
-            const billInfo = r.bill_no ? ` • Bill #${r.bill_no}` : '';
-            const supInfo = r.supplier_display ? ` • ${r.supplier_display}` : '';
-            const batchNum = grp.rolls.length > 1 ? ` (Batch #${bIdx + 1} of ${grp.totalStock.toFixed(2)} ${grp.unit})` : '';
-
-            rollOptionsHtml += `
-                <option value="${r.id}" 
-                        data-id="${r.id}"
-                        data-code="${r.tag_code || (r.item_code || '')}" 
-                        data-name="${r.item_name || ''}" 
-                        data-pattern="${r.pattern || ''}" 
-                        data-color="${r.color || ''}" 
-                        data-unit="${r.unit || 'kg'}" 
-                        data-total="${r.total_qty}" 
-                        data-allocated="${r.allocated_qty}" 
-                        data-remaining="${r.remaining_qty}"
-                        data-stock="${r.remaining_qty}"
-                        data-accumulated="${r.design_accumulated_stock || r.remaining_qty}"
-                        data-weight="${r.weight || 0.00}"
-                        data-price="${r.unit_price || 0.00}"
-                        data-catalog-id="${r.catalog_id || ''}"
-                        data-catalog-code="${r.catalog_style_code || ''}"
-                        data-catalog-name="${r.catalog_name || ''}"
-                        data-category-id="${r.category_id || ''}"
-                        data-subcategory-id="${r.subcategory_id || ''}"
-                        data-subsubcategory-id="${r.sub_sub_category_id || ''}"
-                        data-hierarchy="${r.hierarchy_path || ''}"
-                        ${isSel}>
-                    ${tag}${r.item_name}${col}${stockStr}${batchNum}${price}${billInfo}${supInfo}
-                </option>
-            `;
-        });
-        rollOptionsHtml += `</optgroup>`;
-    }
+    const rollOptionsHtml = window.ProgramRollPicker.buildSelectOptionsHtml(availableRollsData, preselectedRollId);
 
     let catOptionsHtml = '<option value="">-- Select Main Category --</option>';
     categoriesData.forEach(c => {
@@ -323,18 +255,44 @@ function createRollCardHtml(index, preselectedRollId = null) {
     return `
         <div class="card border rounded-3 p-3 bg-white roll-card shadow-xs" id="rollCard_${index}" data-index="${index}">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-2.5 py-1">Roll #${index}</span>
-                <button type="button" class="btn btn-sm btn-outline-danger py-0.5 px-2 btn-remove-roll" title="Remove this roll">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-2 py-1">Roll #${index}</span>
+                <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2 btn-remove-roll" title="Remove this roll">
                     <i class="bi bi-trash me-1"></i> Remove
                 </button>
             </div>
 
             <!-- 1. Select Raw Material Roll * -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-dark mb-1">Select Raw Material Roll <span class="text-danger">*</span></label>
-                <select name="rolls[${index}][purchase_bill_item_id]" class="form-select select-roll-item" required>
-                    ${rollOptionsHtml}
-                </select>
+            <div class="row g-2 mb-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold text-dark mb-1">Supplier Filter</label>
+                    <select class="form-select roll-supplier-filter-select">
+                        <option value="">All Suppliers</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label small fw-semibold text-dark mb-1">Select Raw Material Roll <span class="text-danger">*</span></label>
+                    <select name="rolls[${index}][purchase_bill_item_id]" class="form-select select-roll-item d-none" required>
+                        ${rollOptionsHtml}
+                    </select>
+                    <div class="roll-picker-wrap">
+                        <button type="button" class="roll-picker-btn" aria-expanded="false">
+                            <div class="roll-picker-btn-main"></div>
+                            <i class="bi bi-chevron-down text-muted flex-shrink-0 small"></i>
+                        </button>
+                        <div class="roll-picker-menu d-none">
+                            <div class="roll-picker-search-bar">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control border-start-0 ps-0 roll-picker-search" placeholder="Search fabric, color, code, supplier, or bill #...">
+                                </div>
+                            </div>
+                            <div class="roll-picker-list"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="roll-selected-summary d-none"></div>
+                </div>
             </div>
 
             <!-- 2. Roll Qty, Roll Weight, Roll Price matching Image 1 -->
@@ -376,7 +334,7 @@ function createRollCardHtml(index, preselectedRollId = null) {
             <!-- 3. Catalog Hierarchy for this Roll matching Image 1 -->
             <div class="card border rounded-3 p-3 bg-light">
                 <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                    <div class="d-flex align-items-center gap-1.5 small fw-bold text-primary">
+                    <div class="d-flex align-items-center gap-2 small fw-bold text-primary">
                         <i class="bi bi-diagram-3"></i>
                         <span>Catalog Hierarchy for this Roll</span>
                     </div>
@@ -444,11 +402,6 @@ document.addEventListener('DOMContentLoaded', function() {
         addRollCard();
     });
 
-    document.getElementById('btnFocusScanner').addEventListener('click', function() {
-        scanRollInput.focus();
-        scanRollInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-
     function bindRollCardEvents(card) {
         const rollSelect = card.querySelector('.select-roll-item');
         const stockBadge = card.querySelector('.roll-stock-badge');
@@ -464,6 +417,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const subcatSelect = card.querySelector('.select-roll-subcat');
         const subsubcatSelect = card.querySelector('.select-roll-subsubcat');
         const catalogSelect = card.querySelector('.select-roll-catalog');
+
+        window.ProgramRollPicker.attach(card, availableRollsData, id => getEffectiveRollStock(id, card));
 
         // Roll selection change -> auto-populate Qty, Weight, Price, and Catalog
         rollSelect.addEventListener('change', function() {
@@ -483,6 +438,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 catalogSelect.value = '';
                 exceedMsg.classList.add('d-none');
                 allocatedInput.classList.remove('is-invalid');
+                window.ProgramRollPicker.refreshCard(card, availableRollsData, id => getEffectiveRollStock(id, card));
                 updateAllCreateCardsStock(card);
                 updateSummary();
                 return;
@@ -677,7 +633,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Update option labels in all select dropdowns
+        // Update option labels and custom picker summary across all roll cards
         cards.forEach(c => {
             const sel = c.querySelector('.select-roll-item');
             if (sel) {
@@ -690,24 +646,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     const info = getEffectiveRollStock(optRollId, c);
                     opt.dataset.remaining = info.remainingForCard;
 
-                    const tag = baseRoll.tag_code ? `[${baseRoll.tag_code}] ` : (baseRoll.item_code ? `[${baseRoll.item_code}] ` : `Roll #${baseRoll.id} `);
-                    const col = baseRoll.color ? ` - ${baseRoll.color}` : '';
-                    const price = baseRoll.unit_price > 0 ? ` • ₹${parseFloat(baseRoll.unit_price).toFixed(2)}` : '';
-                    const billInfo = baseRoll.bill_no ? ` • Bill #${baseRoll.bill_no}` : '';
+                    const specTitle = `${(baseRoll.design_name || baseRoll.pattern || baseRoll.item_name || 'Fabric Roll').toUpperCase()} • ${(baseRoll.color || 'STANDARD').toUpperCase()}`;
                     const supInfo = baseRoll.supplier_display ? ` • ${baseRoll.supplier_display}` : '';
+                    const billInfo = baseRoll.bill_no ? ` • Bill #${baseRoll.bill_no}` : '';
+                    const stockStr = info.remainingForCard <= 0
+                        ? ` • OUT OF STOCK (0.00 ${baseRoll.unit || 'kg'})`
+                        : ` • Stock: ${info.remainingForCard.toFixed(2)} ${baseRoll.unit || 'kg'}`;
 
-                    let stockStr = '';
-                    if (info.remainingForCard <= 0) {
-                        stockStr = ` • OUT OF STOCK (0.00 ${baseRoll.unit || 'kg'})`;
-                    } else if (info.allocatedInOthers > 0) {
-                        stockStr = ` • Stock: ${info.remainingForCard.toFixed(2)} ${baseRoll.unit || 'kg'} (Bal)`;
-                    } else {
-                        stockStr = ` • Stock: ${info.remainingForCard.toFixed(2)} ${baseRoll.unit || 'kg'}`;
-                    }
-
-                    opt.text = `${tag}${baseRoll.item_name}${col}${stockStr}${price}${billInfo}${supInfo}`;
+                    opt.text = `${specTitle}${supInfo}${billInfo}${stockStr}`;
                 });
             }
+            window.ProgramRollPicker.refreshCard(c, availableRollsData, id => getEffectiveRollStock(id, c));
         });
     }
 
@@ -972,14 +921,17 @@ document.addEventListener('DOMContentLoaded', function() {
         let hasValidRoll = false;
         cards.forEach(c => {
             const sel = c.querySelector('.select-roll-item');
+            const pickerBtn = c.querySelector('.roll-picker-btn');
             const qtyInput = c.querySelector('.input-allocated-qty');
             const exceedMsg = c.querySelector('.roll-exceed-msg');
 
             if (!sel.value) {
                 sel.classList.add('is-invalid');
+                if (pickerBtn) pickerBtn.classList.add('is-invalid');
                 valid = false;
             } else {
                 sel.classList.remove('is-invalid');
+                if (pickerBtn) pickerBtn.classList.remove('is-invalid');
                 const rollId = sel.value;
                 const stockInfo = getEffectiveRollStock(rollId, c);
                 const rem = stockInfo.remainingForCard;

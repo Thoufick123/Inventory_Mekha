@@ -97,15 +97,7 @@ class StockEditAllDetailsAndViewInvoiceTest
         $this->assert(isset($data['variant']['product_code']), 'Response contains product_code: ' . ($data['variant']['product_code'] ?? ''));
         $this->assert(isset($data['stock']['qty']), 'Response contains stock quantity: ' . ($data['stock']['qty'] ?? ''));
 
-        if (!empty($data['purchase_bill'])) {
-            $pb = $data['purchase_bill'];
-            $this->assert(!empty($pb['bill_no']), 'Purchase billing PO/Bill No present: ' . ($pb['bill_no'] ?? ''));
-            $this->assert(isset($pb['supplier_invoice_no']), 'Purchase billing Supplier Invoice No present: ' . ($pb['supplier_invoice_no'] ?? ''));
-            $this->assert(!empty($pb['supplier']['name']), 'Supplier name present: ' . ($pb['supplier']['name'] ?? ''));
-            $this->assert(is_array($pb['attachments']), 'Attachments array returned (count: ' . count($pb['attachments']) . ')');
-        } else {
-            echo "  [INFO] Variant is not directly linked to purchase bills (or is an own product)\n";
-        }
+        $this->assert(!array_key_exists('purchase_bill', $data), 'Response omits purchase billing and invoice details');
     }
 
     private function testUpdateAllDetailsAndStockLedger(): void
@@ -278,10 +270,11 @@ class StockEditAllDetailsAndViewInvoiceTest
         $this->assert(strpos($html, 'data-stock-view') !== false, 'HTML contains [data-stock-view] buttons');
         $this->assert(strpos($html, 'View Details') !== false, 'HTML displays "View Details" action label');
         $this->assert(strpos($html, 'data-stock-edit') !== false, 'HTML contains [data-stock-edit] buttons');
-        $this->assert(strpos($html, 'id="stockDetailsModal"') !== false, 'HTML contains #stockDetailsModal for viewing details & invoices');
+        $this->assert(strpos($html, 'id="stockDetailsModal"') !== false, 'HTML contains #stockDetailsModal for viewing product and stock details');
         $this->assert(strpos($html, 'id="stockEditModal"') !== false, 'HTML contains #stockEditModal for editing all details');
-        $this->assert(strpos($html, 'id="detailSupplierInvoiceNo"') !== false, 'Details modal includes Supplier Invoice Number container');
-        $this->assert(strpos($html, 'id="detailAttachmentContainer"') !== false, 'Details modal includes Attachment display container');
+        $this->assert(strpos($html, 'Purchase Billing & Invoice Information') === false, 'Details modal omits purchase billing and invoice information');
+        $this->assert(strpos($html, 'id="detailSupplierInvoiceNo"') === false, 'Details modal omits Supplier Invoice Number');
+        $this->assert(strpos($html, 'id="detailAttachmentContainer"') === false, 'Details modal omits invoice attachments');
         $this->assert(strpos($html, 'id="stockEditName"') !== false, 'Edit modal includes Product Name input');
         $this->assert(strpos($html, 'id="stockEditSku"') !== false, 'Edit modal includes SKU Code input');
         $this->assert(strpos($html, 'id="stockEditCategory"') !== false, 'Edit modal includes Category select');

@@ -118,7 +118,7 @@
                 <h6 class="mb-0 fw-bold">Product Purchase Bills &amp; Eligible Purchase Billing Invoices</h6>
                 <span class="badge bg-light text-dark border"><?= count($bills) ?> bills</span>
             </div>
-            <span class="small text-muted">Invoices already partially or fully stocked are excluded from this list.</span>
+            <span class="small text-muted">Partially or fully stocked Purchase Billing invoices are hidden; Product Adding bills can be deleted only when their stock is safe to reverse.</span>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -210,6 +210,15 @@
                                         <a href="<?= \App\Core\Controller::url('/m/product_adding?bill_id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap">
                                             <i class="bi bi-eye me-1"></i>Labels &amp; Stock
                                         </a>
+                                    <?php endif; ?>
+                                    <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'delete')): ?>
+                                        <form action="<?= \App\Core\Controller::url('/m/product_adding/delete_purchase_bill') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete this purchase bill? Any unused finished-goods stock will be reversed. Deletion is blocked if stock has been used, allocated to production, or damaged.');">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                            <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap">
+                                                <i class="bi bi-trash3 me-1"></i>Delete
+                                            </button>
+                                        </form>
                                     <?php endif; ?>
                                 </td>
                             </tr>

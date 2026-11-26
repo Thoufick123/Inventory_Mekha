@@ -502,7 +502,7 @@
 </div>
 <?php endif; ?>
 
-<!-- Modal: View Product & Invoice Details -->
+<!-- Modal: View Product & Stock Details -->
 <div class="modal fade" id="stockDetailsModal" tabindex="-1" aria-labelledby="stockDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content shadow border-0">
@@ -512,8 +512,8 @@
                         <i class="bi bi-card-checklist fs-5"></i>
                     </div>
                     <div>
-                        <h5 class="modal-title fw-bold text-dark mb-0" id="stockDetailsModalLabel">Product & Purchase Invoice Details</h5>
-                        <small class="text-muted" id="detailModalSubtitle">Product specification and purchase billing invoice audit</small>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="stockDetailsModalLabel">Product & Stock Details</h5>
+                        <small class="text-muted" id="detailModalSubtitle">Product specifications and current stock information</small>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -562,14 +562,6 @@
                                         <span class="text-muted d-block">Product Code:</span>
                                         <strong id="detailQrSkuCode" class="text-dark font-monospace">-</strong>
                                     </div>
-                                    <div class="col-sm-6 col-lg-3">
-                                        <span class="text-muted d-block">Style Code:</span>
-                                        <strong id="detailQrStyleCode" class="text-dark font-monospace">-</strong>
-                                    </div>
-                                    <div class="col-sm-6 col-lg-3">
-                                        <span class="text-muted d-block">Whole Code (Label QR):</span>
-                                        <strong id="detailQrWholeCode" class="text-secondary font-monospace">-</strong>
-                                    </div>
                                 </div>
                                 <div class="mt-2 pt-1 d-flex flex-wrap gap-2">
                                     <a id="detailBtnPrintLabel" href="#" target="_blank" class="btn btn-sm btn-primary">
@@ -577,9 +569,6 @@
                                     </a>
                                     <button type="button" id="detailBtnCopyQr" class="btn btn-sm btn-outline-secondary">
                                         <i class="bi bi-clipboard me-1"></i> Copy Code
-                                    </button>
-                                    <button type="button" id="detailBtnDownloadQr" class="btn btn-sm btn-outline-dark">
-                                        <i class="bi bi-download me-1"></i> Download QR
                                     </button>
                                 </div>
                             </div>
@@ -767,104 +756,6 @@
                     </div>
                 </div>
 
-                <!-- Purchase Billing & Invoice Details Card -->
-                <div class="card border shadow-none" id="purchaseInvoiceCard">
-                    <div class="card-header bg-white py-2 fw-semibold text-dark d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="bi bi-receipt me-2 text-success"></i> Purchase Billing & Invoice Information
-                        </div>
-                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" id="detailInvoiceStatusBadge">Purchase Bill</span>
-                    </div>
-                    <div class="card-body p-3">
-                        <div id="invoiceLoadingSpinner" class="text-center py-4 text-muted">
-                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                            Loading invoice and purchase billing details...
-                        </div>
-                        <div id="invoiceDetailsContent" class="d-none">
-                            <!-- Invoice & Bill Numbers Banner -->
-                            <div class="p-3 bg-success bg-opacity-10 rounded border border-success border-opacity-25 mb-3">
-                                <div class="row g-3 align-items-center">
-                                    <div class="col-md-4">
-                                        <span class="text-muted small d-block">Invoice / Bill Number</span>
-                                        <span class="fw-bold text-success fs-5 font-monospace" id="detailSupplierInvoiceNo">-</span>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <span class="text-muted small d-block">PO / Bill No</span>
-                                        <span class="badge bg-white text-dark border font-monospace fs-6" id="detailBillNo">-</span>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <span class="text-muted small d-block">Bill Date</span>
-                                        <span class="fw-semibold text-dark" id="detailBillDate">-</span>
-                                    </div>
-                                    <div class="col-md-2 text-md-end">
-                                        <span class="text-muted small d-block">Payment</span>
-                                        <span class="badge bg-primary bg-opacity-10 text-primary border" id="detailPaymentStatus">-</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Supplier Details & Financials -->
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-6">
-                                    <div class="p-3 bg-light rounded border h-100">
-                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase"><i class="bi bi-building me-1 text-primary"></i> Supplier / Vendor</h6>
-                                        <div class="fw-semibold text-dark" id="detailSupplierName">-</div>
-                                        <div class="small text-muted mb-1" id="detailSupplierCompany">-</div>
-                                        <div class="small text-muted">Phone: <span id="detailSupplierPhone" class="text-dark">-</span></div>
-                                        <div class="small text-muted">Email: <span id="detailSupplierEmail" class="text-dark">-</span></div>
-                                        <div class="small text-muted">GSTIN: <span id="detailSupplierGstin" class="text-dark font-monospace">-</span></div>
-                                        <div class="small text-muted mt-1">Address: <span id="detailSupplierAddress" class="text-dark">-</span></div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="p-3 bg-light rounded border h-100">
-                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase"><i class="bi bi-calculator me-1 text-success"></i> Billing Financials</h6>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Billed Item Rate:</span>
-                                            <span class="fw-semibold text-dark" id="detailItemUnitPrice">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">GST Rate & Type:</span>
-                                            <span class="fw-semibold text-dark" id="detailItemGst">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Tax Amount:</span>
-                                            <span class="fw-semibold text-dark" id="detailItemTaxAmount">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Item Line Total:</span>
-                                            <span class="fw-semibold text-dark" id="detailItemTotalPrice">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 mt-1">
-                                            <span class="fw-bold text-dark">Overall Bill Net:</span>
-                                            <span class="fw-bold text-success fs-6" id="detailBillNet">-</span>
-                                        </div>
-                                        <div class="small text-muted mt-2 pt-2 border-top" id="detailBillNotesRow">
-                                            Notes: <span id="detailBillNotes" class="fst-italic text-dark">-</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Invoice Attachments Section -->
-                            <div class="p-3 bg-light rounded border">
-                                <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
-                                    <i class="bi bi-paperclip me-1 text-danger"></i> Tax Invoice & Bill Attachments
-                                </h6>
-                                <div id="detailAttachmentContainer" class="d-flex flex-wrap gap-2 pt-1">
-                                    <span class="text-muted small">No attachments uploaded with this bill.</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Production Source Notice (if not purchase) -->
-                        <div id="invoiceNotApplicableNotice" class="d-none text-center py-4 text-muted">
-                            <i class="bi bi-scissors fs-2 text-secondary d-block mb-2"></i>
-                            <h6 class="fw-bold text-dark">Production Manufactured Product</h6>
-                            <p class="small mb-0 text-muted">This product was manufactured internally via production cutting & stitching workflows. No vendor purchase invoice is associated with this finished good.</p>
-                        </div>
-                    </div>
-                </div>
             </div>
             <div class="modal-footer bg-light py-2">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -1147,8 +1038,6 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         const initialQrCode = d.qrPayload || d.wholeCode || d.productCode || '';
         document.getElementById('detailQrTagCode').textContent = initialQrCode || '-';
         document.getElementById('detailQrSkuCode').textContent = d.productCode || '-';
-        document.getElementById('detailQrStyleCode').textContent = d.styleCode || '-';
-        document.getElementById('detailQrWholeCode').textContent = d.wholeCode || '-';
 
         const qrContainer = document.getElementById('detailProductQrBox');
         if (qrContainer) {
@@ -1172,33 +1061,21 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
 
         // Section Cards Display Toggle
         const prodCard = document.getElementById('productionJourneyCard');
-        const purchCard = document.getElementById('purchaseInvoiceCard');
         const prodSpinner = document.getElementById('productionLoadingSpinner');
         const prodContent = document.getElementById('productionDetailsContent');
-        const invSpinner = document.getElementById('invoiceLoadingSpinner');
-        const invContent = document.getElementById('invoiceDetailsContent');
-        const invNotice = document.getElementById('invoiceNotApplicableNotice');
 
         if (source === 'own') {
             if (prodCard) prodCard.classList.remove('d-none');
-            if (purchCard) purchCard.classList.add('d-none');
             document.getElementById('stockDetailsModalLabel').textContent = 'Product & Manufacturing Details';
             document.getElementById('detailModalSubtitle').textContent = 'Product specification and manufacturing audit trail';
-        } else if (source === 'purchase') {
-            if (prodCard) prodCard.classList.add('d-none');
-            if (purchCard) purchCard.classList.remove('d-none');
-            document.getElementById('stockDetailsModalLabel').textContent = 'Product & Purchase Invoice Details';
-            document.getElementById('detailModalSubtitle').textContent = 'Product specification and purchase billing invoice audit';
         } else {
             if (prodCard) prodCard.classList.add('d-none');
-            if (purchCard) purchCard.classList.remove('d-none');
+            document.getElementById('stockDetailsModalLabel').textContent = 'Product & Stock Details';
+            document.getElementById('detailModalSubtitle').textContent = 'Product specifications and current stock information';
         }
 
         if (prodSpinner) prodSpinner.classList.remove('d-none');
         if (prodContent) prodContent.classList.add('d-none');
-        if (invSpinner) invSpinner.classList.remove('d-none');
-        if (invContent) invContent.classList.add('d-none');
-        if (invNotice) invNotice.classList.add('d-none');
 
         // Fetch live details from AJAX endpoint
         const url = '<?= \App\Core\Controller::url('/m/stocks/details') ?>?variant_id=' + encodeURIComponent(variantId) + 
@@ -1209,14 +1086,8 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
             .then(res => res.json())
             .then(data => {
                 if (prodSpinner) prodSpinner.classList.add('d-none');
-                if (invSpinner) invSpinner.classList.add('d-none');
 
                 if (!data || !data.success) {
-                    if (source === 'purchase' && invNotice) {
-                        invNotice.classList.remove('d-none');
-                        invNotice.querySelector('h6').textContent = 'Purchase Invoice Details Not Linked';
-                        invNotice.querySelector('p').textContent = (data && data.message) ? data.message : 'No purchase billing entry was linked to this variant.';
-                    }
                     return;
                 }
 
@@ -1248,8 +1119,6 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                     const qrVal = data.qr.tag_code || data.qr.whole_code || data.qr.product_code || '';
                     document.getElementById('detailQrTagCode').textContent = qrVal || '-';
                     document.getElementById('detailQrSkuCode').textContent = data.qr.product_code || '-';
-                    document.getElementById('detailQrStyleCode').textContent = data.qr.style_code || '-';
-                    document.getElementById('detailQrWholeCode').textContent = data.qr.whole_code || '-';
                     if (qrContainer && qrVal && qrVal !== initialQrCode) {
                         qrContainer.innerHTML = '';
                         if (typeof QRCode !== 'undefined') {
@@ -1278,7 +1147,6 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                     const pj = data.production_journey;
                     if (prodCard) prodCard.classList.remove('d-none');
                     if (prodContent) prodContent.classList.remove('d-none');
-                    if (purchCard && source === 'own') purchCard.classList.add('d-none');
 
                     const cat = pj.catalog || {};
                     const prog = pj.program || {};
@@ -1318,97 +1186,10 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                 } else if (source === 'own') {
                     if (prodContent) prodContent.classList.remove('d-none');
                 }
-
-                // Render Purchase Bill details if present
-                if (data.purchase_bill) {
-                    const pb = data.purchase_bill;
-                    if (purchCard) purchCard.classList.remove('d-none');
-                    if (invContent) invContent.classList.remove('d-none');
-                    if (invNotice) invNotice.classList.add('d-none');
-
-                    document.getElementById('detailSupplierInvoiceNo').textContent = pb.supplier_invoice_no || '-';
-                    document.getElementById('detailBillNo').textContent = pb.bill_no || '-';
-                    document.getElementById('detailBillDate').textContent = pb.bill_date ? new Date(pb.bill_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-                    
-                    const payStatusEl = document.getElementById('detailPaymentStatus');
-                    payStatusEl.textContent = (pb.payment_status || 'Pending').toUpperCase() + (pb.payment_method ? ' (' + pb.payment_method + ')' : '');
-                    if ((pb.payment_status || '').toLowerCase() === 'paid') {
-                        payStatusEl.className = 'badge bg-success bg-opacity-10 text-success border border-success border-opacity-25';
-                    } else {
-                        payStatusEl.className = 'badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25';
-                    }
-
-                    // Supplier
-                    if (pb.supplier) {
-                        const sup = pb.supplier;
-                        document.getElementById('detailSupplierName').textContent = sup.name || '-';
-                        document.getElementById('detailSupplierCompany').textContent = sup.company_name || '-';
-                        document.getElementById('detailSupplierPhone').textContent = sup.phone || '-';
-                        document.getElementById('detailSupplierEmail').textContent = sup.email || '-';
-                        document.getElementById('detailSupplierGstin').textContent = sup.gstin || '-';
-                        const addressParts = [sup.address, sup.city, sup.district, sup.state].filter(x => x && x !== '-').join(', ');
-                        document.getElementById('detailSupplierAddress').textContent = addressParts || '-';
-                    }
-
-                    // Financials
-                    document.getElementById('detailItemUnitPrice').textContent = '₹' + Number(pb.item_unit_price || 0).toFixed(2);
-                    document.getElementById('detailItemGst').textContent = Number(pb.item_gst_rate || 0) + '% (' + (pb.item_gst_type || 'GST') + ' - ' + (pb.item_tax_mode || '') + ')';
-                    document.getElementById('detailItemTaxAmount').textContent = '₹' + Number(pb.item_tax_amount || 0).toFixed(2);
-                    document.getElementById('detailItemTotalPrice').textContent = '₹' + Number(pb.item_total_price || 0).toFixed(2);
-                    document.getElementById('detailBillNet').textContent = '₹' + Number(pb.net_amount || 0).toFixed(2);
-                    
-                    const notesRow = document.getElementById('detailBillNotesRow');
-                    if (pb.notes) {
-                        notesRow.classList.remove('d-none');
-                        document.getElementById('detailBillNotes').textContent = pb.notes;
-                    } else {
-                        notesRow.classList.add('d-none');
-                    }
-
-                    // Attachments
-                    const attachContainer = document.getElementById('detailAttachmentContainer');
-                    attachContainer.innerHTML = '';
-                    if (pb.attachments && pb.attachments.length > 0) {
-                        pb.attachments.forEach((url, idx) => {
-                            const isImg = /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(url);
-                            const card = document.createElement('div');
-                            card.className = 'card border p-1 text-center bg-white shadow-sm';
-                            card.style.width = '140px';
-                            if (isImg) {
-                                card.innerHTML = `
-                                    <a href="${url}" target="_blank" rel="noopener" class="d-block mb-1">
-                                        <img src="${url}" alt="Invoice ${idx + 1}" style="width:100%; height:90px; object-fit:cover; border-radius:4px;">
-                                    </a>
-                                    <a href="${url}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary py-0 small" style="font-size:0.75rem;">
-                                        <i class="bi bi-eye"></i> View File
-                                    </a>
-                                `;
-                            } else {
-                                card.innerHTML = `
-                                    <div class="py-3 text-danger"><i class="bi bi-file-earmark-pdf fs-2"></i></div>
-                                    <a href="${url}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-danger py-0 small text-truncate" style="font-size:0.75rem;">
-                                        <i class="bi bi-download"></i> View Document
-                                    </a>
-                                `;
-                            }
-                            attachContainer.appendChild(card);
-                        });
-                    } else {
-                        attachContainer.innerHTML = '<span class="text-muted small"><i class="bi bi-info-circle me-1"></i> No invoice attachment was uploaded during purchase billing.</span>';
-                    }
-                } else if (source === 'purchase') {
-                    if (invContent) invContent.classList.add('d-none');
-                    if (invNotice) invNotice.classList.remove('d-none');
-                }
             })
             .catch(err => {
                 if (prodSpinner) prodSpinner.classList.add('d-none');
-                if (invSpinner) invSpinner.classList.add('d-none');
-                if (source === 'purchase' && invNotice) {
-                    invNotice.classList.remove('d-none');
-                    invNotice.querySelector('h6').textContent = 'Unable to Load Invoice';
-                    invNotice.querySelector('p').textContent = 'An error occurred while fetching billing details: ' + err.message;
-                }
+                console.error('Unable to load stock details:', err);
             });
     });
 });
@@ -1510,7 +1291,7 @@ if (quickDownloadBtn) {
     });
 }
 
-// Copy / Download handlers for Detail Modal QR
+// Copy handler for Detail Modal QR
 const detailCopyBtn = document.getElementById('detailBtnCopyQr');
 if (detailCopyBtn) {
     detailCopyBtn.addEventListener('click', () => {
@@ -1521,22 +1302,6 @@ if (detailCopyBtn) {
                 detailCopyBtn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i> Copied!';
                 setTimeout(() => { detailCopyBtn.innerHTML = orig; }, 1800);
             });
-        }
-    });
-}
-
-const detailDownloadBtn = document.getElementById('detailBtnDownloadQr');
-if (detailDownloadBtn) {
-    detailDownloadBtn.addEventListener('click', () => {
-        const box = document.getElementById('detailProductQrBox');
-        if (!box) return;
-        const img = box.querySelector('img') || box.querySelector('canvas');
-        if (img) {
-            const sku = document.getElementById('detailQrSkuCode').textContent || 'product';
-            const a = document.createElement('a');
-            a.download = (sku.replace(/[^a-zA-Z0-9_-]/g, '_')) + '-qr.png';
-            a.href = img.tagName.toLowerCase() === 'canvas' ? img.toDataURL('image/png') : img.src;
-            a.click();
         }
     });
 }

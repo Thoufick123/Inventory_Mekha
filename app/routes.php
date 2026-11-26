@@ -69,6 +69,7 @@ $router->get('/m/product_adding/export', [ProductAddingController::class, 'expor
 $router->get('/product_adding/export', [ProductAddingController::class, 'export'], 'product_adding', 'export');
 $router->get('/m/product_adding/create', [ProductAddingController::class, 'create'], 'product_adding', 'add');
 $router->get('/m/product_adding/edit_purchase_bill', [PurchaseController::class, 'editBillFromProductAdding'], 'product_adding', 'edit');
+$router->post('/m/product_adding/delete_purchase_bill', [PurchaseController::class, 'deleteBillFromProductAdding'], 'product_adding', 'delete');
 $router->post('/m/product_adding/store', [PurchaseController::class, 'storeBill'], 'product_adding', 'add');
 $router->post('/m/product_adding/update_purchase_bill', [PurchaseController::class, 'updateBill'], 'product_adding', 'edit');
 $router->post('/m/product_adding/check_invoice', [PurchaseController::class, 'checkSupplierInvoiceNumberAjax'], 'product_adding', 'view');

@@ -28,6 +28,19 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+            <?php
+                $batchLabelItems = array_map(static fn($it) => [
+                    'id'           => (int)$it['id'],
+                    'name'         => $it['variant_name'] ?: trim(($it['size'] ?? '') . ' - ' . ($it['color'] ?? '')),
+                    'product_code' => $it['product_code'] ?: '-',
+                    'qty'          => max(1, (int)$it['stitching_qty']),
+                ], $items ?? []);
+            ?>
+            <button type="button" class="btn btn-dark shadow-sm fw-semibold" onclick='openStitchingBatchLabelModal(<?= (int)$batch['id'] ?>, <?= htmlspecialchars(json_encode($batchLabelItems), ENT_QUOTES) ?>)'>
+                <i class="bi bi-printer-fill me-1"></i> Print All Labels
+            </button>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/production/stitching') ?>" 
                class="btn btn-outline-secondary shadow-sm fw-semibold">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
@@ -112,7 +125,10 @@
                                 <th class="text-center py-2.5">Per Pc Wt</th>
                                 <th class="text-center py-2.5">Total Wt</th>
                                 <th class="text-end py-2.5">Base Price</th>
-                                <th class="text-end pe-3 py-2.5">Discount Price</th>
+                                <th class="text-end py-2.5">Discount Price</th>
+                                <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                <th class="text-center pe-3 py-2.5">Labels</th>
+                                <?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
@@ -127,7 +143,16 @@
                                     <td class="text-center py-2 font-monospace small"><?= number_format((float)$it['per_pc_weight'], 3) ?> kg</td>
                                     <td class="text-center py-2 font-monospace small fw-bold"><?= number_format((float)$it['total_weight'], 2) ?> kg</td>
                                     <td class="text-end py-2 font-monospace">₹<?= number_format((float)$it['base_price'], 2) ?></td>
-                                    <td class="text-end pe-3 py-2 font-monospace fw-bold text-primary">₹<?= number_format((float)$it['discount_price'], 2) ?></td>
+                                    <td class="text-end py-2 font-monospace fw-bold text-primary">₹<?= number_format((float)$it['discount_price'], 2) ?></td>
+                                    <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                    <td class="text-center pe-3 py-2">
+                                        <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
+                                                title="Print Labels for this Variant"
+                                                onclick='openStitchingVariantLabelModal(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode('Product Code: ' . ($it['product_code'] ?: '-') . ' • stitched qty ' . max(1, (int)$it['stitching_qty'])), ENT_QUOTES) ?>, <?= max(1, (int)$it['stitching_qty']) ?>)'>
+                                            <i class="bi bi-printer me-1"></i>Print
+                                        </button>
+                                    </td>
+                                    <?php endif; ?>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -137,3 +162,4 @@
         </div>
     </div>
 </div>
+<?php include __DIR__ . '/partials/stitching_label_print_js.php'; ?>

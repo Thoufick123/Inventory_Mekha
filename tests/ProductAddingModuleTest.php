@@ -12,6 +12,10 @@ $purchaseControllerSource = file_get_contents(__DIR__ . '/../app/controllers/Pur
 $viewSource = file_get_contents(__DIR__ . '/../app/views/concern/purchase_billing_create.php');
 $listViewSource = file_get_contents(__DIR__ . '/../app/views/concern/product_adding_list.php');
 $liveSql = file_get_contents(__DIR__ . '/../database/live_db_update.sql');
+$otherEntryTable = '';
+if (preg_match('/<table[^>]*id="otherEntryTable"[^>]*>(.*?)<\/table>/s', $viewSource, $otherEntryTableMatch)) {
+    $otherEntryTable = $otherEntryTableMatch[1];
+}
 
 $checks = [
     'Product Adding route is registered' => str_contains($routeSource, "'/m/product_adding'"),
@@ -33,6 +37,17 @@ $checks = [
         && str_contains($purchaseControllerSource, 'editBillFromProductAdding')
         && str_contains($viewSource, 'Load existing invoice to edit')
         && str_contains($viewSource, 'str_contains($formAction, \'/m/product_adding/store\') || !empty($productAddingEdit)'),
+    'Product Adding bill list exposes a permission-scoped delete action' =>
+        str_contains($routeSource, "'/m/product_adding/delete_purchase_bill'")
+        && str_contains($purchaseControllerSource, 'function deleteBillFromProductAdding')
+        && str_contains($purchaseControllerSource, "ModuleGuard::enforce('product_adding', 'delete')")
+        && str_contains($listViewSource, '/m/product_adding/delete_purchase_bill')
+        && str_contains($listViewSource, 'can(\'product_adding\', \'delete\')'),
+    'Product Adding bill deletion reverses unused stock and blocks dependent use' =>
+        str_contains($purchaseControllerSource, "'Purchase Bill Reversal'")
+        && str_contains($purchaseControllerSource, 'qty_out > 0')
+        && str_contains($purchaseControllerSource, 'program_rolls')
+        && str_contains($purchaseControllerSource, 'purchase_damage_quarantine'),
     'Purchase Billing invoices cannot be inwarded twice' =>
         str_contains($labelControllerSource, 'assertPurchaseBillingBillIsUnstocked')
         && str_contains($labelControllerSource, 'FOR UPDATE')
@@ -84,6 +99,11 @@ $checks = [
         && str_contains($viewSource, 'finished_goods[${cardId}][variants][${rowIndex}]')
         && str_contains($viewSource, 'fg-variant-gst-rate')
         && str_contains($viewSource, 'fg-input-selling'),
+    'Other Garment Supplies table hides Code while preserving saved codes during edits' =>
+        $otherEntryTable !== ''
+        && !preg_match('/<th[^>]*>\s*Code\s*<\/th>/i', $otherEntryTable)
+        && str_contains($viewSource, 'type="hidden" name="garment_other[${otherCounter}][product_no]"')
+        && str_contains($viewSource, "card.querySelector('.other-input-code').value = g.item_code"),
     'Product Adding enforces supplier cost below selling price below MRP' => str_contains($viewSource, 'Supplier cost must be lower than selling price.')
         && str_contains($viewSource, 'MRP must be greater than selling price.')
         && str_contains($purchaseControllerSource, 'if ($supplierCost <= 0 || $sellingPrice <= $supplierCost || $mrp <= $sellingPrice)')

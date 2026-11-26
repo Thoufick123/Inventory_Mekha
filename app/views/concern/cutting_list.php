@@ -233,7 +233,6 @@
                             <th class="text-end">Cut Output</th>
                             <th class="text-end">Wastage (kg / %)</th>
                             <th class="text-end">Fabric Cost / Pc</th>
-                            <th>Status</th>
                             <th>Created Date</th>
                             <th class="text-end pe-3">Actions</th>
                         </tr>
@@ -241,7 +240,7 @@
                     <tbody class="small">
                         <?php if (empty($batches)): ?>
                             <tr>
-                                <td colspan="10" class="text-center py-5 text-muted">
+                                <td colspan="9" class="text-center py-5 text-muted">
                                     <i class="bi bi-scissors fs-2 d-block mb-2 text-secondary"></i>
                                     No cutting batches found. Click <strong>"New Cutting Batch"</strong> to create a production cutting lot.
                                 </td>
@@ -298,15 +297,6 @@
                                     </td>
                                     <td class="text-end fw-bold font-monospace text-primary">
                                         ₹<?= number_format($b['fabric_cost_per_piece'], 2) ?>
-                                    </td>
-                                    <td>
-                                        <?php 
-                                            $st = $b['status'] ?? 'in_progress';
-                                            $stClass = $st === 'completed' ? 'bg-success' : ($st === 'in_progress' ? 'bg-primary' : 'bg-warning text-dark');
-                                        ?>
-                                        <span class="badge <?= $stClass ?>">
-                                            <?= ucfirst(str_replace('_', ' ', $st)) ?>
-                                        </span>
                                     </td>
                                     <td class="text-muted font-monospace">
                                         <?= date('d M Y', strtotime($b['created_at'])) ?>

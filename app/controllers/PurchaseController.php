@@ -14,6 +14,7 @@ use App\Services\CloudinaryService;
 use App\Services\RollRegistryService;
 use App\Services\PurchaseDamageService;
 use App\Services\PurchaseBillSourceService;
+use App\Services\PurchaseStockItemOverrideService;
 use App\Services\ExportService;
 use Exception;
 
@@ -1578,6 +1579,7 @@ class PurchaseController extends Controller {
             $paidAmount = $netAmount;
         }
 
+        PurchaseBillSourceService::ensureSchema();
         DB::beginTransaction();
         try {
             $billNo = NumberSeries::getNext($cid, 'PO');
@@ -2114,18 +2116,20 @@ class PurchaseController extends Controller {
             return;
         }
 
-        $inwardedItemCount = (int)DB::fetchValue(
-            "SELECT COUNT(*)
-             FROM purchase_bill_items pbi
-             JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
-             WHERE pbi.purchase_bill_id = ?
-               AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
-            [$billId]
-        );
-        if (($bill['inward_status'] ?? 'pending') === 'completed' || $inwardedItemCount > 0) {
-            $this->flash('error', 'This bill has items already added to stock and can no longer be edited.');
-            $this->redirect($billListUrl);
-            return;
+        if ($isProductAddingEdit) {
+            $inwardedItemCount = (int)DB::fetchValue(
+                "SELECT COUNT(*)
+                 FROM purchase_bill_items pbi
+                 JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+                 WHERE pbi.purchase_bill_id = ?
+                   AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
+                [$billId]
+            );
+            if (($bill['inward_status'] ?? 'pending') === 'completed' || $inwardedItemCount > 0) {
+                $this->flash('error', 'This bill has items already added to stock and can no longer be edited.');
+                $this->redirect($billListUrl);
+                return;
+            }
         }
 
         $supplierId = (int)($_POST['supplier_id'] ?? $bill['supplier_id']);
@@ -2153,7 +2157,7 @@ class PurchaseController extends Controller {
         $paymentMethod     = trim($_POST['payment_method'] ?? ($bill['payment_method'] ?? 'credit'));
         $paymentReference  = trim($_POST['payment_reference'] ?? ($bill['payment_reference'] ?? ''));
         $paidAmount        = isset($_POST['paid_amount']) ? (float)$_POST['paid_amount'] : (float)($bill['paid_amount'] ?? 0.0);
-        $inwardStatus      = 'pending';
+        $inwardStatus      = (($bill['inward_status'] ?? 'pending') === 'completed') ? 'completed' : 'pending';
 
         if (!in_array($paymentStatus, ['unpaid', 'partial', 'paid'], true)) {
             $paymentStatus = 'unpaid';
@@ -2380,6 +2384,7 @@ class PurchaseController extends Controller {
             $paidAmount = $netAmount;
         }
 
+        PurchaseBillSourceService::ensureSchema();
         DB::beginTransaction();
         try {
             $lockedBillSql = 'SELECT id, concern_id, source_module, inward_status FROM purchase_bills WHERE id = ? AND concern_id = ? FOR UPDATE';
@@ -2387,30 +2392,37 @@ class PurchaseController extends Controller {
             if (!$lockedBill || ($isProductAddingEdit && ($lockedBill['source_module'] ?? '') !== 'purchase_billing')) {
                 throw new \RuntimeException('Purchase Bill not found or access denied.');
             }
-            $lockedStockedCount = (int)DB::fetchValue(
-                "SELECT COUNT(*)
-                 FROM purchase_bill_items pbi
-                 JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
-                 WHERE pbi.purchase_bill_id = ?
-                   AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
-                [$billId]
-            );
-            if (($lockedBill['inward_status'] ?? 'pending') === 'completed' || $lockedStockedCount > 0) {
-                throw new \RuntimeException('This invoice has already had stock added and can no longer be edited.');
+            if ($isProductAddingEdit) {
+                $lockedStockedCount = (int)DB::fetchValue(
+                    "SELECT COUNT(*)
+                     FROM purchase_bill_items pbi
+                     JOIN purchase_bills pb ON pb.id = pbi.purchase_bill_id
+                     WHERE pbi.purchase_bill_id = ?
+                       AND COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') = 'completed'",
+                    [$billId]
+                );
+                if (($lockedBill['inward_status'] ?? 'pending') === 'completed' || $lockedStockedCount > 0) {
+                    throw new \RuntimeException('This invoice has already had stock added and can no longer be edited.');
+                }
             }
 
+            PurchaseBillSourceService::ensureSchema();
             DB::query(
                 "UPDATE purchase_bills
                  SET supplier_id = ?, bill_date = ?, supplier_invoice_no = ?, notes = ?,
                      payment_status = ?, payment_method = ?, payment_reference = ?, paid_amount = ?,
                      inward_status = ?, attachment_path = ?, attachment_paths = ?, fabric_description = ?,
-                     total_amount = ?, tax_amount = ?, net_amount = ?
+                     total_amount = ?, tax_amount = ?, net_amount = ?,
+                     purchase_billing_completed = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(purchase_billing_completed, CASE WHEN source_module = 'purchase_billing' THEN 1 ELSE 0 END) END,
+                     product_adding_completed = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(product_adding_completed, CASE WHEN source_module = 'product_adding' THEN 1 ELSE 0 END) END
                  WHERE id = ?",
                 [
                     $supplierId, $billDate, $supplierInvoiceNo, $notes,
                     $paymentStatus, $paymentMethod, $paymentReference, $paidAmount,
                     $inwardStatus, $attachmentPath, $attachmentPathsJson, $fabricDescription,
                     $totalAmount, $totalTax, $netAmount,
+                    !$isProductAddingEdit ? 1 : 0,
+                    $isProductAddingEdit ? 1 : 0,
                     $billId
                 ]
             );
@@ -2519,6 +2531,219 @@ class PurchaseController extends Controller {
         $this->redirect('/m/purchase_billing');
     }
 
+    public function deleteBillFromProductAdding(): void
+    {
+        ModuleGuard::enforce('product_adding', 'delete');
+        $this->validateCsrf();
+
+        $billId = (int)($_POST['bill_id'] ?? 0);
+        $concernId = Auth::concernId();
+        if ($billId <= 0) {
+            $this->flash('error', 'Invalid purchase bill ID.');
+            $this->redirect('/m/product_adding');
+            return;
+        }
+
+        try {
+            PurchaseBillSourceService::ensureSchema();
+            PurchaseStockItemOverrideService::initTable();
+            PurchaseDamageService::initTable();
+            DB::beginTransaction();
+
+            $billSql = 'SELECT * FROM purchase_bills WHERE id = ?';
+            $billParams = [$billId];
+            if ($concernId) {
+                $billSql .= ' AND concern_id = ?';
+                $billParams[] = $concernId;
+            }
+            $billSql .= ' FOR UPDATE';
+            $bill = DB::fetch($billSql, $billParams);
+            if (!$bill) {
+                throw new \RuntimeException('Purchase Bill not found or access denied.');
+            }
+
+            $sourceModule = (string)($bill['source_module'] ?? 'purchase_billing');
+            if (!in_array($sourceModule, ['product_adding', 'purchase_billing'], true)) {
+                throw new \RuntimeException('This bill cannot be deleted from Product Adding.');
+            }
+
+            $billConcernId = (int)$bill['concern_id'];
+            $items = DB::fetchAll(
+                'SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? AND concern_id = ? ORDER BY id ASC FOR UPDATE',
+                [$billId, $billConcernId]
+            );
+            if ($sourceModule === 'purchase_billing') {
+                if (!$items) {
+                    throw new \RuntimeException('This Purchase Billing invoice has no line items and cannot be deleted from Product Adding.');
+                }
+                $stockedCount = (int)DB::fetchValue(
+                    "SELECT COUNT(*)
+                     FROM purchase_bill_items
+                     WHERE purchase_bill_id = ?
+                       AND COALESCE(NULLIF(inward_status, ''), ?) = 'completed'",
+                    [$billId, $bill['inward_status'] ?? 'pending']
+                );
+                if ($stockedCount > 0 || ($bill['inward_status'] ?? 'pending') === 'completed') {
+                    throw new \RuntimeException('This Purchase Billing invoice is no longer eligible for deletion from Product Adding.');
+                }
+            }
+
+            $itemIds = array_map(static fn(array $item): int => (int)$item['id'], $items);
+            $this->assertProductAddingBillHasNoDependents($itemIds);
+            $this->reverseUnusedPurchaseBillStock($billConcernId, $billId, $items);
+
+            AuditLog::logOrThrow(
+                'DELETE',
+                'purchase_bills',
+                $billId,
+                [
+                    'bill_no' => $bill['bill_no'],
+                    'source_module' => $sourceModule,
+                    'supplier_id' => (int)$bill['supplier_id'],
+                    'item_count' => count($items),
+                    'net_amount' => (float)$bill['net_amount'],
+                ],
+                null
+            );
+
+            DB::query('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?', [$billId]);
+            DB::query('DELETE FROM purchase_bills WHERE id = ? AND concern_id = ?', [$billId, $billConcernId]);
+            DB::commit();
+
+            try {
+                RollRegistryService::syncSpecs($billConcernId);
+            } catch (\Throwable $syncError) {
+                error_log('Purchase bill deleted but roll registry synchronization failed: ' . $syncError->getMessage());
+                $this->flash('error', "Purchase Bill #{$bill['bill_no']} was deleted, but the fabric roll summary could not be refreshed: " . $syncError->getMessage());
+                $this->redirect('/m/product_adding');
+                return;
+            }
+
+            $this->flash('success', "Purchase Bill #{$bill['bill_no']} deleted. Any unused finished-goods stock was reversed.");
+        } catch (\Throwable $e) {
+            if (DB::pdo()->inTransaction()) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Could not delete purchase bill: ' . $e->getMessage());
+        }
+
+        $this->redirect('/m/product_adding');
+    }
+
+    private function assertProductAddingBillHasNoDependents(array $itemIds): void
+    {
+        if (!$itemIds) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
+        if (DB::fetch(
+            "SELECT id FROM program_rolls
+             WHERE purchase_bill_item_id IN ({$placeholders})
+             LIMIT 1 FOR UPDATE",
+            $itemIds
+        )) {
+            throw new \RuntimeException('This bill has rolls linked to production. Remove or cancel those production allocations before deleting it.');
+        }
+
+        if (DB::fetch(
+            "SELECT id FROM purchase_damage_quarantine
+             WHERE purchase_bill_item_id IN ({$placeholders})
+             LIMIT 1 FOR UPDATE",
+            $itemIds
+        )) {
+            throw new \RuntimeException('This bill has linked damage records. Resolve those records before deleting it.');
+        }
+    }
+
+    private function reverseUnusedPurchaseBillStock(int $concernId, int $billId, array $items): void
+    {
+        $itemIds = array_map(static fn(array $item): int => (int)$item['id'], $items);
+        $sourceItemRefs = '';
+        $sourceParams = [];
+        if ($itemIds) {
+            $itemPlaceholders = implode(',', array_fill(0, count($itemIds), '?'));
+            $sourceItemRefs = " OR (ref_module IN ('Purchase Inward Item', 'Product Adding Stock Correction') AND ref_id IN ({$itemPlaceholders}))";
+            $sourceParams = $itemIds;
+        }
+
+        $sourceRows = DB::fetchAll(
+            "SELECT id, variant_id, location, qty_in, qty_out
+             FROM stock_ledger
+             WHERE concern_id = ?
+               AND ( (ref_module = 'Purchase Inward' AND ref_id = ?) {$sourceItemRefs} )
+             ORDER BY id ASC
+             FOR UPDATE",
+            array_merge([$concernId, $billId], $sourceParams)
+        );
+
+        $movements = [];
+        foreach ($sourceRows as $row) {
+            $variantId = (int)$row['variant_id'];
+            $location = (string)$row['location'];
+            $key = $variantId . "\0" . $location;
+            if (!isset($movements[$key])) {
+                $movements[$key] = [
+                    'variant_id' => $variantId,
+                    'location' => $location,
+                    'qty' => 0.0,
+                    'first_ledger_id' => (int)$row['id'],
+                ];
+            }
+            $movements[$key]['qty'] += (float)$row['qty_in'] - (float)$row['qty_out'];
+            $movements[$key]['first_ledger_id'] = min($movements[$key]['first_ledger_id'], (int)$row['id']);
+        }
+
+        ksort($movements);
+        foreach ($movements as $movement) {
+            $qty = round((float)$movement['qty'], 2);
+            if ($qty < -0.0001) {
+                throw new \RuntimeException('The bill stock ledger has an invalid negative balance; deletion was stopped without changing stock.');
+            }
+            if ($qty <= 0.0001) {
+                continue;
+            }
+
+            $variantId = (int)$movement['variant_id'];
+            $location = (string)$movement['location'];
+            $stock = DB::fetch(
+                'SELECT qty FROM stocks WHERE concern_id = ? AND variant_id = ? AND location = ? FOR UPDATE',
+                [$concernId, $variantId, $location]
+            );
+            if (!$stock || (float)$stock['qty'] + 0.0001 < $qty) {
+                throw new \RuntimeException('Some bill stock is no longer available at its original location, so it cannot be safely reversed.');
+            }
+
+            $outflowSql = "SELECT id FROM stock_ledger
+                           WHERE concern_id = ? AND variant_id = ? AND location = ?
+                             AND id > ? AND qty_out > 0
+                             AND NOT (
+                                 (ref_module = 'Purchase Inward' AND ref_id = ?)
+                                 {$sourceItemRefs}
+                             )
+                           ORDER BY id ASC LIMIT 1 FOR UPDATE";
+            $outflowParams = [$concernId, $variantId, $location, (int)$movement['first_ledger_id'], $billId];
+            if ($itemIds) {
+                $outflowParams = array_merge($outflowParams, $itemIds);
+            }
+            if (DB::fetch($outflowSql, $outflowParams)) {
+                throw new \RuntimeException('Finished-goods stock from this bill has been used. The entire bill must remain unchanged.');
+            }
+
+            StockService::move(
+                $concernId,
+                $variantId,
+                $location,
+                0.0,
+                $qty,
+                'Purchase Bill Reversal',
+                $billId,
+                "Unused stock reversed while deleting Purchase Bill #{$billId}",
+                Auth::id()
+            );
+        }
+    }
+
     public function deleteBill(): void {
         $this->validateCsrf();
         $id = (int)($_POST['bill_id'] ?? 0);
@@ -2537,6 +2762,7 @@ class PurchaseController extends Controller {
             return;
         }
 
+        PurchaseBillSourceService::ensureSchema();
         DB::beginTransaction();
         try {
             DB::query("DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?", [$id]);

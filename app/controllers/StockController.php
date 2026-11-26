@@ -656,46 +656,6 @@ class StockController extends Controller {
                 ];
             }
 
-            // Purchase bill details
-            $purchaseBill = DB::fetch(
-                "SELECT pbi.id AS purchase_item_id, pbi.item_name, pbi.item_code, pbi.hsn_code AS item_hsn,
-                        pbi.color AS item_color, pbi.specification AS item_spec, pbi.qty AS item_qty,
-                        pbi.unit_price AS item_unit_price, pbi.gst_rate AS item_gst_rate, pbi.gst_type AS item_gst_type,
-                        pbi.tax_mode AS item_tax_mode, pbi.tax_amount AS item_tax_amount, pbi.total_price AS item_total_price,
-                        pbi.mrp AS item_mrp, pbi.selling_price AS item_selling_price, pbi.inward_status AS item_inward_status,
-                        pb.id AS purchase_bill_id, pb.bill_no, pb.supplier_invoice_no, pb.bill_date,
-                        pb.total_amount AS bill_total, pb.tax_amount AS bill_tax, pb.net_amount AS bill_net,
-                        pb.payment_status, pb.payment_method, pb.payment_reference, pb.attachment_path, pb.attachment_paths,
-                        pb.notes AS bill_notes,
-                        sup.id AS supplier_id, sup.name AS supplier_name, sup.company_name AS supplier_company,
-                        sup.phone AS supplier_phone, sup.email AS supplier_email, sup.gstin AS supplier_gstin,
-                        sup.address AS supplier_address, sup.city AS supplier_city, sup.district AS supplier_district, sup.state AS supplier_state
-                 FROM purchase_bill_items pbi
-                 JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.id
-                 LEFT JOIN suppliers sup ON pb.supplier_id = sup.id
-                 WHERE pbi.concern_id = ?
-                   AND (pbi.variant_id = ? OR (pbi.catalog_id IS NOT NULL AND pbi.catalog_id = ?))
-                 ORDER BY CASE WHEN pbi.variant_id = ? THEN 0 ELSE 1 END, pbi.id DESC
-                 LIMIT 1",
-                [$concernId, $variantId, $catId, $variantId]
-            );
-
-            $attachments = [];
-            if ($purchaseBill) {
-                $paths = json_decode((string)($purchaseBill['attachment_paths'] ?? ''), true);
-                if (is_array($paths)) {
-                    foreach ($paths as $path) {
-                        $pathStr = trim((string)$path);
-                        if ($pathStr !== '') {
-                            $attachments[] = $pathStr;
-                        }
-                    }
-                }
-                if (empty($attachments) && !empty($purchaseBill['attachment_path'])) {
-                    $attachments[] = trim((string)$purchaseBill['attachment_path']);
-                }
-            }
-
             echo json_encode([
                 'success' => true,
                 'variant' => [
@@ -735,44 +695,6 @@ class StockController extends Controller {
                 'total_stock_qty'    => (float)($totalStock['total_qty'] ?? 0),
                 'qr'                 => $qrData,
                 'production_journey' => $productionJourney,
-                'purchase_bill'      => $purchaseBill ? [
-                    'bill_id'             => (int)$purchaseBill['purchase_bill_id'],
-                    'bill_no'             => $purchaseBill['bill_no'],
-                    'supplier_invoice_no' => $purchaseBill['supplier_invoice_no'] ?: '-',
-                    'bill_date'           => $purchaseBill['bill_date'],
-                    'total_amount'        => (float)$purchaseBill['bill_total'],
-                    'tax_amount'          => (float)$purchaseBill['bill_tax'],
-                    'net_amount'          => (float)$purchaseBill['bill_net'],
-                    'payment_status'      => $purchaseBill['payment_status'] ?: 'Pending',
-                    'payment_method'      => $purchaseBill['payment_method'] ?: 'Cash',
-                    'payment_reference'   => $purchaseBill['payment_reference'] ?: '-',
-                    'notes'               => $purchaseBill['bill_notes'] ?: '',
-                    'item_name'           => $purchaseBill['item_name'],
-                    'item_code'           => $purchaseBill['item_code'] ?: '-',
-                    'item_hsn'            => $purchaseBill['item_hsn'] ?: '-',
-                    'item_color'          => $purchaseBill['item_color'] ?: '-',
-                    'item_spec'           => $purchaseBill['item_spec'] ?: '-',
-                    'item_qty'            => (float)$purchaseBill['item_qty'],
-                    'item_unit_price'     => (float)$purchaseBill['item_unit_price'],
-                    'item_gst_rate'       => (float)$purchaseBill['item_gst_rate'],
-                    'item_gst_type'       => $purchaseBill['item_gst_type'] ?: 'Standard',
-                    'item_tax_mode'       => $purchaseBill['item_tax_mode'] ?: 'Exclude GST',
-                    'item_tax_amount'     => (float)$purchaseBill['item_tax_amount'],
-                    'item_total_price'    => (float)$purchaseBill['item_total_price'],
-                    'attachments'         => $attachments,
-                    'supplier'            => [
-                        'id'           => (int)$purchaseBill['supplier_id'],
-                        'name'         => $purchaseBill['supplier_name'] ?: 'Unknown Vendor',
-                        'company_name' => $purchaseBill['supplier_company'] ?: '-',
-                        'phone'        => $purchaseBill['supplier_phone'] ?: '-',
-                        'email'        => $purchaseBill['supplier_email'] ?: '-',
-                        'gstin'        => $purchaseBill['supplier_gstin'] ?: '-',
-                        'address'      => $purchaseBill['supplier_address'] ?: '-',
-                        'city'         => $purchaseBill['supplier_city'] ?: '-',
-                        'district'     => $purchaseBill['supplier_district'] ?: '-',
-                        'state'        => $purchaseBill['supplier_state'] ?: '-',
-                    ],
-                ] : null,
             ]);
         } catch (\Throwable $e) {
             $this->renderJson(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);

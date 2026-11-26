@@ -1046,13 +1046,22 @@ class CatalogMappingController extends Controller
                 if (empty($code))
                     $code = strtoupper(substr($name, 0, 2));
 
-                // Strict duplicate validation: name under parent category
+                // Strict duplicate validation: name under parent category and short code
                 $dupSub = DB::fetch(
                     "SELECT id FROM subcategories WHERE category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
                     [$catId, $cid, $name]
                 );
                 if ($dupSub) {
                     throw new Exception("Duplicate Error: Subcategory '{$name}' already exists under the selected parent category. Duplicates are not allowed.");
+                }
+                if (!empty($code)) {
+                    $dupSubCode = DB::fetch(
+                        "SELECT id, code FROM subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'",
+                        [$cid, $code]
+                    );
+                    if ($dupSubCode) {
+                        throw new Exception("Duplicate Error: Subcategory code '{$code}' already exists. Duplicates are not allowed.");
+                    }
                 }
 
                 DB::query(
@@ -1089,13 +1098,22 @@ class CatalogMappingController extends Controller
                 if (empty($code))
                     $code = strtoupper(substr($name, 0, 2));
 
-                // Strict duplicate validation: name under parent subcategory
+                // Strict duplicate validation: name under parent subcategory and short code
                 $dupSubSub = DB::fetch(
                     "SELECT id FROM sub_subcategories WHERE subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
                     [$subcatId, $cid, $name]
                 );
                 if ($dupSubSub) {
                     throw new Exception("Duplicate Error: Sub-Subcategory '{$name}' already exists under the selected parent subcategory. Duplicates are not allowed.");
+                }
+                if (!empty($code)) {
+                    $dupSubSubCode = DB::fetch(
+                        "SELECT id, code FROM sub_subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'",
+                        [$cid, $code]
+                    );
+                    if ($dupSubSubCode) {
+                        throw new Exception("Duplicate Error: Sub-Subcategory code '{$code}' already exists. Duplicates are not allowed.");
+                    }
                 }
 
                 DB::query(
