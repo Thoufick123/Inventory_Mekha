@@ -444,43 +444,67 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
 </div>
 
 <!-- ========================================================================================= -->
-<!-- 4. MODAL: Confirm Inward Acceptance -->
+<!-- 4. MODAL: Confirm Warehouse Inward -->
 <!-- ========================================================================================= -->
 <div class="modal fade" id="modalConfirmInwardAcceptance" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
-            <div class="modal-header bg-success text-white py-3 px-4">
-                <h6 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
-                    <i class="bi bi-box-arrow-in-down fs-5"></i>
-                    <span id="confirmInwardModalTitle">Confirm Inward Acceptance</span>
-                </h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header text-white py-3 px-4 border-0" style="background: #16a34a;">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-box-arrow-in-down"></i>
+                        <span id="confirmInwardModalTitle">Confirm Warehouse Inward</span>
+                    </h5>
+                    <div class="small opacity-75 mt-0.5 font-monospace">
+                        Batch <?= htmlspecialchars($isDamageTransfer ? ($outward['outward_no'] ?? '') : ($outward['batch_no'] ?? '')) ?>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white align-self-start" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-4 bg-light">
-                <p class="text-dark fw-semibold mb-3" id="confirmInwardModalSubtitle">
-                    Review the pieces below before crediting stock to warehouse inventory:
-                </p>
-                <div class="row g-2">
-                    <div class="col-6" id="confirmInwardVerifiedBox">
-                        <div class="p-3 bg-white border border-success rounded-3 text-center shadow-sm">
-                            <div class="small text-uppercase fw-bold text-success mb-1" style="font-size: 0.72rem;">Verified (Good)</div>
-                            <div class="fs-4 fw-bold text-success font-monospace" id="confirmInwardVerifiedCount">+0 pcs</div>
-                            <div class="small text-muted mt-1" style="font-size: 0.72rem;">Credited to warehouse stock</div>
+            <div class="modal-body p-4 bg-white">
+                <div class="p-3 border rounded-3 mb-3 d-flex align-items-center gap-3 bg-white">
+                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 bg-success-subtle text-success" style="width: 44px; height: 44px;">
+                        <i class="bi bi-building fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="small text-muted">Destination warehouse</div>
+                        <div class="fw-bold text-dark"><?= htmlspecialchars($outward['dest_warehouse_name'] ?? '') ?> (<?= htmlspecialchars($outward['dest_warehouse_code'] ?? '') ?>)</div>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-4" id="confirmInwardVerifiedBox">
+                        <div class="p-3 rounded-3 text-center border" style="background: #ecfdf5; border-color: #d1fae5 !important;">
+                            <div class="small text-uppercase fw-bold text-success mb-1" style="font-size: 0.70rem;">Verified Intact</div>
+                            <div class="fs-3 fw-bold text-success" id="confirmInwardVerifiedCount">0</div>
+                            <div class="small text-muted" style="font-size: 0.75rem;">pcs credited</div>
                         </div>
                     </div>
-                    <div class="col-6" id="confirmInwardDamagedBox">
-                        <div class="p-3 bg-white border border-danger rounded-3 text-center shadow-sm">
-                            <div class="small text-uppercase fw-bold text-danger mb-1" style="font-size: 0.72rem;">Damaged (Quarantine)</div>
-                            <div class="fs-4 fw-bold text-danger font-monospace" id="confirmInwardDamagedCount">0 pcs</div>
-                            <div class="small text-muted mt-1" style="font-size: 0.72rem;">Moved to quarantine</div>
+                    <div class="col-4" id="confirmInwardDamagedBox">
+                        <div class="p-3 rounded-3 text-center border" style="background: #fef2f2; border-color: #fee2e2 !important;">
+                            <div class="small text-uppercase fw-bold text-danger mb-1" style="font-size: 0.70rem;">Damaged</div>
+                            <div class="fs-3 fw-bold text-danger" id="confirmInwardDamagedCount">0</div>
+                            <div class="small text-muted" style="font-size: 0.75rem;">pcs quarantined</div>
+                        </div>
+                    </div>
+                    <div class="col-4" id="confirmInwardMissingBox">
+                        <div class="p-3 rounded-3 text-center border" style="background: #fffbeb; border-color: #fef3c7 !important;">
+                            <div class="small text-uppercase fw-bold mb-1" style="font-size: 0.70rem; color: #b45309;">Missing</div>
+                            <div class="fs-3 fw-bold" style="color: #92400e;" id="confirmInwardMissingCount">0</div>
+                            <div class="small text-muted" style="font-size: 0.75rem;">pcs discrepancy</div>
                         </div>
                     </div>
                 </div>
+
+                <div class="small text-muted d-flex align-items-start gap-2" id="confirmInwardModalSubtitle">
+                    <i class="bi bi-info-circle mt-0.5"></i>
+                    <span>Damaged pieces will not be added to sellable stock. Missing pieces will be recorded in the discrepancy ledger.</span>
+                </div>
             </div>
-            <div class="modal-footer bg-white py-2.5 px-4 d-flex justify-content-end gap-2">
-                <button type="button" class="btn btn-light border px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success px-4 fw-bold" id="btnConfirmInwardSubmit" onclick="confirmInwardModalSubmit()">
-                    <i class="bi bi-check2-circle me-1"></i> Confirm &amp; Add to Stock
+            <div class="modal-footer bg-white py-3 px-4 border-top d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary px-3 fw-semibold" data-bs-dismiss="modal">Review Scans</button>
+                <button type="button" class="btn btn-success px-4 fw-bold d-flex align-items-center gap-2" id="btnConfirmInwardSubmit" style="background: #16a34a; border-color: #16a34a;" onclick="confirmInwardModalSubmit()">
+                    <i class="bi bi-check-circle"></i> Confirm &amp; Credit Stock
                 </button>
             </div>
         </div>
@@ -766,25 +790,28 @@ function validateCreditSubmission(e) {
 
     e.preventDefault();
     const titleEl = document.getElementById('confirmInwardModalTitle');
-    const subEl = document.getElementById('confirmInwardModalSubtitle');
     const vBox = document.getElementById('confirmInwardVerifiedBox');
     const dBox = document.getElementById('confirmInwardDamagedBox');
+    const mBox = document.getElementById('confirmInwardMissingBox');
     const vCountEl = document.getElementById('confirmInwardVerifiedCount');
     const dCountEl = document.getElementById('confirmInwardDamagedCount');
+    const mCountEl = document.getElementById('confirmInwardMissingCount');
+    const pendingTotal = parseInt(document.getElementById('statPending')?.textContent?.replace(/,/g, '') || '0', 10) || 0;
 
     if (isDamageTransfer) {
         if (titleEl) titleEl.textContent = 'Confirm Damage Inward';
-        if (subEl) subEl.textContent = 'Damaged pieces will be added to quarantined stock at this concern:';
         if (vBox) vBox.classList.add('d-none');
+        if (mBox) mBox.classList.add('d-none');
         if (dBox) dBox.className = 'col-12';
-        if (dCountEl) dCountEl.textContent = `${vQty + dQty} pcs`;
+        if (dCountEl) dCountEl.textContent = `${vQty + dQty}`;
     } else {
-        if (titleEl) titleEl.textContent = 'Confirm Inward Acceptance';
-        if (subEl) subEl.textContent = 'Review the pieces below before crediting stock to warehouse inventory:';
+        if (titleEl) titleEl.textContent = 'Confirm Warehouse Inward';
         if (vBox) vBox.classList.remove('d-none');
-        if (dBox) dBox.className = 'col-6';
-        if (vCountEl) vCountEl.textContent = `+${vQty} pcs`;
-        if (dCountEl) dCountEl.textContent = `${dQty} pcs`;
+        if (mBox) mBox.classList.remove('d-none');
+        if (dBox) dBox.className = 'col-4';
+        if (vCountEl) vCountEl.textContent = `${vQty}`;
+        if (dCountEl) dCountEl.textContent = `${dQty}`;
+        if (mCountEl) mCountEl.textContent = `${pendingTotal}`;
     }
 
     const modalEl = document.getElementById('modalConfirmInwardAcceptance');
