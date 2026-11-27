@@ -37,6 +37,12 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
 ?>
 
 <div class="container-fluid px-0 pos-billing-overview">
+    <?php
+    $exportUrl = \App\Core\Controller::url('/m/billing/export');
+    $currentModule = 'billing';
+    $prefix = 'pos_ov_exp';
+    include __DIR__ . '/../partials/export_card.php';
+    ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <div class="text-secondary small mb-1">
