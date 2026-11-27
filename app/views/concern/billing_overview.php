@@ -269,7 +269,12 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
                                 <td class="text-end fw-bold">₹<?= number_format((float)$invoice['net_amount'], 2) ?></td>
                                 <td><span class="badge bg-primary-subtle text-primary text-uppercase"><?= htmlspecialchars($formatPaymentMethod($invoice['payment_method']), ENT_QUOTES, 'UTF-8') ?></span></td>
                                 <td><span class="badge bg-<?= $statusClass ?>-subtle text-<?= $statusClass ?> text-uppercase"><?= htmlspecialchars($paymentStatus, ENT_QUOTES, 'UTF-8') ?></span></td>
-                                <td class="text-end pe-3">
+                                <td class="text-end pe-3 text-nowrap">
+                                    <?php if ($isCompanyBill && (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('outward', 'create'))): ?>
+                                        <a href="<?= htmlspecialchars(\App\Core\Controller::url('/production/outward?pos_invoice_id=' . (int)$invoice['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-sm btn-outline-success me-1" title="Send Company Bill to Outward">
+                                            <i class="bi bi-truck"></i><span class="d-none d-lg-inline ms-1">Outward</span>
+                                        </a>
+                                    <?php endif; ?>
                                     <a href="<?= htmlspecialchars(\App\Core\Controller::url('/m/billing/create?print_id=' . (int)$invoice['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-sm btn-outline-primary" title="Open and print bill">
                                         <i class="bi bi-printer"></i><span class="d-none d-lg-inline ms-1">Print</span>
                                     </a>

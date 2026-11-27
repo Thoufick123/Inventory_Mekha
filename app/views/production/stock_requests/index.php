@@ -69,6 +69,7 @@ $sourceCid         = (int)($sourceCid ?? 0);
                     <select name="status" class="form-select form-select-sm">
                         <option value="">-- All Statuses --</option>
                         <option value="PENDING" <?= ($status ?? '') === 'PENDING' ? 'selected' : '' ?>>Pending Approval</option>
+                        <option value="REPLIED" <?= ($status ?? '') === 'REPLIED' ? 'selected' : '' ?>>Replied</option>
                         <option value="APPROVED" <?= ($status ?? '') === 'APPROVED' ? 'selected' : '' ?>>Approved</option>
                         <option value="DISPATCHED" <?= ($status ?? '') === 'DISPATCHED' ? 'selected' : '' ?>>Dispatched (In-Transit)</option>
                         <option value="IN_TRANSIT" <?= ($status ?? '') === 'IN_TRANSIT' ? 'selected' : '' ?>>In-Transit</option>
@@ -108,17 +109,19 @@ $sourceCid         = (int)($sourceCid ?? 0);
                 <table class="table table-hover align-middle mb-0 table-custom">
                     <thead class="table-light">
                         <tr class="text-uppercase small text-secondary">
-                            <th style="min-width: 140px;">REQUEST #</th>
-                            <th style="min-width: 180px;">SOURCE WAREHOUSE</th>
-                            <th style="min-width: 140px;">REQUESTED BY</th>
-                            <th style="min-width: 110px;" class="text-center">STATUS</th>
-                            <th style="min-width: 120px;" class="text-end">ACTION</th>
+                            <th style="min-width: 130px;">REQUEST #</th>
+                            <th style="min-width: 180px;">SOURCE &rarr; DESTINATION</th>
+                            <th style="min-width: 240px;">ITEMS &amp; QTY</th>
+                            <th style="min-width: 220px;">NOTES &amp; REPLIES</th>
+                            <th style="min-width: 130px;">REQUESTED BY</th>
+                            <th style="min-width: 100px;" class="text-center">STATUS</th>
+                            <th style="min-width: 100px;" class="text-end">ACTION</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($receivedRequests)): ?>
                             <tr>
-                                <td colspan="5" class="text-center py-5">
+                                <td colspan="7" class="text-center py-5">
                                     <div class="my-4">
                                         <i class="bi bi-shop text-muted" style="font-size: 3.5rem; opacity: 0.4;"></i>
                                         <h5 class="fw-bold text-secondary mt-3 mb-1">No Shop Requests Found</h5>
@@ -128,8 +131,12 @@ $sourceCid         = (int)($sourceCid ?? 0);
                             </tr>
                         <?php else: ?>
                             <?php foreach ($receivedRequests as $req): 
-                                $badgeClass = match ($req['status']) {
-                                    'RECEIVED'   => 'bg-success',
+                                $reqItems = $req['items'] ?? [];
+                                $reqReplies = array_slice($req['replies'] ?? [], 0, 1);
+                                $hasReplied = !empty($reqReplies) || strtoupper((string)$req['status']) === 'REPLIED';
+                                $displayStatus = ($hasReplied && strtoupper((string)$req['status']) === 'PENDING') ? 'REPLIED' : $req['status'];
+                                $badgeClass = match ($displayStatus) {
+                                    'RECEIVED', 'REPLIED' => 'bg-success',
                                     'DISPATCHED', 'IN_TRANSIT' => 'bg-info text-dark',
                                     'SHORTAGE'   => 'bg-warning text-dark',
                                     'APPROVED'   => 'bg-primary',
@@ -140,39 +147,76 @@ $sourceCid         = (int)($sourceCid ?? 0);
                             ?>
                                 <tr>
                                     <td>
-                                        <a href="<?= \App\Core\Controller::url('/production/stock-requests/view/' . $req['id']) ?>" class="fw-bold font-monospace text-primary text-decoration-none">
-                                            <?= htmlspecialchars($req['request_no']) ?>
-                                        </a>
+                                        <div class="fw-bold font-monospace text-primary"><?= htmlspecialchars($req['request_no']) ?></div>
                                         <small class="d-block text-muted"><?= htmlspecialchars($req['priority'] ?? 'NORMAL') ?></small>
                                     </td>
                                     <td>
-                                        <div class="fw-semibold text-dark"><?= htmlspecialchars($req['source_concern_name'] ?? 'Central Warehouse') ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($req['from_location_type'] ?? 'WAREHOUSE') ?></small>
+                                        <div class="small">
+                                            <span class="text-muted">From:</span>
+                                            <span class="fw-semibold text-dark"><?= htmlspecialchars($req['source_concern_name'] ?? 'Central Warehouse') ?></span>
+                                        </div>
+                                        <div class="small mt-1">
+                                            <span class="text-muted">To:</span>
+                                            <span class="fw-semibold text-dark"><?= htmlspecialchars($req['destination_concern_name'] ?? 'Destination') ?></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <?php if (empty($reqItems)): ?>
+                                            <span class="text-muted small">—</span>
+                                        <?php else: ?>
+                                            <div class="d-flex flex-column gap-1">
+                                                <?php foreach ($reqItems as $it): ?>
+                                                    <div class="small border-bottom pb-1">
+                                                        <span class="fw-semibold text-dark"><?= htmlspecialchars($it['variant_name']) ?></span>
+                                                        <span class="text-muted font-monospace">(<?= htmlspecialchars($it['product_code']) ?><?= !empty($it['size']) ? ' • ' . htmlspecialchars($it['size']) : '' ?>)</span>
+                                                        <div class="d-flex gap-2 mt-0.5">
+                                                            <span class="badge bg-light text-dark border">Avail: <?= number_format((float)($it['live_source_available'] ?? 0), 2) ?></span>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <div class="small text-dark">
+                                            <span class="text-muted fw-semibold">Note:</span>
+                                            <?= trim((string)($req['notes'] ?? '')) !== '' ? nl2br(htmlspecialchars($req['notes'])) : '<span class="text-muted">—</span>' ?>
+                                        </div>
+                                        <?php if (!empty($reqReplies)): ?>
+                                            <div class="mt-1 pt-1 border-top d-flex flex-column gap-1">
+                                                <?php foreach ($reqReplies as $rep): ?>
+                                                    <div class="small bg-light rounded px-2 py-1 border">
+                                                        <span class="badge bg-primary me-1" style="font-size: 0.65rem;">REPLY</span>
+                                                        <span class="text-dark"><?= nl2br(htmlspecialchars($rep['notes'])) ?></span>
+                                                        <div class="text-muted" style="font-size: 0.7rem;">
+                                                            <?= htmlspecialchars($rep['actor_name'] ?? 'Staff') ?> &bull; <?= date('d M Y, h:i A', strtotime($rep['created_at'])) ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['creator_name'] ?? 'Master Super Admin') ?></div>
                                         <small class="text-muted"><?= date('d M Y', strtotime($req['created_at'])) ?></small>
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge <?= $badgeClass ?> px-2 py-1"><?= htmlspecialchars($req['status']) ?></span>
+                                        <span class="badge <?= $badgeClass ?> px-2 py-1"><?= htmlspecialchars($displayStatus) ?></span>
                                     </td>
                                     <td class="text-end">
-                                        <div class="btn-group btn-group-sm">
-                                            <a href="<?= \App\Core\Controller::url('/production/stock-requests/view/' . $req['id']) ?>" class="btn btn-outline-primary" title="View Details">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <?php if (\App\Core\Auth::can('request', 'edit') && in_array($req['status'], ['DISPATCHED', 'IN_TRANSIT'], true)): ?>
-                                                <button type="button" class="btn btn-success" title="Confirm Receipt" 
-                                                        onclick="openQuickReceive(<?= $req['id'] ?>, '<?= htmlspecialchars($req['request_no']) ?>', <?= (float)$req['in_transit_qty'] ?: (float)$req['dispatched_qty'] ?>)">
-                                                    <i class="bi bi-box-arrow-in-down"></i> Receive
-                                                </button>
-                                            <?php endif; ?>
-                                            <?php if (!empty($req['dispatch_challan_no'])): ?>
-                                                <a href="<?= \App\Core\Controller::url('/production/stock-requests/print/' . $req['id']) ?>" target="_blank" class="btn btn-outline-secondary" title="Print Challan">
-                                                    <i class="bi bi-printer"></i>
-                                                </a>
-                                            <?php endif; ?>
-                                        </div>
+                                        <?php if ($hasReplied): ?>
+                                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                                                <i class="bi bi-check2-circle me-1"></i> Replied
+                                            </span>
+                                        <?php elseif (!in_array($req['status'], ['CANCELLED', 'REJECTED'], true)): ?>
+                                            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold"
+                                                    onclick="openReplyModal(<?= (int)$req['id'] ?>, '<?= htmlspecialchars($req['request_no'], ENT_QUOTES) ?>')"
+                                                    title="Reply / Add Staff Notes">
+                                                <i class="bi bi-reply me-1"></i> Reply
+                                            </button>
+                                        <?php else: ?>
+                                            <span class="text-muted small">—</span>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -205,11 +249,11 @@ $sourceCid         = (int)($sourceCid ?? 0);
                 <table class="table table-hover align-middle mb-0 table-custom">
                     <thead class="table-light">
                         <tr class="text-uppercase small text-secondary">
-                            <th style="min-width: 140px;">REQUEST #</th>
-                            <th style="min-width: 180px;">DESTINATION CONCERN</th>
-                            <th style="min-width: 140px;">REQUESTED BY</th>
-                            <th style="min-width: 110px;" class="text-center">STATUS</th>
-                            <th style="min-width: 120px;" class="text-end">ACTION</th>
+                            <th style="min-width: 130px;">REQUEST #</th>
+                            <th style="min-width: 170px;">DESTINATION CONCERN</th>
+                            <th style="min-width: 240px;">ITEMS &amp; QTY</th>
+                            <th style="min-width: 220px;">NOTES &amp; REPLIES</th>
+                            <th style="min-width: 130px;">REQUESTED BY</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -229,46 +273,57 @@ $sourceCid         = (int)($sourceCid ?? 0);
                                 </td>
                             </tr>
                         <?php else: ?>
-                            <?php foreach ($sentRequests as $req): 
-                                $badgeClass = match ($req['status']) {
-                                    'RECEIVED'   => 'bg-success',
-                                    'DISPATCHED', 'IN_TRANSIT' => 'bg-info text-dark',
-                                    'SHORTAGE'   => 'bg-warning text-dark',
-                                    'APPROVED'   => 'bg-primary',
-                                    'REJECTED'   => 'bg-secondary',
-                                    'CANCELLED'  => 'bg-danger',
-                                    default      => 'bg-dark'
-                                };
+                            <?php foreach ($sentRequests as $req):
+                                $reqItems = $req['items'] ?? [];
+                                $reqReplies = array_slice($req['replies'] ?? [], 0, 1);
                             ?>
                                 <tr>
                                     <td>
-                                        <a href="<?= \App\Core\Controller::url('/production/stock-requests/view/' . $req['id']) ?>" class="fw-bold font-monospace text-primary text-decoration-none">
-                                            <?= htmlspecialchars($req['request_no']) ?>
-                                        </a>
+                                        <div class="fw-bold font-monospace text-primary"><?= htmlspecialchars($req['request_no']) ?></div>
                                         <small class="d-block text-muted"><?= htmlspecialchars($req['priority'] ?? 'NORMAL') ?></small>
                                     </td>
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['destination_concern_name'] ?? 'Main Retail Store') ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($req['to_location_type'] ?? 'SHOP') ?></small>
+                                    </td>
+                                    <td>
+                                        <?php if (empty($reqItems)): ?>
+                                            <span class="text-muted small">—</span>
+                                        <?php else: ?>
+                                            <div class="d-flex flex-column gap-1">
+                                                <?php foreach ($reqItems as $it): ?>
+                                                    <div class="small border-bottom pb-1">
+                                                        <span class="fw-semibold text-dark"><?= htmlspecialchars($it['variant_name']) ?></span>
+                                                        <span class="text-muted font-monospace">(<?= htmlspecialchars($it['product_code']) ?><?= !empty($it['size']) ? ' • ' . htmlspecialchars($it['size']) : '' ?>)</span>
+                                                        <div class="d-flex gap-2 mt-0.5">
+                                                            <span class="badge bg-light text-dark border">Avail: <?= number_format((float)($it['live_source_available'] ?? 0), 2) ?></span>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <div class="small text-dark">
+                                            <span class="text-muted fw-semibold">Note:</span>
+                                            <?= trim((string)($req['notes'] ?? '')) !== '' ? nl2br(htmlspecialchars($req['notes'])) : '<span class="text-muted">—</span>' ?>
+                                        </div>
+                                        <?php if (!empty($reqReplies)): ?>
+                                            <div class="mt-1 pt-1 border-top d-flex flex-column gap-1">
+                                                <?php foreach ($reqReplies as $rep): ?>
+                                                    <div class="small bg-light rounded px-2 py-1 border">
+                                                        <span class="badge bg-primary me-1" style="font-size: 0.65rem;">REPLY</span>
+                                                        <span class="text-dark"><?= nl2br(htmlspecialchars($rep['notes'])) ?></span>
+                                                        <div class="text-muted" style="font-size: 0.7rem;">
+                                                            <?= htmlspecialchars($rep['actor_name'] ?? 'Staff') ?> &bull; <?= date('d M Y, h:i A', strtotime($rep['created_at'])) ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['creator_name'] ?? 'Master Super Admin') ?></div>
                                         <small class="text-muted"><?= date('d M Y', strtotime($req['created_at'])) ?></small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge <?= $badgeClass ?> px-2 py-1"><?= htmlspecialchars($req['status']) ?></span>
-                                    </td>
-                                    <td class="text-end">
-                                        <div class="btn-group btn-group-sm">
-                                            <a href="<?= \App\Core\Controller::url('/production/stock-requests/view/' . $req['id']) ?>" class="btn btn-outline-primary" title="View Details">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <?php if (!empty($req['dispatch_challan_no'])): ?>
-                                                <a href="<?= \App\Core\Controller::url('/production/stock-requests/print/' . $req['id']) ?>" target="_blank" class="btn btn-outline-secondary" title="Print Challan">
-                                                    <i class="bi bi-printer"></i>
-                                                </a>
-                                            <?php endif; ?>
-                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -370,6 +425,39 @@ $sourceCid         = (int)($sourceCid ?? 0);
     </div>
 </div>
 <?php endif; ?>
+
+<!-- ======================================================= -->
+<!-- STAFF REPLY / NOTES MODAL                               -->
+<!-- ======================================================= -->
+<div class="modal fade" id="modalReplyRequest" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <form method="POST" action="<?= \App\Core\Controller::url('/production/stock-requests/reply') ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
+                <input type="hidden" name="request_id" id="replyRequestId" value="">
+                <input type="hidden" name="redirect_tab" value="receive">
+
+                <div class="modal-header border-0 pb-0 pt-4 px-4">
+                    <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
+                        <i class="bi bi-reply text-primary me-2 fs-4"></i>
+                        Staff Reply / Notes &mdash; <span class="font-monospace text-primary ms-1" id="replyReqNoText">-</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body px-4 py-3">
+                    <label class="form-label fw-bold small text-uppercase text-secondary">Reply / Notes <span class="text-danger">*</span></label>
+                    <textarea name="reply_notes" id="replyNotesInput" rows="3" class="form-control" placeholder="Enter staff reply or notes..." required></textarea>
+                </div>
+                <div class="modal-footer border-0 px-4 pb-4 pt-2 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                        <i class="bi bi-send me-1"></i> Save Reply
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- ======================================================= -->
 <!-- QUICK RECEIVE MODAL                                     -->
@@ -524,6 +612,14 @@ function removeIndentRow(btn) {
     if (tbody && tbody.children.length === 0 && notice) {
         notice.style.display = 'block';
     }
+}
+
+// Staff Reply modal handler
+function openReplyModal(id, reqNo) {
+    document.getElementById('replyRequestId').value = id;
+    document.getElementById('replyReqNoText').textContent = reqNo;
+    document.getElementById('replyNotesInput').value = '';
+    new bootstrap.Modal(document.getElementById('modalReplyRequest')).show();
 }
 
 // Quick Receive handler

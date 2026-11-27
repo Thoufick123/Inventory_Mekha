@@ -148,7 +148,6 @@ $router->get('/warehouse/inward/pieces/{id}', [InwardController::class, 'piecesJ
 $router->get('/m/inward/export', [InwardController::class, 'exportInward'], 'inward', 'export');
 $router->get('/warehouse/inward/export', [InwardController::class, 'exportInward'], 'inward', 'export');
 $router->get('/production/inward/export', [InwardController::class, 'exportInward'], 'inward', 'export');
-$router->post('/m/inward/store', [InwardController::class, 'store'], 'inward', 'add');
 $router->post('/m/inward/update', [InwardController::class, 'update'], 'inward', 'edit');
 $router->post('/m/inward/delete', [InwardController::class, 'delete'], 'inward', 'delete');
 
@@ -220,6 +219,7 @@ $router->get('/production/stock-requests/export', [ProductionStockRequestControl
 $router->get('/production/stock-requests/create', [ProductionStockRequestController::class, 'create'], 'request', 'add');
 $router->post('/production/stock-requests/store', [ProductionStockRequestController::class, 'store'], 'request', 'add');
 $router->get('/production/stock-requests/view/{id}', [ProductionStockRequestController::class, 'view'], 'request', 'view');
+$router->post('/production/stock-requests/reply', [ProductionStockRequestController::class, 'reply'], 'request', 'view');
 $router->post('/production/stock-requests/send', [ProductionStockRequestController::class, 'sendStocks'], 'request', 'edit');
 $router->post('/production/stock-requests/receive', [ProductionStockRequestController::class, 'confirmReceived'], 'request', 'edit');
 $router->post('/production/stock-requests/reject', [ProductionStockRequestController::class, 'reject'], 'request', 'edit');

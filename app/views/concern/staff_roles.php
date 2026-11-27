@@ -37,6 +37,11 @@ $activeTab = $activeTab ?? 'staff';
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('staff', 'add')): ?>
+            <a href="<?= \App\Core\Controller::url('/m/staff/roles/create') ?>" class="btn btn-primary shadow-sm fw-semibold">
+                <i class="bi bi-plus-lg me-1"></i> Create Role
+            </a>
+            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/staff') ?>" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-people-fill me-1"></i> View All Staff
             </a>
@@ -120,187 +125,7 @@ $activeTab = $activeTab ?? 'staff';
     <div class="main-content-wrapper">
         <?php if ($activeTab !== 'matrix'): ?>
         <!-- ======================================================== -->
-        <!-- VIEW 1: STAFF DIRECTORY & ASSIGNED ROLES -->
-        <!-- ======================================================== -->
-            <!-- Filter & Search Toolbar -->
-            <div class="card border-0 shadow-sm rounded-3 mb-4">
-                <div class="card-body p-3">
-                    <form method="GET" action="<?= \App\Core\Controller::url('/m/staff/roles') ?>" class="row g-2 align-items-center">
-                        <input type="hidden" name="tab" value="staff">
-                        <div class="col-md-5">
-                            <div class="input-group">
-                                <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                                <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Search staff name, code, phone, designation..." value="<?= htmlspecialchars($search ?? '') ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <select name="concern_id" class="form-select" onchange="this.form.submit()">
-                                <option value="">-- Filter by Home Concern (All) --</option>
-                                <?php foreach ($allConcerns as $c): ?>
-                                    <option value="<?= $c['id'] ?>" <?= ($concernFilter == $c['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code']) ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-3 d-flex gap-2">
-                            <button type="submit" class="btn btn-primary px-3">
-                                <i class="bi bi-funnel me-1"></i> Filter
-                            </button>
-                            <?php if ($concernFilter || $search): ?>
-                                <a href="<?= \App\Core\Controller::url('/m/staff/roles?tab=staff') ?>" class="btn btn-outline-secondary">
-                                    <i class="bi bi-x-circle me-1"></i> Reset
-                                </a>
-                            <?php endif; ?>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Staff List Table -->
-            <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="bg-light text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">
-                            <tr>
-                                <th class="ps-4 py-3">Staff Personnel</th>
-                                <th class="py-3">Home Concern</th>
-                                <th class="py-3">Assigned Role</th>
-                                <th class="py-3">Designation / Dept</th>
-                                <th class="py-3">Login Account</th>
-                                <th class="py-3">Authorized Locations</th>
-                                <th class="text-end pe-4 py-3">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody class="border-top-0">
-                            <?php if (empty($staffMembers)): ?>
-                                <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
-                                        <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
-                                        No staff members found matching criteria.
-                                    </td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($staffMembers as $stf): 
-                                    $userId = (int)($stf['user_id'] ?? 0);
-                                    $assignedConcerns = $userId && isset($userConcernsMap[$userId]) ? $userConcernsMap[$userId] : [];
-                                    $assignedRoleName = $stf['role_name'] ?? null;
-                                    $hasLogin = !empty($stf['user_id']) && !empty($stf['user_email']);
-                                    $isMulti = count($assignedConcerns) > 1;
-                                ?>
-                                    <tr>
-                                        <td class="ps-4">
-                                            <div class="d-flex align-items-center gap-3">
-                                                <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold shadow-xs" 
-                                                     style="width: 38px; height: 38px; background: #3b82f6; font-size: 0.85rem; flex-shrink: 0;">
-                                                    <?= strtoupper(substr($stf['name'] ?? 'S', 0, 1)) ?>
-                                                </div>
-                                                <div>
-                                                    <div class="fw-bold text-dark"><?= htmlspecialchars($stf['name']) ?></div>
-                                                    <small class="text-muted font-monospace"><?= htmlspecialchars($stf['staff_code']) ?></small>
-                                                    <?php if (!empty($stf['phone'])): ?>
-                                                        <small class="text-secondary">&bull; <?= htmlspecialchars($stf['phone']) ?></small>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-light text-dark border font-monospace">
-                                                <?= htmlspecialchars($stf['concern_code']) ?>
-                                            </span>
-                                            <small class="d-block text-secondary mt-0.5"><?= htmlspecialchars($stf['concern_name']) ?></small>
-                                        </td>
-                                        <td>
-                                            <?php if (!empty($stf['role_name'])): ?>
-                                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1.5 fw-semibold d-inline-flex align-items-center gap-1" style="font-size: 0.76rem;">
-                                                    <i class="bi bi-shield-check text-primary"></i> <?= htmlspecialchars($stf['role_name']) ?>
-                                                </span>
-                                            <?php else: ?>
-                                                <span class="badge bg-light text-muted border px-2.5 py-1.5 d-inline-flex align-items-center gap-1" style="font-size: 0.74rem;">
-                                                    <i class="bi bi-shield-x text-secondary"></i> No Role Assigned
-                                                </span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <div class="fw-semibold text-dark"><?= htmlspecialchars($stf['designation'] ?: 'Staff') ?></div>
-                                            <small class="text-muted"><?= htmlspecialchars($stf['department'] ?: 'General') ?></small>
-                                        </td>
-                                        <td>
-                                            <?php if ($hasLogin): ?>
-                                                <div class="d-flex align-items-center gap-1.5">
-                                                    <i class="bi bi-check-circle-fill text-success small"></i>
-                                                    <span class="small fw-semibold text-dark"><?= htmlspecialchars($stf['user_email']) ?></span>
-                                                </div>
-                                                <small class="text-success fw-semibold">Login Active</small>
-                                            <?php else: ?>
-                                                <span class="badge bg-secondary bg-opacity-10 text-secondary border">No Login Account</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if (!empty($assignedConcerns)): ?>
-                                                <div class="d-flex flex-wrap gap-1 align-items-center" style="max-width: 260px;">
-                                                    <?php foreach ($assignedConcerns as $ac): ?>
-                                                        <span class="badge <?= $ac['id'] == $stf['concern_id'] ? 'bg-primary' : 'bg-dark' ?> font-monospace" style="font-size: 0.72rem;" title="<?= htmlspecialchars($ac['name']) ?>">
-                                                            <?= htmlspecialchars($ac['code']) ?>
-                                                        </span>
-                                                    <?php endforeach; ?>
-                                                    <?php if ($isMulti): ?>
-                                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size: 0.72rem;">
-                                                            <i class="bi bi-check-all me-0.5"></i> <?= count($assignedConcerns) ?> Units
-                                                        </span>
-                                                    <?php endif; ?>
-                                                </div>
-                                            <?php else: ?>
-                                                <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.72rem;">
-                                                    <?= htmlspecialchars($stf['concern_code']) ?> (Home Only)
-                                                </span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="text-end pe-4">
-                                            <div class="d-inline-flex align-items-center gap-1.5 flex-wrap justify-content-end">
-                                                <?php
-                                                    $staffPayload = array_merge($stf, [
-                                                        'email' => !empty($stf['email']) ? $stf['email'] : ($stf['user_email'] ?? ''),
-                                                    ]);
-                                                    $staffJson = json_encode($staffPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
-                                                ?>
-                                                <!-- 1. View Staff Profile -->
-                                                <button type="button" class="btn btn-xs btn-outline-info" onclick='openViewStaffModal(<?= $staffJson ?>)' title="View Staff Profile">
-                                                    <i class="bi bi-eye"></i>
-                                                </button>
-
-                                                <!-- 2. Edit Staff Details & CRUD Permissions -->
-                                                <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
-                                                <button type="button" class="btn btn-xs btn-outline-primary" onclick='openEditStaffModal(<?= $staffJson ?>)' title="Edit Staff & CRUD Permissions">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                <?php endif; ?>
-
-                                                <!-- 4. Delete Staff -->
-                                                <?php if (\App\Core\Auth::can('staff', 'delete')): ?>
-                                                <form action="<?= \App\Core\Controller::url('/m/staff/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete staff member <?= htmlspecialchars(addslashes($stf['name'])) ?> (<?= htmlspecialchars($stf['staff_code']) ?>)?');">
-                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                                                    <input type="hidden" name="id" value="<?= $stf['id'] ?>">
-                                                    <input type="hidden" name="return_to" value="roles">
-                                                    <input type="hidden" name="return_concern_id" value="<?= htmlspecialchars((string)($concernFilter ?? '')) ?>">
-                                                    <button type="submit" class="btn btn-xs btn-outline-danger" title="Delete Staff">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </form>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- ======================================================== -->
-        <!-- VIEW 2: CONFIGURED ROLES DIRECTORY (HOW MANY ROLES ASSIGNED) -->
+        <!-- CONFIGURED ROLES DIRECTORY                               -->
         <!-- ======================================================== -->
         <div class="card border-0 shadow-sm rounded-3 overflow-hidden mb-4">
                 <div class="card-header bg-white py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3 border-bottom">
@@ -315,6 +140,11 @@ $activeTab = $activeTab ?? 'staff';
                             Listing of all <?= count($allRoles) ?> created roles, their access scope, and how many staff members are assigned to each role.
                         </p>
                     </div>
+                    <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('staff', 'add')): ?>
+                    <a href="<?= \App\Core\Controller::url('/m/staff/roles/create') ?>" class="btn btn-sm btn-primary fw-semibold shadow-sm">
+                        <i class="bi bi-plus-lg me-1"></i> Create Role
+                    </a>
+                    <?php endif; ?>
                 </div>
 
                 <div class="table-responsive">

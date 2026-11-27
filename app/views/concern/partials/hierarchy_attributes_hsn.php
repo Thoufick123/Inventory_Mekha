@@ -9,12 +9,17 @@ $canDeleteHierarchy = \App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can($hie
 $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::csrfToken());
 ?>
 <style>
+    .compact-hierarchy-table {
+        table-layout: auto;
+        width: 100%;
+    }
     .compact-hierarchy-table > :not(caption) > * > * {
-        padding: 0.35rem 0.5rem;
+        padding: 0.3rem 0.35rem;
         vertical-align: middle;
     }
     .compact-hierarchy-table tbody .badge {
-        font-size: 0.68rem;
+        font-size: 0.66rem;
+        white-space: normal;
     }
 </style>
 <div class="row g-3">
@@ -34,14 +39,13 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                 <?php endif; ?>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
                     <table class="table table-sm table-bordered table-hover align-middle mb-0 small compact-hierarchy-table">
-                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.70rem;">
+                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.66rem;">
                             <tr>
                                 <th>Category</th>
                                 <th class="text-center">GST</th>
-                                <th class="text-center">Complementary</th>
-                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
+                                <th class="text-center" title="Complementary">Free</th>
+                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 32px;">Del</th><?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
@@ -81,7 +85,6 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                             <?php endif; ?>
                         </tbody>
                     </table>
-                </div>
             </div>
         </div>
     </div>
@@ -101,14 +104,13 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                 <?php endif; ?>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
                     <table class="table table-sm table-bordered table-hover align-middle mb-0 small compact-hierarchy-table">
-                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.70rem;">
+                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.66rem;">
                             <tr>
                                 <th>Subcategory</th>
                                 <th class="text-center">Code</th>
-                                <th class="text-center">Complementary</th>
-                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
+                                <th class="text-center" title="Complementary">Free</th>
+                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 32px;">Del</th><?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
@@ -146,7 +148,6 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                             <?php endif; ?>
                         </tbody>
                     </table>
-                </div>
             </div>
         </div>
     </div>
@@ -166,14 +167,13 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                 <?php endif; ?>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
                     <table class="table table-sm table-bordered table-hover align-middle mb-0 small compact-hierarchy-table">
-                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.70rem;">
+                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.66rem;">
                             <tr>
                                 <th>Sub-Subcategory</th>
                                 <th class="text-center">Code</th>
-                                <th class="text-center">Complementary</th>
-                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
+                                <th class="text-center" title="Complementary">Free</th>
+                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 32px;">Del</th><?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
@@ -211,7 +211,6 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                             <?php endif; ?>
                         </tbody>
                     </table>
-                </div>
             </div>
         </div>
     </div>

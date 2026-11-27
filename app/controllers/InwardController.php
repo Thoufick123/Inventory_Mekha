@@ -273,34 +273,6 @@ class InwardController extends Controller {
         }
         unset($batch);
 
-        // Exclude transfer receipts incorrectly assigned to a concern other than the outward destination.
-        $sql = "SELECT i.*, s.name AS supplier_name, pb.bill_no, u.name AS user_name,
-                       con.name AS concern_name, con.code AS concern_code,
-                       fc.name AS from_concern_name, fc.code AS from_concern_code,
-                       pu.name AS production_unit_name, pu.code AS production_unit_code,
-                       o.outward_no,
-                       (SELECT COUNT(*) FROM inward_items ii WHERE ii.inward_id = i.id) AS items_count,
-                       (SELECT COALESCE(SUM(qty), 0) FROM inward_items ii WHERE ii.inward_id = i.id) AS total_qty,
-                       (SELECT COALESCE(SUM(accepted_qty), 0) FROM inward_items ii WHERE ii.inward_id = i.id) AS total_accepted_qty,
-                       (SELECT COALESCE(SUM(rejected_qty), 0) FROM inward_items ii WHERE ii.inward_id = i.id) AS total_rejected_qty
-                FROM inwards i
-                LEFT JOIN concerns con ON i.concern_id = con.id
-                LEFT JOIN concerns fc ON i.from_concern_id = fc.id
-                LEFT JOIN production_units pu ON i.production_unit_id = pu.id
-                LEFT JOIN outwards o ON i.outward_id = o.id
-                LEFT JOIN suppliers s ON i.supplier_id = s.id
-                LEFT JOIN purchase_bills pb ON i.purchase_bill_id = pb.id
-                LEFT JOIN users u ON i.created_by = u.id";
-        
-        $params = [];
-        $sql .= " WHERE (i.outward_id IS NULL OR i.concern_id = o.destination_concern_id)";
-        if ($activeScopeCid) {
-            $sql .= " AND i.concern_id = ?";
-            $params[] = $activeScopeCid;
-        }
-        $sql .= " ORDER BY i.id DESC";
-        $inwards = DB::fetchAll($sql, $params);
-
         $allConcerns = DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY name ASC");
 
         $unitSql = "SELECT id, name, code FROM production_units WHERE is_active = 1";
@@ -312,14 +284,6 @@ class InwardController extends Controller {
         $unitSql .= " ORDER BY name ASC";
         $productionUnits = DB::fetchAll($unitSql, $unitParams);
 
-        if ($activeScopeCid) {
-            $suppliers = DB::fetchAll("SELECT id, name FROM suppliers WHERE concern_id = ? AND status = 'active'", [$activeScopeCid]);
-            $variants  = DB::fetchAll("SELECT id, product_code, name, size, weight_unit FROM variants WHERE concern_id = ? AND status = 'active'", [$activeScopeCid]);
-        } else {
-            $suppliers = DB::fetchAll("SELECT id, name FROM suppliers WHERE status = 'active'");
-            $variants  = DB::fetchAll("SELECT id, product_code, name, size, weight_unit FROM variants WHERE status = 'active'");
-        }
-
         $this->render('concern/inward', [
             'pageTitle'              => 'Production Inward',
             'currentModule'          => 'inward',
@@ -330,10 +294,7 @@ class InwardController extends Controller {
             'warehouseStockPcsSum'   => $warehouseStockPcsSum,
             'totalDispatchesCount'   => $totalDispatchesCount,
             'totalDispatchedPcsSum'  => $totalDispatchedPcsSum,
-            'inwards'                => $inwards,
             'pendingTransfers'       => $inwardBatches,
-            'suppliers'              => $suppliers,
-            'variants'               => $variants,
             'allConcerns'            => $allConcerns,
             'productionUnits'        => $productionUnits,
             'selectedCid'            => $activeScopeCid,
@@ -1045,129 +1006,6 @@ class InwardController extends Controller {
             $this->redirect("/m/inward/scan/{$outwardId}");
             return;
         }
-    }
-
-    public function store(): void {
-        $this->validateCsrf();
-        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
-
-        if (!$cid) {
-            $this->flash('error', 'Please select a concern for this inward consignment.');
-            $this->redirect('/m/inward');
-            return;
-        }
-
-        $inwardType = strtolower(trim($_POST['inward_type'] ?? 'purchase'));
-        $outwardId  = !empty($_POST['outward_id']) ? (int)$_POST['outward_id'] : null;
-
-        if ($inwardType === 'transfer') {
-            if (!$outwardId) {
-                $this->flash('error', 'Select a valid outward shipment before receiving a transfer.');
-                $this->redirect('/m/inward');
-                return;
-            }
-            $this->flash('info', 'Use the inward verification scanner to receive inter-concern shipments.');
-            $this->redirect("/m/inward/scan/{$outwardId}");
-            return;
-        }
-        if ($inwardType !== 'purchase' || $outwardId) {
-            $this->flash('error', 'This form only accepts direct purchase inwards. Use the verification scanner for outward transfers.');
-            $this->redirect('/m/inward');
-            return;
-        }
-
-        $inwardDate = $_POST['inward_date'] ?: date('Y-m-d');
-        $location   = trim($_POST['location'] ?? 'Main Store');
-        $remarks    = trim($_POST['remarks'] ?? '');
-        $submittedItem = is_array($_POST['items'][0] ?? null) ? $_POST['items'][0] : [];
-        $submittedAcceptedQty = $_POST['accepted_qty'] ?? $submittedItem['accepted_qty'] ?? null;
-        $submittedRejectedQty = $_POST['rejected_qty'] ?? $submittedItem['rejected_qty'] ?? null;
-
-        DB::beginTransaction();
-        try {
-            $fromConcernId = null;
-            $supplierId = !empty($_POST['supplier_id']) ? (int)$_POST['supplier_id'] : null;
-            $variantId  = (int)($_POST['variant_id'] ?? $submittedItem['variant_id'] ?? 0);
-            $enteredQty = $_POST['qty'] ?? null;
-            if ($enteredQty === null && $submittedAcceptedQty !== null) {
-                $enteredQty = (float)$submittedAcceptedQty + (float)($submittedRejectedQty ?? 0);
-            }
-            $qty        = (float)($enteredQty ?? 0);
-            $unitCost   = (float)($_POST['unit_cost'] ?? 0);
-
-            if (!$variantId || $qty <= 0) {
-                throw new Exception("Please select a valid variant and specify a quantity greater than zero.");
-            }
-
-            $inwardNo = NumberSeries::getNext($cid, 'INWARD');
-            $grnNumber = !empty($_POST['grn_number']) ? trim($_POST['grn_number']) : Inward::generateGrnNumber($cid);
-            $productionUnitId = !empty($_POST['production_unit_id']) ? (int)$_POST['production_unit_id'] : null;
-            $warehouseId = !empty($_POST['warehouse_id']) ? (int)$_POST['warehouse_id'] : null;
-            $vehicleNumber = !empty($_POST['vehicle_number']) ? trim($_POST['vehicle_number']) : null;
-            $poId = !empty($_POST['po_id']) ? (int)$_POST['po_id'] : null;
-
-            $acceptedQty = $submittedAcceptedQty !== null ? (float)$submittedAcceptedQty : $qty;
-            $rejectedQty = $submittedRejectedQty !== null ? (float)$submittedRejectedQty : max(0.00, $qty - $acceptedQty);
-            if (
-                $acceptedQty < 0 ||
-                $rejectedQty < 0 ||
-                abs(($acceptedQty + $rejectedQty) - $qty) > 0.0001
-            ) {
-                throw new Exception('Accepted and rejected quantities must be non-negative and add up to the total received quantity.');
-            }
-            $rejectionReason = !empty($_POST['rejection_reason']) ? trim($_POST['rejection_reason']) : null;
-
-            DB::query(
-                "INSERT INTO inwards (concern_id, production_unit_id, inward_no, grn_number, po_id, outward_id, from_concern_id, inward_type, supplier_id, inward_date, location, warehouse_id, vehicle_number, received_by, status, remarks, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'VERIFIED', ?, ?, NOW())",
-                [$cid, $productionUnitId, $inwardNo, $grnNumber, $poId, $outwardId, $fromConcernId, $inwardType, $supplierId, $inwardDate, $location, $warehouseId, $vehicleNumber, Auth::id(), $remarks, Auth::id()]
-            );
-            $inwardId = (int)DB::lastInsertId();
-
-            DB::query(
-                "INSERT INTO inward_items (concern_id, inward_id, variant_id, qty, accepted_qty, rejected_qty, rejection_reason, unit_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                [$cid, $inwardId, $variantId, $qty, $acceptedQty, $rejectedQty, $rejectionReason, $unitCost]
-            );
-
-            // Single stock gateway: Double-entry credit for accepted items strictly to this concern
-            if ($acceptedQty > 0) {
-                StockService::move(
-                    $cid,
-                    $variantId,
-                    $location,
-                    $acceptedQty,
-                    0.00,
-                    'PURCHASE_INWARD',
-                    $inwardId,
-                    "GRN Inward receipt #{$grnNumber} (Inward {$inwardNo})" . ($remarks ? ": {$remarks}" : ""),
-                    Auth::id()
-                );
-            }
-            if ($rejectedQty > 0) {
-                DamageService::recordInwardDamage(
-                    $cid,
-                    $variantId,
-                    $inwardId,
-                    $rejectedQty,
-                    $rejectionReason ?: 'Damaged during inward inspection',
-                    $warehouseId ?: 1
-                );
-            }
-
-            // If this was from an outward, update outward status to 'received'
-            if ($outwardId) {
-                DB::query("UPDATE outwards SET status = 'received' WHERE id = ?", [$outwardId]);
-            }
-
-            DB::commit();
-
-            $this->flash('success', "Inward consignment '{$inwardNo}' recorded successfully and {$qty} units added to live stock!");
-        } catch (Exception $e) {
-            DB::rollBack();
-            $this->flash('error', 'Failed to record inward: ' . $e->getMessage());
-        }
-
-        $this->redirect('/m/inward');
     }
 
     public function update(): void {

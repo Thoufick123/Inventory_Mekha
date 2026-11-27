@@ -137,6 +137,7 @@ class ProductionStockRequestController extends Controller {
         }
         $receiveSql .= " ORDER BY psr.id DESC";
         $receivedRequests = DB::fetchAll($receiveSql, $receiveParams);
+        $this->attachItemsAndReplies($receivedRequests, $concernStocksMap);
 
         // Query Send list: Requisitions sent/indented by this concern
         $sendSql = $baseSelect;
@@ -166,6 +167,7 @@ class ProductionStockRequestController extends Controller {
         }
         $sendSql .= " ORDER BY psr.id DESC";
         $sentRequests = DB::fetchAll($sendSql, $sendParams);
+        $this->attachItemsAndReplies($sentRequests, $concernStocksMap);
 
         $this->render('production/stock_requests/index', [
             'pageTitle'        => 'Stock Requisitions & Inter-Concern Movement',
@@ -185,6 +187,57 @@ class ProductionStockRequestController extends Controller {
             'toDate'           => $toDate,
             'selectedCid'      => $cid,
         ]);
+    }
+
+    /**
+     * Attach line items (with live source available stock) and staff replies to requisition rows.
+     */
+    private function attachItemsAndReplies(array &$requests, array $concernStocksMap): void {
+        if (empty($requests)) {
+            return;
+        }
+        $reqIds = array_map(fn($r) => (int)$r['id'], $requests);
+        $inPlaceholders = implode(',', array_fill(0, count($reqIds), '?'));
+
+        $itemRows = DB::fetchAll(
+            "SELECT psri.request_id, psri.variant_id, psri.requested_qty,
+                    v.product_code, v.name AS variant_name, v.size
+             FROM production_stock_request_items psri
+             JOIN variants v ON psri.variant_id = v.id
+             WHERE psri.request_id IN ({$inPlaceholders})
+             ORDER BY psri.id ASC",
+            $reqIds
+        );
+        $itemsByReq = [];
+        foreach ($itemRows as $ir) {
+            $itemsByReq[(int)$ir['request_id']][] = $ir;
+        }
+
+        $replyRows = DB::fetchAll(
+            "SELECT psra.request_id, psra.notes, psra.created_at, u.name AS actor_name
+             FROM production_stock_request_audits psra
+             LEFT JOIN users u ON psra.actor_id = u.id
+             WHERE psra.request_id IN ({$inPlaceholders}) AND psra.action = 'REPLY'
+             ORDER BY psra.id ASC",
+            $reqIds
+        );
+        $repliesByReq = [];
+        foreach ($replyRows as $rr) {
+            $repliesByReq[(int)$rr['request_id']][] = $rr;
+        }
+
+        foreach ($requests as &$reqRow) {
+            $rId = (int)$reqRow['id'];
+            $srcCid = (int)($reqRow['source_concern_id'] ?: $reqRow['concern_id']);
+            $reqItems = $itemsByReq[$rId] ?? [];
+            foreach ($reqItems as &$ri) {
+                $ri['live_source_available'] = (float)($concernStocksMap[$srcCid][(int)$ri['variant_id']] ?? 0.0);
+            }
+            unset($ri);
+            $reqRow['items'] = $reqItems;
+            $reqRow['replies'] = $repliesByReq[$rId] ?? [];
+        }
+        unset($reqRow);
     }
 
     public function export(): void {
@@ -550,6 +603,73 @@ class ProductionStockRequestController extends Controller {
             'items'         => $items,
             'audits'        => $audits,
         ]);
+    }
+
+    /**
+     * Add a staff reply / note to a stock requisition.
+     */
+    public function reply(): void {
+        ModuleGuard::enforce('request', 'view');
+        if (!\App\Core\Csrf::verify($_POST['csrf_token'] ?? '')) {
+            $this->flash('error', 'Invalid security token.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        $id = (int)($_POST['request_id'] ?? 0);
+        $replyNotes = trim((string)($_POST['reply_notes'] ?? ''));
+        $redirectTab = trim((string)($_POST['redirect_tab'] ?? ''));
+        $cid = Auth::concernId();
+
+        $fallbackRedirect = $redirectTab === 'receive'
+            ? '/production/stock-requests?tab=receive'
+            : ($id > 0 ? "/production/stock-requests/view/{$id}" : '/production/stock-requests');
+
+        if ($id <= 0 || $replyNotes === '') {
+            $this->flash('error', 'Please enter a reply note before submitting.');
+            $this->redirect($fallbackRedirect);
+            return;
+        }
+
+        $request = DB::fetch(
+            "SELECT id FROM production_stock_requests
+             WHERE id = ? AND (concern_id = ? OR destination_concern_id = ? OR source_concern_id = ? OR ? IS NULL)",
+            [$id, $cid, $cid, $cid, $cid]
+        );
+        if (!$request) {
+            $this->flash('error', 'Stock requisition not found.');
+            $this->redirect('/production/stock-requests');
+            return;
+        }
+
+        $alreadyReplied = (bool)DB::fetchValue(
+            "SELECT 1 FROM production_stock_request_audits WHERE request_id = ? AND action = 'REPLY' LIMIT 1",
+            [$id]
+        );
+        if ($alreadyReplied) {
+            $this->flash('error', 'A reply has already been submitted for this requisition.');
+            $this->redirect($fallbackRedirect);
+            return;
+        }
+
+        DB::query(
+            "INSERT INTO production_stock_request_audits (request_id, action, qty, actor_id, notes, created_at)
+             VALUES (?, 'REPLY', 0, ?, ?, NOW())",
+            [$id, Auth::id(), $replyNotes]
+        );
+
+        try {
+            $col = DB::fetch("SHOW COLUMNS FROM `production_stock_requests` LIKE 'status'");
+            if ($col && stripos((string)($col['Type'] ?? ''), 'enum(') !== false && stripos((string)$col['Type'], "'REPLIED'") === false) {
+                DB::query("ALTER TABLE `production_stock_requests` MODIFY COLUMN `status` VARCHAR(30) NOT NULL DEFAULT 'PENDING'");
+            }
+            DB::query("UPDATE production_stock_requests SET status = 'REPLIED' WHERE id = ? AND status IN ('PENDING', 'APPROVED')", [$id]);
+        } catch (\Throwable $e) {
+            error_log('StockRequest reply status update: ' . $e->getMessage());
+        }
+
+        $this->flash('success', 'Reply note saved.');
+        $this->redirect($fallbackRedirect);
     }
 
     /**
