@@ -1,20 +1,6 @@
 <div class="container-fluid px-0">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-        <div class="d-flex align-items-center flex-wrap gap-3">
-            <h4 class="fw-bold mb-0 text-dark">Product Adding</h4>
-            <ul class="nav nav-pills bg-light p-1 rounded-3 border" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'purchases') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-purchases-btn" data-bs-toggle="pill" data-bs-target="#tab-purchases" type="button" role="tab">
-                        <i class="bi bi-receipt me-1"></i> Product Purchases (<?= count($bills) ?>)
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'hierarchy') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-pa-hierarchy-btn" data-bs-toggle="pill" data-bs-target="#tab-pa-hierarchy" type="button" role="tab">
-                        <i class="bi bi-diagram-3 me-1"></i> 3-Tier Hierarchy &amp; Attributes
-                    </button>
-                </li>
-            </ul>
-        </div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h4 class="fw-bold mb-0 text-dark">Product Adding</h4>
         <div class="d-flex align-items-center flex-wrap gap-2">
             <?php
             $exportTitle = '';
@@ -32,6 +18,21 @@
                 </a>
             <?php endif; ?>
         </div>
+    </div>
+
+    <div class="mb-4">
+        <ul class="nav nav-pills bg-light p-1 rounded-3 border d-inline-flex" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'purchases') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-purchases-btn" data-bs-toggle="pill" data-bs-target="#tab-purchases" type="button" role="tab">
+                    <i class="bi bi-receipt me-1"></i> Product Purchases (<?= count($bills) ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'hierarchy') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-pa-hierarchy-btn" data-bs-toggle="pill" data-bs-target="#tab-pa-hierarchy" type="button" role="tab">
+                    <i class="bi bi-diagram-3 me-1"></i> 3-Tier Hierarchy &amp; Attributes
+                </button>
+            </li>
+        </ul>
     </div>
 
     <?php if (!empty($flashSuccess)): ?>
