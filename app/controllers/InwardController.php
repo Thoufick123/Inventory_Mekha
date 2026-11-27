@@ -499,7 +499,7 @@ class InwardController extends Controller {
             }
             $item['extra_attributes'] = $extraAttrs;
             $outwardQr = trim((string)($item['outward_qr_codes'] ?? ''));
-            $item['tag_code'] = $outwardQr !== '' ? $outwardQr : (QrService::generateFinishedGoodsCode((int)$item['variant_id']) ?: (string)($item['product_code'] ?? ''));
+            $item['tag_code'] = $outwardQr !== '' ? $outwardQr : (QrService::formatBrandVariantCode((int)$item['variant_id']) ?: (string)($item['product_code'] ?? ''));
         }
         unset($item);
 
@@ -639,7 +639,7 @@ class InwardController extends Controller {
             $color = trim((string)($attributes['color'] ?? ''));
             $price = (float)$item['price'];
             $mrp = (float)$item['mrp'];
-            $tagCode = QrService::generateFinishedGoodsCode($variantId);
+            $tagCode = QrService::formatBrandVariantCode($variantId);
             if (!$tagCode) {
                 http_response_code(422);
                 echo json_encode(['success' => false, 'error' => 'A valid QR code could not be generated for this outward variant']);

@@ -493,7 +493,7 @@ class StockController extends Controller {
             }
 
             // QR Code Data
-            $qrPayload = \App\Services\QrService::generateFinishedGoodsCode($variantId);
+            $qrPayload = \App\Services\QrService::formatBrandVariantCode($variantId);
             if (!$qrPayload) {
                 $qrPayload = $variant['product_code'];
             }
@@ -1204,7 +1204,7 @@ class StockController extends Controller {
         foreach ($ledger as &$entry) {
             $variantId = (int)$entry['variant_id'];
             if (!array_key_exists($variantId, $unifiedCodes)) {
-                $unifiedCodes[$variantId] = \App\Services\QrService::generateFinishedGoodsCode($variantId) ?: ($entry['product_code'] ?? '');
+                $unifiedCodes[$variantId] = \App\Services\QrService::formatBrandVariantCode($variantId) ?: ($entry['product_code'] ?? '');
             }
             $entry['product_code'] = $unifiedCodes[$variantId];
         }
@@ -1358,7 +1358,7 @@ class StockController extends Controller {
         foreach ($ledger as $l) {
             $variantId = (int)$l['variant_id'];
             if (!array_key_exists($variantId, $unifiedCodes)) {
-                $unifiedCodes[$variantId] = \App\Services\QrService::generateFinishedGoodsCode($variantId) ?: ($l['product_code'] ?? '');
+                $unifiedCodes[$variantId] = \App\Services\QrService::formatBrandVariantCode($variantId) ?: ($l['product_code'] ?? '');
             }
             $in = (float)($l['qty_in'] ?? 0);
             $out = (float)($l['qty_out'] ?? 0);

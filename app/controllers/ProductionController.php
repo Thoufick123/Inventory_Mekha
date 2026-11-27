@@ -7470,7 +7470,7 @@ class ProductionController extends Controller {
                 // Format code matching Finished Goods Product label base (variant-wise)
                 $fgCode = null;
                 if ($variantId > 0) {
-                    $fgCode = \App\Services\QrService::generateFinishedGoodsCode($variantId);
+                    $fgCode = \App\Services\QrService::formatBrandVariantCode($variantId);
                 }
                 $skuPrefix = preg_replace('/[^A-Z0-9]/i', '', strtoupper(substr($sku ?: ($size . $color), 0, 3)));
                 $baseProductCode = $fgCode ?: (($skuPrefix ?: 'GAR') . date('md'));
@@ -7566,7 +7566,7 @@ class ProductionController extends Controller {
             }
 
             if ($vId > 0) {
-                $fgCode = \App\Services\QrService::generateFinishedGoodsCode($vId);
+                $fgCode = \App\Services\QrService::formatBrandVariantCode($vId);
                 if ($fgCode && ($p['tag_code'] !== $fgCode || str_contains($p['tag_code'], '-'))) {
                     DB::query("UPDATE qc_piece_items SET tag_code = ? WHERE id = ?", [$fgCode, $p['id']]);
                     $p['tag_code'] = $fgCode;

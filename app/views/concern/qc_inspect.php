@@ -358,12 +358,15 @@ function onScanLocate() {
 }
 
 // Scanner enter key
-document.getElementById('inputQrScanner').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        onScanLocate();
-    }
-});
+const scannerInputEl = document.getElementById('inputQrScanner');
+if (scannerInputEl) {
+    scannerInputEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            onScanLocate();
+        }
+    });
+}
 
 const pendingVerdictRequests = new Set();
 const saveInspectionButton = document.getElementById('saveInspectionButton');
