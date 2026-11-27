@@ -855,7 +855,7 @@ class InwardController extends Controller {
     }
 
     public function receiveCuttingInward(): void {
-        ModuleGuard::enforce('inward', 'add');
+        \App\Core\ModuleGuard::enforce('inward', 'add');
         $this->ensureSchema();
         $this->validateCsrf();
 
