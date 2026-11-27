@@ -198,10 +198,12 @@
                                             </td>
                                             <td class="text-end pe-3 py-3">
                                                 <div class="btn-group btn-group-sm">
+                                                    <?php if (\App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                                     <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" 
                                                        class="btn btn-outline-secondary" title="View Batch Details">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
+                                                    <?php endif; ?>
                                                     <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                                     <button type="button" class="btn btn-outline-dark"
                                                             title="Print All Variant Labels"
@@ -325,10 +327,12 @@
                                             </td>
                                             <td class="text-center pe-3 py-3">
                                                 <div class="d-inline-flex align-items-center gap-1">
+                                                    <?php if (\App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                                     <button type="button" class="btn btn-sm btn-outline-info p-1.5 rounded-3" title="View Details"
                                                             onclick="showStitchingScrapSaleDetails(<?= $s['id'] ?>)">
                                                         <i class="bi bi-eye"></i>
                                                     </button>
+                                                    <?php endif; ?>
                                                     <?php if (\App\Core\Auth::can('stitching_wastage', 'edit')): ?>
                                                     <button type="button" class="btn btn-sm btn-outline-primary p-1.5 rounded-3" title="Edit Scrap Sale"
                                                             onclick='openEditStitchingScrapSaleModal(<?= json_encode($s, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>

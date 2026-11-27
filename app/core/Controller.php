@@ -346,7 +346,7 @@ abstract class Controller {
                 if (!$isSuperAdmin) {
                     $allowedSidebarModules = [];
                     foreach ($sidebarModules as $m) {
-                        if (Auth::can($m['code'], 'view')) {
+                        if (Auth::can($m['code'], 'view|add|edit|delete')) {
                             $allowedSidebarModules[] = $m;
                         }
                     }

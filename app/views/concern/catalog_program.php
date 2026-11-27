@@ -207,9 +207,11 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                         </td>
                                         <td class="text-center">
                                             <div class="d-inline-flex align-items-center gap-1">
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'view')): ?>
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-3 p-1.5" title="Quick View" onclick="showStyleDetails(<?= $s['id'] ?>)">
                                                     <i class="bi bi-eye"></i>
                                                 </button>
+                                                <?php endif; ?>
                                                 <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
                                                 <a href="<?= \App\Core\Controller::url('/production/catalog/edit?id=' . $s['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Style">
                                                     <i class="bi bi-pencil"></i>
@@ -366,9 +368,11 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                         <td><?= date('d M Y', strtotime($p['target_date'])) ?></td>
                                         <td class="text-center">
                                             <div class="d-inline-flex align-items-center gap-1">
+                                                <?php if (\App\Core\Auth::can('catalog_program', 'view')): ?>
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-3 p-1.5" title="Quick View Program" onclick="showProgramDetails(<?= $p['id'] ?>)">
                                                     <i class="bi bi-eye"></i>
                                                 </button>
+                                                <?php endif; ?>
                                                 <?php if (\App\Core\Auth::can('catalog_program', 'edit')): ?>
                                                 <a href="<?= \App\Core\Controller::url('/production/programs/edit?id=' . $p['id']) ?>" class="btn btn-sm btn-outline-primary rounded-3 p-1.5" title="Edit Program">
                                                     <i class="bi bi-pencil"></i>

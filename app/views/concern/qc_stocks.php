@@ -166,9 +166,11 @@
                                 <td class="py-3 text-center">
                                     <div class="d-inline-flex align-items-center gap-1 justify-content-center">
                                         <!-- 1. View details link (cyan outline, opens /production/qc/details) -->
+                                        <?php if (\App\Core\Auth::can('qc_stocks', 'view')): ?>
                                         <a href="<?= \App\Core\Controller::url('/production/qc/details?id=' . $qc['id']) ?>" class="btn btn-sm btn-outline-info rounded-2 p-1" style="width: 30px; height: 30px; border-color: #67e8f9; color: #0891b2; display:inline-flex; align-items:center; justify-content:center;" title="View Inspection Details (Record Details & Variant Table)">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        <?php endif; ?>
 
                                         <!-- 2. Inspect / 2D Scanner icon -->
                                         <?php if (\App\Core\Auth::can('qc_stocks', 'edit')): ?>

@@ -27,8 +27,9 @@ class ModuleGuard {
             exit;
         }
 
-        // 2. Check role permission for this module
-        if (!Auth::can($moduleCode, $action)) {
+        // 2. Check role permission for this module (allow module entry if user has any CRUD permission)
+        $requiredAction = strtolower($action) === 'view' ? 'view|add|edit|delete' : $action;
+        if (!Auth::can($moduleCode, $requiredAction)) {
             http_response_code(403);
             self::render403("You do not have permission to '{$action}' in module '{$moduleCode}'.");
             exit;

@@ -71,9 +71,11 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="d-inline-flex align-items-center gap-1">
+                                        <?php if (\App\Core\Auth::can('admin_assets', 'view')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewAssetModal(<?= json_encode($a, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Asset Details">
                                             <i class="bi bi-eye"></i>
                                         </button>
+                                        <?php endif; ?>
                                         <?php if (\App\Core\Auth::can('admin_assets', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditAssetModal(<?= json_encode($a, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Asset">
                                             <i class="bi bi-pencil"></i>

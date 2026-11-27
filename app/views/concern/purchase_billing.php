@@ -292,9 +292,11 @@
                                 <!-- CRUD Actions -->
                                 <td class="text-center pe-3">
                                     <div class="d-inline-flex gap-1">
+                                        <?php if (\App\Core\Auth::can('purchase_billing', 'view')): ?>
                                         <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . $b['id']) ?>" class="btn btn-outline-primary purchase-bill-action-btn" title="View Full Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        <?php endif; ?>
                                         <?php if (\App\Core\Auth::can('purchase_billing', 'edit')): ?>
                                         <a href="<?= \App\Core\Controller::url('/m/purchase_billing/edit?id=' . $b['id']) ?>" class="btn btn-outline-secondary purchase-bill-action-btn" title="Edit Purchase Bill">
                                             <i class="bi bi-pencil-square"></i>

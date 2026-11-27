@@ -185,10 +185,12 @@
                                     </td>
                                     <td class="text-center pe-3">
                                         <div class="d-inline-flex align-items-center gap-1">
+                                            <?php if (\App\Core\Auth::can('cutting_wastage', 'view')): ?>
                                             <button type="button" class="btn btn-sm btn-outline-info p-1.5 rounded-3" title="View Details"
                                                     onclick="showScrapSaleDetails(<?= $s['id'] ?>)">
                                                 <i class="bi bi-eye"></i>
                                             </button>
+                                            <?php endif; ?>
                                             <?php if (\App\Core\Auth::can('cutting_wastage', 'edit')): ?>
                                             <button type="button" class="btn btn-sm btn-outline-primary p-1.5 rounded-3" title="Edit Scrap Sale"
                                                     onclick='openEditScrapSaleModal(<?= json_encode($s, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
@@ -303,10 +305,12 @@
                                     </td>
                                     <td class="text-end pe-3">
                                         <div class="btn-group btn-group-sm">
+                                            <?php if (\App\Core\Auth::can('cutting_wastage', 'view')): ?>
                                             <a href="<?= \App\Core\Controller::url('/production/cutting/view?id=' . $b['id']) ?>" 
                                                class="btn btn-outline-secondary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
+                                            <?php endif; ?>
                                             <?php if (\App\Core\Auth::can('cutting_wastage', 'edit')): ?>
                                             <a href="<?= \App\Core\Controller::url('/production/cutting/edit?id=' . $b['id']) ?>" 
                                                class="btn btn-outline-primary" title="Edit Cutting Batch">
