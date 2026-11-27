@@ -699,13 +699,13 @@ if ($isEdit && !empty($existingItems)) {
         <?php endif; ?>
 
         <!-- Section 1: Purchase & Supplier Details -->
-        <div class="card border-0 shadow-sm rounded-3 mb-4">
-            <div class="card-header bg-white py-3 border-bottom d-flex align-items-center">
-                <i class="bi bi-receipt text-primary me-2 fs-5"></i>
+        <div class="card border-0 shadow-sm rounded-3 mb-3">
+            <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center">
+                <i class="bi bi-receipt text-primary me-2 fs-6"></i>
                 <h6 class="mb-0 fw-bold text-dark">Purchase & Supplier Details</h6>
             </div>
-            <div class="card-body p-4">
-                <div class="row g-3 mb-3">
+            <div class="card-body p-3">
+                <div class="row g-2 mb-2">
                     <?php if (empty($selectedCid)): ?>
                         <div class="col-lg-3 col-md-6">
                             <label class="form-label small fw-semibold mb-1">Target Concern <span class="text-danger">*</span></label>
@@ -1189,11 +1189,28 @@ if ($isEdit && !empty($existingItems)) {
         </div>
         <?php else: ?>
         <!-- Section 2 (Purchase Billing Simplified): Single Inline Entry Table -->
-        <div class="card border-0 shadow-sm rounded-3 mb-4" id="simplePurchaseBillingSection">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-table text-primary me-2"></i>Purchase Billing Items</h5>
-                    <small class="text-muted">Enter Fabric, Other Garments Supply, or Finished Goods items directly in the table.</small>
+        <style>
+            #simplePurchaseEntryTable > :not(caption) > * > * {
+                padding: 0.28rem 0.35rem !important;
+                vertical-align: middle;
+            }
+            #simplePurchaseEntryTable .form-control-sm,
+            #simplePurchaseEntryTable .form-select-sm {
+                padding: 0.2rem 0.45rem;
+                font-size: 0.82rem;
+                height: 28px;
+                min-height: 28px;
+            }
+            #simplePurchaseEntryTable .input-group-sm > .btn {
+                padding: 0.15rem 0.45rem;
+                height: 28px;
+            }
+        </style>
+        <div class="card border-0 shadow-sm rounded-3 mb-3" id="simplePurchaseBillingSection">
+            <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-table text-primary fs-6"></i>
+                    <h6 class="mb-0 fw-bold text-dark">Purchase Billing Items</h6>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <span class="badge bg-light text-dark border" id="simpleItemsCountBadge">0 Items</span>
@@ -1202,7 +1219,7 @@ if ($isEdit && !empty($existingItems)) {
                     </button>
                 </div>
             </div>
-            <div class="card-body p-2">
+            <div class="card-body p-0">
                 <div style="overflow: visible;">
                     <table class="table table-sm table-bordered align-middle mb-0" id="simplePurchaseEntryTable" style="table-layout: fixed; width: 100%;">
                         <thead class="table-light small text-uppercase text-muted text-nowrap">
@@ -1229,7 +1246,7 @@ if ($isEdit && !empty($existingItems)) {
         <?php endif; ?>
 
         <!-- Section 3: Summary & Total Price Card (Exact Image 2 Bottom Layout) -->
-        <div class="card border-0 shadow-sm rounded-3 mb-5 p-4 bg-white">
+        <div class="card border-0 shadow-sm rounded-3 mb-4 p-3 bg-white">
             <div class="row align-items-center justify-content-end">
                 <div class="col-md-5 col-lg-4 text-end">
                     <div class="d-flex justify-content-between align-items-center mb-2">
