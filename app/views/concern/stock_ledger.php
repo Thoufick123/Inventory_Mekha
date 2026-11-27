@@ -36,13 +36,14 @@
                         <th>Source Module</th>
                         <th>Quantity In (+)</th>
                         <th>Quantity Out (-)</th>
+                        <th>Current Stock</th>
                         <th>Transaction Note</th>
                         <th>Operator</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($ledger)): ?>
-                        <tr><td colspan="9" class="text-center py-4 text-muted">No stock ledger entries recorded.</td></tr>
+                        <tr><td colspan="10" class="text-center py-4 text-muted">No stock ledger entries recorded.</td></tr>
                     <?php else: ?>
                         <?php foreach ($ledger as $l): ?>
                             <tr>
@@ -77,6 +78,12 @@
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php $availStock = (float)($l['current_stock'] ?? 0); ?>
+                                    <span class="badge <?= $availStock > 0 ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle' ?> fw-bold px-2 py-1">
+                                        <?= ($availStock == (int)$availStock) ? number_format($availStock, 0) : number_format($availStock, 2) ?> pcs
+                                    </span>
                                 </td>
                                 <td class="small text-muted"><?= htmlspecialchars($l['note'] ?: '-') ?></td>
                                 <td class="small text-muted"><?= htmlspecialchars($l['user_name'] ?? 'System') ?></td>
