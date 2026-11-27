@@ -118,9 +118,13 @@ class ConcernDashboardController extends Controller {
         }
 
         $invoiceCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `sales_invoices`"), 'Field');
-        $channelExpr = in_array('customer_channel', $invoiceCols, true)
-            ? "COALESCE(NULLIF(TRIM(customer_channel), ''), 'Direct Customer')"
-            : "COALESCE(NULLIF(TRIM(payment_mode), ''), 'Cash')";
+        if (in_array('customer_channel', $invoiceCols, true)) {
+            $channelExpr = "COALESCE(NULLIF(TRIM(customer_channel), ''), 'Direct Customer')";
+        } elseif (in_array('payment_method', $invoiceCols, true)) {
+            $channelExpr = "COALESCE(NULLIF(TRIM(payment_method), ''), 'cash')";
+        } else {
+            $channelExpr = "'Direct Customer'";
+        }
         $salesByChannel = DB::fetchAll(
             "SELECT {$channelExpr} AS label, COALESCE(SUM(net_amount), 0) AS total, COUNT(*) AS cnt
              FROM sales_invoices
