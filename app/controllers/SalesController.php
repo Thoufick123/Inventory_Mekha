@@ -781,6 +781,7 @@ class SalesController extends Controller {
         $offset = ($page - 1) * $pageSize;
         $invoices = DB::fetchAll(
             "SELECT si.id, si.invoice_no, si.invoice_date, si.net_amount, si.payment_method, si.payment_status, si.is_direct_bill,
+            si.billing_company_name,
             COALESCE(si.billing_company_name, c.name) AS customer_name,
             COALESCE(si.billing_company_phone, c.phone) AS customer_phone,
                     (SELECT COUNT(*) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS items_count

@@ -90,6 +90,41 @@ class StaffController extends Controller {
                 DB::query('ALTER TABLE `staff` ADD COLUMN `password_hash` VARCHAR(255) NULL AFTER `email`');
             }
 
+            // Self-heal: ensure admin_assets and admin_reports are provisionable and enabled for ALL concerns
+            DB::query("INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
+                       VALUES ('admin_assets', 'Asset Management', 'bi-building-gear', 3, 'Super Admin', 0)
+                       ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Asset Management', group_name = 'Super Admin'");
+            DB::query("INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
+                       VALUES ('admin_reports', 'Consolidated Reports', 'bi-bar-chart-line', 4, 'Super Admin', 0)
+                       ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Consolidated Reports', group_name = 'Super Admin'");
+            DB::query("UPDATE modules SET is_super_admin_only = 0, group_name = 'Super Admin' WHERE code IN ('admin_assets', 'admin_reports')");
+            DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled)
+                       SELECT c.id, m.id, 1
+                       FROM concerns c
+                       CROSS JOIN modules m
+                       WHERE m.code IN ('admin_assets', 'admin_reports')
+                       ON DUPLICATE KEY UPDATE enabled = 1");
+            DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
+                       SELECT r.id, m.id, 1, 1, 1, 1
+                       FROM roles r
+                       CROSS JOIN modules m
+                       WHERE m.code IN ('admin_assets', 'admin_reports')
+                         AND (r.name LIKE '%Administrator%' OR r.name LIKE '%Admin%')
+                       ON DUPLICATE KEY UPDATE can_view = 1, can_add = 1, can_edit = 1, can_delete = 1");
+
+            // Purge obsolete modules
+            $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
+            foreach ($obsoleteCodes as $obsCode) {
+                $obsMod = DB::fetch("SELECT id FROM modules WHERE code = ?", [$obsCode]);
+                if ($obsMod) {
+                    $obsId = (int)$obsMod['id'];
+                    DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM modules WHERE id = ?", [$obsId]);
+                }
+            }
+
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
             error_log('StaffController ensureSchema error: ' . $e->getMessage());
@@ -109,16 +144,24 @@ class StaffController extends Controller {
 
         // Concern selection logic
         $selectedCid = null;
-        if (isset($_GET['concern_id']) && $_GET['concern_id'] !== '') {
-            $selectedCid = (int)$_GET['concern_id'];
-            $_SESSION['staff_selected_concern_id'] = $selectedCid;
+        if (isset($_GET['concern_id'])) {
+            if ($_GET['concern_id'] === '' || $_GET['concern_id'] === 'all' || $_GET['concern_id'] === '0') {
+                $selectedCid = null;
+                unset($_SESSION['staff_selected_concern_id']);
+            } else {
+                $selectedCid = (int)$_GET['concern_id'];
+                $_SESSION['staff_selected_concern_id'] = $selectedCid;
+            }
+        } elseif (Auth::isSuperAdmin() || Auth::concernId() === null) {
+            // For Super Admin or All Concerns mode, default to ALL concerns consolidated view
+            $selectedCid = null;
         } elseif (!empty($_SESSION['staff_selected_concern_id'])) {
             $selectedCid = (int)$_SESSION['staff_selected_concern_id'];
         } else {
             $selectedCid = Auth::concernId();
         }
 
-        // Show only roles actively assigned to existing staff in the selected concern (excluding system default roles)
+        // Show roles actively assigned to existing staff in the selected concern (excluding system default roles)
         if ($selectedCid) {
             $allRoles = DB::fetchAll(
                 "SELECT MIN(r.id) AS id, MAX(r.name) AS name
@@ -144,18 +187,14 @@ class StaffController extends Controller {
         }
         $allDepartments = DB::fetchAll("SELECT DISTINCT department FROM staff WHERE department IS NOT NULL AND department != '' ORDER BY department ASC");
 
-        // If force choose or if no concern selected yet
-        $showConcernModal = false;
-        if (isset($_GET['choose']) || empty($selectedCid)) {
-            $showConcernModal = true;
-        }
+        // Only show concern modal if explicitly requested with ?choose=1
+        $showConcernModal = isset($_GET['choose']);
 
         $activeConcern = null;
         if ($selectedCid) {
             $activeConcern = DB::fetch("SELECT id, name, code FROM concerns WHERE id = ?", [$selectedCid]);
             if (!$activeConcern) {
                 $selectedCid = null;
-                $showConcernModal = true;
             }
         }
 
@@ -238,14 +277,21 @@ class StaffController extends Controller {
         $modules = DB::fetchAll(
             "SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC"
         );
-        $groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+        $groupOrder = ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
         $groupedModules = [];
         foreach ($modules as $m) {
             if ($m['code'] === 'cash') continue;
             if ($m['code'] === 'concern_dashboard' || ($m['group_name'] ?? '') === 'Dashboard') continue;
             if ($m['code'] === 'variants' || ($m['group_name'] ?? '') === 'Masters') continue;
+            if (in_array($m['code'], ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'], true)) continue;
             $grp = $m['group_name'] ?: 'General';
             $groupedModules[$grp][] = $m;
+        }
+
+        foreach (array_keys($groupedModules) as $grpKey) {
+            if (!in_array($grpKey, $groupOrder, true)) {
+                $groupOrder[] = $grpKey;
+            }
         }
 
         $concernModules = [];
@@ -266,6 +312,10 @@ class StaffController extends Controller {
         if (($_POST['return_to'] ?? '') === 'roles') {
             $filterCid = isset($_POST['return_concern_id']) && $_POST['return_concern_id'] !== '' ? (int)$_POST['return_concern_id'] : null;
             return '/m/staff/roles' . ($filterCid ? '?concern_id=' . $filterCid : '');
+        }
+        $retCid = $_POST['return_concern_id'] ?? null;
+        if ($retCid === 'all') {
+            return '/m/staff?concern_id=all';
         }
         return '/m/staff' . ($cid ? '?concern_id=' . $cid : '');
     }
@@ -1011,14 +1061,33 @@ class StaffController extends Controller {
         ModuleGuard::enforce('staff', 'view');
         $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
         $concernFilter = isset($_GET['concern_id']) && $_GET['concern_id'] !== '' ? (int)$_GET['concern_id'] : null;
+
+        $roleSql = "SELECT r.id, r.name, r.description, r.concern_id, r.created_at,
+                           c.name AS concern_name, c.code AS concern_code,
+                           COUNT(DISTINCT u.id) AS assigned_users_count,
+                           COUNT(DISTINCT s.id) AS assigned_staff_count,
+                           GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS assigned_staff_names
+                    FROM roles r
+                    LEFT JOIN concerns c ON r.concern_id = c.id
+                    LEFT JOIN users u ON u.role_id = r.id
+                    LEFT JOIN staff s ON s.user_id = u.id
+                    WHERE 1=1";
+        $roleParams = [];
         if ($concernFilter) {
-            $allRoles = DB::fetchAll(
-                "SELECT id, name, description, concern_id FROM roles WHERE concern_id = ? OR concern_id IS NULL ORDER BY (concern_id IS NULL) DESC, id ASC",
-                [$concernFilter]
-            );
-        } else {
-            $allRoles = DB::fetchAll("SELECT id, name, description, concern_id FROM roles ORDER BY (concern_id IS NULL) DESC, id ASC");
+            $roleSql .= " AND (r.concern_id = ? OR r.concern_id IS NULL)";
+            $roleParams[] = $concernFilter;
         }
+        $roleSql .= " GROUP BY r.id ORDER BY (r.concern_id IS NULL) DESC, r.id ASC";
+        $allRoles = DB::fetchAll($roleSql, $roleParams);
+
+        $assignedRolesCount = 0;
+        foreach ($allRoles as $r) {
+            if ((int)($r['assigned_staff_count'] ?? 0) > 0 || (int)($r['assigned_users_count'] ?? 0) > 0) {
+                $assignedRolesCount++;
+            }
+        }
+        $unassignedRolesCount = max(0, count($allRoles) - $assignedRolesCount);
+
         $search = trim($_GET['search'] ?? '');
 
         $sql = "SELECT s.*, c.name AS concern_name, c.code AS concern_code,
@@ -1048,6 +1117,7 @@ class StaffController extends Controller {
 
         $sql .= " ORDER BY s.id DESC";
         $staffMembers = DB::fetchAll($sql, $params);
+        $staffWithRolesCount = count(array_filter($staffMembers, fn($s) => !empty($s['role_name'])));
 
         // Map user concerns for users
         $userConcernsMap = [];
@@ -1090,22 +1160,25 @@ class StaffController extends Controller {
         }
 
         $this->render('concern/staff_roles', [
-            'pageTitle'        => 'Staff Role & Access Assignment',
-            'currentModule'    => 'staff',
-            'currentSubModule' => 'roles',
-            'allConcerns'      => $allConcerns,
-            'allRoles'         => $allRoles,
-            'modules'          => $modules,
-            'groupedModules'   => $matrixCtx['groupedModules'],
-            'groupOrder'       => $matrixCtx['groupOrder'],
-            'concernModules'   => $matrixCtx['concernModules'],
-            'staffMembers'     => $staffMembers,
-            'userConcernsMap'  => $userConcernsMap,
-            'concernFilter'    => $concernFilter,
-            'search'           => $search,
-            'activeTab'        => $activeTab,
-            'selectedRoleId'   => $selectedRoleId,
-            'matrixPerms'      => $matrixPerms,
+            'pageTitle'            => 'Staff Role & Access Assignment',
+            'currentModule'        => 'staff',
+            'currentSubModule'     => 'roles',
+            'allConcerns'          => $allConcerns,
+            'allRoles'             => $allRoles,
+            'assignedRolesCount'   => $assignedRolesCount,
+            'unassignedRolesCount' => $unassignedRolesCount,
+            'staffWithRolesCount'  => $staffWithRolesCount,
+            'modules'              => $modules,
+            'groupedModules'       => $matrixCtx['groupedModules'],
+            'groupOrder'           => $matrixCtx['groupOrder'],
+            'concernModules'       => $matrixCtx['concernModules'],
+            'staffMembers'         => $staffMembers,
+            'userConcernsMap'      => $userConcernsMap,
+            'concernFilter'        => $concernFilter,
+            'search'               => $search,
+            'activeTab'            => $activeTab,
+            'selectedRoleId'       => $selectedRoleId,
+            'matrixPerms'          => $matrixPerms,
         ]);
     }
 
@@ -1560,14 +1633,14 @@ class StaffController extends Controller {
             $selectedCid = (int)$allConcerns[0]['id'];
         }
 
-        // Fetch only operational concern modules (exclude super_admin_only, dashboard, cash)
+        // Fetch only operational concern modules (exclude super_admin_only, dashboard, cash, obsolete)
         $modules = DB::fetchAll(
             "SELECT * FROM modules 
              WHERE is_super_admin_only = 0 
                AND code != 'cash' 
                AND code != 'concern_dashboard' 
+               AND code NOT IN ('label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles')
                AND (group_name IS NULL OR group_name != 'Dashboard')
-               AND (group_name IS NULL OR group_name != 'Super Admin')
              ORDER BY group_name ASC, sort_order ASC, id ASC"
         );
 
@@ -1650,6 +1723,55 @@ class StaffController extends Controller {
             $this->flash('error', 'Failed to create role: ' . $e->getMessage());
             $this->redirect('/m/staff/roles/create');
         }
+    }
+
+    public function deleteRole(): void {
+        ModuleGuard::enforce('staff', 'delete');
+        $this->validateCsrf();
+
+        $roleId = (int)($_POST['id'] ?? 0);
+        if ($roleId <= 1) {
+            $this->flash('error', 'The primary Master Super Admin role cannot be deleted.');
+            $this->redirect('/m/staff/roles');
+        }
+
+        $role = DB::fetch("SELECT * FROM roles WHERE id = ?", [$roleId]);
+        if (!$role) {
+            $this->flash('error', 'Role not found.');
+            $this->redirect('/m/staff/roles');
+        }
+
+        // Check if any user or staff has this role
+        $assignedUsers = (int)DB::fetchValue("SELECT COUNT(*) FROM users WHERE role_id = ?", [$roleId]);
+        if ($assignedUsers > 0) {
+            $this->flash('error', "Cannot delete role '{$role['name']}' because it is assigned to {$assignedUsers} user(s). Reassign them first.");
+            $this->redirect('/m/staff/roles');
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::query("DELETE FROM role_permissions WHERE role_id = ?", [$roleId]);
+            DB::query("DELETE FROM roles WHERE id = ?", [$roleId]);
+            DB::commit();
+
+            AuditLog::record(
+                $role['concern_id'],
+                'roles',
+                $roleId,
+                'ROLE_DELETE',
+                $role,
+                null,
+                "Deleted role '{$role['name']}'"
+            );
+
+            $this->flash('success', "Role '{$role['name']}' deleted successfully.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            error_log('deleteRole error: ' . $e->getMessage());
+            $this->flash('error', 'Failed to delete role: ' . $e->getMessage());
+        }
+
+        $this->redirect('/m/staff/roles');
     }
 
     public function createRole(): void {

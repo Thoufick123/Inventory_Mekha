@@ -165,6 +165,123 @@
             color: #0f172a;
             font-weight: 600;
         }
+        .label-sticker.pa-label-sticker {
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 10px 14px 12px;
+            min-height: 158px;
+            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+        }
+        .pa-label-concern-header {
+            text-align: center;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #475569;
+            text-transform: uppercase;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pa-label-body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            flex: 1;
+            padding: 2px 0 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .pa-label-qr-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .pa-label-qr-frame {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 4px;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .pa-label-qr-frame .label-qr-box {
+            width: 72px;
+            height: 72px;
+        }
+        .pa-label-qr-frame .label-qr-box img,
+        .pa-label-qr-frame .label-qr-box canvas {
+            width: 72px !important;
+            height: 72px !important;
+        }
+        .pa-label-code-text {
+            margin-top: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: 0.02em;
+            text-align: center;
+        }
+        .pa-label-info-col {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+            flex: 1;
+        }
+        .pa-label-brand {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #881337;
+            text-transform: uppercase;
+            line-height: 1.15;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        .pa-label-product {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #1e293b;
+            text-transform: uppercase;
+            line-height: 1.25;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pa-label-attrs {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #0f172a;
+            text-transform: uppercase;
+            line-height: 1.25;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pa-label-mrp {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-decoration: line-through;
+            line-height: 1.25;
+            margin-top: 2px;
+        }
+        .pa-label-disc {
+            font-size: 0.86rem;
+            font-weight: 800;
+            color: #15803d;
+            line-height: 1.25;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
 
         @media print {
             body {
@@ -376,7 +493,46 @@ if (!empty($multiLabels)) {
             if (empty($vSize) || $vSize === 'STANDARD') {
                 $vSize = 'Free';
             }
+            $isProductAddingLabel = ($labelType ?? '') === 'product_adding';
         ?>
+            <?php if ($isProductAddingLabel):
+                $paBrandTag = strtoupper(trim((string)($lbl['brand_name'] ?? '')));
+                if ($paBrandTag === '') {
+                    $cParts = preg_split('/\s+/', trim((string)$cName));
+                    $paBrandTag = strtoupper($cParts[0] ?? 'GRM');
+                }
+                $paProductTitle = strtoupper(trim((string)($hTitle ?: $l1Val ?: 'PRODUCT')));
+                $paAttrLine = $isPurchaseFinishedGoodsLabel
+                    ? strtoupper(trim((string)$vSize)) . ' / ' . strtoupper(trim((string)$l2Val))
+                    : strtoupper(trim((string)$l2Val)) . ($dVal !== '' && strtoupper($dVal) !== 'STANDARD' ? ' / ' . strtoupper(trim((string)$dVal)) : '');
+                $paMrpVal = (float)($lbl['price_mrp'] ?? $pVal);
+                $paSellVal = (float)($lbl['price'] ?? $pVal);
+                $paHasDiscount = $paMrpVal > $paSellVal && $paMrpVal > 0;
+                $paCodeDisplay = trim((string)($lbl['product_code'] ?? '')) ?: $displayCode;
+            ?>
+            <div class="label-sticker pa-label-sticker">
+                <div class="pa-label-concern-header"><?= htmlspecialchars($cName) ?></div>
+                <div class="pa-label-body">
+                    <div class="pa-label-qr-col">
+                        <div class="pa-label-qr-frame">
+                            <div class="label-qr-box qr-container" data-code="<?= htmlspecialchars($iQr) ?>"></div>
+                        </div>
+                        <div class="pa-label-code-text"><?= htmlspecialchars($paCodeDisplay) ?></div>
+                    </div>
+                    <div class="pa-label-info-col">
+                        <div class="pa-label-brand"><?= htmlspecialchars($paBrandTag) ?></div>
+                        <div class="pa-label-product"><?= htmlspecialchars($paProductTitle) ?></div>
+                        <div class="pa-label-attrs"><?= htmlspecialchars($paAttrLine) ?></div>
+                        <?php if ($paHasDiscount): ?>
+                            <div class="pa-label-mrp">MRP: ₹<?= number_format($paMrpVal, 0) ?></div>
+                            <div class="pa-label-disc">Disc: ₹<?= number_format($paSellVal, 0) ?></div>
+                        <?php else: ?>
+                            <div class="pa-label-disc">MRP: ₹<?= number_format($paSellVal, 0) ?></div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php else: ?>
             <div class="label-sticker<?= $isPurchaseFinishedGoodsLabel ? ' finished-goods-label' : '' ?>">
                 <div class="label-header-bar">
                     <div class="d-flex align-items-center">
@@ -469,6 +625,7 @@ if (!empty($multiLabels)) {
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
         <?php endforeach; ?>
     <?php else: ?>
         <?php 

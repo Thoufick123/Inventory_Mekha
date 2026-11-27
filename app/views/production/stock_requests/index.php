@@ -4,6 +4,8 @@ $activeTab = $activeTab ?? 'receive';
 $receivedCount = count($receivedRequests ?? []);
 $sentCount = count($sentRequests ?? []);
 $concernStocksJson = json_encode($concernStocksMap ?? []);
+$sourceStocksJson  = json_encode($sourceStocksMap ?? []);
+$sourceCid         = (int)($sourceCid ?? 0);
 ?>
 <div class="container-fluid px-0">
     <!-- Header -->
@@ -108,8 +110,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                         <tr class="text-uppercase small text-secondary">
                             <th style="min-width: 140px;">REQUEST #</th>
                             <th style="min-width: 180px;">SOURCE WAREHOUSE</th>
-                            <th style="min-width: 120px;" class="text-center">REQUESTED QTY</th>
-                            <th style="min-width: 120px;" class="text-center">DISPATCHED QTY</th>
                             <th style="min-width: 140px;">REQUESTED BY</th>
                             <th style="min-width: 110px;" class="text-center">STATUS</th>
                             <th style="min-width: 120px;" class="text-end">ACTION</th>
@@ -118,7 +118,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                     <tbody>
                         <?php if (empty($receivedRequests)): ?>
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="5" class="text-center py-5">
                                     <div class="my-4">
                                         <i class="bi bi-shop text-muted" style="font-size: 3.5rem; opacity: 0.4;"></i>
                                         <h5 class="fw-bold text-secondary mt-3 mb-1">No Shop Requests Found</h5>
@@ -148,12 +148,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['source_concern_name'] ?? 'Central Warehouse') ?></div>
                                         <small class="text-muted"><?= htmlspecialchars($req['from_location_type'] ?? 'WAREHOUSE') ?></small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="fw-bold text-dark"><?= number_format((float)$req['requested_qty'], 2) ?></span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="text-primary fw-semibold"><?= number_format((float)$req['dispatched_qty'], 2) ?></span>
                                     </td>
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['creator_name'] ?? 'Master Super Admin') ?></div>
@@ -213,8 +207,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                         <tr class="text-uppercase small text-secondary">
                             <th style="min-width: 140px;">REQUEST #</th>
                             <th style="min-width: 180px;">DESTINATION CONCERN</th>
-                            <th style="min-width: 120px;" class="text-center">REQUESTED QTY</th>
-                            <th style="min-width: 120px;" class="text-center">DISPATCHED QTY</th>
                             <th style="min-width: 140px;">REQUESTED BY</th>
                             <th style="min-width: 110px;" class="text-center">STATUS</th>
                             <th style="min-width: 120px;" class="text-end">ACTION</th>
@@ -223,7 +215,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                     <tbody>
                         <?php if (empty($sentRequests)): ?>
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="5" class="text-center py-5">
                                     <div class="my-4">
                                         <i class="bi bi-send text-muted" style="font-size: 3.5rem; opacity: 0.4;"></i>
                                         <h5 class="fw-bold text-secondary mt-3 mb-1">No Sent Requisitions Found</h5>
@@ -258,12 +250,6 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['destination_concern_name'] ?? 'Main Retail Store') ?></div>
                                         <small class="text-muted"><?= htmlspecialchars($req['to_location_type'] ?? 'SHOP') ?></small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="fw-bold text-dark"><?= number_format((float)$req['requested_qty'], 2) ?></span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="text-primary fw-semibold"><?= number_format((float)$req['dispatched_qty'], 2) ?></span>
                                     </td>
                                     <td>
                                         <div class="fw-semibold text-dark"><?= htmlspecialchars($req['creator_name'] ?? 'Master Super Admin') ?></div>
@@ -353,7 +339,7 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
                             <thead class="table-light">
                                 <tr class="text-uppercase small text-secondary">
                                     <th style="width: 60%;">ITEM</th>
-                                    <th style="width: 30%;" class="text-center">CONCERN STOCK</th>
+                                    <th style="width: 30%;" class="text-center">AVAILABLE STOCK (Source)</th>
                                     <th style="width: 10%;" class="text-end"></th>
                                 </tr>
                             </thead>
@@ -438,8 +424,16 @@ $concernStocksJson = json_encode($concernStocksMap ?? []);
 <script>
 // Precomputed concern stocks map: { concernId: { variantId: qty } }
 const concernStocksMap = <?= $concernStocksJson ?>;
+// Source (current) concern stock map: { variantId: qty }
+const sourceStocksMap  = <?= $sourceStocksJson ?>;
 
-// Get available stock for a given concern & variant
+// Get available stock for a given variant from the SOURCE concern
+function getSourceStock(variantId) {
+    variantId = parseInt(variantId);
+    return parseFloat(sourceStocksMap[variantId] ?? 0);
+}
+
+// Get available stock for a given concern & variant (kept for other uses)
 function getConcernStock(concernId, variantId) {
     concernId = parseInt(concernId);
     variantId = parseInt(variantId);
@@ -460,18 +454,6 @@ function handleDestinationConcernChange(select) {
     if (titleSpan) {
         titleSpan.textContent = concernName;
     }
-
-    // Refresh all concern stock badges in the table
-    document.querySelectorAll('.concern-stock-badge').forEach(badge => {
-        const variantId = badge.getAttribute('data-variant-id');
-        const stock = getConcernStock(concernId, variantId);
-        badge.textContent = stock.toFixed(2) + ' pcs';
-        if (stock > 0) {
-            badge.className = 'badge bg-light text-dark border px-2 py-1 concern-stock-badge';
-        } else {
-            badge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 concern-stock-badge';
-        }
-    });
 }
 
 // Handle Variant Selection from Dropdown
@@ -504,10 +486,8 @@ function addIndentItemRow(variantId, name, sku, size, defaultQty = 10) {
         return;
     }
 
-    const destConcernSelect = document.getElementById('modalDestConcern');
-    const concernId = destConcernSelect ? destConcernSelect.value : 0;
-    const stock = getConcernStock(concernId, variantId);
-    const stockBadgeClass = stock > 0 ? 'bg-light text-dark border' : 'bg-danger-subtle text-danger border border-danger-subtle';
+    const stock = getSourceStock(variantId);
+    const stockBadgeClass = stock > 0 ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle';
 
     const row = document.createElement('tr');
     row.setAttribute('data-variant-id', variantId);
@@ -519,7 +499,7 @@ function addIndentItemRow(variantId, name, sku, size, defaultQty = 10) {
             <input type="hidden" name="items[${variantId}][requested_qty]" value="${defaultQty}">
         </td>
         <td class="text-center">
-            <span class="badge ${stockBadgeClass} px-2 py-1 concern-stock-badge" data-variant-id="${variantId}">
+            <span class="badge ${stockBadgeClass} px-2 py-1 source-stock-badge" data-variant-id="${variantId}">
                 ${stock.toFixed(2)} pcs
             </span>
         </td>

@@ -72,7 +72,7 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
                             <i class="bi bi-lock me-1 text-primary"></i> Password
                         </label>
                         <div class="input-group">
-                            <input type="password" name="password" id="edit_staff_password" class="form-control border-end-0" placeholder="•••••••• (Leave blank to keep current)">
+                            <input type="password" name="password" id="edit_staff_password" class="form-control border-end-0" placeholder="Leave blank to keep current">
                             <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePasswordVisibility('edit_staff_password', this)">
                                 <i class="bi bi-eye"></i>
                             </button>
@@ -157,8 +157,18 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (!empty($groupedModules) && !empty($groupOrder)): ?>
-                                    <?php foreach ($groupOrder as $grpName): ?>
+                                <?php if (!empty($groupedModules)): 
+                                    $modalGroupOrder = $groupOrder ?? ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+                                    if (!in_array('Super Admin', $modalGroupOrder, true)) {
+                                        array_unshift($modalGroupOrder, 'Super Admin');
+                                    }
+                                    foreach (array_keys($groupedModules) as $grpKey) {
+                                        if (!in_array($grpKey, $modalGroupOrder, true)) {
+                                            $modalGroupOrder[] = $grpKey;
+                                        }
+                                    }
+                                    foreach ($modalGroupOrder as $grpName):
+                                ?>
                                         <?php if (empty($groupedModules[$grpName])) continue; ?>
                                         <tr class="table-secondary matrix-group-header" data-group="<?= htmlspecialchars($grpName) ?>">
                                             <td colspan="5" class="fw-bold text-dark py-1.5 px-3 text-uppercase" style="font-size: 0.74rem; letter-spacing: 0.05em; background: #e2e8f0;">
@@ -262,6 +272,10 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
                         <strong class="text-dark" id="view_staff_designation">-</strong>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between">
+                        <span class="text-muted"><i class="bi bi-shield-check text-primary me-2"></i>Assigned Role:</span>
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-semibold" id="view_staff_role">-</span>
+                    </li>
+                    <li class="list-group-item px-0 d-flex justify-content-between">
                         <span class="text-muted"><i class="bi bi-telephone text-primary me-2"></i>Mobile / Phone:</span>
                         <span class="font-monospace text-dark fw-semibold" id="view_staff_phone">-</span>
                     </li>
@@ -313,6 +327,7 @@ function openViewStaffModal(stf) {
     setTxt('view_staff_code', stf.staff_code || '');
     setTxt('view_staff_concern', (stf.concern_name || 'Concern') + (stf.concern_code ? ' (' + stf.concern_code + ')' : ''));
     setTxt('view_staff_designation', stf.designation || '-');
+    setTxt('view_staff_role', stf.role_name || 'None (Staff Only)');
     setTxt('view_staff_phone', stf.phone || '-');
     setTxt('view_staff_email', stf.email || stf.user_email || 'None');
 

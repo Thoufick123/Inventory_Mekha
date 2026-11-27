@@ -2003,6 +2003,78 @@ if ($isEdit && !empty($existingItems)) {
     </div>
 </div>
 
+<!-- Quick Add Attribute Values Modal -->
+<div class="modal fade" id="quickAddAttributeValueModal" tabindex="-1" aria-labelledby="quickAddAttributeValueTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header bg-light border-bottom px-4 py-3">
+                <div>
+                    <h5 class="modal-title fw-bold fs-6 mb-0" id="quickAddAttributeValueTitle">
+                        <i class="bi bi-plus-circle text-primary me-2"></i>Quick Add Attribute Values
+                    </h5>
+                    <div class="small text-muted mt-1" id="quickAddAttrModalSubtitle">Select attributes and quickly add one or multiple values.</div>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" id="quickAddAttrSummaryBadge">0 attributes</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-4">
+                <div id="quickAddAttrRowsContainer" class="d-flex flex-column gap-3"></div>
+                <div class="form-check mt-3 pt-2 border-top">
+                    <input class="form-check-input" type="checkbox" id="quickAddAttrAutoSelect" checked>
+                    <label class="form-check-label small fw-medium text-secondary" for="quickAddAttrAutoSelect">
+                        Automatically select newly added values in this garment card
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted" id="quickAddAttrFooterStatus">0 attributes selected</span>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="btnSaveQuickAttributeValues" onclick="submitQuickAddAttributeValues()">
+                        <i class="bi bi-check2-circle me-1"></i>Save &amp; Add Values
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add New Attribute Modal -->
+<div class="modal fade" id="addProductAttributeModal" tabindex="-1" aria-labelledby="addProductAttributeModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header bg-light border-bottom px-4 py-3">
+                <h5 class="modal-title fw-bold fs-6 mb-0" id="addProductAttributeModalTitle">
+                    <i class="bi bi-tags text-primary me-2"></i>Add New Attribute
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="addAttrModalError" class="alert alert-danger py-2 px-3 small d-none mb-3"></div>
+                <div class="mb-3">
+                    <label for="addAttrModalName" class="form-label small fw-semibold">Attribute Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="addAttrModalName" placeholder="e.g. Fabric Type, Pattern, Sleeve" maxlength="50"
+                        onkeydown="if(event.key==='Enter'){ event.preventDefault(); document.getElementById('addAttrModalValues')?.focus(); }">
+                </div>
+                <div>
+                    <label for="addAttrModalValues" class="form-label small fw-semibold">Initial Value(s) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="addAttrModalValues" placeholder="e.g. Cotton, Linen (comma-separated)"
+                        onkeydown="if(event.key==='Enter'){ event.preventDefault(); submitAddProductAttributeModal(); }">
+                    <div class="form-text small">You can enter one value or multiple comma-separated values.</div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btnCreateProductAttribute" onclick="submitAddProductAttributeModal()">
+                    <i class="bi bi-plus-lg me-1"></i>Add Attribute
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const isEditMode = <?= $isEdit ? 'true' : 'false' ?>;
 const existingRolls = <?= json_encode($existingRolls) ?>;
@@ -2874,19 +2946,51 @@ function buildProductAddingVariantAttributeCell(type, cardId, rowIndex) {
     return `<td><select name="${escapeHtml(name)}" class="form-select form-select-sm fg-variant-attribute" data-attribute-type="${escapeHtml(type)}" aria-label="${escapeHtml(label)}" ${required ? 'required' : ''} onchange="handleProductAddingAttributeChange(this, ${cardId}, ${rowIndex})">${options}</select></td>`;
 }
 
+let addAttrTargetCardId = null;
+
 function promptAddProductAddingAttribute(fgId) {
-    const label = window.prompt('New attribute name (for example: Fabric Type):');
-    if (label === null) return;
-    const trimmedLabel = label.trim();
+    addAttrTargetCardId = fgId;
+    const nameInput = document.getElementById('addAttrModalName');
+    const valuesInput = document.getElementById('addAttrModalValues');
+    const errorEl = document.getElementById('addAttrModalError');
+    if (nameInput) nameInput.value = '';
+    if (valuesInput) valuesInput.value = '';
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
+    }
+    const modalEl = document.getElementById('addProductAttributeModal');
+    if (modalEl && window.bootstrap?.Modal) {
+        const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        instance.show();
+        setTimeout(() => nameInput?.focus(), 180);
+    }
+}
+
+async function submitAddProductAttributeModal() {
+    const fgId = addAttrTargetCardId;
+    const nameInput = document.getElementById('addAttrModalName');
+    const valuesInput = document.getElementById('addAttrModalValues');
+    const errorEl = document.getElementById('addAttrModalError');
+    const showErr = (msg) => {
+        if (!errorEl) return;
+        errorEl.textContent = msg;
+        errorEl.classList.remove('d-none');
+    };
+    if (errorEl) errorEl.classList.add('d-none');
+
+    const trimmedLabel = (nameInput?.value || '').trim();
     if (!trimmedLabel) {
-        alert('Enter an attribute name.');
+        showErr('Enter an attribute name.');
+        nameInput?.focus();
         return;
     }
 
     let type = trimmedLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     if (/^[0-9]/.test(type)) type = `attribute_${type}`;
     if (!type || type.length > 50) {
-        alert('Use an attribute name that is at most 50 characters.');
+        showErr('Use an attribute name that is at most 50 characters.');
+        nameInput?.focus();
         return;
     }
     const reservedTypes = [
@@ -2897,19 +3001,46 @@ function promptAddProductAddingAttribute(fgId) {
         'weight', 'allocated_qty', 'custom_attributes', 'catalog_style_name', 'variant_name'
     ];
     if (reservedTypes.includes(type)) {
-        alert('That name is reserved for a built-in product field. Use the existing field instead.');
+        showErr('That name is reserved for a built-in product field. Use the existing field instead.');
+        nameInput?.focus();
         return;
     }
     if (type !== 'size' && type !== 'color' && getProductAddingOtherAttributeTypes().includes(type)) {
-        alert('That attribute already exists. Use its Add New Value option.');
+        showErr('That attribute already exists. Use + Add Value instead.');
+        nameInput?.focus();
         return;
     }
 
-    const value = window.prompt(`Initial value for ${trimmedLabel}:`);
-    if (value === null) return;
+    const values = [...new Set((valuesInput?.value || '').split(/[,;|]+/).map(v => v.trim()).filter(Boolean))];
+    if (!values.length) {
+        showErr(`Enter at least one initial value for ${trimmedLabel}.`);
+        valuesInput?.focus();
+        return;
+    }
+
+    const btn = document.getElementById('btnCreateProductAttribute');
+    const prevHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding...';
+    }
+
     const firstRow = document.querySelector(`#finishedCard_${fgId} .fg-variant-row`);
     const firstRowIndex = firstRow ? parseInt(firstRow.dataset.rowIndex, 10) : null;
-    saveProductAddingAttributeValue(type, value, fgId, firstRowIndex, trimmedLabel);
+    try {
+        for (const val of values) {
+            await saveProductAddingAttributeValue(type, val, fgId, firstRowIndex, trimmedLabel);
+        }
+        const modalEl = document.getElementById('addProductAttributeModal');
+        if (modalEl && window.bootstrap?.Modal) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = prevHtml;
+        }
+    }
 }
 
 function handleProductAddingAttributeChange(select, fgId, rowIndex) {
@@ -3098,6 +3229,141 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
         </tr>`;
 }
 
+let quickAddAttrTargetCardId = null;
+
+function openQuickAddAttributeValueModal(cardId) {
+    quickAddAttrTargetCardId = cardId;
+    const container = document.getElementById(`fgVariantAttributeSelections_${cardId}`);
+    const firstRow = document.getElementById(`fgVariantRow_${cardId}_1`);
+    const categoryId = firstRow?.querySelector('.fg-variant-category')?.value || '';
+    const subcategoryId = firstRow?.querySelector('.fg-variant-subcategory')?.value || '';
+    const subSubcategoryId = firstRow?.querySelector('.fg-variant-sub-subcategory')?.value || '';
+    const types = getProductAddingMatrixAttributeTypes();
+    const rowsEl = document.getElementById('quickAddAttrRowsContainer');
+    const subtitleEl = document.getElementById('quickAddAttrModalSubtitle');
+    if (!rowsEl) return;
+
+    let totalSelectedInCard = 0;
+    const attrMeta = types.map(type => {
+        const label = type.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
+        const control = container?.querySelector(`[data-variant-attribute-selector="${type}"]`);
+        let selectedCount = 0;
+        if (control) {
+            selectedCount = control.matches('.fg-attribute-picker')
+                ? control.querySelectorAll('[data-variant-attribute-option]:checked').length
+                : control.value.split(/[,;|]+/).map(v => v.trim()).filter(Boolean).length;
+        }
+        if (selectedCount > 0) totalSelectedInCard++;
+        const existingValues = getProductAddingAttributeValues(type, categoryId, subcategoryId, subSubcategoryId);
+        return { type, label, selectedCount, existingCount: existingValues.length };
+    });
+
+    if (subtitleEl) {
+        subtitleEl.textContent = `Garment #${cardId} • ${types.length} attribute${types.length === 1 ? '' : 's'} available, ${totalSelectedInCard} currently selected`;
+    }
+
+    rowsEl.innerHTML = attrMeta.map((item, idx) => {
+        const isChecked = totalSelectedInCard > 0 ? item.selectedCount > 0 : idx === 0;
+        return `<div class="border rounded-3 p-3 bg-white shadow-sm" data-quick-attr-row="${escapeHtml(item.type)}">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <label class="form-check d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">
+                    <input class="form-check-input mt-0" type="checkbox" data-quick-attr-check="${escapeHtml(item.type)}" ${isChecked ? 'checked' : ''} onchange="updateQuickAddAttributeModalSummary()">
+                    <span class="fw-semibold text-dark">${escapeHtml(item.label)}</span>
+                </label>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge ${item.selectedCount > 0 ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-light text-secondary border'}">
+                        ${item.selectedCount} selected
+                    </span>
+                    <span class="badge bg-light text-muted border">${item.existingCount} saved</span>
+                </div>
+            </div>
+            <input type="text" class="form-control form-control-sm" data-quick-attr-input="${escapeHtml(item.type)}"
+                placeholder="Enter ${escapeHtml(item.label.toLowerCase())} value(s), comma-separated (e.g. Value 1, Value 2)"
+                oninput="if(this.value.trim()){ const cb=this.closest('[data-quick-attr-row]')?.querySelector('[data-quick-attr-check]'); if(cb && !cb.checked){ cb.checked=true; updateQuickAddAttributeModalSummary(); } }">
+        </div>`;
+    }).join('');
+
+    updateQuickAddAttributeModalSummary();
+    const modalEl = document.getElementById('quickAddAttributeValueModal');
+    if (modalEl && window.bootstrap?.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+}
+
+function updateQuickAddAttributeModalSummary() {
+    const checks = [...document.querySelectorAll('#quickAddAttrRowsContainer [data-quick-attr-check]')];
+    const selectedCount = checks.filter(cb => cb.checked).length;
+    const totalCount = checks.length;
+    const badge = document.getElementById('quickAddAttrSummaryBadge');
+    const footer = document.getElementById('quickAddAttrFooterStatus');
+    if (badge) badge.textContent = `${selectedCount} / ${totalCount} attributes selected`;
+    if (footer) footer.textContent = `${selectedCount} attribute${selectedCount === 1 ? '' : 's'} selected`;
+}
+
+async function submitQuickAddAttributeValues() {
+    const cardId = quickAddAttrTargetCardId;
+    if (!cardId) return;
+    const rows = [...document.querySelectorAll('#quickAddAttrRowsContainer [data-quick-attr-row]')];
+    const tasks = [];
+    rows.forEach(row => {
+        const type = row.dataset.quickAttrRow;
+        const checked = row.querySelector('[data-quick-attr-check]')?.checked;
+        const raw = row.querySelector('[data-quick-attr-input]')?.value || '';
+        if (!checked || !raw.trim()) return;
+        const label = type.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
+        const values = [...new Set(raw.split(/[,;|]+/).map(v => v.trim()).filter(Boolean))];
+        values.forEach(val => tasks.push({ type, label, val }));
+    });
+
+    if (!tasks.length) {
+        alert('Select at least one attribute and enter one or more values.');
+        return;
+    }
+
+    const btn = document.getElementById('btnSaveQuickAttributeValues');
+    const prevHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+    }
+
+    const firstRow = document.querySelector(`#finishedCard_${cardId} .fg-variant-row`);
+    const firstRowIndex = firstRow ? parseInt(firstRow.dataset.rowIndex, 10) : null;
+    const autoSelect = document.getElementById('quickAddAttrAutoSelect')?.checked !== false;
+
+    try {
+        for (const task of tasks) {
+            await saveProductAddingAttributeValue(task.type, task.val, cardId, firstRowIndex, task.label);
+        }
+        if (autoSelect) {
+            const selectorContainer = document.getElementById(`fgVariantAttributeSelections_${cardId}`);
+            if (selectorContainer) {
+                tasks.forEach(task => {
+                    const control = selectorContainer.querySelector(`[data-variant-attribute-selector="${task.type}"]`);
+                    if (!control) return;
+                    if (control.matches('.fg-attribute-picker')) {
+                        control.querySelectorAll('[data-variant-attribute-option]').forEach(opt => {
+                            if (opt.value.trim().toLowerCase() === task.val.trim().toLowerCase() && !opt.checked) {
+                                opt.checked = true;
+                                updateProductAddingAttributeSelectionCount(opt);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+        const modalEl = document.getElementById('quickAddAttributeValueModal');
+        if (modalEl && window.bootstrap?.Modal) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = prevHtml;
+        }
+    }
+}
+
 function buildProductAddingAttributeSelectionControls(cardId) {
     const firstRow = document.getElementById(`fgVariantRow_${cardId}_1`);
     const categoryId = firstRow?.querySelector('.fg-variant-category')?.value || '';
@@ -3133,6 +3399,9 @@ function buildProductAddingAttributeSelectionControls(cardId) {
             </button>
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="promptAddProductAddingAttribute(${cardId})">
                 <i class="bi bi-plus-lg me-1"></i>Add Attribute
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="openQuickAddAttributeValueModal(${cardId})">
+                <i class="bi bi-plus-circle me-1"></i>Add Value
             </button>
         </div>
     </div>`;

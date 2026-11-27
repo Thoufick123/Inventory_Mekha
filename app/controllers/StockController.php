@@ -1181,11 +1181,17 @@ class StockController extends Controller {
         $cid = Auth::concernId();
 
         $sql = "SELECT sl.*, v.name AS variant_name, v.product_code, v.weight_unit, u.name AS user_name,
-                       con.name AS concern_name, con.code AS concern_code
+                       con.name AS concern_name, con.code AS concern_code,
+                       COALESCE(stk.current_stock, 0) AS current_stock
                 FROM stock_ledger sl
                 JOIN variants v ON sl.variant_id = v.id
                 LEFT JOIN concerns con ON sl.concern_id = con.id
-                LEFT JOIN users u ON sl.created_by = u.id";
+                LEFT JOIN users u ON sl.created_by = u.id
+                LEFT JOIN (
+                    SELECT concern_id, variant_id, COALESCE(SUM(CASE WHEN qty > 0 THEN qty ELSE 0 END), 0) AS current_stock
+                    FROM stocks
+                    GROUP BY concern_id, variant_id
+                ) stk ON stk.concern_id = sl.concern_id AND stk.variant_id = sl.variant_id";
         
         $params = [];
         if ($cid) {
@@ -1316,11 +1322,17 @@ class StockController extends Controller {
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
         $sql = "SELECT sl.*, v.name AS variant_name, v.product_code, v.weight_unit, u.name AS user_name,
-                       con.name AS concern_name, con.code AS concern_code
+                       con.name AS concern_name, con.code AS concern_code,
+                       COALESCE(stk.current_stock, 0) AS current_stock
                 FROM stock_ledger sl
                 JOIN variants v ON sl.variant_id = v.id
                 LEFT JOIN concerns con ON sl.concern_id = con.id
-                LEFT JOIN users u ON sl.created_by = u.id";
+                LEFT JOIN users u ON sl.created_by = u.id
+                LEFT JOIN (
+                    SELECT concern_id, variant_id, COALESCE(SUM(CASE WHEN qty > 0 THEN qty ELSE 0 END), 0) AS current_stock
+                    FROM stocks
+                    GROUP BY concern_id, variant_id
+                ) stk ON stk.concern_id = sl.concern_id AND stk.variant_id = sl.variant_id";
 
         $params = [];
         $where = [];

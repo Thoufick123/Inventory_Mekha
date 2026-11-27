@@ -25,20 +25,24 @@
             border-radius: 6px !important;
         }
         .purchase-stock-detail-card {
-            padding: 0.75rem 0.9rem;
+            padding: 0.75rem 0.95rem;
             border: 1px solid #e2e8f0;
             border-radius: 10px;
             background: #ffffff;
             height: 100%;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
         }
         .purchase-stock-detail-card.is-highlight {
             background: #f8fafc;
+            border-color: #cbd5e1;
         }
         .purchase-stock-detail-label {
-            font-size: 0.72rem;
-            font-weight: 600;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
             color: #64748b;
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.25rem;
         }
         .purchase-stock-history-table thead th,
         .purchase-stock-history-table tbody td {
@@ -46,30 +50,14 @@
             vertical-align: middle;
         }
     </style>
-    <!-- Page Header & Action Bar -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
-        <div class="d-flex align-items-center gap-3">
-            <div class="rounded-3 p-2 d-flex align-items-center justify-content-center text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); width: 48px; height: 48px;">
-                <i class="bi bi-boxes fs-4"></i>
-            </div>
-            <div>
-                <h4 class="fw-bold mb-0 text-dark">Purchase Stocks & Inventory</h4>
-                <p class="text-muted small mb-0">Monitor inwarded fabric rolls and trims/garment supplies with current stock balance.</p>
-            </div>
-        </div>
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            <?php if (\App\Core\Auth::can('purchase_stocks', 'export') && $activeTab !== 'damage'): ?>
-            <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . $activeTab . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2">
-                <i class="bi bi-file-earmark-spreadsheet"></i> Export <?= match($activeTab) { 'rolls' => 'Rolls', 'garment_other' => 'Trims', default => 'Stocks' } ?> (CSV)
-            </a>
-            <?php endif; ?>
-            <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
-            <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
-                <i class="bi bi-plus-lg"></i> Add Stock
-            </button>
-            <?php endif; ?>
-        </div>
-    </div>
+    <?php if ($activeTab !== 'damage'): ?>
+        <?php
+        $exportUrl = \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . urlencode($activeTab) . ($selectedCid ? '&concern_id=' . (int)$selectedCid : ''));
+        $currentModule = 'purchase_stocks';
+        $prefix = 'pstock_exp';
+        include __DIR__ . '/../partials/export_card.php';
+        ?>
+    <?php endif; ?>
 
     <!-- Super Admin Concern Switcher Banner (if Super Admin) -->
     <?php if (App\Core\Auth::isSuperAdmin() && !empty($allConcerns)): ?>
@@ -156,8 +144,8 @@
     <!-- Main Inventory Card with 3 Sections / Tabs -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <!-- Section Navigation Pills (3 Tabs) -->
-        <div class="card-header bg-white border-bottom pt-3 pb-0 px-4">
-            <ul class="nav nav-pills card-header-pills gap-2 pb-3 mb-0" id="stockSectionTabs" role="tablist">
+        <div class="card-header bg-white border-bottom py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <ul class="nav nav-pills gap-2 mb-0" id="stockSectionTabs" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link py-2 px-3 fw-semibold d-flex align-items-center gap-2 rounded-2 <?= $activeTab === 'rolls' ? 'active' : '' ?>" 
                        href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=rolls' . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>">
@@ -189,6 +177,11 @@
                     </a>
                 </li>
             </ul>
+            <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
+            <button type="button" class="btn btn-primary btn-sm px-3 py-2 fw-semibold shadow-sm d-inline-flex align-items-center gap-2 rounded-2" style="background: #4f46e5; border-color: #4f46e5;" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
+                <i class="bi bi-plus-lg"></i> Add Stock
+            </button>
+            <?php endif; ?>
         </div>
 
         <?php if ($activeTab !== 'damage'): ?>
@@ -236,28 +229,22 @@
         <!-- TAB SECTION 1: FABRIC ROLLS                    -->
         <!-- ============================================== -->
         <?php if ($activeTab === 'rolls'): ?>
-            <div class="card-body p-2 px-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-muted small"><i class="bi bi-info-circle text-primary me-1"></i> Duplicate entries automatically accumulated with previous count.</span>
-                </div>
-            </div>
-
             <!-- View A: Consolidated Color & Design Stock (Duplicates removed, Qty added to previous count) -->
             <div id="viewRollConsolidated" class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover table-bordered table-sm align-middle mb-0 text-center small">
+                    <table class="table table-hover align-middle mb-0 text-center small">
                         <thead class="table-light">
-                            <tr class="fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
-                                <th style="width: 40px;">#</th>
-                                <th class="text-start">Design Name / Pattern</th>
-                                <th>Color / Shade</th>
+                            <tr class="fw-bold text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.03em;">
+                                <th class="ps-3" style="width: 36px;">#</th>
+                                <th class="text-start">Design / Pattern</th>
+                                <th>Color</th>
                                 <th>HSN</th>
-                                <th class="table-primary text-primary fw-bold">Accumulated Stock</th>
-                                <th>Total Fabric Weight</th>
+                                <th class="table-primary text-primary fw-bold">Stock</th>
+                                <th>Weight</th>
                                 <th class="text-end">Unit Rate</th>
-                                <th class="text-end">Total Valuation (₹)</th>
-                                <th style="width: 100px;">Status</th>
-                                <th style="width: 120px;">Actions</th>
+                                <th class="text-end">Valuation (₹)</th>
+                                <th style="width: 90px;">Status</th>
+                                <th class="pe-3" style="width: 132px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -718,19 +705,19 @@
         <?php if ($activeTab === 'garment_other'): ?>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover table-bordered align-middle mb-0 text-center small compact-purchase-stock-table">
+                    <table class="table table-hover align-middle mb-0 text-center small">
                         <thead class="table-light">
-                            <tr class="fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
-                                <th style="width: 40px;">#</th>
-                                <th style="width: 120px;">Item Code</th>
-                                <th class="text-start">Supply Item Name & Description</th>
-                                <th>Unit of Measure</th>
-                                <th>Inwarded Qty</th>
-                                <th>Available Stock</th>
+                            <tr class="fw-bold text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.03em;">
+                                <th class="ps-3" style="width: 36px;">#</th>
+                                <th style="width: 96px;">Code</th>
+                                <th class="text-start">Supply Item</th>
+                                <th>Unit</th>
+                                <th>Inwarded</th>
+                                <th>Available</th>
                                 <th class="text-end">Unit Price</th>
-                                <th class="text-end">Stock Value (₹)</th>
-                                <th style="width: 100px;">Status</th>
-                                <th style="width: 120px;">Actions</th>
+                                <th class="text-end">Valuation (₹)</th>
+                                <th style="width: 90px;">Status</th>
+                                <th class="pe-3" style="width: 132px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -764,46 +751,46 @@
                                     $labelRef = $g['bill_no'] ?: ('PO-' . $g['purchase_bill_id']);
                                 ?>
                                     <tr>
-                                        <td class="text-muted fw-semibold"><?= $gIdx++ ?></td>
-                                        <td>
-                                            <span class="font-monospace fw-bold text-dark badge bg-light text-dark border">
+                                        <td class="ps-3 text-muted fw-semibold py-1 px-2"><?= $gIdx++ ?></td>
+                                        <td class="py-1 px-2">
+                                            <span class="font-monospace fw-bold text-dark badge bg-light text-dark border" style="font-size: 0.72rem;">
                                                 <?= htmlspecialchars($g['item_code'] ?: ('SUP-' . $g['id'])) ?>
                                             </span>
                                         </td>
-                                        <td class="text-start">
-                                            <div class="fw-bold text-dark"><?= htmlspecialchars($g['item_name']) ?></div>
+                                        <td class="text-start py-1 px-2">
+                                            <div class="fw-bold text-dark font-monospace text-uppercase"><?= htmlspecialchars($g['item_name']) ?></div>
                                             <?php if (!empty($g['specification']) && $g['specification'] !== $g['item_name']): ?>
                                                 <div class="text-muted small" style="font-size: 0.72rem;"><?= htmlspecialchars($g['specification']) ?></div>
                                             <?php endif; ?>
                                         </td>
-                                        <td>
-                                            <span class="badge bg-light text-secondary border"><?= htmlspecialchars($g['unit'] ?: 'Pcs') ?></span>
+                                        <td class="py-1 px-2">
+                                            <span class="badge bg-light text-secondary border" style="font-size: 0.72rem;"><?= htmlspecialchars($g['unit'] ?: 'Pcs') ?></span>
                                         </td>
-                                        <td class="fw-bold text-dark">
-                                            <?= (float)$qty ?> <?= htmlspecialchars($g['unit'] ?: 'Pcs') ?>
+                                        <td class="fw-bold text-dark py-1 px-2">
+                                            <?= (float)$qty ?> <span class="fw-normal text-muted"><?= htmlspecialchars($g['unit'] ?: 'Pcs') ?></span>
                                         </td>
-                                        <td>
+                                        <td class="table-primary py-1 px-2">
                                             <?php if ($isInStock && $availableQty > 0): ?>
-                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                                    <i class="bi bi-box-seam me-1"></i><?= number_format($availableQty, 2) ?> <?= htmlspecialchars($g['unit'] ?: 'Pcs') ?> Available
+                                                <span class="fw-bold text-primary">
+                                                    <?= number_format($availableQty, 2) ?> <span class="fw-normal text-muted"><?= htmlspecialchars($g['unit'] ?: 'Pcs') ?></span>
                                                 </span>
                                             <?php elseif ($isInStock): ?>
-                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
-                                                    <i class="bi bi-shield-x me-1"></i>Quarantined / Out of Stock
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size: 0.7rem;">
+                                                    <i class="bi bi-shield-x me-1"></i>Out of Stock
                                                 </span>
                                             <?php else: ?>
-                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1" style="font-size: 0.7rem;">
                                                     <i class="bi bi-hourglass-split me-1"></i>Pending Inward
                                                 </span>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="text-end fw-semibold text-dark">
+                                        <td class="text-end fw-semibold text-dark py-1 px-2">
                                             ₹<?= number_format($uPrice, 2) ?>
                                         </td>
-                                        <td class="text-end fw-bold text-dark">
+                                        <td class="text-end fw-bold text-dark py-1 px-2">
                                             ₹<?= number_format($tot, 2) ?>
                                         </td>
-                                        <td>
+                                        <td class="py-1 px-2">
                                             <?php if ($isInStock && $availableQty > 0): ?>
                                                 <span class="badge bg-success text-white px-2 py-1" style="font-size: 0.68rem;">IN STOCK</span>
                                             <?php elseif ($isInStock): ?>
@@ -1245,31 +1232,36 @@ function viewPurchaseStock(button) {
             `).join('') : '<tr><td colspan="5" class="text-center text-muted small py-3">No individual batch records found.</td></tr>';
 
             bodyEl.innerHTML = `
-                <div class="row g-3 mb-3">
-                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Design / Pattern</div><div class="fw-bold">${escapeHtmlHtml(item.design_name || '-')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Color / Shade</div><div class="fw-bold text-uppercase">${escapeHtmlHtml(item.color || '-')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">HSN Code</div><div class="fw-bold font-monospace">${escapeHtmlHtml(item.hsn_code || '-')}</div></div></div>
-                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Accumulated Stock</div><div class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</div></div></div>
-                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Total Fabric Weight</div><div class="fw-bold">${parseFloat(item.net_weight || 0).toFixed(2)} kg</div></div></div>
-                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Unit Rate</div><div class="fw-bold">₹${parseFloat(item.last_unit_price || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
-                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Total Valuation</div><div class="fw-bold text-success">₹${parseFloat(item.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
+                <div class="row g-3 mb-4">
+                    ${detailCard('col-md-4', 'Design / Pattern', `<span class="fw-bold text-dark fs-6">${escapeHtmlHtml(item.design_name || '-')}</span>`, true)}
+                    ${detailCard('col-md-4', 'Color / Shade', `<span class="fw-bold text-uppercase text-dark fs-6">${escapeHtmlHtml(item.color || '-')}</span>`, true)}
+                    ${detailCard('col-md-4', 'HSN Code', `<span class="fw-bold font-monospace text-dark fs-6">${escapeHtmlHtml(item.hsn_code || '-')}</span>`, true)}
+                    ${detailCard('col-md-3', 'Accumulated Stock', `<span class="fw-bold text-primary fs-6">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</span>`)}
+                    ${detailCard('col-md-3', 'Total Fabric Weight', `<span class="fw-bold text-dark fs-6">${parseFloat(item.net_weight || 0).toFixed(2)} kg</span>`)}
+                    ${detailCard('col-md-3', 'Unit Rate', `<span class="fw-bold text-dark fs-6">${formatInr(item.last_unit_price || 0)}</span>`)}
+                    ${detailCard('col-md-3', 'Total Valuation', `<span class="fw-bold text-success fs-6">${formatInr(item.total_value || 0)}</span>`)}
                 </div>
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="fw-bold small text-uppercase text-muted mb-0">Inward Batch History (${batches.length})</h6>
-                </div>
-                <div class="table-responsive border rounded-3">
-                    <table class="table table-sm table-hover mb-0 align-middle purchase-stock-history-table">
-                        <thead class="table-light small text-uppercase text-muted">
-                            <tr>
-                                <th>Bill #</th>
-                                <th>Supplier</th>
-                                <th class="text-end">Qty</th>
-                                <th class="text-end">Weight</th>
-                                <th class="text-end">Rate</th>
-                            </tr>
-                        </thead>
-                        <tbody>${batchRows}</tbody>
-                    </table>
+                <div class="border rounded-3 overflow-hidden">
+                    <div class="bg-light px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
+                        <span class="fw-bold small text-uppercase text-secondary" style="letter-spacing: 0.04em;">
+                            <i class="bi bi-clock-history me-1 text-primary"></i> Inward Batch History
+                        </span>
+                        <span class="badge bg-white text-dark border">${batches.length} ${batches.length === 1 ? 'Batch' : 'Batches'}</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 align-middle purchase-stock-history-table">
+                            <thead class="table-light small text-uppercase text-muted" style="font-size: 0.72rem;">
+                                <tr>
+                                    <th>Bill #</th>
+                                    <th>Supplier</th>
+                                    <th class="text-end">Qty</th>
+                                    <th class="text-end">Weight</th>
+                                    <th class="text-end">Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>${batchRows}</tbody>
+                        </table>
+                    </div>
                 </div>
             `;
         } else {
@@ -1342,14 +1334,17 @@ function confirmDeletePurchaseStock(button) {
 <!-- View Stock Details Modal -->
 <div class="modal fade" id="viewPurchaseStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow rounded-3">
-            <div class="modal-header py-3 px-4 border-bottom">
-                <h5 class="modal-title fs-6 fw-bold mb-0"><i class="bi bi-eye text-info me-2"></i>Purchase Stock Details</h5>
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header py-3 px-4 bg-white border-bottom">
+                <h5 class="modal-title fs-6 fw-bold mb-0 d-flex align-items-center gap-2">
+                    <span class="badge bg-info-subtle text-info rounded-2 p-2"><i class="bi bi-eye"></i></span>
+                    <span>Purchase Stock Details</span>
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4" id="viewPurchaseStockBody"></div>
             <div class="modal-footer py-2 px-4 bg-light border-top">
-                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-semibold" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>

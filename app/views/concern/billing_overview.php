@@ -37,6 +37,12 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
 ?>
 
 <div class="container-fluid px-0 pos-billing-overview">
+    <?php
+    $exportUrl = \App\Core\Controller::url('/m/billing/export');
+    $currentModule = 'billing';
+    $prefix = 'pos_ov_exp';
+    include __DIR__ . '/../partials/export_card.php';
+    ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <div class="text-secondary small mb-1">
@@ -238,11 +244,19 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
                                 <td class="ps-3 fw-semibold"><?= htmlspecialchars($invoice['invoice_no'], ENT_QUOTES, 'UTF-8') ?></td>
                                 <td class="text-muted"><?= htmlspecialchars(date('d M Y', strtotime($invoice['invoice_date'])), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td>
-                                    <div class="fw-semibold"><?= htmlspecialchars($invoice['customer_name'], ENT_QUOTES, 'UTF-8') ?></div>
+                                    <?php $isCompanyBill = trim((string)($invoice['billing_company_name'] ?? '')) !== ''; ?>
+                                    <div class="d-flex align-items-center flex-wrap gap-1">
+                                        <span class="fw-semibold"><?= htmlspecialchars($invoice['customer_name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                        <?php if ($isCompanyBill): ?>
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem;"><i class="bi bi-building me-1"></i>Company</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.68rem;"><i class="bi bi-person me-1"></i>Customer</span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($invoice['is_direct_bill'])): ?>
+                                            <span class="badge bg-info-subtle text-info-emphasis">Direct</span>
+                                        <?php endif; ?>
+                                    </div>
                                     <small class="text-muted"><?= htmlspecialchars($invoice['customer_phone'] ?: '-', ENT_QUOTES, 'UTF-8') ?></small>
-                                    <?php if (!empty($invoice['is_direct_bill'])): ?>
-                                        <span class="badge bg-info-subtle text-info-emphasis ms-1">Direct</span>
-                                    <?php endif; ?>
                                 </td>
                                 <td class="text-center"><?= number_format((int)$invoice['items_count']) ?></td>
                                 <td class="text-end fw-bold">₹<?= number_format((float)$invoice['net_amount'], 2) ?></td>

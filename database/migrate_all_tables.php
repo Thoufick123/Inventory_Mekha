@@ -903,6 +903,21 @@ try {
     }
 } catch (\Throwable $e) {}
 
+// 29. SYSTEM MODULES: Asset Management & Consolidated Reports accessible to concerns
+echo "\n29. Ensuring `admin_assets` and `admin_reports` can be provisioned to concerns...\n";
+try {
+    DB::query("UPDATE modules SET is_super_admin_only = 0 WHERE code IN ('admin_assets', 'admin_reports')");
+    DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled)
+               SELECT c.id, m.id, 1
+               FROM concerns c
+               CROSS JOIN modules m
+               WHERE m.code IN ('admin_assets', 'admin_reports')
+               ON DUPLICATE KEY UPDATE enabled = 1");
+    echo "  + Updated `admin_assets` and `admin_reports` to is_super_admin_only = 0 and enabled for ALL concerns\n";
+} catch (\Throwable $e) {
+    echo "  ! Error updating modules: " . $e->getMessage() . "\n";
+}
+
 echo "\n========================================================\n";
 echo "SUCCESS: All tables in local DB migrated successfully!\n";
 echo "========================================================\n";

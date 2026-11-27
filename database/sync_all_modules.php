@@ -11,21 +11,31 @@ echo "======================================================\n";
 echo "INVENTO: Master Modules & Concern Permissions Sync\n";
 echo "======================================================\n\n";
 
-// 1. Define complete master module registry (4 Super Admin + 25 Concern modules)
+// 0. Purge obsolete modules
+$obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
+foreach ($obsoleteCodes as $obsCode) {
+    $obsMod = DB::fetch("SELECT id FROM modules WHERE code = ?", [$obsCode]);
+    if ($obsMod) {
+        $obsId = (int)$obsMod['id'];
+        DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$obsId]);
+        DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$obsId]);
+        DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$obsId]);
+        DB::query("DELETE FROM modules WHERE id = ?", [$obsId]);
+    }
+}
+
+// 1. Define complete master module registry (matching current project sidebar exactly)
 $masterModules = [
     // Super Admin Modules (4)
     ['code' => 'admin_dashboard',  'name' => 'Dashboard',            'icon' => 'bi-speedometer2',     'sort' => 1,  'group' => 'Super Admin', 'admin_only' => 1],
     ['code' => 'admin_concerns',   'name' => 'Concern Management',   'icon' => 'bi-buildings',        'sort' => 2,  'group' => 'Super Admin', 'admin_only' => 1],
-    ['code' => 'admin_assets',     'name' => 'Asset Management',     'icon' => 'bi-building-gear',   'sort' => 3,  'group' => 'Super Admin', 'admin_only' => 1],
-    ['code' => 'admin_reports',    'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line',  'sort' => 4,  'group' => 'Super Admin', 'admin_only' => 1],
+    ['code' => 'admin_assets',     'name' => 'Asset Management',     'icon' => 'bi-building-gear',   'sort' => 3,  'group' => 'Super Admin', 'admin_only' => 0],
+    ['code' => 'admin_reports',    'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line',  'sort' => 4,  'group' => 'Super Admin', 'admin_only' => 0],
 
-    // Concern Operational Modules (25)
+    // Concern Operational Modules (19)
     ['code' => 'concern_dashboard', 'name' => 'Concern Dashboard',   'icon' => 'bi-speedometer',      'sort' => 10, 'group' => 'Dashboard',   'admin_only' => 0],
-    ['code' => 'suppliers',         'name' => 'Supplier',            'icon' => 'bi-truck',            'sort' => 20, 'group' => 'Purchase',    'admin_only' => 0],
     ['code' => 'purchase_billing',  'name' => 'Purchase Billing',     'icon' => 'bi-receipt',          'sort' => 21, 'group' => 'Purchase',    'admin_only' => 0],
     ['code' => 'purchase_stocks',   'name' => 'Purchase Stocks',      'icon' => 'bi-boxes',            'sort' => 22, 'group' => 'Purchase',    'admin_only' => 0],
-    ['code' => 'purchase_damage',   'name' => 'Purchase Damage',      'icon' => 'bi-shield-x',         'sort' => 23, 'group' => 'Purchase',    'admin_only' => 0],
-    ['code' => 'catalog_mapping',   'name' => 'Catalog Hierarchy',    'icon' => 'bi-diagram-3-fill',   'sort' => 24, 'group' => 'Purchase',    'admin_only' => 0],
     ['code' => 'product_adding',    'name' => 'Product Adding',       'icon' => 'bi-plus-square-dotted', 'sort' => 25, 'group' => 'Purchase',  'admin_only' => 0],
     ['code' => 'catalog_program',   'name' => 'Catalog & Program',   'icon' => 'bi-journal-bookmark', 'sort' => 30, 'group' => 'Production',  'admin_only' => 0],
     ['code' => 'cutting_wastage',   'name' => 'Cutting & Wastage',    'icon' => 'bi-scissors',         'sort' => 31, 'group' => 'Production',  'admin_only' => 0],
@@ -38,9 +48,7 @@ $masterModules = [
     ['code' => 'customers',         'name' => 'Customer Details',     'icon' => 'bi-people',           'sort' => 50, 'group' => 'Shop',        'admin_only' => 0],
     ['code' => 'billing',           'name' => 'POS Billing',          'icon' => 'bi-calculator',       'sort' => 51, 'group' => 'Shop',        'admin_only' => 0],
     ['code' => 'request',           'name' => 'Request',              'icon' => 'bi-file-earmark-text','sort' => 52, 'group' => 'Sales',       'admin_only' => 0],
-    ['code' => 'batch',             'name' => 'Batch',                'icon' => 'bi-collection',       'sort' => 53, 'group' => 'Sales',       'admin_only' => 0],
     ['code' => 'outward',           'name' => 'Outward',              'icon' => 'bi-box-arrow-up-right','sort' => 54, 'group' => 'Sales',      'admin_only' => 0],
-    ['code' => 'dispatch',          'name' => 'Dispatch',             'icon' => 'bi-send',             'sort' => 55, 'group' => 'Sales',       'admin_only' => 0],
     ['code' => 'expense',           'name' => 'Expense',              'icon' => 'bi-wallet2',          'sort' => 60, 'group' => 'Finance',     'admin_only' => 0],
     ['code' => 'cash',              'name' => 'Cash',                 'icon' => 'bi-cash-coin',        'sort' => 61, 'group' => 'Finance',     'admin_only' => 0],
     ['code' => 'cash_flow',         'name' => 'Cash & Cash Flow',     'icon' => 'bi-cash-coin',        'sort' => 62, 'group' => 'Finance',     'admin_only' => 0],

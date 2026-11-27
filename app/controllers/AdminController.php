@@ -38,13 +38,16 @@ class AdminController extends Controller {
             );
         }
 
-        $batchModule = DB::fetch("SELECT id FROM modules WHERE code = 'batch'");
-        if ($batchModule) {
-            $batchModuleId = (int)$batchModule['id'];
-            DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$batchModuleId]);
-            DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$batchModuleId]);
-            DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$batchModuleId]);
-            DB::query("DELETE FROM modules WHERE id = ?", [$batchModuleId]);
+        $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
+        foreach ($obsoleteCodes as $obsCode) {
+            $obsMod = DB::fetch("SELECT id FROM modules WHERE code = ?", [$obsCode]);
+            if ($obsMod) {
+                $obsId = (int)$obsMod['id'];
+                DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$obsId]);
+                DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$obsId]);
+                DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$obsId]);
+                DB::query("DELETE FROM modules WHERE id = ?", [$obsId]);
+            }
         }
 
         return DB::fetchAll(
@@ -135,6 +138,35 @@ class AdminController extends Controller {
                            ON DUPLICATE KEY UPDATE enabled = 1", [$dashModId]);
                 DB::query("INSERT IGNORE INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
                            SELECT id, ?, 1, 1, 1, 1 FROM roles", [$dashModId]);
+            }
+
+            // Self-heal: ensure admin_assets and admin_reports are provisionable and enabled for ALL concerns
+            DB::query("UPDATE modules SET is_super_admin_only = 0 WHERE code IN ('admin_assets', 'admin_reports')");
+            DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled)
+                       SELECT c.id, m.id, 1
+                       FROM concerns c
+                       CROSS JOIN modules m
+                       WHERE m.code IN ('admin_assets', 'admin_reports')
+                       ON DUPLICATE KEY UPDATE enabled = 1");
+            DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
+                       SELECT r.id, m.id, 1, 1, 1, 1
+                       FROM roles r
+                       CROSS JOIN modules m
+                       WHERE (r.name LIKE '%Administrator%' OR r.name LIKE '%Admin%')
+                         AND m.code IN ('admin_assets', 'admin_reports')
+                       ON DUPLICATE KEY UPDATE can_view = 1, can_add = 1, can_edit = 1, can_delete = 1");
+
+            // Purge obsolete modules
+            $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
+            foreach ($obsoleteCodes as $obsCode) {
+                $obsMod = DB::fetch("SELECT id FROM modules WHERE code = ?", [$obsCode]);
+                if ($obsMod) {
+                    $obsId = (int)$obsMod['id'];
+                    DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM modules WHERE id = ?", [$obsId]);
+                }
             }
 
             self::$schemaEnsured = true;
@@ -346,9 +378,9 @@ class AdminController extends Controller {
                 }
                 $pickedModuleIds[] = (int)$moduleId;
             }
-            $dashMod = DB::fetch("SELECT id FROM modules WHERE code = 'concern_dashboard'");
-            if ($dashMod) {
-                $pickedModuleIds[] = (int)$dashMod['id'];
+            $autoMods = DB::fetchAll("SELECT id FROM modules WHERE code IN ('concern_dashboard', 'admin_assets', 'admin_reports')");
+            foreach ($autoMods as $am) {
+                $pickedModuleIds[] = (int)$am['id'];
             }
             $pickedModuleIds = array_values(array_unique($pickedModuleIds));
         }
@@ -748,14 +780,26 @@ class AdminController extends Controller {
     }
 
     public function assets(): void {
-        $assets = DB::fetchAll(
-            "SELECT a.*, c.name AS concern_name 
-             FROM assets a
-             LEFT JOIN concerns c ON a.concern_id = c.id
-             ORDER BY a.id DESC"
-        );
-
-        $concerns = DB::fetchAll("SELECT id, name FROM concerns WHERE status = 'active'");
+        $cid = !Auth::isSuperAdmin() ? Auth::concernId() : null;
+        if ($cid) {
+            $assets = DB::fetchAll(
+                "SELECT a.*, c.name AS concern_name 
+                 FROM assets a
+                 LEFT JOIN concerns c ON a.concern_id = c.id
+                 WHERE a.concern_id = ?
+                 ORDER BY a.id DESC",
+                [$cid]
+            );
+            $concerns = DB::fetchAll("SELECT id, name FROM concerns WHERE id = ? AND status = 'active'", [$cid]);
+        } else {
+            $assets = DB::fetchAll(
+                "SELECT a.*, c.name AS concern_name 
+                 FROM assets a
+                 LEFT JOIN concerns c ON a.concern_id = c.id
+                 ORDER BY a.id DESC"
+            );
+            $concerns = DB::fetchAll("SELECT id, name FROM concerns WHERE status = 'active'");
+        }
 
         $this->render('admin/assets', [
             'pageTitle'     => 'Asset Management',
@@ -776,6 +820,9 @@ class AdminController extends Controller {
         $date      = $_POST['purchase_date'] ?: date('Y-m-d');
         $location  = trim($_POST['location'] ?? '');
         $concernId = !empty($_POST['concern_id']) ? (int)$_POST['concern_id'] : null;
+        if (!Auth::isSuperAdmin()) {
+            $concernId = Auth::concernId();
+        }
         $notes     = trim($_POST['notes'] ?? '');
 
         if (empty($code) || empty($name)) {
@@ -868,6 +915,13 @@ class AdminController extends Controller {
             }
         }
 
+        if (!Auth::isSuperAdmin()) {
+            $userCid = Auth::concernId();
+            if ($userCid) {
+                $selectedConcernIds = [$userCid];
+            }
+        }
+
         $range = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
         $salesDateFilter = "";
@@ -880,7 +934,16 @@ class AdminController extends Controller {
             $purchaseDateFilter = " AND pb.bill_date >= '{$startDateEsc}' AND pb.bill_date <= '{$endDateEsc}'";
         }
 
-        $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns ORDER BY name ASC");
+        if (!Auth::isSuperAdmin()) {
+            $userCid = Auth::concernId();
+            if ($userCid) {
+                $selectedConcernIds = [$userCid];
+            }
+        }
+
+        $allConcerns = !Auth::isSuperAdmin() && Auth::concernId()
+            ? DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE id = ?", [Auth::concernId()])
+            : DB::fetchAll("SELECT id, name, code, status FROM concerns ORDER BY name ASC");
 
         $concernWhere = "";
         $params = [];
@@ -935,6 +998,13 @@ class AdminController extends Controller {
             } else {
                 $parts = explode(',', (string)$_GET['concern_id']);
                 $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($parts))));
+            }
+        }
+
+        if (!Auth::isSuperAdmin()) {
+            $userCid = Auth::concernId();
+            if ($userCid) {
+                $selectedConcernIds = [$userCid];
             }
         }
 
@@ -1768,10 +1838,18 @@ class AdminController extends Controller {
                 FROM assets a
                 LEFT JOIN concerns c ON a.concern_id = c.id";
         $params = [];
+        $whereClauses = [];
         if ($dateScope['start_date'] && $dateScope['end_date']) {
-            $sql .= " WHERE DATE(a.purchase_date) BETWEEN ? AND ?";
+            $whereClauses[] = "DATE(a.purchase_date) BETWEEN ? AND ?";
             $params[] = $dateScope['start_date'];
             $params[] = $dateScope['end_date'];
+        }
+        if (!Auth::isSuperAdmin() && Auth::concernId()) {
+            $whereClauses[] = "a.concern_id = ?";
+            $params[] = Auth::concernId();
+        }
+        if (!empty($whereClauses)) {
+            $sql .= " WHERE " . implode(" AND ", $whereClauses);
         }
         $sql .= " ORDER BY a.id DESC";
         $assets = DB::fetchAll($sql, $params);

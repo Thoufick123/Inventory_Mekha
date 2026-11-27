@@ -1,13 +1,19 @@
 <?php
-// Group operational modules to match Images 1 & 2 hierarchy exactly
-$groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+// Group operational modules to match concern provisioning hierarchy
+$groupOrder = ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
 $groupedModules = [];
 foreach ($modules as $m) {
     if ($m['code'] === 'cash') continue; // Unified under 'Cash & Cash Flow' (cash_flow)
     if ($m['code'] === 'concern_dashboard' || $m['group_name'] === 'Dashboard') continue;
     if ($m['code'] === 'variants' || $m['group_name'] === 'Masters') continue;
+    if (in_array($m['code'], ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'], true)) continue;
     $grp = $m['group_name'] ?: 'General';
     $groupedModules[$grp][] = $m;
+}
+foreach (array_keys($groupedModules) as $grpKey) {
+    if (!in_array($grpKey, $groupOrder, true)) {
+        $groupOrder[] = $grpKey;
+    }
 }
 ?>
 <div class="container-fluid px-0">
@@ -62,7 +68,7 @@ foreach ($modules as $m) {
                                 <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
                                     <i class="bi bi-person"></i>
                                 </span>
-                                <input type="text" name="name" id="staff_create_name" class="form-control border-start-0" placeholder="e.g. Rahul Sharma" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
+                                <input type="text" name="name" id="staff_create_name" class="form-control border-start-0" placeholder="" value="<?= htmlspecialchars($oldInput['name'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -73,7 +79,7 @@ foreach ($modules as $m) {
                                 <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
                                     <i class="bi bi-shield-check"></i>
                                 </span>
-                                <input type="text" name="role_name" id="staff_role_input" class="form-control border-start-0 border-end-0" placeholder="Type or select role..." list="role_datalist" value="<?php
+                                <input type="text" name="role_name" id="staff_role_input" class="form-control border-start-0 border-end-0" placeholder="" list="role_datalist" value="<?php
                                     $curRoleVal = '';
                                     if (!empty($oldInput['role_name'])) {
                                         $curRoleVal = $oldInput['role_name'];
@@ -121,7 +127,7 @@ foreach ($modules as $m) {
                                 <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
                                     <i class="bi bi-envelope"></i>
                                 </span>
-                                <input type="email" name="email" id="staff_create_email" class="form-control border-start-0" placeholder="rahul@example.com" value="<?= htmlspecialchars($oldInput['email'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
+                                <input type="email" name="email" id="staff_create_email" class="form-control border-start-0" placeholder="" value="<?= htmlspecialchars($oldInput['email'] ?? '') ?>" required autocomplete="off" style="border-radius: 0 8px 8px 0;">
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -132,7 +138,7 @@ foreach ($modules as $m) {
                                 <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
                                     <i class="bi bi-key"></i>
                                 </span>
-                                <input type="password" name="password" id="staff_create_password" class="form-control border-start-0 border-end-0" placeholder="••••••••" value="<?= htmlspecialchars($oldInput['password'] ?? '') ?>" required autocomplete="new-password">
+                                <input type="password" name="password" id="staff_create_password" class="form-control border-start-0 border-end-0" placeholder="" value="<?= htmlspecialchars($oldInput['password'] ?? '') ?>" required autocomplete="new-password">
                                 <button class="btn btn-outline-secondary border-start-0" type="button" onclick="toggleCreatePassword(this)" style="border-radius: 0 8px 8px 0;">
                                     <i class="bi bi-eye"></i>
                                 </button>
@@ -151,7 +157,7 @@ foreach ($modules as $m) {
                             </div>
                             <div class="input-group">
                                 <span class="input-group-text bg-white border-end-0 text-muted font-semibold" style="border-radius: 8px 0 0 8px;">+91</span>
-                                <input type="tel" name="phone" id="staff_create_phone" maxlength="10" class="form-control border-start-0 border-end-0 font-monospace" placeholder="10-digit mobile number" value="<?= htmlspecialchars($oldInput['phone'] ?? '') ?>" oninput="updatePhoneCounter(this)" autocomplete="off">
+                                <input type="tel" name="phone" id="staff_create_phone" maxlength="10" class="form-control border-start-0 border-end-0 font-monospace" placeholder="" value="<?= htmlspecialchars($oldInput['phone'] ?? '') ?>" oninput="updatePhoneCounter(this)" autocomplete="off">
                                 <span class="input-group-text bg-white border-start-0 text-muted" style="border-radius: 0 8px 8px 0;">#</span>
                             </div>
                             <div class="form-text text-muted small mt-1" style="font-size: 0.73rem;">

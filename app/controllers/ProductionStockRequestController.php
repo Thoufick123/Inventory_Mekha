@@ -57,8 +57,19 @@ class ProductionStockRequestController extends Controller {
             [$cid, $cid]
         );
 
-        // 2. Fetch active variants
-        $variants = DB::fetchAll("SELECT id, product_code, name, size, price, concern_id FROM variants WHERE status = 'active' ORDER BY name ASC");
+        // 2. Fetch active variants that have stock in the current concern (source)
+        $variants = DB::fetchAll(
+            "SELECT v.id, v.product_code, v.name, v.size, v.price, v.concern_id,
+                    COALESCE(SUM(s.qty), 0) AS current_stock
+             FROM variants v
+             INNER JOIN stocks s ON s.variant_id = v.id AND s.concern_id = ?
+                AND s.location NOT LIKE '%:DAMAGED%' AND s.location NOT LIKE '%:IN_TRANSIT%'
+             WHERE v.status = 'active'
+             GROUP BY v.id, v.product_code, v.name, v.size, v.price, v.concern_id
+             HAVING COALESCE(SUM(s.qty), 0) > 0
+             ORDER BY v.name ASC",
+            [$cid ?? 0]
+        );
 
         // 3. Precompute stock availability per concern & variant
         $stocksRaw = DB::fetchAll(
@@ -73,6 +84,8 @@ class ProductionStockRequestController extends Controller {
             $vIdKey = (int)$stk['variant_id'];
             $concernStocksMap[$cIdKey][$vIdKey] = (float)$stk['total_qty'];
         }
+        // Source (current) concern stock map for the indent modal
+        $sourceStocksMap = $concernStocksMap[(int)$cid] ?? [];
 
         // Base SELECT for requisitions
         $baseSelect = "SELECT psr.*, 
@@ -164,6 +177,8 @@ class ProductionStockRequestController extends Controller {
             'concerns'         => $concerns,
             'variants'         => $variants,
             'concernStocksMap' => $concernStocksMap,
+            'sourceStocksMap'  => $concernStocksMap[(int)$cid] ?? [],
+            'sourceCid'        => (int)$cid,
             'search'           => $search,
             'status'           => $status,
             'fromDate'         => $fromDate,

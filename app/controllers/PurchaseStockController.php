@@ -75,7 +75,7 @@ class PurchaseStockController extends Controller {
         // 1. Fetch Fabric Rolls (Individual batches)
         $rollsWhere = $buildWhere('rolls');
         $rolls = DB::fetchAll(
-            "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.inward_status, pb.payment_status,
+            "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') AS inward_status, pb.payment_status,
                     COALESCE(prog.allocated_qty, 0) AS allocated_qty,
                     COALESCE(prog.allocated_weight, 0) AS allocated_weight,
                     COALESCE(damage.damaged_qty, 0) AS damaged_qty,
@@ -123,7 +123,7 @@ class PurchaseStockController extends Controller {
         // 2. Fetch Other Garment Supplies & Trims
         $otherWhere = $buildWhere('garment_other');
         $garmentOther = DB::fetchAll(
-            "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.inward_status, pb.payment_status,
+            "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') AS inward_status, pb.payment_status,
                     COALESCE(damage.damaged_qty, 0) AS damaged_qty,
                     COALESCE(damage.damaged_weight, 0) AS damaged_weight,
                     COALESCE(damage.estimated_loss, 0) AS estimated_loss,
@@ -155,7 +155,7 @@ class PurchaseStockController extends Controller {
         // 3. Fetch Finished Goods
         $finishedWhere = $buildWhere('finished_goods');
         $finishedGoods = DB::fetchAll(
-            "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.inward_status, pb.payment_status,
+            "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') AS inward_status, pb.payment_status,
                     s.name AS supplier_name, s.company_name AS supplier_company,
                     c.name AS concern_name, c.code AS concern_code,
                     v.product_code AS variant_product_code, v.name AS variant_name, v.size AS variant_size, v.mrp AS variant_mrp,
@@ -1044,7 +1044,7 @@ class PurchaseStockController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, pb.inward_status,
+            "SELECT pbi.*, pb.bill_no, pb.bill_date, pb.supplier_invoice_no, COALESCE(NULLIF(pbi.inward_status, ''), pb.inward_status, 'pending') AS inward_status,
                     COALESCE(prog.allocated_qty, 0) AS prog_allocated_qty,
                     s.name AS supplier_name, s.company_name AS supplier_company,
                     c.name AS concern_name, c.code AS concern_code,
