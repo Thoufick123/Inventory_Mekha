@@ -2041,6 +2041,40 @@ if ($isEdit && !empty($existingItems)) {
     </div>
 </div>
 
+<!-- Add New Attribute Modal -->
+<div class="modal fade" id="addProductAttributeModal" tabindex="-1" aria-labelledby="addProductAttributeModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header bg-light border-bottom px-4 py-3">
+                <h5 class="modal-title fw-bold fs-6 mb-0" id="addProductAttributeModalTitle">
+                    <i class="bi bi-tags text-primary me-2"></i>Add New Attribute
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="addAttrModalError" class="alert alert-danger py-2 px-3 small d-none mb-3"></div>
+                <div class="mb-3">
+                    <label for="addAttrModalName" class="form-label small fw-semibold">Attribute Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="addAttrModalName" placeholder="e.g. Fabric Type, Pattern, Sleeve" maxlength="50"
+                        onkeydown="if(event.key==='Enter'){ event.preventDefault(); document.getElementById('addAttrModalValues')?.focus(); }">
+                </div>
+                <div>
+                    <label for="addAttrModalValues" class="form-label small fw-semibold">Initial Value(s) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="addAttrModalValues" placeholder="e.g. Cotton, Linen (comma-separated)"
+                        onkeydown="if(event.key==='Enter'){ event.preventDefault(); submitAddProductAttributeModal(); }">
+                    <div class="form-text small">You can enter one value or multiple comma-separated values.</div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btnCreateProductAttribute" onclick="submitAddProductAttributeModal()">
+                    <i class="bi bi-plus-lg me-1"></i>Add Attribute
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const isEditMode = <?= $isEdit ? 'true' : 'false' ?>;
 const existingRolls = <?= json_encode($existingRolls) ?>;
@@ -2912,19 +2946,51 @@ function buildProductAddingVariantAttributeCell(type, cardId, rowIndex) {
     return `<td><select name="${escapeHtml(name)}" class="form-select form-select-sm fg-variant-attribute" data-attribute-type="${escapeHtml(type)}" aria-label="${escapeHtml(label)}" ${required ? 'required' : ''} onchange="handleProductAddingAttributeChange(this, ${cardId}, ${rowIndex})">${options}</select></td>`;
 }
 
+let addAttrTargetCardId = null;
+
 function promptAddProductAddingAttribute(fgId) {
-    const label = window.prompt('New attribute name (for example: Fabric Type):');
-    if (label === null) return;
-    const trimmedLabel = label.trim();
+    addAttrTargetCardId = fgId;
+    const nameInput = document.getElementById('addAttrModalName');
+    const valuesInput = document.getElementById('addAttrModalValues');
+    const errorEl = document.getElementById('addAttrModalError');
+    if (nameInput) nameInput.value = '';
+    if (valuesInput) valuesInput.value = '';
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
+    }
+    const modalEl = document.getElementById('addProductAttributeModal');
+    if (modalEl && window.bootstrap?.Modal) {
+        const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        instance.show();
+        setTimeout(() => nameInput?.focus(), 180);
+    }
+}
+
+async function submitAddProductAttributeModal() {
+    const fgId = addAttrTargetCardId;
+    const nameInput = document.getElementById('addAttrModalName');
+    const valuesInput = document.getElementById('addAttrModalValues');
+    const errorEl = document.getElementById('addAttrModalError');
+    const showErr = (msg) => {
+        if (!errorEl) return;
+        errorEl.textContent = msg;
+        errorEl.classList.remove('d-none');
+    };
+    if (errorEl) errorEl.classList.add('d-none');
+
+    const trimmedLabel = (nameInput?.value || '').trim();
     if (!trimmedLabel) {
-        alert('Enter an attribute name.');
+        showErr('Enter an attribute name.');
+        nameInput?.focus();
         return;
     }
 
     let type = trimmedLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     if (/^[0-9]/.test(type)) type = `attribute_${type}`;
     if (!type || type.length > 50) {
-        alert('Use an attribute name that is at most 50 characters.');
+        showErr('Use an attribute name that is at most 50 characters.');
+        nameInput?.focus();
         return;
     }
     const reservedTypes = [
@@ -2935,19 +3001,46 @@ function promptAddProductAddingAttribute(fgId) {
         'weight', 'allocated_qty', 'custom_attributes', 'catalog_style_name', 'variant_name'
     ];
     if (reservedTypes.includes(type)) {
-        alert('That name is reserved for a built-in product field. Use the existing field instead.');
+        showErr('That name is reserved for a built-in product field. Use the existing field instead.');
+        nameInput?.focus();
         return;
     }
     if (type !== 'size' && type !== 'color' && getProductAddingOtherAttributeTypes().includes(type)) {
-        alert('That attribute already exists. Use its Add New Value option.');
+        showErr('That attribute already exists. Use + Add Value instead.');
+        nameInput?.focus();
         return;
     }
 
-    const value = window.prompt(`Initial value for ${trimmedLabel}:`);
-    if (value === null) return;
+    const values = [...new Set((valuesInput?.value || '').split(/[,;|]+/).map(v => v.trim()).filter(Boolean))];
+    if (!values.length) {
+        showErr(`Enter at least one initial value for ${trimmedLabel}.`);
+        valuesInput?.focus();
+        return;
+    }
+
+    const btn = document.getElementById('btnCreateProductAttribute');
+    const prevHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding...';
+    }
+
     const firstRow = document.querySelector(`#finishedCard_${fgId} .fg-variant-row`);
     const firstRowIndex = firstRow ? parseInt(firstRow.dataset.rowIndex, 10) : null;
-    saveProductAddingAttributeValue(type, value, fgId, firstRowIndex, trimmedLabel);
+    try {
+        for (const val of values) {
+            await saveProductAddingAttributeValue(type, val, fgId, firstRowIndex, trimmedLabel);
+        }
+        const modalEl = document.getElementById('addProductAttributeModal');
+        if (modalEl && window.bootstrap?.Modal) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = prevHtml;
+        }
+    }
 }
 
 function handleProductAddingAttributeChange(select, fgId, rowIndex) {
