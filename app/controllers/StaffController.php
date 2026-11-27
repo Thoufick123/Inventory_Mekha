@@ -125,6 +125,29 @@ class StaffController extends Controller {
                 }
             }
 
+            // Self-heal: link staff to user accounts where matching by email/phone
+            try {
+                DB::query("UPDATE staff s JOIN users u ON (s.email = u.email AND s.email != '') OR (s.phone = u.phone AND s.phone != '') SET s.user_id = u.id WHERE s.user_id IS NULL");
+            } catch (\Throwable $e) {}
+
+            // Self-heal: ensure all configured user permissions have a universal fallback (concern_id IS NULL)
+            try {
+                DB::query("INSERT IGNORE INTO user_permissions (user_id, concern_id, module_id, can_view, can_add, can_edit, can_delete)
+                           SELECT user_id, NULL, module_id, can_view, can_add, can_edit, can_delete
+                           FROM user_permissions
+                           WHERE concern_id IS NOT NULL
+                           GROUP BY user_id, module_id");
+            } catch (\Throwable $e) {}
+
+            // Self-heal: ensure user permissions are mirrored to all authorized user concerns
+            try {
+                DB::query("INSERT IGNORE INTO user_permissions (user_id, concern_id, module_id, can_view, can_add, can_edit, can_delete)
+                           SELECT up.user_id, uc.concern_id, up.module_id, up.can_view, up.can_add, up.can_edit, up.can_delete
+                           FROM user_permissions up
+                           JOIN user_concerns uc ON up.user_id = uc.user_id
+                           WHERE up.concern_id IS NULL");
+            } catch (\Throwable $e) {}
+
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
             error_log('StaffController ensureSchema error: ' . $e->getMessage());
@@ -1258,28 +1281,7 @@ class StaffController extends Controller {
             if ($userId) {
                 // If custom permissions submitted for this staff member, save to user_permissions
                 if (!empty($_POST['is_custom_perms']) && !empty($_POST['custom_perms'])) {
-                    $stmtUp = DB::pdo()->prepare(
-                        "INSERT INTO user_permissions (user_id, module_id, can_view, can_add, can_edit, can_delete)
-                         VALUES (?, ?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_add = VALUES(can_add), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)"
-                    );
-                    $stmtDel = DB::pdo()->prepare("DELETE FROM user_permissions WHERE user_id = ? AND module_id = ?");
-                    $allMods = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0");
-                    $customPerms = (array)$_POST['custom_perms'];
-
-                    foreach ($allMods as $m) {
-                        $mid = (int)$m['id'];
-                        $v = isset($customPerms[$mid]['view']) ? self::parseOverrideValue($customPerms[$mid]['view']) : null;
-                        $a = isset($customPerms[$mid]['add']) ? self::parseOverrideValue($customPerms[$mid]['add']) : null;
-                        $e = isset($customPerms[$mid]['edit']) ? self::parseOverrideValue($customPerms[$mid]['edit']) : null;
-                        $d = isset($customPerms[$mid]['delete']) ? self::parseOverrideValue($customPerms[$mid]['delete']) : null;
-
-                        if ($v === null && $a === null && $e === null && $d === null) {
-                            $stmtDel->execute([$userId, $mid]);
-                        } else {
-                            $stmtUp->execute([$userId, $mid, $v, $a, $e, $d]);
-                        }
-                    }
+                    $this->persistUserPermissions($userId, (array)$_POST['custom_perms'], $concernIds);
                 }
 
                 DB::query("DELETE FROM user_concerns WHERE user_id = ?", [$userId]);
@@ -1449,32 +1451,7 @@ class StaffController extends Controller {
 
         DB::beginTransaction();
         try {
-            $stmtInsert = DB::pdo()->prepare(
-                "INSERT INTO user_permissions (user_id, module_id, can_view, can_add, can_edit, can_delete)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_add = VALUES(can_add), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)"
-            );
-            $stmtDelete = DB::pdo()->prepare("DELETE FROM user_permissions WHERE user_id = ? AND module_id = ?");
-
-            $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0");
-            $savedOverrides = [];
-
-            foreach ($modules as $m) {
-                $mid = (int)$m['id'];
-                $modOv = $overrides[$mid] ?? [];
-
-                $v = self::parseOverrideValue($modOv['view'] ?? null);
-                $a = self::parseOverrideValue($modOv['add'] ?? null);
-                $e = self::parseOverrideValue($modOv['edit'] ?? null);
-                $d = self::parseOverrideValue($modOv['delete'] ?? null);
-
-                if ($v === null && $a === null && $e === null && $d === null) {
-                    $stmtDelete->execute([$userId, $mid]);
-                } else {
-                    $stmtInsert->execute([$userId, $mid, $v, $a, $e, $d]);
-                    $savedOverrides[$mid] = ['view' => $v, 'add' => $a, 'edit' => $e, 'delete' => $d];
-                }
-            }
+            $this->persistUserPermissions($userId, $overrides, []);
 
             AuditLog::record(
                 Auth::concernId(),
@@ -1482,7 +1459,7 @@ class StaffController extends Controller {
                 $userId,
                 'PERMISSIONS_UPDATE',
                 null,
-                $savedOverrides,
+                $overrides,
                 "Updated individual permission overrides for user #{$userId}"
             );
 
@@ -1851,50 +1828,78 @@ class StaffController extends Controller {
         // Clean existing permissions for this user to avoid stale permissions
         DB::query("DELETE FROM user_permissions WHERE user_id = ?", [$userId]);
 
-        foreach ($concernIds as $authCid) {
+        // Normalize posted permissions (handle single-concern vs multi-concern keyed formats)
+        $normalizedPerms = [];
+        if (!empty($postedPerms)) {
+            $firstKey = array_key_first($postedPerms);
+            if (isset($postedPerms[$firstKey]['view']) || isset($postedPerms[$firstKey]['add']) || isset($postedPerms[$firstKey]['edit']) || isset($postedPerms[$firstKey]['delete'])) {
+                $normalizedPerms = $postedPerms;
+            } elseif (is_array($postedPerms[$firstKey])) {
+                $normalizedPerms = $postedPerms[$firstKey];
+            } else {
+                $normalizedPerms = $postedPerms;
+            }
+        }
+
+        if ($cashModId && $cashFlowModId && isset($normalizedPerms[$cashFlowModId])) {
+            $normalizedPerms[$cashModId] = $normalizedPerms[$cashFlowModId];
+        }
+
+        // Resolve all authorized concern IDs for this user
+        $ucRows = DB::fetchAll("SELECT concern_id FROM user_concerns WHERE user_id = ?", [$userId]);
+        $existingCids = array_filter(array_map('intval', array_column($ucRows, 'concern_id')));
+        $uCid = (int)DB::fetchValue("SELECT concern_id FROM users WHERE id = ?", [$userId]);
+        $sCid = (int)DB::fetchValue("SELECT concern_id FROM staff WHERE user_id = ?", [$userId]);
+        
+        $targetCids = array_unique(array_filter(array_merge($concernIds, $existingCids, [$uCid, $sCid])));
+
+        // Compute whether user has any operational add/edit access for concern_dashboard alignment
+        $hasAnyAdd = false;
+        $hasAnyEdit = false;
+        foreach ($allMods as $m) {
+            $mid = (int)$m['id'];
+            if ($dashModId && $mid === $dashModId) continue;
+            if (!empty($normalizedPerms[$mid]['add']) && $normalizedPerms[$mid]['add'] != '0') $hasAnyAdd = true;
+            if (!empty($normalizedPerms[$mid]['edit']) && $normalizedPerms[$mid]['edit'] != '0') $hasAnyEdit = true;
+        }
+
+        // 1. Insert global fallback row (concern_id = NULL) for each module
+        foreach ($allMods as $m) {
+            $mid = (int)$m['id'];
+            if ($dashModId && $mid === $dashModId) {
+                $v = 1;
+                $a = $hasAnyAdd ? 1 : 0;
+                $e = $hasAnyEdit ? 1 : 0;
+                $d = 0;
+            } else {
+                $v = !empty($normalizedPerms[$mid]['view']) && $normalizedPerms[$mid]['view'] != '0' ? 1 : 0;
+                $a = !empty($normalizedPerms[$mid]['add']) && $normalizedPerms[$mid]['add'] != '0' ? 1 : 0;
+                $e = !empty($normalizedPerms[$mid]['edit']) && $normalizedPerms[$mid]['edit'] != '0' ? 1 : 0;
+                $d = !empty($normalizedPerms[$mid]['delete']) && $normalizedPerms[$mid]['delete'] != '0' ? 1 : 0;
+            }
+            $stmtUp->execute([$userId, null, $mid, $v, $a, $e, $d]);
+        }
+
+        // 2. Insert concern-specific rows for each authorized concern
+        foreach ($targetCids as $authCid) {
             if ($authCid <= 0) continue;
 
-            $concernPerms = [];
-            if (isset($postedPerms[$authCid]) && is_array($postedPerms[$authCid])) {
-                $concernPerms = $postedPerms[$authCid];
-            } elseif (count($concernIds) === 1 && isset($postedPerms[array_key_first($postedPerms)])) {
-                $concernPerms = $postedPerms;
-            } elseif (!empty($postedPerms)) {
-                $concernPerms = $postedPerms;
-            }
+            $concernPerms = (isset($postedPerms[$authCid]) && is_array($postedPerms[$authCid])) 
+                ? $postedPerms[$authCid] 
+                : $normalizedPerms;
 
-            if ($cashModId && $cashFlowModId && isset($concernPerms[$cashFlowModId])) {
-                $concernPerms[$cashModId] = $concernPerms[$cashFlowModId];
-            }
-
-            // Get modules enabled for this concern
-            $cmRows = DB::fetchAll("SELECT module_id FROM concern_modules WHERE concern_id = ? AND enabled = 1", [$authCid]);
-            $enabledMids = array_map('intval', array_column($cmRows, 'module_id'));
-            if (empty($enabledMids)) {
-                $enabledMids = array_map('intval', array_column($allMods, 'id'));
-            }
-
-            // Compute whether user has any operational add/edit access
-            $hasAnyAdd = false;
-            $hasAnyEdit = false;
-            foreach ($enabledMids as $mid) {
-                if ($dashModId && $mid === $dashModId) continue;
-                if (!empty($concernPerms[$mid]['add'])) $hasAnyAdd = true;
-                if (!empty($concernPerms[$mid]['edit'])) $hasAnyEdit = true;
-            }
-
-            foreach ($enabledMids as $mid) {
-                // If this is the concern_dashboard base module, dynamically align its add/edit with operational permissions
+            foreach ($allMods as $m) {
+                $mid = (int)$m['id'];
                 if ($dashModId && $mid === $dashModId) {
                     $v = 1;
                     $a = $hasAnyAdd ? 1 : 0;
                     $e = $hasAnyEdit ? 1 : 0;
                     $d = 0;
                 } else {
-                    $v = !empty($concernPerms[$mid]['view']) ? 1 : 0;
-                    $a = !empty($concernPerms[$mid]['add']) ? 1 : 0;
-                    $e = !empty($concernPerms[$mid]['edit']) ? 1 : 0;
-                    $d = !empty($concernPerms[$mid]['delete']) ? 1 : 0;
+                    $v = !empty($concernPerms[$mid]['view']) && $concernPerms[$mid]['view'] != '0' ? 1 : 0;
+                    $a = !empty($concernPerms[$mid]['add']) && $concernPerms[$mid]['add'] != '0' ? 1 : 0;
+                    $e = !empty($concernPerms[$mid]['edit']) && $concernPerms[$mid]['edit'] != '0' ? 1 : 0;
+                    $d = !empty($concernPerms[$mid]['delete']) && $concernPerms[$mid]['delete'] != '0' ? 1 : 0;
                 }
                 $stmtUp->execute([$userId, $authCid, $mid, $v, $a, $e, $d]);
             }

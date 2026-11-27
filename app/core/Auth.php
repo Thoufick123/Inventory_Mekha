@@ -56,8 +56,19 @@ class Auth {
                 }
             }
 
-            // Real-time permission refresh so permission changes take effect immediately without re-login
-            if (!self::$permissionsRefreshed && !self::isSuperAdmin()) {
+            // Real-time user state & permission refresh so permission/role changes take effect immediately without re-login
+            if (!self::isSuperAdmin()) {
+                $freshUser = DB::fetch("SELECT role_id, concern_id, status FROM users WHERE id = ?", [$userId]);
+                if ($freshUser) {
+                    if ($freshUser['status'] !== 'active') {
+                        self::logout();
+                        return false;
+                    }
+                    $_SESSION['user']['role_id'] = (int)$freshUser['role_id'];
+                    if (!empty($_SESSION['concern']['id'])) {
+                        $_SESSION['user']['concern_id'] = (int)$_SESSION['concern']['id'];
+                    }
+                }
                 self::loadPermissions($userId, (int)($_SESSION['user']['role_id'] ?? 0));
                 self::$permissionsRefreshed = true;
             }
@@ -291,20 +302,49 @@ class Auth {
         $userMap = [];
         if ($userId > 0) {
             $cid = (int)($_SESSION['user']['concern_id'] ?? ($_SESSION['concern']['id'] ?? 0));
-            $params = [$userId];
-            $sql = "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
-                    FROM user_permissions up
-                    JOIN modules m ON up.module_id = m.id
-                    WHERE up.user_id = ?";
             $upCols = array_column(DB::fetchAll("DESCRIBE user_permissions"), 'Field');
             $hasConcernCol = in_array('concern_id', $upCols, true);
+            $userPerms = [];
+
             if ($hasConcernCol && $cid > 0) {
-                $sql .= " AND (up.concern_id = ? OR up.concern_id IS NULL) ORDER BY (up.concern_id IS NOT NULL) ASC";
-                $params[] = $cid;
+                $userPerms = DB::fetchAll(
+                    "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
+                     FROM user_permissions up
+                     JOIN modules m ON up.module_id = m.id
+                     WHERE up.user_id = ? AND (up.concern_id = ? OR up.concern_id IS NULL)
+                     ORDER BY (up.concern_id IS NOT NULL) ASC",
+                    [$userId, $cid]
+                );
             } elseif ($hasConcernCol) {
-                $sql .= " AND up.concern_id IS NULL";
+                $userPerms = DB::fetchAll(
+                    "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
+                     FROM user_permissions up
+                     JOIN modules m ON up.module_id = m.id
+                     WHERE up.user_id = ? AND up.concern_id IS NULL",
+                    [$userId]
+                );
+            } else {
+                $userPerms = DB::fetchAll(
+                    "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
+                     FROM user_permissions up
+                     JOIN modules m ON up.module_id = m.id
+                     WHERE up.user_id = ?",
+                    [$userId]
+                );
             }
-            $userPerms = DB::fetchAll($sql, $params);
+
+            // Fallback: If no permissions found for this specific concern or null, check if this user has ANY configured permissions
+            if (empty($userPerms)) {
+                $userPerms = DB::fetchAll(
+                    "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
+                     FROM user_permissions up
+                     JOIN modules m ON up.module_id = m.id
+                     WHERE up.user_id = ?
+                     ORDER BY (up.concern_id IS NOT NULL) ASC",
+                    [$userId]
+                );
+            }
+
             foreach ($userPerms as $up) {
                 $userMap[$up['code']] = [
                     'view'   => $up['can_view'] === null ? null : (int)$up['can_view'],
@@ -312,6 +352,9 @@ class Auth {
                     'edit'   => $up['can_edit'] === null ? null : (int)$up['can_edit'],
                     'delete' => $up['can_delete'] === null ? null : (int)$up['can_delete'],
                 ];
+                if ($up['code'] === 'cash_flow') {
+                    $userMap['cash'] = $userMap['cash_flow'];
+                }
             }
         }
         $_SESSION['user_permissions'] = $userMap;
