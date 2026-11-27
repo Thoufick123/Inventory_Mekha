@@ -4233,7 +4233,7 @@ class ProductionController extends Controller {
              FROM cutting_items ci
              LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
              WHERE ci.cutting_id = ?
-             ORDER BY ci.catalog_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
+             ORDER BY ci.program_roll_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
             [$id]
         );
 
@@ -4287,7 +4287,7 @@ class ProductionController extends Controller {
              FROM cutting_items ci
              LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
              WHERE ci.cutting_id = ?
-             ORDER BY ci.catalog_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
+             ORDER BY ci.program_roll_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
             [$id]
         );
 
@@ -5535,7 +5535,7 @@ class ProductionController extends Controller {
                  (SELECT c3.id FROM catalogs c3 WHERE c3.source_module = 'production_catalog' AND (c3.concern_id = pr.concern_id OR c3.concern_id = 1 OR c3.concern_id IS NULL) AND pr.category_id IS NOT NULL AND c3.category_id = pr.category_id ORDER BY c3.id ASC LIMIT 1)
              )
              WHERE ci.cutting_id = ?
-             ORDER BY ci.catalog_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
+             ORDER BY ci.program_roll_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
             [$cuttingId]
         );
 
