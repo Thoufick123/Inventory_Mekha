@@ -55,15 +55,6 @@
         ?>
     <?php endif; ?>
 
-    <!-- Action Bar -->
-    <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
-    <div class="d-flex justify-content-end align-items-center mb-3 gap-2">
-        <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
-            <i class="bi bi-plus-lg"></i> Add Stock
-        </button>
-    </div>
-    <?php endif; ?>
-
     <!-- Super Admin Concern Switcher Banner (if Super Admin) -->
     <?php if (App\Core\Auth::isSuperAdmin() && !empty($allConcerns)): ?>
         <div class="card border-0 shadow-sm rounded-3 mb-4 bg-light">
@@ -149,8 +140,8 @@
     <!-- Main Inventory Card with 3 Sections / Tabs -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <!-- Section Navigation Pills (3 Tabs) -->
-        <div class="card-header bg-white border-bottom pt-3 pb-0 px-4">
-            <ul class="nav nav-pills card-header-pills gap-2 pb-3 mb-0" id="stockSectionTabs" role="tablist">
+        <div class="card-header bg-white border-bottom py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <ul class="nav nav-pills gap-2 mb-0" id="stockSectionTabs" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link py-2 px-3 fw-semibold d-flex align-items-center gap-2 rounded-2 <?= $activeTab === 'rolls' ? 'active' : '' ?>" 
                        href="<?= \App\Core\Controller::url('/m/purchase_stocks?tab=rolls' . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>">
@@ -182,6 +173,11 @@
                     </a>
                 </li>
             </ul>
+            <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
+            <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
+                <i class="bi bi-plus-lg"></i> Add Stock
+            </button>
+            <?php endif; ?>
         </div>
 
         <?php if ($activeTab !== 'damage'): ?>
