@@ -439,20 +439,16 @@
 
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Driver Name</label>
-                        <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="e.g. Vanaja" maxlength="100" title="Use a name with letters, spaces, apostrophes, periods, or hyphens.">
+                        <input type="text" name="driver_name" class="form-control form-control-sm" placeholder="Enter driver name" maxlength="100" title="Use a name with letters, spaces, apostrophes, periods, or hyphens.">
                     </div>
 
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold text-secondary">Driver Contact</label>
-                        <input type="tel" name="driver_contact" class="form-control form-control-sm" placeholder="e.g. 9943557998" inputmode="numeric" pattern="[6-9][0-9]{9}" title="Enter a valid 10-digit Indian mobile number.">
+                        <input type="tel" name="driver_contact" id="add_driver_contact" class="form-control form-control-sm" placeholder="e.g. 9876543210" inputmode="numeric" maxlength="10" pattern="[6-9][0-9]{9}" oninput="validateOutwardDriverContact(this)" onblur="validateOutwardDriverContact(this)">
+                        <div class="invalid-feedback">Enter a valid 10-digit mobile number (starting with 6–9).</div>
                     </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold text-secondary">Transporter / Carrier Name</label>
-                        <input type="text" name="transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics" maxlength="150">
-                    </div>
-
-                    <div class="col-md-6">
+                    <div class="col-12">
                         <label class="form-label small fw-semibold text-secondary">Notes / Remarks</label>
                         <input type="text" name="notes" class="form-control form-control-sm" placeholder="e.g. Priority shipment" maxlength="2000">
                     </div>
@@ -500,12 +496,13 @@
 
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold text-secondary">Driver Name</label>
-                        <input type="text" name="driver_name" id="edit_driver_name" class="form-control form-control-sm">
+                        <input type="text" name="driver_name" id="edit_driver_name" class="form-control form-control-sm" placeholder="Enter driver name" maxlength="100">
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold text-secondary">Driver Contact</label>
-                        <input type="text" name="driver_contact" id="edit_driver_contact" class="form-control form-control-sm">
+                        <input type="tel" name="driver_contact" id="edit_driver_contact" class="form-control form-control-sm" placeholder="e.g. 9876543210" inputmode="numeric" maxlength="10" pattern="[6-9][0-9]{9}" oninput="validateOutwardDriverContact(this)" onblur="validateOutwardDriverContact(this)">
+                        <div class="invalid-feedback">Enter a valid 10-digit mobile number (starting with 6–9).</div>
                     </div>
 
                     <div class="col-md-6">
@@ -525,12 +522,7 @@
                         <input type="text" name="warehouse_name" id="edit_warehouse_name" class="form-control form-control-sm">
                     </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label small fw-semibold text-secondary">Transporter / Carrier Name</label>
-                        <input type="text" name="transporter_name" id="edit_transporter_name" class="form-control form-control-sm" placeholder="e.g. Express Logistics">
-                    </div>
-
-                    <div class="col-md-6">
+                    <div class="col-12">
                         <label class="form-label small fw-semibold text-secondary">Status</label>
                         <select name="status" id="edit_status" class="form-select form-select-sm">
                             <option value="DISPATCHED">✔ DISPATCHED</option>
@@ -1005,6 +997,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (form) {
         renderScannedTable();
         form.addEventListener('submit', function(e) {
+            const driverContactInput = document.getElementById('add_driver_contact');
+            if (driverContactInput && !validateOutwardDriverContact(driverContactInput)) {
+                e.preventDefault();
+                driverContactInput.focus();
+                return false;
+            }
             const batch = getSelectedBatchOption();
             const items = Object.values(scannedFgMap);
             if (!batch && items.length === 0) {
@@ -1033,6 +1031,24 @@ document.addEventListener('DOMContentLoaded', function() {
         openNewDispatchModal();
     }
 });
+
+function validateOutwardDriverContact(input) {
+    if (!input) return true;
+    const digits = String(input.value || '').replace(/\D+/g, '').slice(0, 10);
+    if (input.value !== digits) {
+        input.value = digits;
+    }
+    if (digits === '') {
+        input.classList.remove('is-invalid', 'is-valid');
+        input.setCustomValidity('');
+        return true;
+    }
+    const isValid = /^[6-9]\d{9}$/.test(digits);
+    input.classList.toggle('is-invalid', !isValid);
+    input.classList.toggle('is-valid', isValid);
+    input.setCustomValidity(isValid ? '' : 'Enter a valid 10-digit mobile number (starting with 6–9).');
+    return isValid;
+}
 
 function openEditOutwardModal(o) {
     if (!o) return;
