@@ -589,6 +589,7 @@ class LabelController extends Controller {
         PurchaseStockItemOverrideService::initTable();
 
         $billId = (int)($_POST['bill_id'] ?? 0);
+        $requestedBrandName = trim((string)($_POST['brand_name'] ?? ''));
         $requestedLabelCounts = $_POST['label_counts'] ?? [];
         $rawItemIds = $_POST['item_ids'] ?? [];
         if (!is_array($rawItemIds)) {
@@ -638,6 +639,20 @@ class LabelController extends Controller {
         if (!$bill) {
             $this->failProductAddingLabel($billId, 'Product Adding bill not found or access denied.');
             return;
+        }
+
+        if ($requestedBrandName !== '' && mb_strlen($requestedBrandName) <= 100) {
+            $existingBrand = DB::fetch(
+                "SELECT id, status FROM brands WHERE concern_id = ? AND LOWER(name) = LOWER(?) LIMIT 1",
+                [(int)$bill['concern_id'], $requestedBrandName]
+            );
+            if ($existingBrand) {
+                if (($existingBrand['status'] ?? 'active') !== 'active') {
+                    DB::query("UPDATE brands SET status = 'active', name = ? WHERE id = ?", [$requestedBrandName, (int)$existingBrand['id']]);
+                }
+            } else {
+                DB::query("INSERT INTO brands (concern_id, name, status) VALUES (?, ?, 'active')", [(int)$bill['concern_id'], $requestedBrandName]);
+            }
         }
 
         $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
@@ -749,6 +764,7 @@ class LabelController extends Controller {
                     'section_badge' => 'READY-MADE GARMENT',
                     'item_title' => $variantName,
                     'item_code' => $tagCode,
+                    'brand_name' => $requestedBrandName !== '' ? $requestedBrandName : $concernName,
                     'stock_tab' => 'finished_goods',
                     'extra_details' => $variantAttributes,
                 ];
@@ -786,6 +802,7 @@ class LabelController extends Controller {
                     'section_badge' => $isRoll ? 'RAW MATERIAL' : 'PURCHASE TRIM',
                     'item_title' => $productName,
                     'item_code' => $tagCode,
+                    'brand_name' => $requestedBrandName !== '' ? $requestedBrandName : $concernName,
                     'stock_tab' => $isRoll ? 'rolls' : 'garment_other',
                     'extra_details' => [],
                 ];

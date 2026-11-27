@@ -12,6 +12,7 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
         <form action="<?= \App\Core\Controller::url('/m/staff/update') ?>" method="POST" class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="id" id="edit_staff_id" value="">
+            <input type="hidden" name="role_id" id="edit_staff_role_id" value="">
             <input type="hidden" name="has_perms_matrix" value="1">
             <?php if ($staffReturnTo !== ''): ?>
                 <input type="hidden" name="return_to" value="<?= htmlspecialchars($staffReturnTo) ?>">
@@ -415,6 +416,7 @@ function openEditStaffModal(stf) {
     const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 
     setVal('edit_staff_id', stf.id || '');
+    setVal('edit_staff_role_id', stf.role_id || '');
     setTxt('edit_staff_code_display', stf.staff_code || '');
     setVal('edit_staff_concern_id', stf.concern_id || '');
     setVal('edit_staff_name', stf.name || '');

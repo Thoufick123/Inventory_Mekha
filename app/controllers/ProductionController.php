@@ -7259,6 +7259,57 @@ class ProductionController extends Controller {
     }
 
     /**
+     * Quick-create a QC Inspector / Staff member from QC Create page.
+     */
+    public function storeQcStaffAjax(): void {
+        ModuleGuard::enforce('qc_stocks', 'add');
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        $name = trim((string)($_POST['name'] ?? ''));
+        $phone = trim((string)($_POST['phone'] ?? ''));
+        if ($name === '' || mb_strlen($name) > 120) {
+            $this->renderJson(['success' => false, 'message' => 'Enter a valid staff name (max 120 characters).'], 422);
+            return;
+        }
+        if ($phone !== '' && !preg_match('/^\d{10}$/', $phone)) {
+            $this->renderJson(['success' => false, 'message' => 'Phone number must be 10 digits.'], 422);
+            return;
+        }
+
+        $roleRow = DB::fetch(
+            "SELECT id, name FROM roles WHERE concern_id = ? AND status = 'active' ORDER BY CASE WHEN LOWER(name) LIKE '%qc%' OR LOWER(name) LIKE '%inspector%' THEN 0 ELSE 1 END, id ASC LIMIT 1",
+            [$cid ?: 1]
+        );
+        if (!$roleRow) {
+            $roleRow = DB::fetch("SELECT id, name FROM roles WHERE status = 'active' ORDER BY id ASC LIMIT 1");
+        }
+        $roleId = (int)($roleRow['id'] ?? 1);
+        $roleName = (string)($roleRow['name'] ?? 'Staff');
+
+        $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '.', $name));
+        $slug = trim($slug, '.') ?: 'staff';
+        $email = $slug . '.' . substr((string)time(), -4) . random_int(10, 99) . '@qc.local';
+        $passwordHash = password_hash(bin2hex(random_bytes(8)), PASSWORD_BCRYPT);
+
+        DB::query(
+            "INSERT INTO users (concern_id, role_id, name, email, phone, password, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())",
+            [$cid ?: null, $roleId, $name, $email, $phone !== '' ? $phone : null, $passwordHash]
+        );
+        $newId = (int)DB::lastInsertId();
+
+        $this->renderJson([
+            'success' => true,
+            'staff' => [
+                'id'   => $newId,
+                'name' => $name,
+                'role' => $roleName,
+            ],
+        ]);
+    }
+
+    /**
      * Initialize a QC inspection and create its scanner piece records.
      */
     public function storeQc(): void {
@@ -7419,7 +7470,7 @@ class ProductionController extends Controller {
                 // Format code matching Finished Goods Product label base (variant-wise)
                 $fgCode = null;
                 if ($variantId > 0) {
-                    $fgCode = \App\Services\QrService::generateFinishedGoodsCode($variantId);
+                    $fgCode = \App\Services\QrService::formatBrandVariantCode($variantId);
                 }
                 $skuPrefix = preg_replace('/[^A-Z0-9]/i', '', strtoupper(substr($sku ?: ($size . $color), 0, 3)));
                 $baseProductCode = $fgCode ?: (($skuPrefix ?: 'GAR') . date('md'));
@@ -7515,7 +7566,7 @@ class ProductionController extends Controller {
             }
 
             if ($vId > 0) {
-                $fgCode = \App\Services\QrService::generateFinishedGoodsCode($vId);
+                $fgCode = \App\Services\QrService::formatBrandVariantCode($vId);
                 if ($fgCode && ($p['tag_code'] !== $fgCode || str_contains($p['tag_code'], '-'))) {
                     DB::query("UPDATE qc_piece_items SET tag_code = ? WHERE id = ?", [$fgCode, $p['id']]);
                     $p['tag_code'] = $fgCode;

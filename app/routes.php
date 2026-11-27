@@ -84,6 +84,10 @@ $router->post('/m/product_adding/suppliers/update', [PurchaseController::class, 
 $router->post('/m/product_adding/suppliers/delete', [PurchaseController::class, 'deleteSupplierAjax'], 'product_adding', 'delete');
 $router->post('/m/product_adding/categories/store', [ProductAddingController::class, 'storeHierarchyAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/attributes/store', [ProductAddingController::class, 'storeAttributeAjax'], 'product_adding', 'add');
+$router->get('/m/product_adding/brands', [ProductAddingController::class, 'brandsListAjax'], 'product_adding', 'view');
+$router->post('/m/product_adding/brands/store', [ProductAddingController::class, 'storeBrandAjax'], 'product_adding', 'add');
+$router->post('/m/product_adding/brands/update', [ProductAddingController::class, 'updateBrandAjax'], 'product_adding', 'edit');
+$router->post('/m/product_adding/brands/delete', [ProductAddingController::class, 'deleteBrandAjax'], 'product_adding', 'delete');
 $router->post('/m/product_adding/quick-category', [CatalogMappingController::class, 'quickCreateCategory'], 'product_adding', 'add');
 $router->post('/m/product_adding/quick-attribute', [CatalogMappingController::class, 'quickCreateAttribute'], 'product_adding', 'add');
 $router->post('/m/product_adding/delete-hierarchy', [CatalogMappingController::class, 'deleteHierarchy'], 'product_adding', 'delete');
@@ -405,6 +409,7 @@ $router->get('/production/qc/details', [ProductionController::class, 'viewQc'], 
 $router->get('/production/qc/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit|add');
 $router->get('/production/qc/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'export');
 $router->post('/production/qc/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
+$router->post('/production/qc/add-staff', [ProductionController::class, 'storeQcStaffAjax'], 'qc_stocks', 'add');
 $router->post('/production/qc/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
 $router->post('/production/qc/save-inspection', [ProductionController::class, 'saveQcInspection'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit|add');

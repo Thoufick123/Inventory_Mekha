@@ -282,6 +282,14 @@ class ProductAddingController extends Controller
             'quickSupplierDeleteUrl' => \App\Core\Controller::url('/m/product_adding/suppliers/delete'),
             'quickCategorySaveUrl' => \App\Core\Controller::url('/m/product_adding/categories/store'),
             'quickAttributeSaveUrl' => \App\Core\Controller::url('/m/product_adding/attributes/store'),
+            'brands' => DB::fetchAll(
+                "SELECT id, name FROM brands WHERE status = 'active' AND (? IS NULL OR concern_id = ?) ORDER BY name ASC",
+                [$targetCid ?: null, $targetCid ?: null]
+            ),
+            'brandListUrl' => \App\Core\Controller::url('/m/product_adding/brands'),
+            'brandStoreUrl' => \App\Core\Controller::url('/m/product_adding/brands/store'),
+            'brandUpdateUrl' => \App\Core\Controller::url('/m/product_adding/brands/update'),
+            'brandDeleteUrl' => \App\Core\Controller::url('/m/product_adding/brands/delete'),
             'allowQuickSupplier' => Auth::isSuperAdmin() || Auth::can('product_adding', 'add'),
             'backUrl' => \App\Core\Controller::url('/m/product_adding'),
             'backLabel' => 'Back to Product Adding',
@@ -934,5 +942,102 @@ class ProductAddingController extends Controller
         } catch (\Throwable $e) {
             error_log('Product Adding schema check error: ' . $e->getMessage());
         }
+    }
+
+    public function brandsListAjax(): void
+    {
+        $cid = Auth::concernId() ?: (int)($_GET['concern_id'] ?? 0);
+        $q = trim((string)($_GET['q'] ?? ''));
+        $sql = "SELECT id, name FROM brands WHERE status = 'active'";
+        $params = [];
+        if ($cid > 0) {
+            $sql .= " AND concern_id = ?";
+            $params[] = $cid;
+        }
+        if ($q !== '') {
+            $sql .= " AND name LIKE ?";
+            $params[] = '%' . $q . '%';
+        }
+        $sql .= " ORDER BY name ASC";
+        $brands = DB::fetchAll($sql, $params);
+        $this->renderJson(['success' => true, 'brands' => $brands]);
+    }
+
+    public function storeBrandAjax(): void
+    {
+        $this->validateCsrf();
+        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $name = trim((string)($_POST['name'] ?? ''));
+        if ($name === '' || mb_strlen($name) > 100) {
+            $this->renderJson(['success' => false, 'message' => 'Enter a valid brand name (max 100 characters).'], 422);
+            return;
+        }
+        $existing = DB::fetch(
+            "SELECT id, name, status FROM brands WHERE concern_id = ? AND LOWER(name) = LOWER(?) LIMIT 1",
+            [$cid, $name]
+        );
+        if ($existing) {
+            if (($existing['status'] ?? 'active') !== 'active') {
+                DB::query("UPDATE brands SET status = 'active', name = ? WHERE id = ?", [$name, (int)$existing['id']]);
+            }
+            $brand = ['id' => (int)$existing['id'], 'name' => $name];
+        } else {
+            DB::query("INSERT INTO brands (concern_id, name, status) VALUES (?, ?, 'active')", [$cid, $name]);
+            $brand = ['id' => (int)DB::lastInsertId(), 'name' => $name];
+        }
+        $brands = DB::fetchAll(
+            "SELECT id, name FROM brands WHERE status = 'active' AND (? = 0 OR concern_id = ?) ORDER BY name ASC",
+            [$cid, $cid]
+        );
+        $this->renderJson(['success' => true, 'brand' => $brand, 'brands' => $brands]);
+    }
+
+    public function updateBrandAjax(): void
+    {
+        $this->validateCsrf();
+        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim((string)($_POST['name'] ?? ''));
+        if ($id <= 0 || $name === '' || mb_strlen($name) > 100) {
+            $this->renderJson(['success' => false, 'message' => 'Provide a valid brand ID and name.'], 422);
+            return;
+        }
+        $dup = DB::fetch(
+            "SELECT id FROM brands WHERE concern_id = ? AND LOWER(name) = LOWER(?) AND id != ? AND status = 'active' LIMIT 1",
+            [$cid, $name, $id]
+        );
+        if ($dup) {
+            $this->renderJson(['success' => false, 'message' => 'Another brand with that name already exists.'], 422);
+            return;
+        }
+        DB::query(
+            "UPDATE brands SET name = ? WHERE id = ?" . ($cid > 0 ? " AND concern_id = ?" : ""),
+            $cid > 0 ? [$name, $id, $cid] : [$name, $id]
+        );
+        $brands = DB::fetchAll(
+            "SELECT id, name FROM brands WHERE status = 'active' AND (? = 0 OR concern_id = ?) ORDER BY name ASC",
+            [$cid, $cid]
+        );
+        $this->renderJson(['success' => true, 'brand' => ['id' => $id, 'name' => $name], 'brands' => $brands]);
+    }
+
+    public function deleteBrandAjax(): void
+    {
+        $this->validateCsrf();
+        $cid = Auth::concernId() ?: (int)($_POST['concern_id'] ?? 0);
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            $this->renderJson(['success' => false, 'message' => 'Invalid brand ID.'], 422);
+            return;
+        }
+        DB::query(
+            "UPDATE brands SET status = 'inactive' WHERE id = ?" . ($cid > 0 ? " AND concern_id = ?" : ""),
+            $cid > 0 ? [$id, $cid] : [$id]
+        );
+        $brands = DB::fetchAll(
+            "SELECT id, name FROM brands WHERE status = 'active' AND (? = 0 OR concern_id = ?) ORDER BY name ASC",
+            [$cid, $cid]
+        );
+        $this->renderJson(['success' => true, 'brands' => $brands]);
     }
 }

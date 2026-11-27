@@ -87,7 +87,11 @@ foreach ($batchItems as $qcBatchItem) {
                                 <label class="form-label small fw-semibold text-secondary mb-0">
                                     <i class="bi bi-person-badge text-primary me-1"></i> QC Inspector
                                 </label>
-                                <span class="badge bg-light text-primary border px-2 py-0.5" style="font-size:0.75rem;">Verified Staff</span>
+                                <?php if (!$savedQc): ?>
+                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalAddQcStaff">
+                                    <i class="bi bi-plus"></i> Add Staff
+                                </button>
+                                <?php endif; ?>
                             </div>
                             <select name="inspector_id" id="selectInspector" class="form-select border-light-subtle shadow-sm" required <?= $savedQc ? 'disabled' : '' ?>>
                                 <?php foreach ($inspectors as $u): ?>
@@ -419,5 +423,114 @@ function escapeHtml(text) {
 
 document.addEventListener('DOMContentLoaded', function () {
     updateTotals();
+
+    const quickStaffForm = document.getElementById('formQuickAddQcStaff');
+    if (quickStaffForm) {
+        quickStaffForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('quickQcStaffName');
+            const phoneInput = document.getElementById('quickQcStaffPhone');
+            const errBox = document.getElementById('quickQcStaffError');
+            const saveBtn = document.getElementById('btnSaveQuickQcStaff');
+            const name = nameInput ? nameInput.value.trim() : '';
+            const phone = phoneInput ? phoneInput.value.trim() : '';
+
+            if (errBox) {
+                errBox.style.display = 'none';
+                errBox.textContent = '';
+            }
+            if (!name) {
+                if (errBox) {
+                    errBox.textContent = 'Staff name is required.';
+                    errBox.style.display = 'block';
+                }
+                return;
+            }
+            if (phone && !/^\d{10}$/.test(phone)) {
+                if (errBox) {
+                    errBox.textContent = 'Phone number must be 10 digits.';
+                    errBox.style.display = 'block';
+                }
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('csrf_token', <?= json_encode($csrfToken ?? \App\Core\Auth::csrfToken()) ?>);
+            fd.append('name', name);
+            fd.append('phone', phone);
+
+            if (saveBtn) saveBtn.disabled = true;
+            fetch('<?= \App\Core\Controller::url('/production/qc/add-staff') ?>', {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.success || !data.staff) {
+                    if (errBox) {
+                        errBox.textContent = (data && data.message) || 'Could not create staff member.';
+                        errBox.style.display = 'block';
+                    }
+                    return;
+                }
+                const sel = document.getElementById('selectInspector');
+                if (sel) {
+                    const opt = document.createElement('option');
+                    opt.value = data.staff.id;
+                    opt.textContent = data.staff.name + (data.staff.role ? ' (' + data.staff.role + ')' : '');
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                }
+                quickStaffForm.reset();
+                const modalEl = document.getElementById('modalAddQcStaff');
+                if (modalEl && typeof bootstrap !== 'undefined') {
+                    const inst = bootstrap.Modal.getInstance(modalEl);
+                    if (inst) inst.hide();
+                }
+            })
+            .catch(() => {
+                if (errBox) {
+                    errBox.textContent = 'Network error while saving staff.';
+                    errBox.style.display = 'block';
+                }
+            })
+            .finally(() => {
+                if (saveBtn) saveBtn.disabled = false;
+            });
+        });
+    }
 });
 </script>
+
+<?php if (!$savedQc): ?>
+<div class="modal fade" id="modalAddQcStaff" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="bi bi-person-plus text-primary"></i> Add QC Staff
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formQuickAddQcStaff">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Staff Name <span class="text-danger">*</span></label>
+                        <input type="text" id="quickQcStaffName" class="form-control" required maxlength="120">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Phone Number (Optional)</label>
+                        <input type="tel" id="quickQcStaffPhone" class="form-control" maxlength="10">
+                    </div>
+                    <div id="quickQcStaffError" class="alert alert-danger py-2 small mb-0" style="display:none;"></div>
+                </div>
+                <div class="modal-footer border-top bg-light py-2 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary fw-semibold" id="btnSaveQuickQcStaff">Save Staff</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>

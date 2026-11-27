@@ -1223,7 +1223,7 @@ function viewPurchaseStock(button) {
             const batches = Array.isArray(data.batches) ? data.batches : [];
             let batchRows = batches.length ? batches.map(b => `
                 <tr>
-                    <td class="font-monospace small">${escapeHtmlHtml(b.bill_no || '-')}${b.supplier_invoice_no ? `<div class="text-muted" style="font-size:0.72rem;">Inv: ${escapeHtmlHtml(b.supplier_invoice_no)}</div>` : ''}</td>
+                    <td class="font-monospace small">${escapeHtmlHtml(b.supplier_invoice_no || '-')}</td>
                     <td class="small">${escapeHtmlHtml(b.supplier_name || 'Direct Entry')}${b.bill_date ? `<div class="text-muted" style="font-size:0.72rem;">${escapeHtmlHtml(b.bill_date)}</div>` : ''}</td>
                     <td class="small text-end">${parseFloat(b.qty || 0).toFixed(2)} ${escapeHtmlHtml(b.unit || 'Rolls')}</td>
                     <td class="small text-end">${parseFloat(b.net_weight || 0).toFixed(2)} kg</td>
@@ -1252,7 +1252,7 @@ function viewPurchaseStock(button) {
                         <table class="table table-sm table-hover mb-0 align-middle purchase-stock-history-table">
                             <thead class="table-light small text-uppercase text-muted" style="font-size: 0.72rem;">
                                 <tr>
-                                    <th>Bill #</th>
+                                    <th>Invoice #</th>
                                     <th>Supplier</th>
                                     <th class="text-end">Qty</th>
                                     <th class="text-end">Weight</th>
@@ -1273,7 +1273,7 @@ function viewPurchaseStock(button) {
                     ${detailCard('col-md-4', 'Quantity', `<span class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Pieces')}</span>`)}
                     ${detailCard('col-md-4', 'Unit Price / MRP', `<span class="fw-bold text-dark">${formatInr(item.unit_price || 0)} / ${formatInr(item.mrp || 0)}</span>`)}
                     ${detailCard('col-md-4', 'Total Value', `<span class="fw-bold text-success">${formatInr(item.total_price || 0)}</span>`)}
-                    ${detailCard('col-md-4', 'Bill #', `<span class="fw-semibold font-monospace text-primary">${escapeHtmlHtml(item.bill_no || '-')}</span>`)}
+                    ${detailCard('col-md-4', 'Invoice #', `<span class="fw-semibold font-monospace text-primary">${escapeHtmlHtml(item.supplier_invoice_no || '-')}</span>`)}
                     ${detailCard('col-md-4', 'Supplier', `<span class="fw-semibold text-dark">${escapeHtmlHtml(item.supplier_name || 'Direct Entry')}</span>`)}
                 </div>
             `;
@@ -1290,8 +1290,10 @@ function escapeHtmlHtml(str) {
 
 function openCreatePurchaseStockModal(defaultTab) {
     const modalEl = document.getElementById('createPurchaseStockModal');
+    const formEl = modalEl ? modalEl.querySelector('form') : null;
     const secSel = document.getElementById('create_stock_section_type');
     if (!modalEl || !secSel) return;
+    if (formEl) formEl.reset();
     if (defaultTab && ['rolls', 'garment_other', 'finished_goods'].includes(defaultTab)) {
         secSel.value = defaultTab;
     }
@@ -1303,19 +1305,89 @@ function toggleCreateStockFields() {
     const sec = document.getElementById('create_stock_section_type')?.value || 'rolls';
     const rollFields = document.querySelectorAll('.create-roll-only');
     const mrpField = document.querySelectorAll('.create-fg-only');
-    const unitInp = document.getElementById('create_stock_unit');
     rollFields.forEach(el => el.classList.toggle('d-none', sec !== 'rolls'));
     mrpField.forEach(el => el.classList.toggle('d-none', sec !== 'finished_goods'));
-    if (unitInp && (!unitInp.value || unitInp.value === 'Rolls' || unitInp.value === 'Pieces')) {
-        unitInp.value = sec === 'rolls' ? 'Rolls' : 'Pieces';
-    }
 }
+
+const purchaseStockHsnList = <?= json_encode($hsnList ?? []) ?>;
+
+function renderCreateStockHsnMenu(query = '') {
+    const menu = document.getElementById('createStockHsnMenu');
+    const hsnInput = document.getElementById('create_stock_hsn');
+    const gstInput = document.getElementById('create_stock_gst');
+    if (!menu || !hsnInput) return;
+
+    const q = (query || '').trim().toLowerCase();
+    const matches = (Array.isArray(purchaseStockHsnList) ? purchaseStockHsnList : []).filter(item => {
+        if (!q) return true;
+        const hay = [item.hsn_code, item.description, item.category, item.rate_note].join(' ').toLowerCase();
+        return hay.includes(q);
+    }).slice(0, 40);
+
+    if (!matches.length) {
+        menu.innerHTML = '<div class="px-3 py-2 small text-muted">No matching HSN codes</div>';
+        menu.classList.add('show');
+        return;
+    }
+
+    menu.innerHTML = matches.map(item => {
+        const code = escapeHtmlHtml(item.hsn_code || '');
+        const desc = escapeHtmlHtml(item.description || '');
+        const note = escapeHtmlHtml(item.rate_note || '');
+        const gst = item.gst_rate !== null && item.gst_rate !== '' ? parseFloat(item.gst_rate).toFixed(2) : '';
+        return `
+            <button type="button" class="dropdown-item py-2 px-3 border-bottom text-wrap create-stock-hsn-opt"
+                    data-hsn="${code}" data-gst="${gst}" style="white-space: normal;">
+                <div class="d-flex justify-content-between align-items-center gap-2">
+                    <span class="fw-bold text-dark font-monospace">HSN ${code}</span>
+                    ${gst !== '' ? `<span class="badge bg-success-subtle text-success border border-success-subtle">${gst}% GST</span>` : ''}
+                </div>
+                ${desc ? `<div class="small text-muted mt-0.5">${desc}</div>` : ''}
+                ${note ? `<div class="small mt-0.5" style="color: #b45309;">${note}</div>` : ''}
+            </button>
+        `;
+    }).join('');
+
+    menu.querySelectorAll('.create-stock-hsn-opt').forEach(btn => {
+        btn.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            hsnInput.value = this.dataset.hsn || '';
+            if (gstInput) {
+                gstInput.value = this.dataset.gst !== '' ? this.dataset.gst : '';
+            }
+            menu.classList.remove('show');
+        });
+    });
+
+    menu.classList.add('show');
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const hsnInput = document.getElementById('create_stock_hsn');
+    const menu = document.getElementById('createStockHsnMenu');
+    const gstInput = document.getElementById('create_stock_gst');
+    if (hsnInput && menu) {
+        hsnInput.addEventListener('focus', () => renderCreateStockHsnMenu(hsnInput.value));
+        hsnInput.addEventListener('input', () => {
+            renderCreateStockHsnMenu(hsnInput.value);
+            const exact = (Array.isArray(purchaseStockHsnList) ? purchaseStockHsnList : []).find(
+                item => String(item.hsn_code || '').trim() === hsnInput.value.trim()
+            );
+            if (exact && gstInput && exact.gst_rate !== null && exact.gst_rate !== '') {
+                gstInput.value = parseFloat(exact.gst_rate).toFixed(2);
+            }
+        });
+        hsnInput.addEventListener('blur', () => {
+            setTimeout(() => menu.classList.remove('show'), 150);
+        });
+    }
+});
 
 function recalcCreateStockTotal() {
     const qty = parseFloat(document.getElementById('create_stock_qty')?.value || 0) || 0;
     const price = parseFloat(document.getElementById('create_stock_price')?.value || 0) || 0;
     const totalEl = document.getElementById('create_stock_total');
-    if (totalEl) totalEl.value = (qty * price).toFixed(2);
+    if (totalEl) totalEl.value = (qty || price) ? (qty * price).toFixed(2) : '';
 }
 
 function confirmDeletePurchaseStock(button) {
@@ -1354,18 +1426,21 @@ function confirmDeletePurchaseStock(button) {
 <?php if ($canAddPurchaseStock): ?>
 <div class="modal fade" id="createPurchaseStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
             <form action="<?= \App\Core\Controller::url('/m/purchase_stocks/create') ?>" method="POST">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                <div class="modal-header py-2">
-                    <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-plus-circle text-success me-1"></i> Add Purchase Stock</h5>
+                <div class="modal-header py-3 px-4 bg-white border-bottom">
+                    <h5 class="modal-title fs-6 fw-bold mb-0 d-flex align-items-center gap-2">
+                        <span class="badge bg-success-subtle text-success rounded-2 p-2"><i class="bi bi-plus-circle"></i></span>
+                        <span>Add Purchase Stock</span>
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <div class="row g-3">
                         <?php if (\App\Core\Auth::isSuperAdmin() && !empty($allConcerns)): ?>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Concern <span class="text-danger">*</span></label>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold mb-1">Concern <span class="text-danger">*</span></label>
                             <select name="concern_id" class="form-select form-select-sm" required>
                                 <option value="">-- Select Concern --</option>
                                 <?php foreach ($allConcerns as $con): ?>
@@ -1374,15 +1449,15 @@ function confirmDeletePurchaseStock(button) {
                             </select>
                         </div>
                         <?php endif; ?>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Stock Category <span class="text-danger">*</span></label>
+                        <div class="<?= (\App\Core\Auth::isSuperAdmin() && !empty($allConcerns)) ? 'col-md-4' : 'col-md-6' ?>">
+                            <label class="form-label small fw-semibold mb-1">Stock Category <span class="text-danger">*</span></label>
                             <select name="section_type" id="create_stock_section_type" class="form-select form-select-sm" onchange="toggleCreateStockFields()">
                                 <option value="rolls">1. Fabric Rolls</option>
                                 <option value="garment_other">2. Other Garments &amp; Trims</option>
                             </select>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Supplier (Optional)</label>
+                        <div class="<?= (\App\Core\Auth::isSuperAdmin() && !empty($allConcerns)) ? 'col-md-4' : 'col-md-6' ?>">
+                            <label class="form-label small fw-semibold mb-1">Supplier (Optional)</label>
                             <select name="supplier_id" class="form-select form-select-sm">
                                 <option value="">-- Direct / Opening Stock --</option>
                                 <?php foreach ($suppliers as $sup): ?>
@@ -1390,59 +1465,61 @@ function confirmDeletePurchaseStock(button) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
+
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Item / Fabric Name <span class="text-danger">*</span></label>
-                            <input type="text" name="item_name" class="form-control form-control-sm" placeholder="e.g. Cotton / Button / Shirt" required>
+                            <label class="form-label small fw-semibold mb-1">Item / Fabric Name <span class="text-danger">*</span></label>
+                            <input type="text" name="item_name" class="form-control form-control-sm" required>
                         </div>
-                        <div class="col-md-4 create-roll-only">
-                            <label class="form-label small fw-semibold">Design / Pattern <span class="text-danger">*</span></label>
-                            <input type="text" name="pattern" class="form-control form-control-sm text-uppercase" placeholder="e.g. MICKY">
+                        <div class="col-md-6 create-roll-only">
+                            <label class="form-label small fw-semibold mb-1">Design / Pattern <span class="text-danger">*</span></label>
+                            <input type="text" name="pattern" class="form-control form-control-sm text-uppercase">
                         </div>
+
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Color / Shade</label>
-                            <input type="text" name="color" class="form-control form-control-sm text-uppercase" placeholder="e.g. RED">
+                            <label class="form-label small fw-semibold mb-1">Color / Shade</label>
+                            <input type="text" name="color" class="form-control form-control-sm text-uppercase">
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Item Code / SKU</label>
-                            <input type="text" name="item_code" class="form-control form-control-sm font-monospace" placeholder="Auto or custom code">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Specification</label>
-                            <input type="text" name="specification" class="form-control form-control-sm" placeholder="Size / GSM / Spec">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold">HSN Code</label>
-                            <input type="text" name="hsn_code" class="form-control form-control-sm font-monospace" placeholder="e.g. 5112">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold mb-1">HSN Code</label>
+                            <div class="position-relative">
+                                <input type="text" name="hsn_code" id="create_stock_hsn" class="form-control form-control-sm font-monospace" autocomplete="off">
+                                <div id="createStockHsnMenu" class="dropdown-menu shadow-sm w-100 p-0" style="max-height: 260px; overflow-y: auto; z-index: 1065; min-width: 340px;"></div>
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Quantity <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0.01" name="qty" id="create_stock_qty" class="form-control form-control-sm" value="1" required oninput="recalcCreateStockTotal()">
+                            <label class="form-label small fw-semibold mb-1">GST (%)</label>
+                            <input type="number" step="0.01" min="0" name="gst_rate" id="create_stock_gst" class="form-control form-control-sm">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Unit <span class="text-danger">*</span></label>
-                            <input type="text" name="unit" id="create_stock_unit" class="form-control form-control-sm" value="Rolls" required>
+
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold mb-1">Quantity <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0.01" name="qty" id="create_stock_qty" class="form-control form-control-sm" required oninput="recalcCreateStockTotal()">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold mb-1">Unit <span class="text-danger">*</span></label>
+                            <input type="text" name="unit" id="create_stock_unit" class="form-control form-control-sm" required>
                         </div>
                         <div class="col-md-3 create-roll-only">
-                            <label class="form-label small fw-semibold">Total Weight (kg)</label>
-                            <input type="number" step="0.01" min="0" name="net_weight" class="form-control form-control-sm" value="0.00">
+                            <label class="form-label small fw-semibold mb-1">Total Weight (kg)</label>
+                            <input type="number" step="0.01" min="0" name="net_weight" class="form-control form-control-sm">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Unit Rate (₹)</label>
-                            <input type="number" step="0.01" min="0" name="unit_price" id="create_stock_price" class="form-control form-control-sm" value="0.00" oninput="recalcCreateStockTotal()">
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold mb-1">Unit Rate (₹)</label>
+                            <input type="number" step="0.01" min="0" name="unit_price" id="create_stock_price" class="form-control form-control-sm" oninput="recalcCreateStockTotal()">
                         </div>
                         <div class="col-md-3 create-fg-only d-none">
-                            <label class="form-label small fw-semibold">MRP (₹)</label>
-                            <input type="number" step="0.01" min="0" name="mrp" class="form-control form-control-sm" value="0.00">
+                            <label class="form-label small fw-semibold mb-1">MRP (₹)</label>
+                            <input type="number" step="0.01" min="0" name="mrp" class="form-control form-control-sm">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Total Value (₹)</label>
-                            <input type="number" step="0.01" min="0" name="total_value" id="create_stock_total" class="form-control form-control-sm fw-bold" value="0.00">
+                            <label class="form-label small fw-semibold mb-1">Total Value (₹)</label>
+                            <input type="number" step="0.01" min="0" name="total_value" id="create_stock_total" class="form-control form-control-sm fw-bold bg-light text-success">
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success btn-sm fw-semibold"><i class="bi bi-check-lg me-1"></i> Save Stock</button>
+                <div class="modal-footer py-2 px-4 bg-light border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-sm px-3 fw-semibold"><i class="bi bi-check-lg me-1"></i> Save Stock</button>
                 </div>
             </form>
         </div>
