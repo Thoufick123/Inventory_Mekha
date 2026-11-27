@@ -1,6 +1,17 @@
 <div class="container-fluid px-0">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h4 class="fw-bold mb-0 text-dark">Product Adding</h4>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <ul class="nav nav-pills bg-light p-1 rounded-3 border d-inline-flex mb-0" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'purchases') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-purchases-btn" data-bs-toggle="pill" data-bs-target="#tab-purchases" type="button" role="tab">
+                    <i class="bi bi-receipt me-1"></i> Product Purchases (<?= count($bills) ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'hierarchy') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-pa-hierarchy-btn" data-bs-toggle="pill" data-bs-target="#tab-pa-hierarchy" type="button" role="tab">
+                    <i class="bi bi-diagram-3 me-1"></i> 3-Tier Hierarchy &amp; Attributes
+                </button>
+            </li>
+        </ul>
         <div class="d-flex align-items-center flex-wrap gap-2">
             <?php
             $exportUrl = \App\Core\Controller::url('/m/product_adding/export');
@@ -10,25 +21,10 @@
             ?>
             <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
                 <a href="<?= $createUrl ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background:#4f46e5;">
-                    <i class="bi bi-bag-plus"></i>Create Product Purchase
+                    <i class="bi bi-bag-plus"></i> Create Product Purchase
                 </a>
             <?php endif; ?>
         </div>
-    </div>
-
-    <div class="mb-4">
-        <ul class="nav nav-pills bg-light p-1 rounded-3 border d-inline-flex" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'purchases') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-purchases-btn" data-bs-toggle="pill" data-bs-target="#tab-purchases" type="button" role="tab">
-                    <i class="bi bi-receipt me-1"></i> Product Purchases (<?= count($bills) ?>)
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'hierarchy') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-pa-hierarchy-btn" data-bs-toggle="pill" data-bs-target="#tab-pa-hierarchy" type="button" role="tab">
-                    <i class="bi bi-diagram-3 me-1"></i> 3-Tier Hierarchy &amp; Attributes
-                </button>
-            </li>
-        </ul>
     </div>
 
     <?php if (!empty($flashSuccess)): ?>
@@ -116,11 +112,11 @@
             </div>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light text-muted small">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light text-muted small text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
                     <tr>
-                        <th style="width: 40px;">#</th>
-                        <th>Supplier Invoice</th>
+                        <th class="ps-3" style="width: 38px;">#</th>
+                        <th>Invoice #</th>
                         <th>Supplier</th>
                         <?php if (empty($selectedCid)): ?><th>Concern</th><?php endif; ?>
                         <th>Bill Date</th>
@@ -131,7 +127,7 @@
                         <th class="text-end">Net Amount</th>
                         <th>Payment</th>
                         <th>Stock</th>
-                        <th class="text-end">Action</th>
+                        <th class="text-end pe-3">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -151,23 +147,23 @@
                             $inwardStatus = strtolower((string)($bill['inward_status'] ?? 'pending'));
                             ?>
                             <tr>
-                                <td class="text-muted small"><?= $paIdx++ ?></td>
-                                <td><span class="font-monospace"><?= htmlspecialchars($bill['supplier_invoice_no'] ?: '-') ?></span></td>
+                                <td class="ps-3 text-muted"><?= $paIdx++ ?></td>
+                                <td><span class="font-monospace fw-semibold"><?= htmlspecialchars($bill['supplier_invoice_no'] ?: '-') ?></span></td>
                                 <td>
-                                    <div class="fw-semibold"><?= htmlspecialchars($bill['supplier_name'] ?? 'Supplier') ?></div>
+                                    <div class="fw-semibold text-dark"><?= htmlspecialchars($bill['supplier_name'] ?? 'Supplier') ?></div>
                                     <?php if (!empty($bill['supplier_company'])): ?>
-                                        <div class="small text-muted"><?= htmlspecialchars($bill['supplier_company']) ?></div>
+                                        <div class="text-muted" style="font-size: 0.74rem;"><?= htmlspecialchars($bill['supplier_company']) ?></div>
                                     <?php endif; ?>
                                 </td>
                                 <?php if (empty($selectedCid)): ?>
                                     <td><?= htmlspecialchars($bill['concern_name'] ?? '—') ?></td>
                                 <?php endif; ?>
-                                <td><?= htmlspecialchars(date('d M Y', strtotime((string)$bill['bill_date']))) ?></td>
+                                <td class="text-nowrap"><?= htmlspecialchars(date('d M Y', strtotime((string)$bill['bill_date']))) ?></td>
                                 <td class="text-end"><?= number_format((int)$bill['item_count']) ?></td>
                                 <td class="text-end"><?= number_format((float)$bill['total_qty'], 2) ?></td>
-                                <td class="text-end">₹<?= number_format((float)$bill['total_amount'], 2) ?></td>
-                                <td class="text-end">₹<?= number_format((float)$bill['tax_amount'], 2) ?></td>
-                                <td class="text-end fw-bold text-primary">₹<?= number_format((float)$bill['net_amount'], 2) ?></td>
+                                <td class="text-end text-nowrap">₹<?= number_format((float)$bill['total_amount'], 2) ?></td>
+                                <td class="text-end text-nowrap">₹<?= number_format((float)$bill['tax_amount'], 2) ?></td>
+                                <td class="text-end fw-bold text-primary text-nowrap">₹<?= number_format((float)$bill['net_amount'], 2) ?></td>
                                 <td>
                                     <span class="badge <?= $paymentStatus === 'paid' ? 'text-bg-success' : ($paymentStatus === 'partial' ? 'text-bg-info' : 'text-bg-warning') ?>">
                                         <?= htmlspecialchars(ucfirst($paymentStatus)) ?>
@@ -178,41 +174,43 @@
                                         <?php if (!empty($bill['qty_mismatch'])): ?><i class="bi bi-exclamation-triangle-fill me-1"></i><?php endif; ?>
                                         <?= htmlspecialchars($bill['sync_label'] ?? ($inwardStatus === 'completed' ? 'Completed' : ((int)$bill['stocked_count'] . ' / ' . (int)$bill['item_count'] . ' lines'))) ?>
                                     </span>
-                                    <div class="small text-muted mt-1"><?= (int)$bill['stocked_count'] ?> / <?= (int)$bill['item_count'] ?> stocked</div>
+                                    <div class="text-muted mt-1" style="font-size: 0.73rem;"><?= (int)$bill['stocked_count'] ?> / <?= (int)$bill['item_count'] ?> stocked</div>
                                 </td>
-                                <td class="text-end">
-                                    <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-info text-nowrap" title="View Details">
-                                        <i class="bi bi-eye me-1"></i>View
-                                    </a>
-                                    <?php if (($bill['source_module'] ?? '') === 'purchase_billing'): ?>
-                                        <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'edit')): ?>
-                                            <a href="<?= \App\Core\Controller::url('/m/product_adding/edit_purchase_bill?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap">
-                                                <i class="bi bi-pencil-square me-1"></i>Edit Invoice
+                                <td class="text-end pe-3">
+                                    <div class="d-inline-flex align-items-center gap-1 flex-nowrap">
+                                        <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-info text-nowrap" title="View Details">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <?php if (($bill['source_module'] ?? '') === 'purchase_billing'): ?>
+                                            <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'edit')): ?>
+                                                <a href="<?= \App\Core\Controller::url('/m/product_adding/edit_purchase_bill?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap" title="Edit Invoice">
+                                                    <i class="bi bi-pencil-square me-1"></i>Edit
+                                                </a>
+                                            <?php endif; ?>
+                                            <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
+                                                <form action="<?= \App\Core\Controller::url('/m/product_adding/add_purchase_bill_to_stock') ?>" method="POST" class="d-inline">
+                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                                    <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-success text-nowrap" title="Add Invoice to Stock">
+                                                        <i class="bi bi-box-arrow-in-down me-1"></i>Add Stock
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <a href="<?= \App\Core\Controller::url('/m/product_adding?bill_id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap" title="Labels & Stock">
+                                                <i class="bi bi-upc-scan me-1"></i>Labels &amp; Stock
                                             </a>
                                         <?php endif; ?>
-                                        <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
-                                            <form action="<?= \App\Core\Controller::url('/m/product_adding/add_purchase_bill_to_stock') ?>" method="POST" class="d-inline">
+                                        <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'delete')): ?>
+                                            <form action="<?= \App\Core\Controller::url('/m/product_adding/delete_purchase_bill') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete this purchase bill? Any unused finished-goods stock will be reversed. Deletion is blocked if stock has been used, allocated to production, or damaged.');">
                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
                                                 <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">
-                                                    <i class="bi bi-box-arrow-in-down me-1"></i>Add Invoice to Stock
+                                                <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap" title="Delete Purchase Bill">
+                                                    <i class="bi bi-trash3"></i>
                                                 </button>
                                             </form>
                                         <?php endif; ?>
-                                    <?php else: ?>
-                                        <a href="<?= \App\Core\Controller::url('/m/product_adding?bill_id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap">
-                                            <i class="bi bi-eye me-1"></i>Labels &amp; Stock
-                                        </a>
-                                    <?php endif; ?>
-                                    <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'delete')): ?>
-                                        <form action="<?= \App\Core\Controller::url('/m/product_adding/delete_purchase_bill') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete this purchase bill? Any unused finished-goods stock will be reversed. Deletion is blocked if stock has been used, allocated to production, or damaged.');">
-                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                                            <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap">
-                                                <i class="bi bi-trash3 me-1"></i>Delete
-                                            </button>
-                                        </form>
-                                    <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
