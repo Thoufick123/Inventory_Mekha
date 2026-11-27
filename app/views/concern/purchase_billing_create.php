@@ -342,16 +342,7 @@ if ($isEdit && !empty($existingItems)) {
 <?php endif; ?>
 <div class="container-fluid px-0">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div class="d-flex align-items-center gap-3">
-            <div class="rounded-3 p-2 d-flex align-items-center justify-content-center text-white" style="background: #6366f1; width: 44px; height: 44px;">
-                <i class="bi <?= $isEdit ? 'bi-pencil-square' : 'bi-bag-plus' ?> fs-4"></i>
-            </div>
-            <div>
-                <h4 class="fw-bold mb-0 text-dark"><?= $pageHeading ?></h4>
-                <p class="text-muted small mb-0"><?= $pageDescription ?></p>
-            </div>
-        </div>
+    <div class="d-flex justify-content-end align-items-center mb-3">
         <a href="<?= $backUrl ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm rounded-2">
             <i class="bi bi-arrow-left me-1"></i> <?= htmlspecialchars($backLabel) ?>
         </a>
@@ -935,7 +926,6 @@ if ($isEdit && !empty($existingItems)) {
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <div>
                                 <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-layers text-primary me-1"></i> Individual Fabric Rolls (<span id="rollCountHeader">0</span>)</h6>
-                                <small class="text-muted">Add each roll received on this supplier invoice.</small>
                             </div>
                             <button type="button" class="btn btn-primary btn-sm px-3" onclick="addRollRow()">
                                 <i class="bi bi-plus-circle me-1"></i> Add Row
