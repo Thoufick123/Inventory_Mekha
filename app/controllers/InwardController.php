@@ -393,7 +393,9 @@ class InwardController extends Controller {
         // Fetch the exact dispatched variants, aggregated by variant ID.
         $items = DB::fetchAll("
             SELECT oi.variant_id, SUM(oi.qty) AS qty,
-                   v.name AS variant_name, v.product_code, v.size, v.price, v.mrp,
+                   MAX(oi.qr_codes) AS outward_qr_codes,
+                   v.name AS variant_name, v.product_code, v.size, v.price,
+                   COALESCE(NULLIF(v.mrp, 0), (SELECT pbi.mrp FROM purchase_bill_items pbi WHERE pbi.variant_id = v.id AND pbi.mrp > 0 ORDER BY pbi.id DESC LIMIT 1), 0) AS mrp,
                    v.attributes AS variant_attributes,
                    c.name AS category_name,
                    COALESCE((SELECT SUM(ii.accepted_qty)
@@ -421,7 +423,9 @@ class InwardController extends Controller {
             // Legacy batch outward records may have no outward_items row; use only the batch explicitly linked to this outward.
             $batchRow = DB::fetch("
                 SELECT b.variant_id, b.batch_qty AS qty,
-                       v.name AS variant_name, v.product_code, v.size, v.price, v.mrp,
+                       NULL AS outward_qr_codes,
+                       v.name AS variant_name, v.product_code, v.size, v.price,
+                       COALESCE(NULLIF(v.mrp, 0), (SELECT pbi.mrp FROM purchase_bill_items pbi WHERE pbi.variant_id = v.id AND pbi.mrp > 0 ORDER BY pbi.id DESC LIMIT 1), 0) AS mrp,
                        v.attributes AS variant_attributes, c.name AS category_name,
                        COALESCE((
                            SELECT SUM(ii.accepted_qty)
@@ -483,8 +487,19 @@ class InwardController extends Controller {
 
             $attributes = json_decode((string)($item['variant_attributes'] ?? ''), true);
             $attributes = is_array($attributes) ? $attributes : [];
-            $item['color'] = trim((string)($attributes['color'] ?? ''));
-            $item['tag_code'] = QrService::generateFinishedGoodsCode((int)$item['variant_id']) ?? '';
+            $item['color'] = trim((string)($attributes['color'] ?? ($attributes['Color'] ?? '')));
+            $extraAttrs = [];
+            foreach ($attributes as $ak => $av) {
+                $akNorm = strtolower(trim((string)$ak));
+                if (in_array($akNorm, ['size', 'color'], true)) continue;
+                $avStr = is_array($av) ? implode(', ', $av) : trim((string)$av);
+                if ($avStr !== '') {
+                    $extraAttrs[ucwords(str_replace('_', ' ', (string)$ak))] = $avStr;
+                }
+            }
+            $item['extra_attributes'] = $extraAttrs;
+            $outwardQr = trim((string)($item['outward_qr_codes'] ?? ''));
+            $item['tag_code'] = $outwardQr !== '' ? $outwardQr : (QrService::generateFinishedGoodsCode((int)$item['variant_id']) ?: (string)($item['product_code'] ?? ''));
         }
         unset($item);
 

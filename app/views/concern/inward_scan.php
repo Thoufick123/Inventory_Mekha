@@ -250,6 +250,7 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                                 data-color="<?= htmlspecialchars((string)($it['color'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                 data-mrp="<?= (float)($it['mrp'] ?? 0) ?>"
                                 data-price="<?= (float)($it['price'] ?? 0) ?>"
+                                data-attributes="<?= htmlspecialchars(json_encode($it['extra_attributes'] ?? []), ENT_QUOTES, 'UTF-8') ?>"
                                 data-category="<?= htmlspecialchars((string)($it['category_name'] ?? 'Finished Garment'), ENT_QUOTES, 'UTF-8') ?>"
                                 data-dispatched-qty="<?= (int)$it['dispatched_qty'] ?>"
                                 data-credited-qty="<?= (int)$it['credited_qty'] ?>"
@@ -275,6 +276,13 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                                 <td>
                                     <div><span class="badge bg-light text-dark border"><?= htmlspecialchars((string)($it['size'] ?? '') ?: '—') ?></span></div>
                                     <div class="mt-1"><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25"><?= htmlspecialchars((string)($it['color'] ?? '') ?: '—') ?></span></div>
+                                    <?php if (!empty($it['extra_attributes']) && is_array($it['extra_attributes'])): ?>
+                                        <div class="mt-1 d-flex flex-wrap gap-1">
+                                            <?php foreach ($it['extra_attributes'] as $ak => $av): ?>
+                                                <span class="badge bg-light text-secondary border" style="font-size: 0.68rem;"><?= htmlspecialchars((string)$ak) ?>: <?= htmlspecialchars((string)$av) ?></span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <div class="fw-bold text-dark fs-6"><?= number_format($it['dispatched_qty']) ?> pcs</div>
@@ -379,42 +387,13 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
 
             <!-- Modal Body -->
             <div class="modal-body p-4 bg-light">
-                <!-- Top Section: Big Variant QR Preview & Mode Switcher -->
-                <div class="row g-3 mb-3 bg-white p-3 rounded-3 shadow-sm mx-0 align-items-center border">
-                    <!-- Top Left: Single Static QR Preview -->
-                    <div class="col-12 col-md-4 text-center border-end pe-md-3">
+                <!-- Top Section: Big Variant QR Preview -->
+                <div class="row g-3 mb-3 bg-white p-3 rounded-3 shadow-sm mx-0 align-items-center justify-content-center border">
+                    <div class="col-12 text-center">
                         <div class="d-inline-block p-2 border rounded-2 bg-white shadow-sm">
                             <div id="modalPieceQrCanvas" class="d-flex align-items-center justify-content-center" style="width: 150px; height: 150px;"></div>
                         </div>
                         <div class="fw-bold font-monospace fs-5 text-primary mt-1" id="modalCurrentPieceTag">—</div>
-                        <div class="badge bg-light text-muted border font-monospace" style="font-size: 0.68rem;">Single Static QR Identity per Variant</div>
-                    </div>
-
-                    <!-- Top Right: Dual Mode Switcher & Quick Actions -->
-                    <div class="col-12 col-md-8 ps-md-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small fw-bold text-uppercase text-muted" style="font-size: 0.72rem; letter-spacing: 0.05em;">
-                            <i class="bi bi-toggles me-1"></i> <?= $isDamageTransfer ? 'Damage Receipt Mode:' : 'Dual Verification Mode:' ?>
-                            </span>
-                            <?php if (!$isDamageTransfer): ?><span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;">Shortcuts: Alt+G / Alt+D</span><?php endif; ?>
-                        </div>
-                        <div class="d-flex gap-2 mb-3">
-                            <button type="button" class="btn btn-success fw-bold px-3 py-2 flex-grow-1 shadow-sm d-flex align-items-center justify-content-center gap-2 <?= $isDamageTransfer ? 'd-none' : '' ?>" id="btnModeGood" onclick="setScanMode('good')">
-                                <i class="bi bi-check-circle-fill"></i> Good / Intact (Alt+G)
-                            </button>
-                            <button type="button" class="btn btn-outline-danger fw-semibold px-3 py-2 flex-grow-1 d-flex align-items-center justify-content-center gap-2" id="btnModeDamaged" onclick="setScanMode('damaged')">
-                                <i class="bi bi-slash-circle"></i> Damaged (Alt+D)
-                            </button>
-                        </div>
-
-                        <div class="d-grid gap-2">
-                            <button type="button" class="btn btn-success btn-lg fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2" id="btnInwardNextPiece" onclick="inwardNextPiece()">
-                                <i class="bi bi-check2-circle fs-5"></i> Inward Next Piece (+1 <?= $isDamageTransfer ? 'Damaged' : 'Good' ?>)
-                            </button>
-                            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" target="_blank" class="btn btn-outline-primary btn-sm fw-semibold d-flex align-items-center justify-content-center gap-1 shadow-none <?= $isDamageTransfer ? 'd-none' : '' ?>" id="modalLabelGenLink">
-                                <i class="bi bi-upc-scan"></i> Move to Label Generation for this Variant
-                            </a>
-                        </div>
                     </div>
                 </div>
 
@@ -457,6 +436,8 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                         </div>
                     </div>
 
+                    <div id="modalExtraAttributesRow" class="d-flex flex-wrap gap-2 mb-3 d-none"></div>
+
                     <!-- 4 Clear Batch Count Cards -->
                     <div class="row g-2 mb-3">
                         <div class="col-6 col-md-3">
@@ -498,11 +479,6 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                                     <input type="number" id="inputModalVerified" class="form-control text-center fw-bold fs-5 font-monospace border-success" style="background: #f0fdf4;" value="0" min="0" oninput="onModalInputDirect('verified')">
                                     <button type="button" class="btn btn-success fw-bold px-3" onclick="adjustModalCount('verified', 1)">+</button>
                                 </div>
-                                <div class="mt-2 text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-success fw-semibold" onclick="verifyAllRemainingModal()">
-                                        <i class="bi bi-check2-all me-1"></i> Verify All Remaining
-                                    </button>
-                                </div>
                             </div>
 
                             <!-- Damaged / Defect Controls -->
@@ -514,11 +490,6 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                                     <button type="button" class="btn btn-outline-danger fw-bold px-3" onclick="adjustModalCount('damaged', -1)">−</button>
                                     <input type="number" id="inputModalDamaged" class="form-control text-center fw-bold fs-5 font-monospace border-danger" style="background: #fef2f2;" value="0" min="0" oninput="onModalInputDirect('damaged')">
                                     <button type="button" class="btn btn-danger fw-bold px-3" onclick="adjustModalCount('damaged', 1)">+</button>
-                                </div>
-                                <div class="mt-2 text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-danger fw-semibold" onclick="markAllRemainingDamagedModal()">
-                                        <i class="bi bi-shield-x me-1"></i> Mark Remaining as Defect
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -814,6 +785,8 @@ function openPieceModal(outwardId, variantId) {
     if (skuEl) skuEl.textContent = productCode;
     const tagEl = document.getElementById('modalVariantTag');
     if (tagEl) tagEl.textContent = tagCode;
+    const currentPieceTagEl = document.getElementById('modalCurrentPieceTag');
+    if (currentPieceTagEl) currentPieceTagEl.textContent = tagCode;
     const catEl = document.getElementById('modalCategoryBadge');
     if (catEl) catEl.textContent = category;
     const sizeEl = document.getElementById('modalSizeText');
@@ -824,6 +797,29 @@ function openPieceModal(outwardId, variantId) {
     if (mrpEl) mrpEl.textContent = '₹' + mrp.toFixed(2);
     const prEl = document.getElementById('modalPriceText');
     if (prEl) prEl.textContent = '₹' + price.toFixed(2);
+
+    const extraAttrsRow = document.getElementById('modalExtraAttributesRow');
+    if (extraAttrsRow) {
+        let extraAttrs = {};
+        try {
+            extraAttrs = JSON.parse(row.dataset.attributes || '{}') || {};
+        } catch (e) {
+            extraAttrs = {};
+        }
+        const entries = Object.entries(extraAttrs);
+        extraAttrsRow.innerHTML = '';
+        if (entries.length > 0) {
+            entries.forEach(([k, v]) => {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-light text-dark border px-2 py-1';
+                badge.textContent = `${k}: ${v}`;
+                extraAttrsRow.appendChild(badge);
+            });
+            extraAttrsRow.classList.remove('d-none');
+        } else {
+            extraAttrsRow.classList.add('d-none');
+        }
+    }
 
     // Label generation link
     const labelLink = document.getElementById('modalLabelGenLink');
