@@ -1464,6 +1464,7 @@ class StaffController extends Controller {
             echo json_encode([
                 'success'          => true,
                 'has_user_account' => true,
+                'csrf_token'       => Auth::csrfToken(),
                 'staff'            => $staff,
                 'user'             => [
                     'id'        => (int)$user['id'],

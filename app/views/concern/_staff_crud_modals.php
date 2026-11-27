@@ -10,7 +10,7 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
 <div class="modal fade" id="modalEditStaff" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
         <form action="<?= \App\Core\Controller::url('/m/staff/update') ?>" method="POST" class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+            <input type="hidden" name="csrf_token" id="edit_staff_csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
             <input type="hidden" name="id" id="edit_staff_id" value="">
             <input type="hidden" name="role_id" id="edit_staff_role_id" value="">
             <input type="hidden" name="has_perms_matrix" id="edit_has_perms_matrix" value="0">
@@ -489,6 +489,9 @@ function openEditStaffModal(stf) {
         fetch('<?= \App\Core\Controller::url('/api/staff/user-permissions') ?>?staff_id=' + encodeURIComponent(stf.id))
             .then(res => res.json())
             .then(data => {
+                if (data && data.csrf_token) {
+                    setVal('edit_staff_csrf_token', data.csrf_token);
+                }
                 if (data && data.success && data.effective) {
                     markEditPermsDirty();
                     Object.keys(data.effective).forEach(mid => {
