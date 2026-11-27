@@ -453,7 +453,7 @@ class AdminController extends Controller {
 
             AuditLog::log('CREATE_CONCERN', 'concerns', $concernId, null, ['name' => $name, 'code' => $code]);
 
-            $this->flash('success', "Concern '{$name}' ({$code}) successfully created with " . count($pickedModuleIds) . " active modules! You can download the Concern Creation Dossier anytime from the Actions column.");
+            $this->flash('success', "Concern '{$name}' ({$code}) successfully created with " . count($pickedModuleIds) . " active modules!");
             $this->redirect('/admin/concerns');
         } catch (Exception $e) {
             DB::rollBack();
