@@ -122,36 +122,11 @@ $activeTab = $activeTab ?? 'staff';
     include dirname(__DIR__) . '/partials/export_card.php';
     ?>
 
-    <!-- Navigation Tabs -->
-    <ul class="nav nav-pills mb-4 bg-white p-2 rounded-3 shadow-xs border gap-1" id="pills-tab" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $activeTab === 'staff' ? 'active' : '' ?> fw-semibold d-flex align-items-center gap-2" 
-                    id="pills-staff-tab" data-bs-toggle="pill" data-bs-target="#pills-staff" type="button" role="tab">
-                <i class="bi bi-people-fill"></i> Staff Directory & Role Assignment
-                <span class="badge bg-light text-dark border ms-1"><?= $totalStaff ?></span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $activeTab === 'roles' ? 'active' : '' ?> fw-semibold d-flex align-items-center gap-2" 
-                    id="pills-roles-tab" data-bs-toggle="pill" data-bs-target="#pills-roles" type="button" role="tab">
-                <i class="bi bi-shield-lock-fill"></i> Configured Roles
-                <span class="badge bg-primary text-white ms-1"><?= $totalRoles ?></span>
-                <span class="badge bg-success bg-opacity-25 text-success ms-0.5"><?= $assignedRolesCount ?? 0 ?> Assigned</span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $activeTab === 'matrix' ? 'active' : '' ?> fw-semibold d-flex align-items-center gap-2" 
-                    id="pills-matrix-tab" data-bs-toggle="pill" data-bs-target="#pills-matrix" type="button" role="tab">
-                <i class="bi bi-ui-checks-grid"></i> Module CRUD Permissions Matrix
-            </button>
-        </li>
-    </ul>
-
-    <div class="tab-content" id="pills-tabContent">
+    <div class="main-content-wrapper">
+        <?php if ($activeTab !== 'matrix'): ?>
         <!-- ======================================================== -->
-        <!-- TAB 1: STAFF DIRECTORY & ASSIGNED ROLES -->
+        <!-- VIEW 1: STAFF DIRECTORY & ASSIGNED ROLES -->
         <!-- ======================================================== -->
-        <div class="tab-pane fade <?= $activeTab === 'staff' ? 'show active' : '' ?>" id="pills-staff" role="tabpanel">
             <!-- Filter & Search Toolbar -->
             <div class="card border-0 shadow-sm rounded-3 mb-4">
                 <div class="card-body p-3">
@@ -337,10 +312,9 @@ $activeTab = $activeTab ?? 'staff';
         </div>
 
         <!-- ======================================================== -->
-        <!-- TAB 2: CONFIGURED ROLES DIRECTORY (HOW MANY ROLES ASSIGNED) -->
+        <!-- VIEW 2: CONFIGURED ROLES DIRECTORY (HOW MANY ROLES ASSIGNED) -->
         <!-- ======================================================== -->
-        <div class="tab-pane fade <?= $activeTab === 'roles' ? 'show active' : '' ?>" id="pills-roles" role="tabpanel">
-            <div class="card border-0 shadow-sm rounded-3 overflow-hidden mb-4">
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden mb-4">
                 <div class="card-header bg-white py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3 border-bottom">
                     <div>
                         <div class="d-flex align-items-center gap-2 mb-0.5">
@@ -473,11 +447,16 @@ $activeTab = $activeTab ?? 'staff';
             </div>
         </div>
 
+        <?php else: ?>
         <!-- ======================================================== -->
-        <!-- TAB 3: MODULE CRUD PERMISSIONS MATRIX (VIEW, CREATE, EDIT, DELETE) -->
+        <!-- VIEW 3: MODULE CRUD PERMISSIONS MATRIX -->
         <!-- ======================================================== -->
-        <div class="tab-pane fade <?= $activeTab === 'matrix' ? 'show active' : '' ?>" id="pills-matrix" role="tabpanel">
-            <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="mb-3">
+            <a href="<?= \App\Core\Controller::url('/m/staff/roles') ?>" class="btn btn-outline-secondary btn-sm shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to Staff Directory & Roles
+            </a>
+        </div>
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
                 <div class="card-body p-4">
                     <!-- Role Selector & Header -->
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pb-3 border-bottom mb-4">
@@ -674,6 +653,7 @@ $activeTab = $activeTab ?? 'staff';
                 </div>
             </div>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 

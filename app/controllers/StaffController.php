@@ -91,13 +91,26 @@ class StaffController extends Controller {
             }
 
             // Self-heal: ensure admin_assets and admin_reports are provisionable and enabled for ALL concerns
-            DB::query("UPDATE modules SET is_super_admin_only = 0 WHERE code IN ('admin_assets', 'admin_reports')");
+            DB::query("INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
+                       VALUES ('admin_assets', 'Asset Management', 'bi-building-gear', 3, 'Super Admin', 0)
+                       ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Asset Management', group_name = 'Super Admin'");
+            DB::query("INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
+                       VALUES ('admin_reports', 'Consolidated Reports', 'bi-bar-chart-line', 4, 'Super Admin', 0)
+                       ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Consolidated Reports', group_name = 'Super Admin'");
+            DB::query("UPDATE modules SET is_super_admin_only = 0, group_name = 'Super Admin' WHERE code IN ('admin_assets', 'admin_reports')");
             DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled)
                        SELECT c.id, m.id, 1
                        FROM concerns c
                        CROSS JOIN modules m
                        WHERE m.code IN ('admin_assets', 'admin_reports')
                        ON DUPLICATE KEY UPDATE enabled = 1");
+            DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
+                       SELECT r.id, m.id, 1, 1, 1, 1
+                       FROM roles r
+                       CROSS JOIN modules m
+                       WHERE m.code IN ('admin_assets', 'admin_reports')
+                         AND (r.name LIKE '%Administrator%' OR r.name LIKE '%Admin%')
+                       ON DUPLICATE KEY UPDATE can_view = 1, can_add = 1, can_edit = 1, can_delete = 1");
 
             // Purge obsolete modules
             $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
@@ -1127,8 +1140,7 @@ class StaffController extends Controller {
         $matrixCtx = $this->buildStaffModuleMatrixContext();
         $modules = $matrixCtx['modules'];
 
-        $validTabs = ['staff', 'roles', 'matrix'];
-        $activeTab = in_array($_GET['tab'] ?? '', $validTabs, true) ? $_GET['tab'] : 'staff';
+        $activeTab = ($_GET['tab'] ?? 'staff') === 'matrix' ? 'matrix' : 'staff';
         $selectedRoleId = (int)($_GET['matrix_role_id'] ?? 0);
         if (!$selectedRoleId && !empty($allRoles)) {
             $selectedRoleId = (int)$allRoles[0]['id'];
@@ -1703,7 +1715,7 @@ class StaffController extends Controller {
             DB::commit();
 
             $this->flash('success', "Role '{$name}' created and permissions provisioned successfully.");
-            $this->redirect('/m/staff/roles?tab=roles');
+            $this->redirect('/m/staff/roles');
         } catch (\Throwable $e) {
             DB::rollBack();
             error_log('StaffController storeRole error: ' . $e->getMessage());
@@ -1720,20 +1732,20 @@ class StaffController extends Controller {
         $roleId = (int)($_POST['id'] ?? 0);
         if ($roleId <= 1) {
             $this->flash('error', 'The primary Master Super Admin role cannot be deleted.');
-            $this->redirect('/m/staff/roles?tab=roles');
+            $this->redirect('/m/staff/roles');
         }
 
         $role = DB::fetch("SELECT * FROM roles WHERE id = ?", [$roleId]);
         if (!$role) {
             $this->flash('error', 'Role not found.');
-            $this->redirect('/m/staff/roles?tab=roles');
+            $this->redirect('/m/staff/roles');
         }
 
         // Check if any user or staff has this role
         $assignedUsers = (int)DB::fetchValue("SELECT COUNT(*) FROM users WHERE role_id = ?", [$roleId]);
         if ($assignedUsers > 0) {
             $this->flash('error', "Cannot delete role '{$role['name']}' because it is assigned to {$assignedUsers} user(s). Reassign them first.");
-            $this->redirect('/m/staff/roles?tab=roles');
+            $this->redirect('/m/staff/roles');
         }
 
         DB::beginTransaction();
@@ -1759,7 +1771,7 @@ class StaffController extends Controller {
             $this->flash('error', 'Failed to delete role: ' . $e->getMessage());
         }
 
-        $this->redirect('/m/staff/roles?tab=roles');
+        $this->redirect('/m/staff/roles');
     }
 
     public function createRole(): void {
