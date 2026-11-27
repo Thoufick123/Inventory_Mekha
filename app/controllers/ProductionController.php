@@ -3773,8 +3773,8 @@ class ProductionController extends Controller {
             $batchNo = $cutting['batch_no'] ?: $cutting['log_no'];
 
             DB::query(
-                "INSERT INTO outwards (concern_id, outward_no, gate_pass_no, outward_date, transfer_type, destination_concern_id, cutting_id, warehouse_name, qty, vehicle_number, driver_name, notes, status, dispatched_at, created_by, created_at)
-                 VALUES (?, ?, ?, CURDATE(), 'concern', ?, ?, ?, ?, ?, ?, ?, 'dispatched', NOW(), ?, NOW())",
+                "INSERT INTO outwards (concern_id, outward_no, gate_pass_no, outward_date, transfer_type, destination_concern_id, cutting_id, location, warehouse_name, total_boxes, vehicle_number, driver_name, dispatched_by_name, notes, status, dispatched_at, created_at)
+                 VALUES (?, ?, ?, CURDATE(), 'concern', ?, ?, 'Main Store', ?, 1, ?, ?, ?, ?, 'dispatched', NOW(), NOW())",
                 [
                     $sourceCid,
                     $outwardNo,
@@ -3782,11 +3782,10 @@ class ProductionController extends Controller {
                     $destCid,
                     $cuttingId,
                     $destConcern['name'],
-                    $totalCutPcs,
                     $vehicleNo !== '' ? $vehicleNo : null,
                     $driverName !== '' ? $driverName : null,
+                    Auth::user()['name'] ?? 'System Administrator',
                     $notes !== '' ? $notes : ("Cutting Outward: {$batchNo}"),
-                    Auth::id(),
                 ]
             );
             $outwardId = (int)DB::lastInsertId();

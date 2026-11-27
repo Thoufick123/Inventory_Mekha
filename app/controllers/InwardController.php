@@ -208,7 +208,7 @@ class InwardController extends Controller {
                    coalesce(pu.code, src_con.code, 'PU-01') AS source_unit_code,
                    coalesce(dest_con.name, o.warehouse_name, 'Warehouse') AS dest_warehouse_name,
                    coalesce(dest_con.code, 'WH-01') AS dest_warehouse_code,
-                   coalesce(NULLIF((SELECT sum(oi.qty) FROM outward_items oi WHERE oi.outward_id = o.id), 0), pob.pieces_count, b.batch_qty, 0) AS total_qty,
+                   coalesce(NULLIF((SELECT sum(oi.qty) FROM outward_items oi WHERE oi.outward_id = o.id), 0), pob.pieces_count, b.batch_qty, cl_src.cut_pieces, 0) AS total_qty,
                    coalesce((SELECT sum(ii.accepted_qty)
                              FROM inwards inw
                              JOIN inward_items ii ON inw.id = ii.inward_id
