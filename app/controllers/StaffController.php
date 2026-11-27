@@ -862,7 +862,7 @@ class StaffController extends Controller {
                     DB::query("INSERT IGNORE INTO user_concerns (user_id, concern_id) VALUES (?, ?)", [$userId, $cid]);
                 }
 
-                if (isset($_POST['has_perms_matrix']) || isset($_POST['perms'])) {
+                if (!empty($_POST['has_perms_matrix']) || isset($_POST['perms'])) {
                     $activePermCids = isset($updCids) ? $updCids : [$cid];
                     $postedPerms = isset($_POST['perms']) && is_array($_POST['perms']) ? $_POST['perms'] : [];
                     $this->persistUserPermissions($userId, $postedPerms, $activePermCids);
@@ -1106,6 +1106,7 @@ class StaffController extends Controller {
 
     public function roles(): void {
         ModuleGuard::enforce('staff', 'view');
+        $this->ensureSchema();
         $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
         $concernFilter = isset($_GET['concern_id']) && $_GET['concern_id'] !== '' ? (int)$_GET['concern_id'] : null;
 
@@ -1343,127 +1344,147 @@ class StaffController extends Controller {
     }
 
     public function apiGetUserPermissions(): void {
-        $staffId = (int)($_GET['staff_id'] ?? 0);
-        $userId = (int)($_GET['user_id'] ?? 0);
-
-        $staff = null;
-        if ($staffId) {
-            $staff = DB::fetch("SELECT s.*, c.name AS concern_name, c.code AS concern_code FROM staff s JOIN concerns c ON s.concern_id = c.id WHERE s.id = ?", [$staffId]);
-            if ($staff && !empty($staff['user_id'])) {
-                $userId = (int)$staff['user_id'];
-            }
-        }
-
-        $user = null;
-        if ($userId) {
-            $user = DB::fetch("SELECT u.*, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?", [$userId]);
-            if (!$staff && $user) {
-                $staff = DB::fetch("SELECT * FROM staff WHERE user_id = ?", [$userId]);
-            }
-        }
-
-        if (!$user) {
-            if (!headers_sent()) {
-                header('Content-Type: application/json');
-            }
-            echo json_encode([
-                'success' => true,
-                'has_user_account' => false,
-                'staff' => $staff,
-                'message' => 'This staff member does not have an active system login account yet. Please assign a role first.'
-            ]);
-            exit;
-        }
-
-        $roleId = (int)$user['role_id'];
-
-        // 1. Role permissions
-        $rolePerms = [];
-        $rpRows = DB::fetchAll("SELECT module_id, can_view, can_add, can_edit, can_delete FROM role_permissions WHERE role_id = ?", [$roleId]);
-        foreach ($rpRows as $rp) {
-            $rolePerms[(int)$rp['module_id']] = [
-                'view'   => (int)$rp['can_view'],
-                'add'    => (int)$rp['can_add'],
-                'edit'   => (int)$rp['can_edit'],
-                'delete' => (int)$rp['can_delete'],
-            ];
-        }
-
-        // 2. User specific overrides (null = inherit, 1 = grant, 0 = deny)
-        $userOverrides = [];
-        $staffCid = (int)($staff['concern_id'] ?? 0);
-        if ($staffCid > 0) {
-            $upRows = DB::fetchAll(
-                "SELECT module_id, can_view, can_add, can_edit, can_delete
-                 FROM user_permissions
-                 WHERE user_id = ? AND (concern_id = ? OR concern_id IS NULL)
-                 ORDER BY (concern_id IS NOT NULL) ASC",
-                [$userId, $staffCid]
-            );
-        } else {
-            $upRows = DB::fetchAll(
-                "SELECT module_id, can_view, can_add, can_edit, can_delete
-                 FROM user_permissions
-                 WHERE user_id = ?
-                 ORDER BY (concern_id IS NOT NULL) ASC",
-                [$userId]
-            );
-        }
-        foreach ($upRows as $up) {
-            $userOverrides[(int)$up['module_id']] = [
-                'view'   => $up['can_view'] === null ? null : (int)$up['can_view'],
-                'add'    => $up['can_add'] === null ? null : (int)$up['can_add'],
-                'edit'   => $up['can_edit'] === null ? null : (int)$up['can_edit'],
-                'delete' => $up['can_delete'] === null ? null : (int)$up['can_delete'],
-            ];
-        }
-
-        // 3. Compute effective permissions
-        $modules = DB::fetchAll("SELECT id, name, code, group_name FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name, sort_order, id");
-        $effective = [];
-        foreach ($modules as $m) {
-            $mid = (int)$m['id'];
-            $r = $rolePerms[$mid] ?? ['view' => 0, 'add' => 0, 'edit' => 0, 'delete' => 0];
-            $u = $userOverrides[$mid] ?? ['view' => null, 'add' => null, 'edit' => null, 'delete' => null];
-
-            $actions = ['view', 'add', 'edit', 'delete'];
-            $eff = [];
-            foreach ($actions as $act) {
-                if (isset($u[$act]) && $u[$act] !== null) {
-                    $eff[$act] = [
-                        'allowed' => (bool)$u[$act],
-                        'source'  => $u[$act] == 1 ? 'granted_override' : 'denied_override',
-                    ];
-                } else {
-                    $eff[$act] = [
-                        'allowed' => !empty($r[$act]),
-                        'source'  => 'inherited_role',
-                    ];
-                }
-            }
-            $effective[$mid] = $eff;
-        }
-
         if (!headers_sent()) {
             header('Content-Type: application/json');
         }
-        echo json_encode([
-            'success'          => true,
-            'has_user_account' => true,
-            'staff'            => $staff,
-            'user'             => [
-                'id'        => (int)$user['id'],
-                'name'      => $user['name'],
-                'email'     => $user['email'],
-                'role_id'   => $roleId,
-                'role_name' => $user['role_name'],
-                'status'    => $user['status'],
-            ],
-            'modules'          => $modules,
-            'role_permissions' => $rolePerms,
-            'user_overrides'   => $userOverrides,
-            'effective'        => $effective,
-        ]);
+        try {
+            $this->ensureSchema();
+            $staffId = (int)($_GET['staff_id'] ?? 0);
+            $userId = (int)($_GET['user_id'] ?? 0);
+
+            $staff = null;
+            if ($staffId) {
+                $staff = DB::fetch("SELECT s.*, c.name AS concern_name, c.code AS concern_code FROM staff s JOIN concerns c ON s.concern_id = c.id WHERE s.id = ?", [$staffId]);
+                if ($staff && !empty($staff['user_id'])) {
+                    $userId = (int)$staff['user_id'];
+                } elseif ($staff) {
+                    if (!empty($staff['email'])) {
+                        $userId = (int)DB::fetchValue("SELECT id FROM users WHERE email = ? LIMIT 1", [$staff['email']]);
+                    }
+                    if (!$userId && !empty($staff['phone'])) {
+                        $userId = (int)DB::fetchValue("SELECT id FROM users WHERE phone = ? LIMIT 1", [$staff['phone']]);
+                    }
+                    if ($userId > 0) {
+                        DB::query("UPDATE staff SET user_id = ? WHERE id = ?", [$userId, $staffId]);
+                    }
+                }
+            }
+
+            $user = null;
+            if ($userId) {
+                $user = DB::fetch("SELECT u.*, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?", [$userId]);
+                if (!$staff && $user) {
+                    $staff = DB::fetch("SELECT * FROM staff WHERE user_id = ?", [$userId]);
+                }
+            }
+
+            if (!$user) {
+                echo json_encode([
+                    'success' => true,
+                    'has_user_account' => false,
+                    'staff' => $staff,
+                    'message' => 'This staff member does not have an active system login account yet. Please assign a role first.'
+                ], JSON_INVALID_UTF8_SUBSTITUTE);
+                exit;
+            }
+
+            $roleId = (int)$user['role_id'];
+
+            // 1. Role permissions
+            $rolePerms = [];
+            $rpRows = DB::fetchAll("SELECT module_id, can_view, can_add, can_edit, can_delete FROM role_permissions WHERE role_id = ?", [$roleId]);
+            foreach ($rpRows as $rp) {
+                $rolePerms[(int)$rp['module_id']] = [
+                    'view'   => (int)$rp['can_view'],
+                    'add'    => (int)$rp['can_add'],
+                    'edit'   => (int)$rp['can_edit'],
+                    'delete' => (int)$rp['can_delete'],
+                ];
+            }
+
+            // 2. User specific overrides (null = inherit, 1 = grant, 0 = deny)
+            $userOverrides = [];
+            $upCols = array_column(DB::fetchAll("DESCRIBE user_permissions"), 'Field');
+            $hasConcernCol = in_array('concern_id', $upCols, true);
+            $staffCid = (int)($staff['concern_id'] ?? 0);
+            if ($hasConcernCol && $staffCid > 0) {
+                $upRows = DB::fetchAll(
+                    "SELECT module_id, can_view, can_add, can_edit, can_delete
+                     FROM user_permissions
+                     WHERE user_id = ? AND (concern_id = ? OR concern_id IS NULL)
+                     ORDER BY (concern_id IS NOT NULL) ASC",
+                    [$userId, $staffCid]
+                );
+            } elseif ($hasConcernCol) {
+                $upRows = DB::fetchAll(
+                    "SELECT module_id, can_view, can_add, can_edit, can_delete
+                     FROM user_permissions
+                     WHERE user_id = ?
+                     ORDER BY (concern_id IS NOT NULL) ASC",
+                    [$userId]
+                );
+            } else {
+                $upRows = DB::fetchAll("SELECT module_id, can_view, can_add, can_edit, can_delete FROM user_permissions WHERE user_id = ?", [$userId]);
+            }
+            foreach ($upRows as $up) {
+                $userOverrides[(int)$up['module_id']] = [
+                    'view'   => $up['can_view'] === null ? null : (int)$up['can_view'],
+                    'add'    => $up['can_add'] === null ? null : (int)$up['can_add'],
+                    'edit'   => $up['can_edit'] === null ? null : (int)$up['can_edit'],
+                    'delete' => $up['can_delete'] === null ? null : (int)$up['can_delete'],
+                ];
+            }
+
+            // 3. Compute effective permissions
+            $modules = DB::fetchAll("SELECT id, name, code, group_name FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name, sort_order, id");
+            $effective = [];
+            foreach ($modules as $m) {
+                $mid = (int)$m['id'];
+                $r = $rolePerms[$mid] ?? ['view' => 0, 'add' => 0, 'edit' => 0, 'delete' => 0];
+                $u = $userOverrides[$mid] ?? ['view' => null, 'add' => null, 'edit' => null, 'delete' => null];
+
+                $actions = ['view', 'add', 'edit', 'delete'];
+                $eff = [];
+                foreach ($actions as $act) {
+                    if (isset($u[$act]) && $u[$act] !== null) {
+                        $eff[$act] = [
+                            'allowed' => (bool)$u[$act],
+                            'source'  => $u[$act] == 1 ? 'granted_override' : 'denied_override',
+                        ];
+                    } else {
+                        $eff[$act] = [
+                            'allowed' => !empty($r[$act]),
+                            'source'  => 'inherited_role',
+                        ];
+                    }
+                }
+                $effective[$mid] = $eff;
+            }
+
+            echo json_encode([
+                'success'          => true,
+                'has_user_account' => true,
+                'staff'            => $staff,
+                'user'             => [
+                    'id'        => (int)$user['id'],
+                    'name'      => $user['name'],
+                    'email'     => $user['email'],
+                    'role_id'   => $roleId,
+                    'role_name' => $user['role_name'],
+                    'status'    => $user['status'],
+                ],
+                'modules'          => $modules,
+                'role_permissions' => $rolePerms,
+                'user_overrides'   => $userOverrides,
+                'effective'        => $effective,
+            ], JSON_INVALID_UTF8_SUBSTITUTE);
+        } catch (\Throwable $e) {
+            error_log('apiGetUserPermissions error: ' . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Failed to load permissions.'
+            ]);
+        }
         exit;
     }
 

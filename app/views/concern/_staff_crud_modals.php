@@ -13,7 +13,7 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
             <input type="hidden" name="id" id="edit_staff_id" value="">
             <input type="hidden" name="role_id" id="edit_staff_role_id" value="">
-            <input type="hidden" name="has_perms_matrix" value="1">
+            <input type="hidden" name="has_perms_matrix" id="edit_has_perms_matrix" value="0">
             <?php if ($staffReturnTo !== ''): ?>
                 <input type="hidden" name="return_to" value="<?= htmlspecialchars($staffReturnTo) ?>">
                 <input type="hidden" name="return_concern_id" value="<?= htmlspecialchars((string)$staffReturnConcernId) ?>">
@@ -354,7 +354,13 @@ function openViewStaffModal(stf) {
     }
 }
 
+function markEditPermsDirty() {
+    const flag = document.getElementById('edit_has_perms_matrix');
+    if (flag) flag.value = '1';
+}
+
 function onEditPermCheckboxChange(mid, act, checked) {
+    markEditPermsDirty();
     if (checked && (act === 'add' || act === 'edit' || act === 'delete')) {
         const viewCb = document.getElementById('edit_m_view_' + mid);
         if (viewCb) viewCb.checked = true;
@@ -369,6 +375,7 @@ function onEditPermCheckboxChange(mid, act, checked) {
 }
 
 function toggleEditHeaderColumn(action, checked) {
+    markEditPermsDirty();
     document.querySelectorAll('.edit-matrix-perm-' + action).forEach(cb => {
         const row = cb.closest('tr');
         if (row && row.style.display === 'none') return;
@@ -394,6 +401,7 @@ function toggleEditHeaderColumn(action, checked) {
 }
 
 function clearAllEditPermissions() {
+    markEditPermsDirty();
     document.querySelectorAll('.edit-matrix-perm-check').forEach(cb => {
         cb.checked = false;
     });
@@ -429,6 +437,7 @@ function openEditStaffModal(stf) {
 
     setVal('edit_staff_id', stf.id || '');
     setVal('edit_staff_role_id', stf.role_id || '');
+    setVal('edit_has_perms_matrix', '0');
     setTxt('edit_staff_code_display', stf.staff_code || '');
     setVal('edit_staff_concern_id', stf.concern_id || '');
     setVal('edit_staff_name', stf.name || '');
@@ -481,6 +490,7 @@ function openEditStaffModal(stf) {
             .then(res => res.json())
             .then(data => {
                 if (data && data.success && data.effective) {
+                    markEditPermsDirty();
                     Object.keys(data.effective).forEach(mid => {
                         const eff = data.effective[mid];
                         const vCb = document.getElementById('edit_m_view_' + mid);
