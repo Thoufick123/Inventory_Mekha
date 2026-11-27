@@ -170,11 +170,28 @@ class DamageController extends Controller {
         }
         $outwardSql .= " GROUP BY o.id ORDER BY o.id DESC LIMIT 50";
 
+        $availableDamagedStocks = [];
+        if ($cid) {
+            $availableDamagedStocks = DB::fetchAll(
+                "SELECT sl.variant_id, v.product_code, v.name AS variant_name, v.size,
+                        SUM(sl.qty_in - sl.qty_out) AS available_qty
+                 FROM stock_ledger sl
+                 JOIN variants v ON v.id = sl.variant_id
+                 WHERE sl.concern_id = ?
+                   AND sl.location LIKE '%:DAMAGED'
+                 GROUP BY sl.variant_id, v.product_code, v.name, v.size
+                 HAVING available_qty > 0
+                 ORDER BY v.name ASC, v.size ASC",
+                [$cid]
+            );
+        }
+
         $this->render('concern/concern_damage_outward', [
             'pageTitle' => 'Damage Outward',
             'currentModule' => 'concern_damage',
             'selectedCid' => $cid,
             'allConcerns' => $allConcerns,
+            'availableDamagedStocks' => $availableDamagedStocks,
             'outwards' => DB::fetchAll($outwardSql, $outwardParams),
         ]);
     }

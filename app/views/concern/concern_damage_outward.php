@@ -65,28 +65,39 @@
         <div class="alert alert-info border-0 shadow-sm">Select a source concern before scanning damaged stock.</div>
     <?php else: ?>
 
-            <div class="card border-0 shadow-sm damage-outward-scanner mb-3">
-                <div class="card-body p-3">
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                        <div>
-                            <div class="fw-bold"><i class="bi bi-qr-code-scan text-danger me-1"></i> Scan Damaged Stock</div>
-                            <small class="text-muted">Only labels with a positive quantity in a DAMAGED stock location can be added.</small>
-                        </div>
-                        <span class="badge rounded-pill bg-white text-danger border" id="damageOutwardCount">0 pcs scanned</span>
-                    </div>
-                    <div class="input-group input-group-lg">
+            <div class="row g-2 align-items-center mb-2">
+                <div class="col-md-7">
+                    <div class="input-group">
                         <span class="input-group-text bg-white text-danger"><i class="bi bi-upc-scan"></i></span>
                         <input type="text" id="damageOutwardTag" class="form-control font-monospace" autocomplete="off" placeholder="Scan damaged-stock QR or enter Product Code..." aria-label="Scan damaged stock label">
                         <button type="button" class="btn btn-danger fw-bold" id="damageOutwardScanButton"><i class="bi bi-plus-lg me-1"></i> Scan / Add</button>
                     </div>
-                    <div id="damageOutwardFeedback" class="small mt-2 text-muted" role="status" aria-live="polite">Ready to scan damaged stock.</div>
+                </div>
+                <div class="col-md-5">
+                    <select id="damageOutwardStockSelect" class="form-select" aria-label="Select available damaged stock">
+                        <option value="">-- Select Available Damaged Stock --</option>
+                        <?php foreach (($availableDamagedStocks ?? []) as $dmgStock): ?>
+                            <option value="<?= (int)$dmgStock['variant_id'] ?>"
+                                    data-variant-id="<?= (int)$dmgStock['variant_id'] ?>"
+                                    data-product-code="<?= htmlspecialchars((string)($dmgStock['product_code'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                    data-variant-name="<?= htmlspecialchars((string)($dmgStock['variant_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                    data-size="<?= htmlspecialchars((string)($dmgStock['size'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                    data-available-qty="<?= (float)$dmgStock['available_qty'] ?>">
+                                <?= htmlspecialchars((string)($dmgStock['product_code'] ?: ('#' . $dmgStock['variant_id']))) ?> — <?= htmlspecialchars((string)$dmgStock['variant_name']) ?><?= !empty($dmgStock['size']) ? ' (' . htmlspecialchars((string)$dmgStock['size']) . ')' : '' ?> [<?= number_format((float)$dmgStock['available_qty'], 0) ?> pcs]
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </div>
+            <div id="damageOutwardFeedback" class="small text-muted mb-3" role="status" aria-live="polite"></div>
 
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-bold">Scanned Damaged Stock</h6>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="clearDamageOutward">Clear Scans</button>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge rounded-pill bg-light text-danger border" id="damageOutwardCount">0 pcs scanned</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="clearDamageOutward">Clear Scans</button>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -146,7 +157,7 @@
             <div class="card-header bg-white"><h6 class="mb-0 fw-bold">Recent Damage Outward Manifests</h6></div>
             <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle mb-0">
-                    <thead class="table-light"><tr><th>Manifest</th><th>Destination</th><th class="text-end">Pieces</th><th>Status</th><th>Date</th></tr></thead>
+                    <thead class="table-light"><tr><th>Manifest</th><th>Destination</th><th class="text-end">Pieces</th><th>Status</th><th>Date</th><th class="text-end">QR</th></tr></thead>
                     <tbody>
                         <?php foreach ($outwards as $outward): ?>
                             <tr>
@@ -155,6 +166,12 @@
                                 <td class="text-end"><?= number_format((float)$outward['total_qty'], 0) ?></td>
                                 <td><span class="badge bg-light text-dark border"><?= htmlspecialchars(strtoupper((string)$outward['status'])) ?></span></td>
                                 <td><?= htmlspecialchars(date('d M Y', strtotime($outward['created_at']))) ?></td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-dark py-0 px-2" title="View / Print Outward QR"
+                                            onclick='openDamageOutwardQrModal(<?= json_encode((string)$outward["outward_no"]) ?>, <?= json_encode((string)($outward["destination_name"] ?? "Unknown concern")) ?>, <?= (int)round((float)$outward["total_qty"]) ?>)'>
+                                        <i class="bi bi-qr-code"></i>
+                                    </button>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -168,7 +185,61 @@
     .damage-outward-scanner { border-left: 4px solid #dc3545 !important; background: linear-gradient(110deg, #fff5f6 0%, #fff 75%); }
 </style>
 
+<div class="modal fade" id="modalDamageOutwardQr" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-qr-code me-1 text-danger"></i> Outward Master QR</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="damageOutwardQrCanvas" class="d-inline-block p-2 border rounded bg-white mb-2"></div>
+                <div id="damageOutwardQrCodeText" class="font-monospace fw-bold text-dark"></div>
+                <div id="damageOutwardQrMeta" class="small text-muted mt-1"></div>
+            </div>
+            <div class="modal-footer py-2 justify-content-between">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="printDamageOutwardQr()"><i class="bi bi-printer me-1"></i>Print QR</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="<?= \App\Core\Controller::url('/assets/js/qrcode.min.js') ?>"></script>
 <script>
+function openDamageOutwardQrModal(outwardNo, destination, pieces) {
+    const box = document.getElementById('damageOutwardQrCanvas');
+    if (box && typeof QRCode !== 'undefined') {
+        box.innerHTML = '';
+        new QRCode(box, {
+            text: String(outwardNo || ''),
+            width: 150,
+            height: 150,
+            correctLevel: QRCode.CorrectLevel ? QRCode.CorrectLevel.M : 0
+        });
+    }
+    document.getElementById('damageOutwardQrCodeText').textContent = outwardNo || '';
+    document.getElementById('damageOutwardQrMeta').textContent = `${destination || '-'} • ${pieces || 0} pcs`;
+    new bootstrap.Modal(document.getElementById('modalDamageOutwardQr')).show();
+}
+
+function printDamageOutwardQr() {
+    const qrSource = document.querySelector('#damageOutwardQrCanvas img, #damageOutwardQrCanvas canvas');
+    const qrDataUrl = qrSource ? (qrSource.tagName === 'IMG' ? qrSource.src : qrSource.toDataURL('image/png')) : '';
+    const code = document.getElementById('damageOutwardQrCodeText').textContent || '';
+    const meta = document.getElementById('damageOutwardQrMeta').textContent || '';
+    const win = window.open('', '_blank', 'width=420,height=480');
+    if (!win) return;
+    win.document.write(`<!doctype html><html><head><title>Outward QR - ${code}</title>
+        <style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;} .box{border:1px solid #cbd5e1;border-radius:10px;padding:18px;display:inline-block;} .code{font-family:monospace;font-size:18px;font-weight:bold;margin-top:10px;} .meta{font-size:12px;color:#475569;margin-top:6px;}</style>
+        </head><body><div class="box">
+        ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:180px;height:180px;" alt="Outward QR">` : ''}
+        <div class="code">${code}</div>
+        <div class="meta">${meta}</div>
+        </div><script>window.onload=function(){window.print();};<\/script></body></html>`);
+    win.document.close();
+}
+
 (() => {
     const form = document.getElementById('damageOutwardForm');
     const sourceSelect = document.getElementById('damageOutwardSource');
@@ -314,6 +385,37 @@
     }
 
     scanButton.addEventListener('click', scanTag);
+    const stockSelect = document.getElementById('damageOutwardStockSelect');
+    if (stockSelect) {
+        stockSelect.addEventListener('change', () => {
+            const opt = stockSelect.options[stockSelect.selectedIndex];
+            if (!opt || !opt.value) return;
+            const variantId = Number(opt.dataset.variantId || opt.value);
+            const availableQty = Math.max(0, Math.floor(Number(opt.dataset.availableQty) || 0));
+            const item = {
+                variant_id: variantId,
+                product_code: opt.dataset.productCode || '',
+                variant_name: opt.dataset.variantName || '',
+                size: opt.dataset.size || '',
+                available_qty: availableQty
+            };
+            const existing = queued.get(variantId);
+            if (existing) {
+                if (existing.qty >= availableQty) {
+                    feedback.textContent = `Only ${formatQty(availableQty)} damaged piece(s) are available for ${item.variant_name}.`;
+                } else {
+                    existing.qty++;
+                    existing.available_qty = availableQty;
+                    feedback.textContent = `Added ${item.variant_name}; ${formatQty(availableQty)} damaged piece(s) available.`;
+                }
+            } else if (availableQty > 0) {
+                queued.set(variantId, {...item, qty: 1});
+                feedback.textContent = `Added ${item.variant_name}; ${formatQty(availableQty)} damaged piece(s) available.`;
+            }
+            renderQueue();
+            stockSelect.value = '';
+        });
+    }
     tagInput.addEventListener('keydown', event => {
         if (event.key === 'Enter') {
             event.preventDefault();

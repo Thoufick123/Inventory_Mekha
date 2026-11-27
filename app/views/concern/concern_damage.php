@@ -87,23 +87,6 @@
                     <label class="form-label small fw-semibold mb-1" for="damageSearch">Search Records</label>
                     <input id="damageSearch" type="search" name="search" class="form-control form-control-sm" value="<?= htmlspecialchars($search) ?>" placeholder="Damage #, batch, tag, Product Code...">
                 </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label small fw-semibold mb-1" for="damageSource">Source Type</label>
-                    <select id="damageSource" name="source" class="form-select form-select-sm">
-                        <option value="">All Sources</option>
-                        <option value="own" <?= $sourceType === 'own' ? 'selected' : '' ?>>Own Products</option>
-                        <option value="purchase" <?= $sourceType === 'purchase' ? 'selected' : '' ?>>Purchase Products</option>
-                    </select>
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label small fw-semibold mb-1" for="damageStatus">Status / Action</label>
-                    <select id="damageStatus" name="status" class="form-select form-select-sm">
-                        <option value="">All Statuses</option>
-                        <?php foreach (['LOGGED', 'INSPECTED', 'RESOLVED', 'CANCELLED'] as $statusOption): ?>
-                            <option value="<?= $statusOption ?>" <?= $status === $statusOption ? 'selected' : '' ?>><?= htmlspecialchars(ucfirst(strtolower($statusOption))) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
                 <div class="col-6 col-md-auto d-grid">
                     <button type="submit" class="btn btn-sm btn-primary px-4"><i class="bi bi-funnel me-1"></i>Filter</button>
                 </div>
@@ -150,8 +133,9 @@
                             <tr>
                                 <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle font-monospace"><?= htmlspecialchars($d['damage_no']) ?></span></td>
                                 <td>
+                                    <?php $displayProductCode = \App\Services\QrService::formatBrandVariantCode((int)($d['variant_id'] ?? 0)) ?: (string)($d['product_code'] ?? ''); ?>
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($d['variant_name']) ?></div>
-                                    <small class="text-muted font-monospace"><?= htmlspecialchars($d['product_code']) ?> &bull; <?= htmlspecialchars($d['size'] ?: 'Standard') ?></small>
+                                    <small class="text-muted font-monospace"><?= htmlspecialchars($displayProductCode) ?> &bull; <?= htmlspecialchars($d['size'] ?: 'Standard') ?></small>
                                 </td>
                                 <td>
                                     <span class="badge bg-secondary-subtle text-secondary"><?= htmlspecialchars($sourceLabel) ?></span>

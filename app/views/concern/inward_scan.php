@@ -113,27 +113,30 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
     <div class="row g-3 mb-4">
         <!-- Left Column: Batch Carton QR & Outward Dispatch Details -->
         <div class="col-12 col-lg-4">
-            <?php if ($isDamageTransfer): ?>
-                <div class="card border-0 shadow-sm rounded-3 p-3 bg-danger bg-opacity-10 mb-3 text-center">
-                    <div class="small fw-bold text-danger text-uppercase mb-2" style="font-size: 0.75rem;">
-                        <i class="bi bi-exclamation-triangle me-1"></i> Damage Transfer Manifest
+            <?php $masterOutwardQrCode = trim((string)(($outward['outward_no'] ?? '') ?: ($outward['batch_no'] ?? ''))); ?>
+            <div class="card border-0 shadow-sm rounded-3 p-3 <?= $isDamageTransfer ? 'bg-danger bg-opacity-10' : 'bg-white' ?> mb-3 text-center">
+                <div class="small fw-bold <?= $isDamageTransfer ? 'text-danger' : 'text-muted' ?> text-uppercase mb-2" style="font-size: 0.75rem;">
+                    <?php if ($isDamageTransfer): ?>
+                        <i class="bi bi-exclamation-triangle me-1"></i> Damage Transfer Manifest QR
+                    <?php else: ?>
+                        <i class="bi bi-qr-code me-1 text-primary"></i> Outward Master QR Code
+                    <?php endif; ?>
+                </div>
+                <div class="d-flex justify-content-center py-2">
+                    <div id="batchCartonQrContainer" class="p-2 border rounded-2 bg-white d-flex align-items-center justify-content-center" style="min-width: 150px; min-height: 150px;">
+                        <div id="batchQrCanvas" style="width: 150px; height: 150px;"></div>
                     </div>
-                    <div class="fw-bold font-monospace text-dark fs-5"><?= htmlspecialchars($outward['outward_no']) ?></div>
+                </div>
+                <div class="fw-bold font-monospace <?= $isDamageTransfer ? 'text-dark' : 'text-primary' ?> fs-6 mt-1"><?= htmlspecialchars($masterOutwardQrCode) ?></div>
+                <?php if ($isDamageTransfer): ?>
                     <div class="small text-muted mt-1">All received pieces remain quarantined.</div>
-                </div>
-            <?php else: ?>
-                <div class="card border-0 shadow-sm rounded-3 p-3 bg-white mb-3 text-center">
-                    <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.75rem;">
-                        <i class="bi bi-qr-code me-1 text-primary"></i> Batch Carton QR Code
-                    </div>
-                    <div class="d-flex justify-content-center py-2">
-                        <div id="batchCartonQrContainer" class="p-2 border rounded-2 bg-light d-flex align-items-center justify-content-center" style="min-width: 160px; min-height: 160px;">
-                            <div id="batchQrCanvas" style="width: 160px; height: 160px;"></div>
-                        </div>
-                    </div>
-                    <div class="fw-bold font-monospace text-primary fs-6 mt-1"><?= htmlspecialchars($outward['batch_no']) ?></div>
-                </div>
-            <?php endif; ?>
+                <?php endif; ?>
+                <?php if (\App\Core\Auth::can('inward', 'add')): ?>
+                    <button type="button" class="btn btn-sm <?= $isDamageTransfer ? 'btn-danger' : 'btn-primary' ?> mt-2 w-100 fw-semibold" onclick="bulkScanOutwardMaster()">
+                        <i class="bi bi-qr-code-scan me-1"></i> Scan All (Bulk Inward)
+                    </button>
+                <?php endif; ?>
+            </div>
         </div>
 
         <!-- Right Column: Live Cross-Check Scanner & Variant Breakdown -->
@@ -584,7 +587,7 @@ function renderQrToCanvas(targetId, text, width, height) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function () {
-    renderQrToCanvas('batchQrCanvas', '<?= htmlspecialchars($outward['batch_no']) ?>');
+    renderQrToCanvas('batchQrCanvas', <?= json_encode($masterOutwardQrCode ?? '') ?>, 150, 150);
     document.addEventListener('keydown', function (event) {
         if (!event.altKey || event.ctrlKey || event.metaKey) return;
         const key = event.key.toLowerCase();
@@ -609,6 +612,37 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
+// Bulk scan all items in the outward consignment
+function bulkScanOutwardMaster(scannedLabel = '') {
+    const feedback = document.getElementById('scanFeedbackAlert');
+    const label = scannedLabel || <?= json_encode($masterOutwardQrCode ?? '') ?>;
+    let updatedLines = 0;
+    let addedPieces = 0;
+    document.querySelectorAll('#tableReconcile tbody tr').forEach(row => {
+        const verifiedInput = row.querySelector('.input-verified');
+        const damagedInput = row.querySelector('.input-damaged');
+        if (!verifiedInput || !damagedInput) return;
+        const targetInput = (isDamageTransfer || scanMode !== 'good') ? damagedInput : verifiedInput;
+        const cur = parseInt(targetInput.value, 10) || 0;
+        const verified = parseInt(verifiedInput.value, 10) || 0;
+        const damaged = parseInt(damagedInput.value, 10) || 0;
+        const max = parseInt(verifiedInput.getAttribute('max'), 10) || 0;
+        const remaining = Math.max(0, max - (verified + damaged));
+        if (remaining > 0) {
+            targetInput.value = cur + remaining;
+            updatedLines++;
+            addedPieces += remaining;
+        }
+    });
+    recalculateTotals();
+    if (updatedLines > 0) {
+        feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Outward QR (${escapeHtml(label)}) scanned — ${updatedLines} line(s) / ${addedPieces} pcs scanned completely!</span>`;
+        playSound('success');
+    } else {
+        feedback.innerHTML = `<span class="text-info fw-semibold"><i class="bi bi-info-circle me-1"></i> All items in outward ${escapeHtml(label)} are already scanned.</span>`;
+    }
+}
+
 // Process Live Scan
 function processManualScan() {
     const input = document.getElementById('inputQrScanner');
@@ -623,33 +657,12 @@ function processManualScan() {
 
     // Match outward master QR (scans whole outward list completely)
     const scanCode = val.toUpperCase();
-    const outwardMasterCode = <?= json_encode(strtoupper(trim((string)($outward['outward_no'] ?? '')))) ?>;
-    if (outwardMasterCode && scanCode === outwardMasterCode) {
-        let updatedLines = 0;
-        let addedPieces = 0;
-        document.querySelectorAll('#tableReconcile tbody tr').forEach(row => {
-            const verifiedInput = row.querySelector('.input-verified');
-            const damagedInput = row.querySelector('.input-damaged');
-            if (!verifiedInput || !damagedInput) return;
-            const targetInput = scanMode === 'good' ? verifiedInput : damagedInput;
-            const cur = parseInt(targetInput.value, 10) || 0;
-            const verified = parseInt(verifiedInput.value, 10) || 0;
-            const damaged = parseInt(damagedInput.value, 10) || 0;
-            const max = parseInt(verifiedInput.getAttribute('max'), 10) || 0;
-            const remaining = Math.max(0, max - (verified + damaged));
-            if (remaining > 0) {
-                targetInput.value = cur + remaining;
-                updatedLines++;
-                addedPieces += remaining;
-            }
-        });
-        recalculateTotals();
-        if (updatedLines > 0) {
-            feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Outward QR (${escapeHtml(val)}) scanned — ${updatedLines} line(s) / ${addedPieces} pcs scanned completely!</span>`;
-            playSound('success');
-        } else {
-            feedback.innerHTML = `<span class="text-info fw-semibold"><i class="bi bi-info-circle me-1"></i> All items in outward ${escapeHtml(val)} are already scanned.</span>`;
-        }
+    const outwardMasterCodes = [
+        <?= json_encode(strtoupper(trim((string)($outward['outward_no'] ?? '')))) ?>,
+        <?= json_encode(strtoupper(trim((string)($outward['batch_no'] ?? '')))) ?>
+    ].filter(Boolean);
+    if (outwardMasterCodes.includes(scanCode)) {
+        bulkScanOutwardMaster(val);
         input.value = '';
         input.focus();
         return;
