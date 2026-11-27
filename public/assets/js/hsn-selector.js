@@ -88,9 +88,12 @@
             }
         }
 
-        // Trigger input and change events so reactive forms update immediately
+        // Trigger input and change events so reactive forms update immediately without re-opening the dropdown
+        clearTimeout(debounceTimer);
+        input.dataset.hsnSuppressSearch = '1';
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
+        delete input.dataset.hsnSuppressSearch;
 
         const results = getDropdown(input);
         closeDropdown(input, results);
@@ -289,6 +292,9 @@
     document.addEventListener('input', event => {
         const input = event.target.closest('[data-hsn-autocomplete]');
         if (!input) return;
+        if (input.dataset.hsnSuppressSearch === '1') {
+            return;
+        }
 
         const value = input.value.trim().toUpperCase();
         if (value !== (input.dataset.hsnSelectedCode || '')) {
@@ -332,6 +338,17 @@
         } else if (event.key === 'Escape') {
             closeDropdown(input, results);
         }
+    });
+
+    document.addEventListener('focusout', event => {
+        const input = event.target.closest('[data-hsn-autocomplete]');
+        if (!input) return;
+        setTimeout(() => {
+            if (document.activeElement !== input) {
+                const results = dropdownsByInput.get(input);
+                if (results) closeDropdown(input, results);
+            }
+        }, 150);
     });
 
     document.addEventListener('click', event => {
