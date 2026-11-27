@@ -131,16 +131,24 @@ class StaffController extends Controller {
 
         // Concern selection logic
         $selectedCid = null;
-        if (isset($_GET['concern_id']) && $_GET['concern_id'] !== '') {
-            $selectedCid = (int)$_GET['concern_id'];
-            $_SESSION['staff_selected_concern_id'] = $selectedCid;
+        if (isset($_GET['concern_id'])) {
+            if ($_GET['concern_id'] === '' || $_GET['concern_id'] === 'all' || $_GET['concern_id'] === '0') {
+                $selectedCid = null;
+                unset($_SESSION['staff_selected_concern_id']);
+            } else {
+                $selectedCid = (int)$_GET['concern_id'];
+                $_SESSION['staff_selected_concern_id'] = $selectedCid;
+            }
+        } elseif (Auth::isSuperAdmin() || Auth::concernId() === null) {
+            // For Super Admin or All Concerns mode, default to ALL concerns consolidated view
+            $selectedCid = null;
         } elseif (!empty($_SESSION['staff_selected_concern_id'])) {
             $selectedCid = (int)$_SESSION['staff_selected_concern_id'];
         } else {
             $selectedCid = Auth::concernId();
         }
 
-        // Show only roles actively assigned to existing staff in the selected concern (excluding system default roles)
+        // Show roles actively assigned to existing staff in the selected concern (excluding system default roles)
         if ($selectedCid) {
             $allRoles = DB::fetchAll(
                 "SELECT MIN(r.id) AS id, MAX(r.name) AS name
@@ -166,18 +174,14 @@ class StaffController extends Controller {
         }
         $allDepartments = DB::fetchAll("SELECT DISTINCT department FROM staff WHERE department IS NOT NULL AND department != '' ORDER BY department ASC");
 
-        // If force choose or if no concern selected yet
-        $showConcernModal = false;
-        if (isset($_GET['choose']) || empty($selectedCid)) {
-            $showConcernModal = true;
-        }
+        // Only show concern modal if explicitly requested with ?choose=1
+        $showConcernModal = isset($_GET['choose']);
 
         $activeConcern = null;
         if ($selectedCid) {
             $activeConcern = DB::fetch("SELECT id, name, code FROM concerns WHERE id = ?", [$selectedCid]);
             if (!$activeConcern) {
                 $selectedCid = null;
-                $showConcernModal = true;
             }
         }
 
@@ -295,6 +299,10 @@ class StaffController extends Controller {
         if (($_POST['return_to'] ?? '') === 'roles') {
             $filterCid = isset($_POST['return_concern_id']) && $_POST['return_concern_id'] !== '' ? (int)$_POST['return_concern_id'] : null;
             return '/m/staff/roles' . ($filterCid ? '?concern_id=' . $filterCid : '');
+        }
+        $retCid = $_POST['return_concern_id'] ?? null;
+        if ($retCid === 'all') {
+            return '/m/staff?concern_id=all';
         }
         return '/m/staff' . ($cid ? '?concern_id=' . $cid : '');
     }

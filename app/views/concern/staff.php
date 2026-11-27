@@ -10,24 +10,35 @@
         <div class="d-flex align-items-center gap-2">
             <button class="btn btn-outline-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalSelectConcern">
                 <i class="bi bi-building me-1"></i>
-                <?= $activeConcern ? 'Concern: ' . htmlspecialchars($activeConcern['name']) : 'Choose Concern' ?>
+                <?= $activeConcern ? 'Concern: ' . htmlspecialchars($activeConcern['name']) : 'Concern: All Concerns (Consolidated)' ?>
                 <i class="bi bi-chevron-down ms-1 small"></i>
             </button>
         </div>
     </div>
 
     <!-- Active Concern Status Banner -->
-    <?php if ($activeConcern): ?>
-        <div class="alert alert-light border shadow-xs rounded-3 d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-4" style="background: #f8fafc;">
-            <div class="d-flex align-items-center gap-2">
+    <div class="alert alert-light border shadow-xs rounded-3 d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-4" style="background: #f8fafc;">
+        <div class="d-flex align-items-center gap-2">
+            <?php if ($activeConcern): ?>
                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1.5 font-monospace">
                     <?= htmlspecialchars($activeConcern['code']) ?>
                 </span>
                 <span class="fw-bold text-dark"><?= htmlspecialchars($activeConcern['name']) ?></span>
                 <span class="text-muted small">&bull; Showing <?= count($staffMembers) ?> Staff Member(s)</span>
-            </div>
+            <?php else: ?>
+                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2.5 py-1.5">
+                    <i class="bi bi-buildings me-1"></i> ALL CONCERNS
+                </span>
+                <span class="fw-bold text-dark">Consolidated Staff Register</span>
+                <span class="text-muted small">&bull; Showing <?= count($staffMembers) ?> Staff Member(s) across all business units</span>
+            <?php endif; ?>
         </div>
-    <?php endif; ?>
+        <?php if ($activeConcern): ?>
+            <a href="<?= \App\Core\Controller::url('/m/staff?concern_id=all') ?>" class="btn btn-xs btn-outline-secondary">
+                <i class="bi bi-buildings me-1"></i> View All Concerns
+            </a>
+        <?php endif; ?>
+    </div>
 
     <!-- Export Toolbar Card -->
     <?php
@@ -43,16 +54,23 @@
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body p-3">
             <form method="GET" action="<?= \App\Core\Controller::url('/m/staff') ?>" class="row g-2 align-items-center">
-                <?php if ($selectedCid): ?>
-                    <input type="hidden" name="concern_id" value="<?= $selectedCid ?>">
-                <?php endif; ?>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <select name="concern_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="all" <?= empty($selectedCid) ? 'selected' : '' ?>>-- All Concerns (Consolidated) --</option>
+                        <?php foreach ($allConcerns as $c): ?>
+                            <option value="<?= $c['id'] ?>" <?= ($selectedCid == $c['id']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                         <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Search name, code, phone, email..." value="<?= htmlspecialchars($filters['search'] ?? '') ?>">
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <select name="role_id" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- All Roles --</option>
                         <?php foreach ($allRoles as $r): ?>
@@ -69,12 +87,12 @@
                         <option value="inactive" <?= (($filters['status'] ?? '') === 'inactive') ? 'selected' : '' ?>>Inactive Only</option>
                     </select>
                 </div>
-                <div class="col-md-3 d-flex gap-2">
+                <div class="col-md-2 d-flex gap-2">
                     <button type="submit" class="btn btn-sm btn-primary px-3">
                         <i class="bi bi-funnel me-1"></i> Filter
                     </button>
-                    <?php if (!empty($filters['search']) || !empty($filters['role_id']) || !empty($filters['status'])): ?>
-                        <a href="<?= \App\Core\Controller::url('/m/staff' . ($selectedCid ? '?concern_id=' . $selectedCid : '')) ?>" class="btn btn-sm btn-outline-secondary">
+                    <?php if (!empty($selectedCid) || !empty($filters['search']) || !empty($filters['role_id']) || !empty($filters['status'])): ?>
+                        <a href="<?= \App\Core\Controller::url('/m/staff?concern_id=all') ?>" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-x-circle me-1"></i> Reset
                         </a>
                     <?php endif; ?>
@@ -90,6 +108,8 @@
                 <i class="bi bi-people-fill me-2 text-primary"></i> Staff Members
                 <?php if ($activeConcern): ?>
                     <span class="text-muted fw-normal small">for <?= htmlspecialchars($activeConcern['name']) ?></span>
+                <?php else: ?>
+                    <span class="text-muted fw-normal small">Across All Concerns</span>
                 <?php endif; ?>
             </h6>
             <span class="badge bg-light text-dark border"><?= count($staffMembers) ?> Persons</span>
@@ -98,20 +118,21 @@
             <table class="table table-hover align-middle mb-0 table-custom">
                 <thead>
                     <tr>
-                        <th class="ps-3">Staff Code</th>
-                        <th>Name</th>
-                        <th>Designation</th>
-                        <th>Phone / Mobile</th>
-                        <th>Status</th>
-                        <th class="text-end pe-3">Actions</th>
+                        <th class="ps-3" style="width: 14%;">Staff Code</th>
+                        <th style="width: 18%;">Staff Personnel</th>
+                        <th style="width: 20%;">Concern</th>
+                        <th style="width: 15%;">Designation</th>
+                        <th style="width: 13%;">Phone / Mobile</th>
+                        <th style="width: 10%;">Status</th>
+                        <th class="text-end pe-3" style="width: 10%;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($staffMembers)): ?>
                         <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">
+                            <td colspan="7" class="text-center py-5 text-muted">
                                 <i class="bi bi-people display-6 d-block mb-2 text-secondary opacity-50"></i>
-                                <?= $activeConcern ? 'No staff members recorded for this concern yet.' : 'Please select a concern above to load staff records.' ?>
+                                <?= $activeConcern ? 'No staff members recorded for this concern yet.' : 'No staff members found matching criteria.' ?>
                             </td>
                         </tr>
                     <?php else: ?>
@@ -122,10 +143,25 @@
                                 </td>
                                 <td>
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($stf['name']) ?></div>
-                                    <small class="text-muted"><?= htmlspecialchars($stf['email'] ?: 'No email') ?></small>
+                                    <small class="text-muted"><?= htmlspecialchars($stf['email'] ?: ($stf['user_email'] ?: 'No email')) ?></small>
                                 </td>
-                                <td class="fw-semibold text-dark">
-                                    <?= htmlspecialchars($stf['designation'] ?: '-') ?>
+                                <td>
+                                    <div class="d-flex align-items-center gap-1.5">
+                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 font-monospace px-2 py-0.5" style="font-size: 0.72rem;">
+                                            <?= htmlspecialchars($stf['concern_code']) ?>
+                                        </span>
+                                        <span class="fw-semibold text-dark small">
+                                            <?= htmlspecialchars($stf['concern_name']) ?>
+                                        </span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold text-dark"><?= htmlspecialchars($stf['designation'] ?: '-') ?></div>
+                                    <?php if (!empty($stf['role_name'])): ?>
+                                        <span class="badge bg-light text-secondary border mt-0.5" style="font-size: 0.68rem;">
+                                            <i class="bi bi-shield-check me-0.5 text-primary"></i><?= htmlspecialchars($stf['role_name']) ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <span class="font-monospace text-dark"><?= htmlspecialchars($stf['phone'] ?: '-') ?></span>
@@ -145,9 +181,10 @@
                                     <div class="d-inline-flex align-items-center gap-1">
                                         <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                                         <!-- Quick Status Toggle (Activate/Deactivate) -->
-                                        <form action="<?= \App\Core\Controller::url('/m/staff/toggle-status') ?>" method="POST" class="d-inline" onsubmit="return confirm('<?= $stf['status'] === 'active' ? 'Deactivate' : 'Activate' ?> staff member <?= htmlspecialchars($stf['name']) ?>?');">
+                                        <form action="<?= \App\Core\Controller::url('/m/staff/toggle-status') ?>" method="POST" class="d-inline" onsubmit="return confirm('<?= $stf['status'] === 'active' ? 'Deactivate' : 'Activate' ?> staff member <?= htmlspecialchars(addslashes($stf['name'])) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="id" value="<?= $stf['id'] ?>">
+                                            <input type="hidden" name="return_concern_id" value="<?= htmlspecialchars((string)($selectedCid ?? 'all')) ?>">
                                             <?php if ($stf['status'] === 'active'): ?>
                                                 <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate Staff Account">
                                                     <i class="bi bi-person-slash"></i>
@@ -174,9 +211,10 @@
 
                                         <?php if (\App\Core\Auth::can('staff', 'delete')): ?>
                                         <!-- Delete Staff -->
-                                        <form action="<?= \App\Core\Controller::url('/m/staff/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete staff member <?= htmlspecialchars($stf['name']) ?> (<?= htmlspecialchars($stf['staff_code']) ?>)? Note: Deactivation is usually preferred over permanent deletion.');">
+                                        <form action="<?= \App\Core\Controller::url('/m/staff/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete staff member <?= htmlspecialchars(addslashes($stf['name'])) ?> (<?= htmlspecialchars($stf['staff_code']) ?>)? Note: Deactivation is usually preferred over permanent deletion.');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="id" value="<?= $stf['id'] ?>">
+                                            <input type="hidden" name="return_concern_id" value="<?= htmlspecialchars((string)($selectedCid ?? 'all')) ?>">
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Staff">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -217,6 +255,26 @@
                 </p>
 
                 <div class="row g-3">
+                    <div class="col-12">
+                        <div class="card border p-3 rounded-3 shadow-xs position-relative <?= empty($selectedCid) ? 'border-primary bg-primary bg-opacity-10' : 'hover-shadow' ?>" 
+                             style="cursor: pointer; transition: all 0.2s;"
+                             onclick="window.location.href = '<?= \App\Core\Controller::url('/m/staff?concern_id=all') ?>'">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2.5">
+                                    <span style="width: 38px; height: 38px; background: #eff6ff; color: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                                        <i class="bi bi-buildings"></i>
+                                    </span>
+                                    <div>
+                                        <h6 class="fw-bold text-dark mb-0">All Concerns (Consolidated Staff List)</h6>
+                                        <small class="text-muted">Display all staff members across all business units</small>
+                                    </div>
+                                </div>
+                                <span class="btn btn-sm <?= empty($selectedCid) ? 'btn-primary' : 'btn-outline-primary' ?> px-3">
+                                    <?= empty($selectedCid) ? '<i class="bi bi-check-circle-fill me-1"></i> Selected' : 'View All' ?>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                     <?php foreach ($allConcerns as $c): ?>
                         <?php $isSelected = ($selectedCid == $c['id']); ?>
                         <div class="col-md-6">
