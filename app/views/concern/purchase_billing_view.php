@@ -108,7 +108,7 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
     </div>
 
     <!-- View Mode Switcher -->
-    <ul class="nav nav-pills p-1 bg-light rounded-3 gap-1 d-inline-flex mb-4 d-print-none" id="viewModeTabs" role="tablist">
+    <ul class="nav nav-pills p-1 bg-light border rounded-3 gap-1 d-inline-flex mb-3 d-print-none" id="viewModeTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active px-3 py-2 fw-semibold d-flex align-items-center gap-2" id="tabInteractiveBtn" data-bs-toggle="pill" data-bs-target="#paneInteractive" type="button" role="tab">
                 <i class="bi bi-layout-text-window-reverse"></i> Interactive Breakdown
@@ -506,23 +506,9 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
     <!-- PANE 2: OFFICIAL TAX INVOICE PRINT FORMAT      -->
     <!-- ============================================== -->
     <div class="tab-pane fade" id="paneInvoicePrint" role="tabpanel">
-        <div class="card border-0 shadow-sm rounded-3 p-4 bg-white invoice-print-container" id="printableInvoiceCard">
-            <!-- Screen Toolbar: Print & Download Actions -->
-            <div class="d-flex justify-content-end align-items-center mb-4 pb-3 border-bottom d-print-none">
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1" onclick="window.print()">
-                        <i class="bi bi-printer-fill me-1"></i> Print / Save as PDF
-                    </button>
-                    <?php if (\App\Core\Auth::can('purchase_billing', 'export')): ?>
-                    <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
-                        <i class="bi bi-download me-1"></i> Download CSV
-                    </a>
-                    <?php endif; ?>
-                </div>
-            </div>
-
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-white invoice-print-container" id="printableInvoiceCard">
             <!-- Printable Document Body -->
-            <div class="invoice-box border p-4 rounded-2 bg-white text-dark">
+            <div class="invoice-box border p-4 rounded-3 bg-white text-dark">
                 <!-- Header: Concern Info & Invoice Identity -->
                 <div class="row pb-3 mb-3 border-bottom align-items-center">
                     <div class="col-8">
