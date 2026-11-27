@@ -6979,7 +6979,9 @@ class ProductionController extends Controller {
                        (SELECT SUM(CASE WHEN qp.verdict = 'PASSED' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_passed_qty,
                        (SELECT SUM(CASE WHEN qp.verdict = 'REJECTED' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_rejected_qty,
                        (SELECT SUM(CASE WHEN qp.verdict = 'REWORK' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_rework_qty,
-                       (SELECT COUNT(*) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_total_qty
+                       (SELECT COUNT(*) FROM qc_piece_items qp WHERE qp.qc_id = qi.id) AS piece_total_qty,
+                       COALESCE((SELECT SUM(sl.qty_in - sl.qty_out) FROM stock_ledger sl WHERE sl.ref_module = 'QC Inspection' AND sl.ref_id = qi.id), 0) AS qc_stocked_qty,
+                       COALESCE((SELECT SUM(s.qty) FROM stocks s WHERE s.concern_id = qi.concern_id AND s.location NOT LIKE '%:DAMAGED%' AND s.location NOT LIKE '%:IN_TRANSIT%' AND (s.variant_id = qi.variant_id OR s.variant_id IN (SELECT DISTINCT qii.variant_id FROM qc_inspection_items qii WHERE qii.qc_id = qi.id AND qii.variant_id IS NOT NULL))), 0) AS available_stock_qty
                 FROM qc_inspections qi
                 LEFT JOIN variants v ON qi.variant_id = v.id
                 LEFT JOIN stitching_logs sl ON qi.stitching_batch_id = sl.id

@@ -80,15 +80,16 @@
                         <th style="width: 9%;">INSPECTED</th>
                         <th style="width: 8%;">PASSED</th>
                         <th style="width: 8%;">REJECTED</th>
-                        <th style="width: 8%;">REWORK</th>
-                        <th style="width: 9%;">STATUS</th>
-                        <th style="width: 12%;" class="text-center">ACTIONS</th>
+                        <th style="width: 7%;">REWORK</th>
+                        <th style="width: 11%;">STOCK</th>
+                        <th style="width: 8%;">STATUS</th>
+                        <th style="width: 11%;" class="text-center">ACTIONS</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($inspections)): ?>
                         <tr>
-                            <td colspan="10" class="text-center py-5 text-muted">
+                            <td colspan="11" class="text-center py-5 text-muted">
                                 <i class="bi bi-clipboard-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
                                 No quality control inspection records found for this concern.
                             </td>
@@ -143,6 +144,19 @@
                                 </td>
                                 <td class="py-3">
                                     <span class="fw-bold" style="color: #f59e0b;"><?= number_format($reworkQty) ?> pcs</span>
+                                </td>
+                                <td class="py-3">
+                                    <?php
+                                    $qcStockedQty = (float)($qc['qc_stocked_qty'] ?? 0);
+                                    $availStockQty = (float)($qc['available_stock_qty'] ?? 0);
+                                    $isInStock = $availStockQty > 0 || $qcStockedQty > 0;
+                                    ?>
+                                    <span class="badge <?= $isInStock ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border' ?>" style="font-size: 0.70rem;">
+                                        <?= $isInStock ? 'In Stock' : 'Not in Stock' ?>
+                                    </span>
+                                    <div class="small text-muted mt-1 font-monospace" style="font-size: 0.72rem;">
+                                        Avail: <strong class="text-dark"><?= number_format($availStockQty) ?> pcs</strong>
+                                    </div>
                                 </td>
                                 <td class="py-3">
                                     <span class="badge text-uppercase" style="background: <?= $statusBg ?>; color: <?= $statusColor ?>; font-weight: 700; border-radius: 4px; padding: 4px 8px; font-size: 0.72rem; letter-spacing: 0.04em;">

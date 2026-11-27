@@ -497,9 +497,9 @@ class StaffController extends Controller {
                     ]);
                     $selectedRole = (int)DB::lastInsertId();
                     
-                    // Provision default view rights for active concern modules
+                    // Provision default unchecked rights (strict deny) for active concern modules
                     $stmtRolePerm = DB::pdo()->prepare(
-                        "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 0, 0, 0)"
+                        "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 0, 0, 0, 0)"
                     );
                     $availMods = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'cash'");
                     foreach ($availMods as $am) {
@@ -1399,7 +1399,24 @@ class StaffController extends Controller {
 
         // 2. User specific overrides (null = inherit, 1 = grant, 0 = deny)
         $userOverrides = [];
-        $upRows = DB::fetchAll("SELECT module_id, can_view, can_add, can_edit, can_delete FROM user_permissions WHERE user_id = ?", [$userId]);
+        $staffCid = (int)($staff['concern_id'] ?? 0);
+        if ($staffCid > 0) {
+            $upRows = DB::fetchAll(
+                "SELECT module_id, can_view, can_add, can_edit, can_delete
+                 FROM user_permissions
+                 WHERE user_id = ? AND (concern_id = ? OR concern_id IS NULL)
+                 ORDER BY (concern_id IS NOT NULL) ASC",
+                [$userId, $staffCid]
+            );
+        } else {
+            $upRows = DB::fetchAll(
+                "SELECT module_id, can_view, can_add, can_edit, can_delete
+                 FROM user_permissions
+                 WHERE user_id = ?
+                 ORDER BY (concern_id IS NOT NULL) ASC",
+                [$userId]
+            );
+        }
         foreach ($upRows as $up) {
             $userOverrides[(int)$up['module_id']] = [
                 'view'   => $up['can_view'] === null ? null : (int)$up['can_view'],
@@ -1803,10 +1820,10 @@ class StaffController extends Controller {
             );
             $newRoleId = (int)DB::lastInsertId();
 
-            // Default all modules to view=1, add=0, edit=0, delete=0
+            // Default all modules to unchecked (0, 0, 0, 0)
             $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0");
             $stmt = DB::pdo()->prepare(
-                "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 0, 0, 0)"
+                "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 0, 0, 0, 0)"
             );
             foreach ($modules as $m) {
                 $stmt->execute([$newRoleId, (int)$m['id']]);

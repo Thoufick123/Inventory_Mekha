@@ -474,7 +474,7 @@ if (!empty($multiLabels)) {
                 ? $finishedGoodsCode($lbl)
                 : ($lbl['tag_code'] ?? ($lbl['item_code'] ?? 'Product Code'));
             $displayCode = $isProduction && !empty($lbl['variant_id'])
-                ? (\App\Services\QrService::generateFinishedGoodsCode((int)$lbl['variant_id']) ?: str_pad((string)(int)$lbl['variant_id'], 3, '0', STR_PAD_LEFT))
+                ? \App\Services\QrService::formatBrandVariantCode((int)$lbl['variant_id'])
                 : ($isPurchaseFinishedGoodsLabel
                     ? $tCode
                     : (!empty($lbl['variant_id']) ? (string)(int)$lbl['variant_id'] : $tCode));
@@ -685,9 +685,7 @@ if (!empty($multiLabels)) {
                         <?php elseif ($isProduction):
                             $sBasePrice = (float)($labelData['base_price'] ?? ($labelData['price_mrp'] ?? $priceVal));
                             $sDiscPrice = (float)($labelData['discount_price'] ?? $priceVal);
-                            $sBrandCode = !empty($labelData['variant_id'])
-                                ? (\App\Services\QrService::generateFinishedGoodsCode((int)$labelData['variant_id']) ?: str_pad((string)(int)$labelData['variant_id'], 3, '0', STR_PAD_LEFT))
-                                : $displaySingleProductCode;
+                            $sBrandCode = !empty($labelData['variant_id']) ? \App\Services\QrService::formatBrandVariantCode((int)$labelData['variant_id']) : $displaySingleProductCode;
                         ?>
                             <div class="label-detail-row">
                                 <span class="detail-label">Size:</span>
