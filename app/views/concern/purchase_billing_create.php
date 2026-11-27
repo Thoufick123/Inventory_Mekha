@@ -441,7 +441,16 @@ if ($isEdit && !empty($existingItems)) {
             </div>
         </section>
 
-        <section class="card border-0 shadow-sm mb-4">
+        <style>
+            #productAddingBulkLabelTable > :not(caption) > * > * {
+                padding: 0.35rem 0.5rem;
+                vertical-align: middle;
+            }
+            #productAddingBulkLabelTable tbody .badge {
+                font-size: 0.70rem;
+            }
+        </style>
+        <section class="card border-0 shadow-sm rounded-3 mb-4">
             <?php if (empty($savedBillItems)): ?>
                 <div class="card-body text-muted">This saved bill has no printable lines.</div>
             <?php else: ?>
@@ -449,23 +458,25 @@ if ($isEdit && !empty($existingItems)) {
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                     <input type="hidden" name="bill_id" value="<?= (int) $savedBill['id'] ?>">
                     <input type="hidden" name="inline_preview" value="1">
+                    <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-table text-primary fs-6"></i>
+                            <h6 class="mb-0 fw-bold text-dark">Bill Items &amp; Label Generation (<?= count($savedBillItems) ?>)</h6>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary px-2 py-1" id="productAddingSelectAllLines">
+                            Select all
+                        </button>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
+                        <table class="table table-sm table-bordered table-hover align-middle mb-0 small" id="productAddingBulkLabelTable">
+                            <thead class="table-light text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.03em;">
                                 <tr>
-                                    <th class="text-center">
-                                        <div class="d-flex flex-column align-items-center gap-1">
-                                            <span>Bulk</span>
-                                            <button type="button" class="btn btn-sm btn-outline-primary px-2 py-1" id="productAddingSelectAllLines">
-                                                Select all
-                                            </button>
-                                        </div>
-                                    </th>
+                                    <th class="text-center" style="width: 44px;">Bulk</th>
                                     <th>Item</th>
-                                    <th>Type</th>
+                                    <th class="text-center">Type</th>
                                     <th class="text-end">Qty</th>
-                                    <th class="text-center">Label progress</th>
-                                    <th class="text-end">Actions</th>
+                                    <th class="text-center">Label Progress</th>
+                                    <th class="text-end pe-3">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -536,7 +547,7 @@ if ($isEdit && !empty($existingItems)) {
                                                 · Line ₹<?= number_format((float) ($savedItem['total_price'] ?? 0), 2) ?>
                                             </div>
                                         </td>
-                                        <td><span class="badge text-bg-light border"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?></span></td>
+                                        <td class="text-center"><span class="badge text-bg-light border"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $itemSection))) ?></span></td>
                                         <td class="text-end">
                                             <?= htmlspecialchars((string) $purchaseQty) ?> <?= htmlspecialchars($savedItem['unit'] ?? '') ?>
                                             <?php if ($isSavedItemInStock): ?>
@@ -594,7 +605,7 @@ if ($isEdit && !empty($existingItems)) {
                             </tbody>
                         </table>
                     </div>
-                    <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div class="card-footer bg-white py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <span class="small text-muted">Label count controls printed copies only; the full bill quantity is added to stock. Each line can be added once.</span>
                         <div class="d-flex flex-wrap gap-2">
                             <span id="productAddingBulkLabelFeedback" class="small text-danger align-self-center d-none" role="alert"></span>
