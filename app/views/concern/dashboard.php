@@ -9,7 +9,6 @@
                 </div>
                 <div>
                     <h6 class="fw-bold text-dark mb-0">Export Concern Operations & Ledger (Excel & PDF)</h6>
-                    <small class="text-muted">Export stock movements, valuation, variants, and logs as per date period</small>
                 </div>
             </div>
 
@@ -75,7 +74,6 @@
                 <div>
                     <span class="text-secondary small fw-semibold text-uppercase">Total Variants</span>
                     <h3 class="fw-bold text-dark mt-1 mb-0"><?= number_format($variantsCount) ?></h3>
-                    <small class="text-primary"><a href="<?= \App\Core\Controller::url('/m/variants') ?>" class="text-decoration-none">View Catalog</a></small>
                 </div>
                 <div class="stat-icon-box bg-primary bg-opacity-10 text-primary">
                     <i class="bi bi-tags"></i>
@@ -88,7 +86,6 @@
                 <div>
                     <span class="text-secondary small fw-semibold text-uppercase">Live Stock Units</span>
                     <h3 class="fw-bold text-dark mt-1 mb-0"><?= number_format($totalStockQty, 2) ?></h3>
-                    <small class="text-success"><a href="<?= \App\Core\Controller::url('/m/stocks') ?>" class="text-decoration-none text-success">Warehouse Balance</a></small>
                 </div>
                 <div class="stat-icon-box bg-success bg-opacity-10 text-success">
                     <i class="bi bi-boxes"></i>
@@ -101,7 +98,6 @@
                 <div>
                     <span class="text-secondary small fw-semibold text-uppercase">Inventory Valuation</span>
                     <h3 class="fw-bold text-dark mt-1 mb-0">₹<?= number_format($stockValuation, 2) ?></h3>
-                    <small class="text-muted">At Cost / Standard Price</small>
                 </div>
                 <div class="stat-icon-box bg-info bg-opacity-10 text-info">
                     <i class="bi bi-currency-rupee"></i>
@@ -119,30 +115,6 @@
                 <div class="stat-icon-box bg-warning bg-opacity-10 text-warning">
                     <i class="bi bi-wallet2"></i>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Actions Banner -->
-    <div class="card border-0 shadow-sm rounded-3 bg-white p-3 mb-4">
-        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
-            <div class="fw-bold text-dark"><i class="bi bi-lightning-charge text-warning me-1"></i> Operations Fast Track:</div>
-            <div class="d-flex flex-wrap gap-2">
-                <?php if (\App\Core\Auth::can('inward', 'add')): ?>
-                <a href="<?= \App\Core\Controller::url('/m/inward') ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down"></i> Receive Inward</a>
-                <?php endif; ?>
-                <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
-                <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-success"><i class="bi bi-qr-code"></i> Generate Labels</a>
-                <?php endif; ?>
-                <?php if (\App\Core\Auth::can('billing', 'add')): ?>
-                <a href="<?= \App\Core\Controller::url('/m/billing') ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-credit-card-2-front"></i> New Invoice</a>
-                <?php endif; ?>
-                <?php if (\App\Core\Auth::can('outward', 'add')): ?>
-                <a href="<?= \App\Core\Controller::url('/m/outward') ?>" class="btn btn-sm btn-outline-danger"><i class="bi bi-box-arrow-up-right"></i> Outward Consignment</a>
-                <?php endif; ?>
-                <?php if (\App\Core\Auth::can('stocks', 'add') || \App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('inward', 'add')): ?>
-                <a href="<?= \App\Core\Controller::url('/scan') ?>" class="btn btn-sm btn-primary"><i class="bi bi-qr-code-scan"></i> Scan Barcode</a>
-                <?php endif; ?>
             </div>
         </div>
     </div>
