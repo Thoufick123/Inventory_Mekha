@@ -660,6 +660,16 @@ class StockController extends Controller {
                 ];
             }
 
+            $effectiveWeight = (float)($variant['weight'] ?? 0);
+            $effectiveWeightUnit = $variant['weight_unit'] ?: 'kg';
+            if ($effectiveWeight <= 0 && !empty($stitchingRecord['per_pc_weight'])) {
+                $effectiveWeight = (float)$stitchingRecord['per_pc_weight'];
+                $effectiveWeightUnit = 'kg';
+            }
+            if ($effectiveWeight <= 0 && !empty($variantAttributes['weight'])) {
+                $effectiveWeight = (float)$variantAttributes['weight'];
+            }
+
             echo json_encode([
                 'success' => true,
                 'variant' => [
@@ -680,8 +690,8 @@ class StockController extends Controller {
                     'subcategory_name'      => $variant['subcategory_name'] ?? '-',
                     'sub_sub_category_name' => $variant['sub_sub_category_name'] ?? '-',
                     'size'                  => $variant['size'] ?: 'Free',
-                    'weight'                => (float)$variant['weight'],
-                    'weight_unit'           => $variant['weight_unit'] ?: 'pcs',
+                    'weight'                => $effectiveWeight,
+                    'weight_unit'           => $effectiveWeightUnit,
                     'cost_price'            => (float)$variant['cost_price'],
                     'price'                 => (float)$variant['price'],
                     'mrp'                   => (float)$variant['mrp'],

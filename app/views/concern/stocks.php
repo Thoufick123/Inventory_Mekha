@@ -613,13 +613,9 @@
                             </div>
                             <div class="flex-grow-1">
                                 <div class="row g-2 small">
-                                    <div class="col-sm-6 col-lg-3">
+                                    <div class="col-sm-6 col-lg-4">
                                         <span class="text-muted d-block">QR Tag / Payload:</span>
                                         <strong id="detailQrTagCode" class="text-primary font-monospace fs-6">-</strong>
-                                    </div>
-                                    <div class="col-sm-6 col-lg-3">
-                                        <span class="text-muted d-block">Product Code:</span>
-                                        <strong id="detailQrSkuCode" class="text-dark font-monospace">-</strong>
                                     </div>
                                 </div>
                                 <div class="mt-2 pt-1 d-flex flex-wrap gap-2">
@@ -671,10 +667,6 @@
                                 <strong id="detailGstRate" class="text-dark">-</strong>
                             </div>
                             <div class="col-sm-6 col-md-4">
-                                <span class="text-muted d-block">Product Style Code</span>
-                                <strong id="detailSpecStyleCode" class="text-dark font-monospace">-</strong>
-                            </div>
-                            <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">Unit Weight</span>
                                 <strong id="detailWeight" class="text-dark">-</strong>
                             </div>
@@ -685,123 +677,6 @@
                             <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">Selling MRP</span>
                                 <strong id="detailMrp" class="text-dark">-</strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Production & Manufacturing Audit Trail Card (for Own Products) -->
-                <div class="card border mb-3 shadow-none d-none" id="productionJourneyCard">
-                    <div class="card-header bg-white py-2 fw-semibold text-dark d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-diagram-3-fill me-2 text-primary"></i>
-                            <span>Production & Manufacturing Audit Trail</span>
-                        </div>
-                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" id="detailProductionBadge">In-House Manufacturing</span>
-                    </div>
-                    <div class="card-body p-3">
-                        <div id="productionLoadingSpinner" class="text-center py-4 text-muted d-none">
-                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                            Loading manufacturing audit trail...
-                        </div>
-                        <div id="productionDetailsContent">
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <div class="p-3 bg-light rounded border h-100">
-                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
-                                            <i class="bi bi-palette me-1 text-primary"></i> 1. Product Style & Hierarchy
-                                        </h6>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Style Code:</span>
-                                            <span class="fw-bold text-dark font-monospace" id="detailProdStyleCode">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Style Name:</span>
-                                            <span class="fw-semibold text-dark" id="detailProdStyleName">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Hierarchy:</span>
-                                            <span class="text-dark" id="detailProdHierarchy">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1">
-                                            <span class="text-muted">Production Program:</span>
-                                            <span class="fw-semibold text-primary" id="detailProdProgram">-</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="p-3 bg-light rounded border h-100">
-                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
-                                            <i class="bi bi-scissors me-1 text-danger"></i> 2. Fabric Cutting Stage
-                                        </h6>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Cutting Batch #:</span>
-                                            <span class="fw-bold text-dark font-monospace" id="detailProdCuttingBatch">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Cutting Master:</span>
-                                            <span class="fw-semibold text-dark" id="detailProdCuttingMaster">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Cut Quantity:</span>
-                                            <span class="fw-bold text-primary" id="detailProdCuttingOutput">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1">
-                                            <span class="text-muted">Fabric Consumed:</span>
-                                            <span class="text-dark" id="detailProdCuttingFabric">-</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="p-3 bg-light rounded border h-100">
-                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
-                                            <i class="bi bi-layers me-1 text-info"></i> 3. Stitching & Tailoring Stage
-                                        </h6>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Stitching Batch #:</span>
-                                            <span class="fw-bold text-dark font-monospace" id="detailProdStitchingBatch">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Assigned Tailor:</span>
-                                            <span class="fw-semibold text-dark" id="detailProdTailor">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Stitched Units:</span>
-                                            <span class="fw-bold text-success" id="detailProdStitchingOutput">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1">
-                                            <span class="text-muted">Garment Weight:</span>
-                                            <span class="text-dark" id="detailProdStitchingWeight">-</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="p-3 bg-light rounded border h-100">
-                                        <h6 class="fw-bold text-dark mb-2 small text-uppercase d-flex align-items-center">
-                                            <i class="bi bi-shield-check me-1 text-success"></i> 4. Quality Control & Stock Inward
-                                        </h6>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">QC Inspection #:</span>
-                                            <span class="fw-bold text-dark font-monospace" id="detailProdQcNo">-</span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Inspector & Verdict:</span>
-                                            <span><span class="fw-semibold text-dark" id="detailProdQcInspector">-</span> <span class="badge bg-success ms-1" id="detailProdQcStatus">PASSED</span></span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1 border-bottom">
-                                            <span class="text-muted">Passed / Rework / Rejected:</span>
-                                            <span>
-                                                <span class="text-success fw-bold" id="detailProdQcPassed">0</span> passed &bull; 
-                                                <span class="text-warning fw-bold" id="detailProdQcRework">0</span> rework &bull; 
-                                                <span class="text-danger fw-bold" id="detailProdQcRejected">0</span> rejected
-                                            </span>
-                                        </div>
-                                        <div class="d-flex justify-content-between small py-1">
-                                            <span class="text-muted">Inward Batch / Storage:</span>
-                                            <span class="fw-semibold text-dark font-monospace" id="detailProdBatch">-</span>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1132,7 +1007,8 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         document.getElementById('detailSize').textContent = d.size || 'Free';
         document.getElementById('detailColor').textContent = d.color || '-';
         document.getElementById('detailHsn').textContent = d.hsn || '-';
-        document.getElementById('detailSpecStyleCode').textContent = d.styleCode || '-';
+        const styleCodeEl = document.getElementById('detailSpecStyleCode');
+        if (styleCodeEl) styleCodeEl.textContent = d.styleCode || '-';
         document.getElementById('detailWeight').textContent = d.weight || '-';
         const detailCostEl = document.getElementById('detailCostPrice');
         if (detailCostEl) detailCostEl.textContent = '₹' + (d.costPrice || '0.00');
@@ -1142,7 +1018,8 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         // Render QR in modal immediately from dataset
         const initialQrCode = d.qrPayload || d.wholeCode || d.productCode || '';
         document.getElementById('detailQrTagCode').textContent = initialQrCode || '-';
-        document.getElementById('detailQrSkuCode').textContent = d.productCode || '-';
+        const qrSkuEl = document.getElementById('detailQrSkuCode');
+        if (qrSkuEl) qrSkuEl.textContent = d.productCode || '-';
 
         const qrContainer = document.getElementById('detailProductQrBox');
         if (qrContainer) {
@@ -1224,7 +1101,8 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                 if (data.qr) {
                     const qrVal = data.qr.tag_code || data.qr.whole_code || data.qr.product_code || '';
                     document.getElementById('detailQrTagCode').textContent = qrVal || '-';
-                    document.getElementById('detailQrSkuCode').textContent = data.qr.product_code || '-';
+                    const qrSkuEl2 = document.getElementById('detailQrSkuCode');
+                    if (qrSkuEl2) qrSkuEl2.textContent = data.qr.product_code || '-';
                     if (qrContainer && qrVal && qrVal !== initialQrCode) {
                         qrContainer.innerHTML = '';
                         if (typeof QRCode !== 'undefined') {
@@ -1246,51 +1124,6 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                 }
                 if (data.total_stock_qty !== undefined) {
                     document.getElementById('detailTotalStockQty').textContent = Number(data.total_stock_qty) + ' pcs';
-                }
-
-                // Production Journey Trail
-                if (data.production_journey) {
-                    const pj = data.production_journey;
-                    if (prodCard) prodCard.classList.remove('d-none');
-                    if (prodContent) prodContent.classList.remove('d-none');
-
-                    const cat = pj.catalog || {};
-                    const prog = pj.program || {};
-                    const cut = pj.cutting || {};
-                    const st = pj.stitching || {};
-                    const qc = pj.qc || {};
-                    const bat = pj.batch || {};
-
-                    document.getElementById('detailProdStyleCode').textContent = cat.style_code || data.variant?.style_code || '-';
-                    document.getElementById('detailProdStyleName').textContent = cat.style_name || data.variant?.name || '-';
-                    document.getElementById('detailProdHierarchy').textContent = cat.hierarchy_path || data.variant?.hierarchy_path || '-';
-                    document.getElementById('detailProdProgram').textContent = prog.program_no ? (prog.program_no + ' (' + (prog.status || 'Active') + ')') : '-';
-
-                    document.getElementById('detailProdCuttingBatch').textContent = cut.batch_no || '-';
-                    document.getElementById('detailProdCuttingMaster').textContent = cut.master_name || '-';
-                    document.getElementById('detailProdCuttingOutput').textContent = cut.cut_pieces ? (cut.cut_pieces + ' pcs') : '-';
-                    document.getElementById('detailProdCuttingFabric').textContent = cut.fabric_consumed ? (cut.fabric_consumed + ' kg') : '-';
-
-                    document.getElementById('detailProdStitchingBatch').textContent = st.batch_no || '-';
-                    document.getElementById('detailProdTailor').textContent = st.tailor_name || '-';
-                    document.getElementById('detailProdStitchingOutput').textContent = st.stitched_pieces ? (st.stitched_pieces + ' pcs') : '-';
-                    document.getElementById('detailProdStitchingWeight').textContent = st.stitch_weight ? (st.stitch_weight + ' kg') : '-';
-
-                    document.getElementById('detailProdQcNo').textContent = qc.qc_no || '-';
-                    document.getElementById('detailProdQcInspector').textContent = qc.inspector_name || 'QC Inspector';
-                    const qcStat = (qc.status || 'PASSED').toUpperCase();
-                    const qcStatBadge = document.getElementById('detailProdQcStatus');
-                    if (qcStatBadge) {
-                        qcStatBadge.textContent = qcStat;
-                        qcStatBadge.className = 'badge ms-1 ' + (qcStat === 'PASSED' ? 'bg-success' : (qcStat === 'REJECTED' ? 'bg-danger' : 'bg-warning text-dark'));
-                    }
-
-                    document.getElementById('detailProdQcPassed').textContent = qc.passed_qty !== null && qc.passed_qty !== undefined ? qc.passed_qty : '0';
-                    document.getElementById('detailProdQcRework').textContent = qc.rework_qty || '0';
-                    document.getElementById('detailProdQcRejected').textContent = qc.rejected_qty || '0';
-                    document.getElementById('detailProdBatch').textContent = bat.batch_no ? (bat.batch_no + ' (' + (bat.warehouse_name || location) + ')') : (location || '-');
-                } else if (source === 'own') {
-                    if (prodContent) prodContent.classList.remove('d-none');
                 }
             })
             .catch(err => {
