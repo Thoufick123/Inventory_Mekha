@@ -72,7 +72,7 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
                             <i class="bi bi-lock me-1 text-primary"></i> Password
                         </label>
                         <div class="input-group">
-                            <input type="password" name="password" id="edit_staff_password" class="form-control border-end-0" placeholder="•••••••• (Leave blank to keep current)">
+                            <input type="password" name="password" id="edit_staff_password" class="form-control border-end-0" placeholder="Leave blank to keep current">
                             <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePasswordVisibility('edit_staff_password', this)">
                                 <i class="bi bi-eye"></i>
                             </button>
