@@ -536,7 +536,7 @@ if (!empty($multiLabels)) {
             <div class="label-sticker<?= $isPurchaseFinishedGoodsLabel ? ' finished-goods-label' : '' ?>">
                 <div class="label-header-bar">
                     <div class="d-flex align-items-center">
-                        <span class="concern-check-icon"><i class="bi bi-check-lg"></i></span>
+                        <?php if (!$isProduction): ?><span class="concern-check-icon"><i class="bi bi-check-lg"></i></span><?php endif; ?>
                         <span class="concern-name-text"><?= htmlspecialchars($cName) ?></span>
                     </div>
                 </div>
@@ -643,7 +643,7 @@ if (!empty($multiLabels)) {
                 <!-- Top Header: Concern Name Dynamically -->
                 <div class="label-header-bar">
                     <div class="d-flex align-items-center">
-                        <span class="concern-check-icon"><i class="bi bi-check-lg"></i></span>
+                        <?php if (!$isProduction): ?><span class="concern-check-icon"><i class="bi bi-check-lg"></i></span><?php endif; ?>
                         <span class="concern-name-text"><?= htmlspecialchars($concernName) ?></span>
                     </div>
                 </div>
