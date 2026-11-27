@@ -90,11 +90,19 @@ $activeTab = $activeTab ?? 'staff';
             </div>
         </div>
         <div class="col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
                         <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.72rem;">Configured Roles</small>
-                        <h3 class="fw-bold text-dark mb-0 mt-1"><?= $totalRoles ?></h3>
+                        <div class="d-flex align-items-baseline gap-2 mt-1">
+                            <h3 class="fw-bold text-dark mb-0"><?= $totalRoles ?></h3>
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-0.5" style="font-size: 0.72rem;" title="Roles currently assigned to staff/users">
+                                <i class="bi bi-shield-check me-0.5"></i> <?= $assignedRolesCount ?? 0 ?> Assigned
+                            </span>
+                        </div>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">
+                            <?= $unassignedRolesCount ?? 0 ?> unassigned &bull; <?= $staffWithRolesCount ?? 0 ?> staff assigned
+                        </small>
                     </div>
                     <div style="width: 44px; height: 44px; background: #fffbeb; color: #d97706; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
                         <i class="bi bi-shield-check"></i>
@@ -114,11 +122,36 @@ $activeTab = $activeTab ?? 'staff';
     include dirname(__DIR__) . '/partials/export_card.php';
     ?>
 
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded-3 shadow-xs border gap-1" id="pills-tab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $activeTab === 'staff' ? 'active' : '' ?> fw-semibold d-flex align-items-center gap-2" 
+                    id="pills-staff-tab" data-bs-toggle="pill" data-bs-target="#pills-staff" type="button" role="tab">
+                <i class="bi bi-people-fill"></i> Staff Directory & Role Assignment
+                <span class="badge bg-light text-dark border ms-1"><?= $totalStaff ?></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $activeTab === 'roles' ? 'active' : '' ?> fw-semibold d-flex align-items-center gap-2" 
+                    id="pills-roles-tab" data-bs-toggle="pill" data-bs-target="#pills-roles" type="button" role="tab">
+                <i class="bi bi-shield-lock-fill"></i> Configured Roles
+                <span class="badge bg-primary text-white ms-1"><?= $totalRoles ?></span>
+                <span class="badge bg-success bg-opacity-25 text-success ms-0.5"><?= $assignedRolesCount ?? 0 ?> Assigned</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $activeTab === 'matrix' ? 'active' : '' ?> fw-semibold d-flex align-items-center gap-2" 
+                    id="pills-matrix-tab" data-bs-toggle="pill" data-bs-target="#pills-matrix" type="button" role="tab">
+                <i class="bi bi-ui-checks-grid"></i> Module CRUD Permissions Matrix
+            </button>
+        </li>
+    </ul>
+
     <div class="tab-content" id="pills-tabContent">
         <!-- ======================================================== -->
         <!-- TAB 1: STAFF DIRECTORY & ASSIGNED ROLES -->
         <!-- ======================================================== -->
-        <div class="tab-pane fade <?= $activeTab !== 'matrix' ? 'show active' : '' ?>" id="pills-staff" role="tabpanel">
+        <div class="tab-pane fade <?= $activeTab === 'staff' ? 'show active' : '' ?>" id="pills-staff" role="tabpanel">
             <!-- Filter & Search Toolbar -->
             <div class="card border-0 shadow-sm rounded-3 mb-4">
                 <div class="card-body p-3">
@@ -162,6 +195,7 @@ $activeTab = $activeTab ?? 'staff';
                             <tr>
                                 <th class="ps-4 py-3">Staff Personnel</th>
                                 <th class="py-3">Home Concern</th>
+                                <th class="py-3">Assigned Role</th>
                                 <th class="py-3">Designation / Dept</th>
                                 <th class="py-3">Login Account</th>
                                 <th class="py-3">Authorized Locations</th>
@@ -171,7 +205,7 @@ $activeTab = $activeTab ?? 'staff';
                         <tbody class="border-top-0">
                             <?php if (empty($staffMembers)): ?>
                                 <tr>
-                                    <td colspan="6" class="text-center py-5 text-muted">
+                                    <td colspan="7" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
                                         No staff members found matching criteria.
                                     </td>
@@ -205,6 +239,17 @@ $activeTab = $activeTab ?? 'staff';
                                                 <?= htmlspecialchars($stf['concern_code']) ?>
                                             </span>
                                             <small class="d-block text-secondary mt-0.5"><?= htmlspecialchars($stf['concern_name']) ?></small>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($stf['role_name'])): ?>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1.5 fw-semibold d-inline-flex align-items-center gap-1" style="font-size: 0.76rem;">
+                                                    <i class="bi bi-shield-check text-primary"></i> <?= htmlspecialchars($stf['role_name']) ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge bg-light text-muted border px-2.5 py-1.5 d-inline-flex align-items-center gap-1" style="font-size: 0.74rem;">
+                                                    <i class="bi bi-shield-x text-secondary"></i> No Role Assigned
+                                                </span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <div class="fw-semibold text-dark"><?= htmlspecialchars($stf['designation'] ?: 'Staff') ?></div>
@@ -254,14 +299,21 @@ $activeTab = $activeTab ?? 'staff';
                                                     <i class="bi bi-eye"></i>
                                                 </button>
 
-                                                <!-- 2. Edit Staff & Module CRUD Permissions -->
+                                                <!-- 2. Assign Role & Locations Access -->
+                                                <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
+                                                <button type="button" class="btn btn-xs btn-outline-warning text-dark" onclick='openRoleAssignModal(<?= $staffJson ?>)' title="Assign System Role & Concern Locations">
+                                                    <i class="bi bi-shield-lock"></i>
+                                                </button>
+                                                <?php endif; ?>
+
+                                                <!-- 3. Edit Staff Details & CRUD Permissions -->
                                                 <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                                                 <button type="button" class="btn btn-xs btn-outline-primary" onclick='openEditStaffModal(<?= $staffJson ?>)' title="Edit Staff & CRUD Permissions">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
                                                 <?php endif; ?>
 
-                                                <!-- 3. Delete Staff -->
+                                                <!-- 4. Delete Staff -->
                                                 <?php if (\App\Core\Auth::can('staff', 'delete')): ?>
                                                 <form action="<?= \App\Core\Controller::url('/m/staff/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete staff member <?= htmlspecialchars(addslashes($stf['name'])) ?> (<?= htmlspecialchars($stf['staff_code']) ?>)?');">
                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
@@ -285,7 +337,144 @@ $activeTab = $activeTab ?? 'staff';
         </div>
 
         <!-- ======================================================== -->
-        <!-- TAB 2: MODULE CRUD PERMISSIONS MATRIX (VIEW, CREATE, EDIT, DELETE) -->
+        <!-- TAB 2: CONFIGURED ROLES DIRECTORY (HOW MANY ROLES ASSIGNED) -->
+        <!-- ======================================================== -->
+        <div class="tab-pane fade <?= $activeTab === 'roles' ? 'show active' : '' ?>" id="pills-roles" role="tabpanel">
+            <div class="card border-0 shadow-sm rounded-3 overflow-hidden mb-4">
+                <div class="card-header bg-white py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3 border-bottom">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-0.5">
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                <i class="bi bi-shield-check me-1"></i> System Role Catalog
+                            </span>
+                            <h5 class="fw-bold text-dark mb-0">Configured System Roles</h5>
+                        </div>
+                        <p class="text-secondary small mb-0">
+                            Listing of all <?= count($allRoles) ?> created roles, their access scope, and how many staff members are assigned to each role.
+                        </p>
+                    </div>
+                    <?php if (\App\Core\Auth::can('staff', 'add')): ?>
+                    <a href="<?= \App\Core\Controller::url('/m/staff/roles/create') ?>" class="btn btn-primary btn-sm shadow-sm">
+                        <i class="bi bi-plus-circle me-1"></i> Add New Role
+                    </a>
+                    <?php endif; ?>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                            <tr>
+                                <th class="ps-4 py-3" style="width: 25%;">Role Name</th>
+                                <th class="py-3" style="width: 20%;">Scope / Concern</th>
+                                <th class="py-3" style="width: 22%;">Assigned Staff (Count)</th>
+                                <th class="py-3" style="width: 20%;">Description</th>
+                                <th class="text-end pe-4 py-3" style="width: 13%;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="border-top-0">
+                            <?php if (empty($allRoles)): ?>
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        <i class="bi bi-shield-x fs-2 d-block mb-2 text-secondary opacity-50"></i>
+                                        No configured roles found. Click "Add New Role" to create one.
+                                    </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($allRoles as $r): 
+                                    $sc = (int)($r['assigned_staff_count'] ?? 0);
+                                    $uc = (int)($r['assigned_users_count'] ?? 0);
+                                    $isPrimaryAdmin = (int)$r['id'] === 1;
+                                ?>
+                                    <tr>
+                                        <td class="ps-4">
+                                            <div class="d-flex align-items-center gap-2.5">
+                                                <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold shadow-xs" 
+                                                     style="width: 36px; height: 36px; background: #fef3c7; color: #d97706; font-size: 0.95rem; flex-shrink: 0;">
+                                                    <i class="bi bi-shield-fill-check"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="fw-bold text-dark d-flex align-items-center gap-1.5">
+                                                        <?= htmlspecialchars($r['name']) ?>
+                                                        <?php if ($isPrimaryAdmin): ?>
+                                                            <span class="badge bg-dark" style="font-size: 0.65rem;">System Master</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <small class="text-muted font-monospace" style="font-size: 0.72rem;">Role #<?= (int)$r['id'] ?></small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($r['concern_id'])): ?>
+                                                <span class="badge bg-primary font-monospace" style="font-size: 0.72rem;">
+                                                    <?= htmlspecialchars($r['concern_code'] ?? 'CON') ?>
+                                                </span>
+                                                <small class="d-block text-secondary mt-0.5"><?= htmlspecialchars($r['concern_name'] ?? 'Concern #' . $r['concern_id']) ?></small>
+                                            <?php else: ?>
+                                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 0.72rem;">
+                                                    <i class="bi bi-globe me-0.5"></i> Global (All Concerns)
+                                                </span>
+                                                <small class="d-block text-muted mt-0.5">Available for all business units</small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($sc > 0 || $uc > 0): ?>
+                                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1.5 fw-bold d-inline-flex align-items-center gap-1" style="font-size: 0.76rem;">
+                                                    <i class="bi bi-people-fill text-success"></i> <?= $sc ?> Staff Assigned <?= ($uc > $sc ? "({$uc} Users)" : '') ?>
+                                                </span>
+                                                <?php if (!empty($r['assigned_staff_names'])): ?>
+                                                    <div class="small text-muted mt-1 font-monospace" style="font-size: 0.72rem;" title="Assigned staff members">
+                                                        <i class="bi bi-person text-secondary me-0.5"></i> <?= htmlspecialchars($r['assigned_staff_names']) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <span class="badge bg-light text-muted border px-2.5 py-1.5 d-inline-flex align-items-center gap-1" style="font-size: 0.74rem;">
+                                                    <i class="bi bi-dash-circle text-secondary"></i> 0 Staff (Unassigned)
+                                                </span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <span class="small text-secondary">
+                                                <?= htmlspecialchars($r['description'] ?: 'Standard operational permissions.') ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <div class="d-inline-flex align-items-center gap-1.5 flex-wrap justify-content-end">
+                                                <!-- 1. Configure Permissions Matrix -->
+                                                <a href="<?= \App\Core\Controller::url('/m/staff/roles?tab=matrix&matrix_role_id=' . $r['id']) ?>" 
+                                                   class="btn btn-xs btn-outline-primary d-inline-flex align-items-center gap-1" 
+                                                   title="Configure module CRUD permissions for this role">
+                                                    <i class="bi bi-ui-checks-grid"></i> Matrix
+                                                </a>
+
+                                                <!-- 2. Delete Role (if not primary admin and 0 staff assigned) -->
+                                                <?php if (!$isPrimaryAdmin && \App\Core\Auth::can('staff', 'delete')): ?>
+                                                    <?php if ($sc === 0 && $uc === 0): ?>
+                                                        <form action="<?= \App\Core\Controller::url('/m/staff/roles/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete role <?= htmlspecialchars(addslashes($r['name'])) ?>?');">
+                                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                                            <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                                                            <button type="submit" class="btn btn-xs btn-outline-danger" title="Delete Unassigned Role">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </form>
+                                                    <?php else: ?>
+                                                        <button type="button" class="btn btn-xs btn-outline-secondary opacity-50" disabled title="Cannot delete: <?= $sc ?> staff member(s) assigned. Reassign them first.">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- TAB 3: MODULE CRUD PERMISSIONS MATRIX (VIEW, CREATE, EDIT, DELETE) -->
         <!-- ======================================================== -->
         <div class="tab-pane fade <?= $activeTab === 'matrix' ? 'show active' : '' ?>" id="pills-matrix" role="tabpanel">
             <div class="card border-0 shadow-sm rounded-3 mb-4">
@@ -303,9 +492,11 @@ $activeTab = $activeTab ?? 'staff';
                         <div class="d-flex align-items-center gap-2">
                             <label class="small fw-semibold text-secondary text-nowrap">Select Role to Configure:</label>
                             <select class="form-select form-select-sm" style="min-width: 250px;" onchange="window.location.href = '<?= \App\Core\Controller::url('/m/staff/roles?tab=matrix&matrix_role_id=') ?>' + this.value">
-                                <?php foreach ($allRoles as $r): ?>
+                                <?php foreach ($allRoles as $r): 
+                                    $sc = (int)($r['assigned_staff_count'] ?? 0);
+                                ?>
                                     <option value="<?= $r['id'] ?>" <?= ($selectedRoleId == $r['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($r['name']) ?> <?= $r['concern_id'] ? '(Concern Specific)' : '(Global)' ?>
+                                        <?= htmlspecialchars($r['name']) ?> (<?= $sc ?> staff) <?= $r['concern_id'] ? '(Concern Specific)' : '(Global)' ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>

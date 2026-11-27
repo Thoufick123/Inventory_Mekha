@@ -1040,14 +1040,33 @@ class StaffController extends Controller {
         ModuleGuard::enforce('staff', 'view');
         $allConcerns = DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE status = 'active' ORDER BY name ASC");
         $concernFilter = isset($_GET['concern_id']) && $_GET['concern_id'] !== '' ? (int)$_GET['concern_id'] : null;
+
+        $roleSql = "SELECT r.id, r.name, r.description, r.concern_id, r.created_at,
+                           c.name AS concern_name, c.code AS concern_code,
+                           COUNT(DISTINCT u.id) AS assigned_users_count,
+                           COUNT(DISTINCT s.id) AS assigned_staff_count,
+                           GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS assigned_staff_names
+                    FROM roles r
+                    LEFT JOIN concerns c ON r.concern_id = c.id
+                    LEFT JOIN users u ON u.role_id = r.id
+                    LEFT JOIN staff s ON s.user_id = u.id
+                    WHERE 1=1";
+        $roleParams = [];
         if ($concernFilter) {
-            $allRoles = DB::fetchAll(
-                "SELECT id, name, description, concern_id FROM roles WHERE concern_id = ? OR concern_id IS NULL ORDER BY (concern_id IS NULL) DESC, id ASC",
-                [$concernFilter]
-            );
-        } else {
-            $allRoles = DB::fetchAll("SELECT id, name, description, concern_id FROM roles ORDER BY (concern_id IS NULL) DESC, id ASC");
+            $roleSql .= " AND (r.concern_id = ? OR r.concern_id IS NULL)";
+            $roleParams[] = $concernFilter;
         }
+        $roleSql .= " GROUP BY r.id ORDER BY (r.concern_id IS NULL) DESC, r.id ASC";
+        $allRoles = DB::fetchAll($roleSql, $roleParams);
+
+        $assignedRolesCount = 0;
+        foreach ($allRoles as $r) {
+            if ((int)($r['assigned_staff_count'] ?? 0) > 0 || (int)($r['assigned_users_count'] ?? 0) > 0) {
+                $assignedRolesCount++;
+            }
+        }
+        $unassignedRolesCount = max(0, count($allRoles) - $assignedRolesCount);
+
         $search = trim($_GET['search'] ?? '');
 
         $sql = "SELECT s.*, c.name AS concern_name, c.code AS concern_code,
@@ -1077,6 +1096,7 @@ class StaffController extends Controller {
 
         $sql .= " ORDER BY s.id DESC";
         $staffMembers = DB::fetchAll($sql, $params);
+        $staffWithRolesCount = count(array_filter($staffMembers, fn($s) => !empty($s['role_name'])));
 
         // Map user concerns for users
         $userConcernsMap = [];
@@ -1099,7 +1119,8 @@ class StaffController extends Controller {
         $matrixCtx = $this->buildStaffModuleMatrixContext();
         $modules = $matrixCtx['modules'];
 
-        $activeTab = ($_GET['tab'] ?? 'staff') === 'matrix' ? 'matrix' : 'staff';
+        $validTabs = ['staff', 'roles', 'matrix'];
+        $activeTab = in_array($_GET['tab'] ?? '', $validTabs, true) ? $_GET['tab'] : 'staff';
         $selectedRoleId = (int)($_GET['matrix_role_id'] ?? 0);
         if (!$selectedRoleId && !empty($allRoles)) {
             $selectedRoleId = (int)$allRoles[0]['id'];
@@ -1119,22 +1140,25 @@ class StaffController extends Controller {
         }
 
         $this->render('concern/staff_roles', [
-            'pageTitle'        => 'Staff Role & Access Assignment',
-            'currentModule'    => 'staff',
-            'currentSubModule' => 'roles',
-            'allConcerns'      => $allConcerns,
-            'allRoles'         => $allRoles,
-            'modules'          => $modules,
-            'groupedModules'   => $matrixCtx['groupedModules'],
-            'groupOrder'       => $matrixCtx['groupOrder'],
-            'concernModules'   => $matrixCtx['concernModules'],
-            'staffMembers'     => $staffMembers,
-            'userConcernsMap'  => $userConcernsMap,
-            'concernFilter'    => $concernFilter,
-            'search'           => $search,
-            'activeTab'        => $activeTab,
-            'selectedRoleId'   => $selectedRoleId,
-            'matrixPerms'      => $matrixPerms,
+            'pageTitle'            => 'Staff Role & Access Assignment',
+            'currentModule'        => 'staff',
+            'currentSubModule'     => 'roles',
+            'allConcerns'          => $allConcerns,
+            'allRoles'             => $allRoles,
+            'assignedRolesCount'   => $assignedRolesCount,
+            'unassignedRolesCount' => $unassignedRolesCount,
+            'staffWithRolesCount'  => $staffWithRolesCount,
+            'modules'              => $modules,
+            'groupedModules'       => $matrixCtx['groupedModules'],
+            'groupOrder'           => $matrixCtx['groupOrder'],
+            'concernModules'       => $matrixCtx['concernModules'],
+            'staffMembers'         => $staffMembers,
+            'userConcernsMap'      => $userConcernsMap,
+            'concernFilter'        => $concernFilter,
+            'search'               => $search,
+            'activeTab'            => $activeTab,
+            'selectedRoleId'       => $selectedRoleId,
+            'matrixPerms'          => $matrixPerms,
         ]);
     }
 
@@ -1671,7 +1695,7 @@ class StaffController extends Controller {
             DB::commit();
 
             $this->flash('success', "Role '{$name}' created and permissions provisioned successfully.");
-            $this->redirect('/m/staff/roles');
+            $this->redirect('/m/staff/roles?tab=roles');
         } catch (\Throwable $e) {
             DB::rollBack();
             error_log('StaffController storeRole error: ' . $e->getMessage());
@@ -1679,6 +1703,55 @@ class StaffController extends Controller {
             $this->flash('error', 'Failed to create role: ' . $e->getMessage());
             $this->redirect('/m/staff/roles/create');
         }
+    }
+
+    public function deleteRole(): void {
+        ModuleGuard::enforce('staff', 'delete');
+        $this->validateCsrf();
+
+        $roleId = (int)($_POST['id'] ?? 0);
+        if ($roleId <= 1) {
+            $this->flash('error', 'The primary Master Super Admin role cannot be deleted.');
+            $this->redirect('/m/staff/roles?tab=roles');
+        }
+
+        $role = DB::fetch("SELECT * FROM roles WHERE id = ?", [$roleId]);
+        if (!$role) {
+            $this->flash('error', 'Role not found.');
+            $this->redirect('/m/staff/roles?tab=roles');
+        }
+
+        // Check if any user or staff has this role
+        $assignedUsers = (int)DB::fetchValue("SELECT COUNT(*) FROM users WHERE role_id = ?", [$roleId]);
+        if ($assignedUsers > 0) {
+            $this->flash('error', "Cannot delete role '{$role['name']}' because it is assigned to {$assignedUsers} user(s). Reassign them first.");
+            $this->redirect('/m/staff/roles?tab=roles');
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::query("DELETE FROM role_permissions WHERE role_id = ?", [$roleId]);
+            DB::query("DELETE FROM roles WHERE id = ?", [$roleId]);
+            DB::commit();
+
+            AuditLog::record(
+                $role['concern_id'],
+                'roles',
+                $roleId,
+                'ROLE_DELETE',
+                $role,
+                null,
+                "Deleted role '{$role['name']}'"
+            );
+
+            $this->flash('success', "Role '{$role['name']}' deleted successfully.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            error_log('deleteRole error: ' . $e->getMessage());
+            $this->flash('error', 'Failed to delete role: ' . $e->getMessage());
+        }
+
+        $this->redirect('/m/staff/roles?tab=roles');
     }
 
     public function createRole(): void {
