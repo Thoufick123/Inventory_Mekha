@@ -378,6 +378,8 @@ $router->get('/production/stitching', [ProductionController::class, 'stitchingIn
 $router->get('/m/stitching_wastage', [ProductionController::class, 'stitchingIndex'], 'stitching_wastage', 'view');
 $router->get('/production/stitching/create', [ProductionController::class, 'createStitching'], 'stitching_wastage', 'add');
 $router->post('/production/stitching/store', [ProductionController::class, 'storeStitchingBatch'], 'stitching_wastage', 'add');
+$router->post('/production/cutting/outward', [ProductionController::class, 'outwardCuttingBatch'], 'cutting_wastage', 'edit|add');
+$router->post('/m/inward/receive-cutting', [InwardController::class, 'receiveCuttingInward'], 'inward', 'add');
 $router->get('/production/stitching/edit', [ProductionController::class, 'editStitchingBatch'], 'stitching_wastage', 'edit');
 $router->post('/production/stitching/update', [ProductionController::class, 'updateStitchingBatch'], 'stitching_wastage', 'edit');
 $router->get('/production/stitching/view', [ProductionController::class, 'viewStitchingBatch'], 'stitching_wastage', 'view');

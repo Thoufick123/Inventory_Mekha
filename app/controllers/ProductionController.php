@@ -3479,12 +3479,21 @@ class ProductionController extends Controller {
             'used_weight'           => "DECIMAL(12,2) DEFAULT 0.00 AFTER wastage_percent",
             'fabric_cost_per_piece' => "DECIMAL(12,2) DEFAULT 0.00 AFTER used_weight",
             'sold_wastage_qty'      => "DECIMAL(12,2) DEFAULT 0.00 AFTER wastage_unit",
+            'outward_id'            => "INT NULL AFTER sold_wastage_qty",
+            'destination_concern_id'=> "INT NULL AFTER outward_id",
+            'outward_status'        => "VARCHAR(40) NULL AFTER destination_concern_id",
+            'inward_source_outward_id' => "INT NULL AFTER outward_status",
         ];
 
         foreach ($colsToAdd as $col => $def) {
             if (!in_array($col, $existingCols)) {
                 DB::query("ALTER TABLE cutting_logs ADD COLUMN $col $def");
             }
+        }
+
+        $outCols = array_column(DB::fetchAll("DESCRIBE outwards"), 'Field');
+        if (!in_array('cutting_id', $outCols)) {
+            DB::query("ALTER TABLE outwards ADD COLUMN cutting_id INT NULL AFTER destination_concern_id");
         }
 
         DB::query("ALTER TABLE cutting_logs MODIFY COLUMN raw_variant_id INT NULL");
@@ -3681,6 +3690,11 @@ class ProductionController extends Controller {
             $totalScrapRevenue += (float)$s['total_price'];
         }
 
+        $concerns = DB::fetchAll(
+            "SELECT id, name, code FROM concerns WHERE status = 'active' AND (? IS NULL OR id != ?) ORDER BY name ASC",
+            [$cid, $cid]
+        );
+
         $this->render('concern/cutting_list', [
             'pageTitle'         => 'Fabric Cutting & Wastage Tracking',
             'currentModule'     => 'cutting_wastage',
@@ -3692,8 +3706,117 @@ class ProductionController extends Controller {
             'totalWastageSold'  => $totalWastageSold,
             'availableWastage'  => max(0.00, $totalWastageGen - $totalWastageSold),
             'totalScrapRevenue' => $totalScrapRevenue,
+            'concerns'          => $concerns,
+            'csrfToken'         => Auth::csrfToken(),
             'selectedCid'       => $cid,
         ]);
+    }
+
+    /**
+     * Dispatch a cutting batch outward to another concern's Inward module.
+     */
+    public function outwardCuttingBatch(): void {
+        ModuleGuard::enforce('cutting_wastage', 'edit|add');
+        $this->ensureCuttingSchema();
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        $cuttingId = (int)($_POST['cutting_id'] ?? 0);
+        $destCid = (int)($_POST['destination_concern_id'] ?? 0);
+        $vehicleNo = trim((string)($_POST['vehicle_number'] ?? ''));
+        $driverName = trim((string)($_POST['driver_name'] ?? ''));
+        $notes = trim((string)($_POST['notes'] ?? ''));
+
+        if ($cuttingId <= 0 || $destCid <= 0) {
+            $this->flash('error', 'Select a valid cutting batch and destination concern.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+
+        $cutting = DB::fetch(
+            "SELECT * FROM cutting_logs WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""),
+            $cid ? [$cuttingId, $cid] : [$cuttingId]
+        );
+        if (!$cutting) {
+            $this->flash('error', 'Cutting batch not found.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+        if (!empty($cutting['outward_id'])) {
+            $this->flash('warning', 'This cutting batch has already been outwarded.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+        $sourceCid = (int)$cutting['concern_id'];
+        if ($destCid === $sourceCid) {
+            $this->flash('error', 'Destination concern must be different from the current concern.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+        $destConcern = DB::fetch("SELECT id, name, code FROM concerns WHERE id = ? AND status = 'active'", [$destCid]);
+        if (!$destConcern) {
+            $this->flash('error', 'Selected destination concern was not found.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+
+        $cuttingItems = DB::fetchAll("SELECT * FROM cutting_items WHERE cutting_id = ? ORDER BY id ASC", [$cuttingId]);
+        $totalCutPcs = (int)($cutting['cut_pieces'] ?? 0);
+        if ($totalCutPcs <= 0 && !empty($cuttingItems)) {
+            $totalCutPcs = array_sum(array_map(static fn($r) => (int)($r['cut_pieces'] ?? 0), $cuttingItems));
+        }
+
+        DB::beginTransaction();
+        try {
+            $outwardNo = 'OUT-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            $gatePassNo = 'GP-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            $batchNo = $cutting['batch_no'] ?: $cutting['log_no'];
+
+            DB::query(
+                "INSERT INTO outwards (concern_id, outward_no, gate_pass_no, outward_date, transfer_type, destination_concern_id, cutting_id, warehouse_name, qty, vehicle_number, driver_name, notes, status, dispatched_at, created_by, created_at)
+                 VALUES (?, ?, ?, CURDATE(), 'concern', ?, ?, ?, ?, ?, ?, ?, 'dispatched', NOW(), ?, NOW())",
+                [
+                    $sourceCid,
+                    $outwardNo,
+                    $gatePassNo,
+                    $destCid,
+                    $cuttingId,
+                    $destConcern['name'],
+                    $totalCutPcs,
+                    $vehicleNo !== '' ? $vehicleNo : null,
+                    $driverName !== '' ? $driverName : null,
+                    $notes !== '' ? $notes : ("Cutting Outward: {$batchNo}"),
+                    Auth::id(),
+                ]
+            );
+            $outwardId = (int)DB::lastInsertId();
+
+            foreach ($cuttingItems as $ci) {
+                $vId = (int)($ci['variant_id'] ?? 0);
+                $pcs = (int)($ci['cut_pieces'] ?? 0);
+                if ($vId > 0 && $pcs > 0) {
+                    DB::query(
+                        "INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (?, ?, ?, ?)",
+                        [$sourceCid, $outwardId, $vId, $pcs]
+                    );
+                }
+            }
+
+            DB::query(
+                "UPDATE cutting_logs SET outward_id = ?, destination_concern_id = ?, outward_status = 'DISPATCHED' WHERE id = ?",
+                [$outwardId, $destCid, $cuttingId]
+            );
+
+            DB::commit();
+            $this->flash('success', "Cutting batch {$batchNo} outwarded ({$outwardNo}) to {$destConcern['name']}. It is now in their Inward module.");
+        } catch (\Throwable $e) {
+            if (DB::pdo()->inTransaction()) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Failed to outward cutting batch: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/cutting');
     }
 
     /**

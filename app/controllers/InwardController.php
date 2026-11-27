@@ -141,6 +141,14 @@ class InwardController extends Controller {
             if (!in_array('received_at', $outCols)) {
                 DB::query("ALTER TABLE `outwards` ADD COLUMN `received_at` DATETIME NULL AFTER `dispatched_at`");
             }
+            if (!in_array('cutting_id', $outCols)) {
+                DB::query("ALTER TABLE `outwards` ADD COLUMN `cutting_id` INT NULL AFTER `destination_concern_id`");
+            }
+
+            $cutCols = array_column(DB::fetchAll("DESCRIBE `cutting_logs`"), 'Field');
+            if (!in_array('inward_source_outward_id', $cutCols)) {
+                DB::query("ALTER TABLE `cutting_logs` ADD COLUMN `inward_source_outward_id` INT NULL");
+            }
 
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
@@ -185,12 +193,16 @@ class InwardController extends Controller {
                    o.created_at,
                    o.status AS outward_status,
                    o.destination_concern_id,
+                   COALESCE(o.cutting_id, 0) AS cutting_id,
+                   cl_src.batch_no AS cutting_batch_no,
+                   cl_src.cutting_name AS cutting_name,
+                   (SELECT cl_dst.id FROM cutting_logs cl_dst WHERE cl_dst.inward_source_outward_id = o.id LIMIT 1) AS received_cutting_id,
                    COALESCE(o.damage_transfer, 0) AS damage_transfer,
                    coalesce(b.id, pob.batch_id, 0) AS batch_id,
-                   coalesce(b.batch_no, concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
+                   coalesce(cl_src.batch_no, b.batch_no, concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
                    coalesce(pob.cartons_count, b.total_boxes, 1) AS total_boxes,
-                   coalesce(pp.program_no, 'PRG-20261113-0001') AS program_no,
-                   coalesce(pp.program_name, (SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1), 'Garments') AS program_name,
+                   coalesce(pp.program_no, cl_src.log_no, 'PRG-20261113-0001') AS program_no,
+                   coalesce(cl_src.cutting_name, pp.program_name, (SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1), 'Garments') AS program_name,
                    (SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1) AS product_name,
                    coalesce(pu.name, src_con.name, 'Kadampadi') AS source_unit_name,
                    coalesce(pu.code, src_con.code, 'PU-01') AS source_unit_code,
@@ -223,6 +235,7 @@ class InwardController extends Controller {
             ) pob ON o.id = pob.outward_id
             LEFT JOIN batches b ON pob.batch_id = b.id
             LEFT JOIN production_programs pp ON b.program_id = pp.id
+            LEFT JOIN cutting_logs cl_src ON o.cutting_id = cl_src.id
             LEFT JOIN production_units pu ON o.production_unit_id = pu.id
             LEFT JOIN concerns src_con ON o.concern_id = src_con.id
             LEFT JOIN concerns dest_con ON o.destination_concern_id = dest_con.id
@@ -244,10 +257,28 @@ class InwardController extends Controller {
             $credQty = (float)$batch['credited_qty'];
             $receivedQty = (float)$batch['received_qty'];
             $damagedQty = (float)$batch['damaged_qty'];
-            $shortQty = max(0, $dispQty - $receivedQty);
-            $batch['short_qty'] = $shortQty;
 
             $totalDispatchedPcsSum += $dispQty;
+
+            if (!empty($batch['cutting_id'])) {
+                if (!empty($batch['received_cutting_id'])) {
+                    $batch['short_qty'] = 0;
+                    $receivedBatchesCount++;
+                    $warehouseStockPcsSum += $dispQty;
+                    $batch['status_badge'] = 'completed';
+                    $batch['status_label'] = 'Received in Cutting';
+                } else {
+                    $batch['short_qty'] = $dispQty;
+                    $awaitingBatchesCount++;
+                    $pendingPcsSum += $dispQty;
+                    $batch['status_badge'] = 'awaiting';
+                    $batch['status_label'] = "Awaiting Cutting Inward ({$dispQty} pcs)";
+                }
+                continue;
+            }
+
+            $shortQty = max(0, $dispQty - $receivedQty);
+            $batch['short_qty'] = $shortQty;
 
             if ($receivedQty > 0) {
                 $receivedBatchesCount++;
@@ -821,6 +852,135 @@ class InwardController extends Controller {
         ]);
 
         return (int)DB::lastInsertId();
+    }
+
+    public function receiveCuttingInward(): void {
+        ModuleGuard::enforce('inward', 'add');
+        $this->ensureSchema();
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        $outwardId = (int)($_POST['outward_id'] ?? 0);
+        if ($outwardId <= 0) {
+            $this->flash('error', 'Invalid cutting outward ID.');
+            $this->redirect('/m/inward');
+            return;
+        }
+
+        $outward = DB::fetch(
+            "SELECT * FROM outwards WHERE id = ?" . ($cid ? " AND destination_concern_id = ?" : ""),
+            $cid ? [$outwardId, $cid] : [$outwardId]
+        );
+        if (!$outward || empty($outward['cutting_id'])) {
+            $this->flash('error', 'Cutting outward dispatch not found.');
+            $this->redirect('/m/inward');
+            return;
+        }
+
+        $destCid = $cid ?: (int)$outward['destination_concern_id'];
+        $existingDest = DB::fetch("SELECT id FROM cutting_logs WHERE inward_source_outward_id = ? LIMIT 1", [$outwardId]);
+        if ($existingDest) {
+            $this->flash('info', 'This cutting batch has already been added to the Cutting module.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+
+        $srcCutting = DB::fetch("SELECT * FROM cutting_logs WHERE id = ?", [(int)$outward['cutting_id']]);
+        if (!$srcCutting) {
+            $this->flash('error', 'Source cutting batch record not found.');
+            $this->redirect('/m/inward');
+            return;
+        }
+        $srcItems = DB::fetchAll("SELECT * FROM cutting_items WHERE cutting_id = ? ORDER BY id ASC", [(int)$srcCutting['id']]);
+
+        DB::beginTransaction();
+        try {
+            $newLogNo = 'CUT-IN-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            $newBatchNo = $srcCutting['batch_no'] ?: $newLogNo;
+            $dupBatch = DB::fetch("SELECT id FROM cutting_logs WHERE concern_id = ? AND batch_no = ? LIMIT 1", [$destCid, $newBatchNo]);
+            if ($dupBatch) {
+                $newBatchNo = $newBatchNo . '-IN';
+            }
+
+            DB::query(
+                "INSERT INTO cutting_logs (
+                    concern_id, program_id, raw_variant_id, log_no, batch_no, lot_no, cutting_name,
+                    status, cutting_master_id, cutting_master_name, consumed_qty, total_roll_weight,
+                    total_roll_price, fabric_rate_per_kg, cut_pieces, wastage_qty, wastage_cost,
+                    wastage_percent, used_weight, fabric_cost_per_piece, wastage_unit, sold_wastage_qty,
+                    outward_status, inward_source_outward_id, notes, created_by, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 'RECEIVED_FROM_CONCERN', ?, ?, ?, NOW())",
+                [
+                    $destCid,
+                    $srcCutting['program_id'] ?? null,
+                    $srcCutting['raw_variant_id'] ?? null,
+                    $newLogNo,
+                    $newBatchNo,
+                    $srcCutting['lot_no'] ?? null,
+                    $srcCutting['cutting_name'] ?? ('Inward Cutting ' . $newBatchNo),
+                    $srcCutting['cutting_master_id'] ?? null,
+                    $srcCutting['cutting_master_name'] ?? null,
+                    (float)($srcCutting['consumed_qty'] ?? 0),
+                    (float)($srcCutting['total_roll_weight'] ?? 0),
+                    (float)($srcCutting['total_roll_price'] ?? 0),
+                    (float)($srcCutting['fabric_rate_per_kg'] ?? 0),
+                    (int)($srcCutting['cut_pieces'] ?? 0),
+                    (float)($srcCutting['wastage_qty'] ?? 0),
+                    (float)($srcCutting['wastage_cost'] ?? 0),
+                    (float)($srcCutting['wastage_percent'] ?? 0),
+                    (float)($srcCutting['used_weight'] ?? 0),
+                    (float)($srcCutting['fabric_cost_per_piece'] ?? 0),
+                    $srcCutting['wastage_unit'] ?? 'kg',
+                    $outwardId,
+                    $srcCutting['notes'] ?? ("Received from outward {$outward['outward_no']}"),
+                    Auth::id(),
+                ]
+            );
+            $newCuttingId = (int)DB::lastInsertId();
+
+            foreach ($srcItems as $si) {
+                DB::query(
+                    "INSERT INTO cutting_items (cutting_id, program_roll_id, variant_id, size, product_code, variant_name, cut_pieces, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+                    [
+                        $newCuttingId,
+                        $si['program_roll_id'] ?? null,
+                        $si['variant_id'] ?? null,
+                        $si['size'] ?? null,
+                        $si['product_code'] ?? null,
+                        $si['variant_name'] ?? null,
+                        (int)($si['cut_pieces'] ?? 0),
+                    ]
+                );
+            }
+
+            $inwardNo = 'INW-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            DB::query(
+                "INSERT INTO inwards (concern_id, outward_id, from_concern_id, inward_no, inward_date, status, notes, created_by, created_at)
+                 VALUES (?, ?, ?, ?, CURDATE(), 'received', ?, ?, NOW())",
+                [
+                    $destCid,
+                    $outwardId,
+                    (int)$outward['concern_id'],
+                    $inwardNo,
+                    "Cutting inward transferred to Cutting module ({$newBatchNo})",
+                    Auth::id(),
+                ]
+            );
+
+            DB::query("UPDATE outwards SET status = 'received', received_at = NOW() WHERE id = ?", [$outwardId]);
+            DB::query("UPDATE cutting_logs SET outward_status = 'RECEIVED' WHERE id = ?", [(int)$srcCutting['id']]);
+
+            DB::commit();
+            $this->flash('success', "Cutting batch {$newBatchNo} accepted and moved directly to your Cutting module.");
+            $this->redirect('/production/cutting');
+        } catch (\Throwable $e) {
+            if (DB::pdo()->inTransaction()) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Failed to receive cutting batch: ' . $e->getMessage());
+            $this->redirect('/m/inward');
+        }
     }
 
     public function creditStock(): void {
