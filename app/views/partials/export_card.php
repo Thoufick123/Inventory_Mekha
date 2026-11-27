@@ -129,7 +129,8 @@ if (typeof window.triggerCardExport === 'undefined') {
                   '&period=' + encodeURIComponent(period) +
                   '&single_date=' + encodeURIComponent(singleDate) +
                   '&from_date=' + encodeURIComponent(fromDate) +
-                  '&to_date=' + encodeURIComponent(toDate);
+                  '&to_date=' + encodeURIComponent(toDate) +
+                  '&return_url=' + encodeURIComponent(window.location.href);
 
         if (format === 'pdf') {
             window.open(url, '_blank');
@@ -144,7 +145,8 @@ if (typeof window.triggerCardExport === 'undefined') {
         let url = endpoint + sep +
                   'format=' + encodeURIComponent(format) +
                   '&period=' + encodeURIComponent(period) +
-                  '&single_date=' + encodeURIComponent(today);
+                  '&single_date=' + encodeURIComponent(today) +
+                  '&return_url=' + encodeURIComponent(window.location.href);
 
         if (format === 'pdf') {
             window.open(url, '_blank');

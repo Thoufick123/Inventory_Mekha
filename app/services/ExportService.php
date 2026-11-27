@@ -233,6 +233,12 @@ class ExportService {
      * Render Printable / Downloadable PDF View
      */
     public static function renderPdfView(string $title, array $metadata, array $headers, array $rows, array $totals = []): void {
+        $fallbackUrl = \App\Core\Auth::isSuperAdmin() 
+            ? \App\Core\Controller::url('/admin/dashboard') 
+            : \App\Core\Controller::url('/m/dashboard');
+        $returnUrl = !empty($_GET['return_url']) 
+            ? $_GET['return_url'] 
+            : (!empty($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : $fallbackUrl);
         ?>
         <!DOCTYPE html>
         <html lang="en">
@@ -308,10 +314,10 @@ class ExportService {
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-sm btn-light fw-bold px-3" onclick="window.history.back()">
+                        <button type="button" class="btn btn-sm btn-light fw-bold px-3 shadow-xs" onclick="handleReportBack()" title="Back to Previous Page">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <button type="button" class="btn btn-sm btn-primary fw-bold px-4" onclick="window.print()" style="background: #4f46e5; border:none;">
+                        <button type="button" class="btn btn-sm btn-primary fw-bold px-4 shadow-xs" onclick="window.print()" style="background: #4f46e5; border:none;">
                             <i class="bi bi-printer me-1"></i> Save as PDF / Print
                         </button>
                     </div>
@@ -389,6 +395,37 @@ class ExportService {
             </div>
 
             <script>
+                function handleReportBack() {
+                    const fallbackTarget = <?= json_encode($returnUrl, JSON_UNESCAPED_SLASHES) ?>;
+
+                    // 1. If this window was opened as a popup or new tab (_blank), close it
+                    try {
+                        if (window.opener && !window.opener.closed) {
+                            window.close();
+                        }
+                    } catch (e) {}
+
+                    // 2. If history in this tab has no prior entries, try closing the tab
+                    try {
+                        if (window.history.length <= 1) {
+                            window.close();
+                        }
+                    } catch (e) {}
+
+                    // 3. Fallback: If still open after 120ms (e.g. browser blocked window.close), navigate
+                    setTimeout(function() {
+                        if (document.referrer && document.referrer !== window.location.href) {
+                            window.location.href = document.referrer;
+                        } else if (fallbackTarget) {
+                            window.location.href = fallbackTarget;
+                        } else if (window.history.length > 1) {
+                            window.history.back();
+                        } else {
+                            window.location.href = '<?= \App\Core\Controller::url('/') ?>';
+                        }
+                    }, 120);
+                }
+
                 // Auto trigger print when loaded
                 window.addEventListener('load', function() {
                     // Small delay to allow CSS rendering
