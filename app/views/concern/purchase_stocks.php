@@ -25,20 +25,24 @@
             border-radius: 6px !important;
         }
         .purchase-stock-detail-card {
-            padding: 0.75rem 0.9rem;
+            padding: 0.75rem 0.95rem;
             border: 1px solid #e2e8f0;
             border-radius: 10px;
             background: #ffffff;
             height: 100%;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
         }
         .purchase-stock-detail-card.is-highlight {
             background: #f8fafc;
+            border-color: #cbd5e1;
         }
         .purchase-stock-detail-label {
-            font-size: 0.72rem;
-            font-weight: 600;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
             color: #64748b;
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.25rem;
         }
         .purchase-stock-history-table thead th,
         .purchase-stock-history-table tbody td {
@@ -1228,31 +1232,36 @@ function viewPurchaseStock(button) {
             `).join('') : '<tr><td colspan="5" class="text-center text-muted small py-3">No individual batch records found.</td></tr>';
 
             bodyEl.innerHTML = `
-                <div class="row g-3 mb-3">
-                    ${detailCard('col-md-4', 'Design / Pattern', `<span class="fw-bold text-dark">${escapeHtmlHtml(item.design_name || '-')}</span>`, true)}
-                    ${detailCard('col-md-4', 'Color / Shade', `<span class="fw-bold text-uppercase text-dark">${escapeHtmlHtml(item.color || '-')}</span>`, true)}
-                    ${detailCard('col-md-4', 'HSN Code', `<span class="fw-bold font-monospace text-dark">${escapeHtmlHtml(item.hsn_code || '-')}</span>`, true)}
-                    ${detailCard('col-md-3', 'Accumulated Stock', `<span class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</span>`)}
-                    ${detailCard('col-md-3', 'Total Fabric Weight', `<span class="fw-bold text-dark">${parseFloat(item.net_weight || 0).toFixed(2)} kg</span>`)}
-                    ${detailCard('col-md-3', 'Unit Rate', `<span class="fw-bold text-dark">${formatInr(item.last_unit_price || 0)}</span>`)}
-                    ${detailCard('col-md-3', 'Total Valuation', `<span class="fw-bold text-success">${formatInr(item.total_value || 0)}</span>`)}
+                <div class="row g-3 mb-4">
+                    ${detailCard('col-md-4', 'Design / Pattern', `<span class="fw-bold text-dark fs-6">${escapeHtmlHtml(item.design_name || '-')}</span>`, true)}
+                    ${detailCard('col-md-4', 'Color / Shade', `<span class="fw-bold text-uppercase text-dark fs-6">${escapeHtmlHtml(item.color || '-')}</span>`, true)}
+                    ${detailCard('col-md-4', 'HSN Code', `<span class="fw-bold font-monospace text-dark fs-6">${escapeHtmlHtml(item.hsn_code || '-')}</span>`, true)}
+                    ${detailCard('col-md-3', 'Accumulated Stock', `<span class="fw-bold text-primary fs-6">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</span>`)}
+                    ${detailCard('col-md-3', 'Total Fabric Weight', `<span class="fw-bold text-dark fs-6">${parseFloat(item.net_weight || 0).toFixed(2)} kg</span>`)}
+                    ${detailCard('col-md-3', 'Unit Rate', `<span class="fw-bold text-dark fs-6">${formatInr(item.last_unit_price || 0)}</span>`)}
+                    ${detailCard('col-md-3', 'Total Valuation', `<span class="fw-bold text-success fs-6">${formatInr(item.total_value || 0)}</span>`)}
                 </div>
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="fw-bold small text-uppercase text-muted mb-0">Inward Batch History (${batches.length})</h6>
-                </div>
-                <div class="table-responsive border rounded-3">
-                    <table class="table table-sm table-hover mb-0 align-middle purchase-stock-history-table">
-                        <thead class="table-light small text-uppercase text-muted">
-                            <tr>
-                                <th>Bill #</th>
-                                <th>Supplier</th>
-                                <th class="text-end">Qty</th>
-                                <th class="text-end">Weight</th>
-                                <th class="text-end">Rate</th>
-                            </tr>
-                        </thead>
-                        <tbody>${batchRows}</tbody>
-                    </table>
+                <div class="border rounded-3 overflow-hidden">
+                    <div class="bg-light px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
+                        <span class="fw-bold small text-uppercase text-secondary" style="letter-spacing: 0.04em;">
+                            <i class="bi bi-clock-history me-1 text-primary"></i> Inward Batch History
+                        </span>
+                        <span class="badge bg-white text-dark border">${batches.length} ${batches.length === 1 ? 'Batch' : 'Batches'}</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 align-middle purchase-stock-history-table">
+                            <thead class="table-light small text-uppercase text-muted" style="font-size: 0.72rem;">
+                                <tr>
+                                    <th>Bill #</th>
+                                    <th>Supplier</th>
+                                    <th class="text-end">Qty</th>
+                                    <th class="text-end">Weight</th>
+                                    <th class="text-end">Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>${batchRows}</tbody>
+                        </table>
+                    </div>
                 </div>
             `;
         } else {
@@ -1325,14 +1334,17 @@ function confirmDeletePurchaseStock(button) {
 <!-- View Stock Details Modal -->
 <div class="modal fade" id="viewPurchaseStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow rounded-3">
-            <div class="modal-header py-3 px-4 border-bottom">
-                <h5 class="modal-title fs-6 fw-bold mb-0"><i class="bi bi-eye text-info me-2"></i>Purchase Stock Details</h5>
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header py-3 px-4 bg-white border-bottom">
+                <h5 class="modal-title fs-6 fw-bold mb-0 d-flex align-items-center gap-2">
+                    <span class="badge bg-info-subtle text-info rounded-2 p-2"><i class="bi bi-eye"></i></span>
+                    <span>Purchase Stock Details</span>
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4" id="viewPurchaseStockBody"></div>
             <div class="modal-footer py-2 px-4 bg-light border-top">
-                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-semibold" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
