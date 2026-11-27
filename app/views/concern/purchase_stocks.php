@@ -1426,18 +1426,21 @@ function confirmDeletePurchaseStock(button) {
 <?php if ($canAddPurchaseStock): ?>
 <div class="modal fade" id="createPurchaseStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
             <form action="<?= \App\Core\Controller::url('/m/purchase_stocks/create') ?>" method="POST">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                <div class="modal-header py-2">
-                    <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-plus-circle text-success me-1"></i> Add Purchase Stock</h5>
+                <div class="modal-header py-3 px-4 bg-white border-bottom">
+                    <h5 class="modal-title fs-6 fw-bold mb-0 d-flex align-items-center gap-2">
+                        <span class="badge bg-success-subtle text-success rounded-2 p-2"><i class="bi bi-plus-circle"></i></span>
+                        <span>Add Purchase Stock</span>
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <div class="row g-3">
                         <?php if (\App\Core\Auth::isSuperAdmin() && !empty($allConcerns)): ?>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Concern <span class="text-danger">*</span></label>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold mb-1">Concern <span class="text-danger">*</span></label>
                             <select name="concern_id" class="form-select form-select-sm" required>
                                 <option value="">-- Select Concern --</option>
                                 <?php foreach ($allConcerns as $con): ?>
@@ -1446,15 +1449,15 @@ function confirmDeletePurchaseStock(button) {
                             </select>
                         </div>
                         <?php endif; ?>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Stock Category <span class="text-danger">*</span></label>
+                        <div class="<?= (\App\Core\Auth::isSuperAdmin() && !empty($allConcerns)) ? 'col-md-4' : 'col-md-6' ?>">
+                            <label class="form-label small fw-semibold mb-1">Stock Category <span class="text-danger">*</span></label>
                             <select name="section_type" id="create_stock_section_type" class="form-select form-select-sm" onchange="toggleCreateStockFields()">
                                 <option value="rolls">1. Fabric Rolls</option>
                                 <option value="garment_other">2. Other Garments &amp; Trims</option>
                             </select>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Supplier (Optional)</label>
+                        <div class="<?= (\App\Core\Auth::isSuperAdmin() && !empty($allConcerns)) ? 'col-md-4' : 'col-md-6' ?>">
+                            <label class="form-label small fw-semibold mb-1">Supplier (Optional)</label>
                             <select name="supplier_id" class="form-select form-select-sm">
                                 <option value="">-- Direct / Opening Stock --</option>
                                 <?php foreach ($suppliers as $sup): ?>
@@ -1462,58 +1465,61 @@ function confirmDeletePurchaseStock(button) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
+
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Item / Fabric Name <span class="text-danger">*</span></label>
+                            <label class="form-label small fw-semibold mb-1">Item / Fabric Name <span class="text-danger">*</span></label>
                             <input type="text" name="item_name" class="form-control form-control-sm" required>
                         </div>
-                        <div class="col-md-4 create-roll-only">
-                            <label class="form-label small fw-semibold">Design / Pattern <span class="text-danger">*</span></label>
+                        <div class="col-md-6 create-roll-only">
+                            <label class="form-label small fw-semibold mb-1">Design / Pattern <span class="text-danger">*</span></label>
                             <input type="text" name="pattern" class="form-control form-control-sm text-uppercase">
                         </div>
+
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Color / Shade</label>
+                            <label class="form-label small fw-semibold mb-1">Color / Shade</label>
                             <input type="text" name="color" class="form-control form-control-sm text-uppercase">
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold">HSN Code</label>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold mb-1">HSN Code</label>
                             <div class="position-relative">
                                 <input type="text" name="hsn_code" id="create_stock_hsn" class="form-control form-control-sm font-monospace" autocomplete="off">
                                 <div id="createStockHsnMenu" class="dropdown-menu shadow-sm w-100 p-0" style="max-height: 260px; overflow-y: auto; z-index: 1065; min-width: 340px;"></div>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label small fw-semibold">GST (%)</label>
+                            <label class="form-label small fw-semibold mb-1">GST (%)</label>
                             <input type="number" step="0.01" min="0" name="gst_rate" id="create_stock_gst" class="form-control form-control-sm">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Quantity <span class="text-danger">*</span></label>
+
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold mb-1">Quantity <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" min="0.01" name="qty" id="create_stock_qty" class="form-control form-control-sm" required oninput="recalcCreateStockTotal()">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Unit <span class="text-danger">*</span></label>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold mb-1">Unit <span class="text-danger">*</span></label>
                             <input type="text" name="unit" id="create_stock_unit" class="form-control form-control-sm" required>
                         </div>
                         <div class="col-md-3 create-roll-only">
-                            <label class="form-label small fw-semibold">Total Weight (kg)</label>
+                            <label class="form-label small fw-semibold mb-1">Total Weight (kg)</label>
                             <input type="number" step="0.01" min="0" name="net_weight" class="form-control form-control-sm">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Unit Rate (₹)</label>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold mb-1">Unit Rate (₹)</label>
                             <input type="number" step="0.01" min="0" name="unit_price" id="create_stock_price" class="form-control form-control-sm" oninput="recalcCreateStockTotal()">
                         </div>
                         <div class="col-md-3 create-fg-only d-none">
-                            <label class="form-label small fw-semibold">MRP (₹)</label>
+                            <label class="form-label small fw-semibold mb-1">MRP (₹)</label>
                             <input type="number" step="0.01" min="0" name="mrp" class="form-control form-control-sm">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Total Value (₹)</label>
-                            <input type="number" step="0.01" min="0" name="total_value" id="create_stock_total" class="form-control form-control-sm fw-bold">
+                            <label class="form-label small fw-semibold mb-1">Total Value (₹)</label>
+                            <input type="number" step="0.01" min="0" name="total_value" id="create_stock_total" class="form-control form-control-sm fw-bold bg-light text-success">
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success btn-sm fw-semibold"><i class="bi bi-check-lg me-1"></i> Save Stock</button>
+                <div class="modal-footer py-2 px-4 bg-light border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-sm px-3 fw-semibold"><i class="bi bi-check-lg me-1"></i> Save Stock</button>
                 </div>
             </form>
         </div>
