@@ -70,6 +70,66 @@ class ConcernDashboardController extends Controller {
             );
         }
 
+        $sinceDate = date('Y-m-d', strtotime('-6 days'));
+        $cidWhereSales = $cid ? "AND concern_id = ?" : "";
+        $cidParams = $cid ? [$cid] : [];
+
+        $totalSales = (float)DB::fetchValue(
+            "SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices WHERE 1=1 {$cidWhereSales}",
+            $cidParams
+        );
+        $totalPurchases = (float)DB::fetchValue(
+            "SELECT COALESCE(SUM(net_amount), 0) FROM purchase_bills WHERE 1=1 {$cidWhereSales}",
+            $cidParams
+        );
+
+        $dailySalesRows = DB::fetchAll(
+            "SELECT DATE(invoice_date) AS dt, COALESCE(SUM(net_amount), 0) AS total
+             FROM sales_invoices
+             WHERE invoice_date >= ? {$cidWhereSales}
+             GROUP BY DATE(invoice_date)",
+            array_merge([$sinceDate], $cidParams)
+        );
+        $dailyPurchaseRows = DB::fetchAll(
+            "SELECT DATE(bill_date) AS dt, COALESCE(SUM(net_amount), 0) AS total
+             FROM purchase_bills
+             WHERE bill_date >= ? {$cidWhereSales}
+             GROUP BY DATE(bill_date)",
+            array_merge([$sinceDate], $cidParams)
+        );
+
+        $salesByDate = [];
+        foreach ($dailySalesRows as $r) {
+            $salesByDate[$r['dt']] = (float)$r['total'];
+        }
+        $purchasesByDate = [];
+        foreach ($dailyPurchaseRows as $r) {
+            $purchasesByDate[$r['dt']] = (float)$r['total'];
+        }
+
+        $dailyLabels = [];
+        $dailySales = [];
+        $dailyPurchases = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $d = date('Y-m-d', strtotime("-{$i} days"));
+            $dailyLabels[] = date('d M', strtotime($d));
+            $dailySales[] = $salesByDate[$d] ?? 0.0;
+            $dailyPurchases[] = $purchasesByDate[$d] ?? 0.0;
+        }
+
+        $invoiceCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `sales_invoices`"), 'Field');
+        $channelExpr = in_array('customer_channel', $invoiceCols, true)
+            ? "COALESCE(NULLIF(TRIM(customer_channel), ''), 'Direct Customer')"
+            : "COALESCE(NULLIF(TRIM(payment_mode), ''), 'Cash')";
+        $salesByChannel = DB::fetchAll(
+            "SELECT {$channelExpr} AS label, COALESCE(SUM(net_amount), 0) AS total, COUNT(*) AS cnt
+             FROM sales_invoices
+             WHERE 1=1 {$cidWhereSales}
+             GROUP BY label
+             ORDER BY total DESC",
+            $cidParams
+        );
+
         $this->render('concern/dashboard', [
             'pageTitle'       => 'Concern Dashboard',
             'currentModule'   => 'concern_dashboard',
@@ -82,6 +142,14 @@ class ConcernDashboardController extends Controller {
             'recentLedger'    => $recentLedger,
             'lowStocks'       => $lowStocks,
             'selectedCid'     => $cid,
+            'totalSales'      => $totalSales,
+            'totalPurchases'  => $totalPurchases,
+            'dailyChartData'  => [
+                'labels'    => $dailyLabels,
+                'sales'     => $dailySales,
+                'purchases' => $dailyPurchases,
+            ],
+            'salesByChannel'  => $salesByChannel,
         ]);
     }
 
