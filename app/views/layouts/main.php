@@ -525,6 +525,7 @@
             </div>
 
             <div class="navbar-right">
+                <div id="topNavExportHost" class="d-none align-items-center gap-2"></div>
                 <div class="dropdown">
                     <button class="btn btn-sm btn-light border dropdown-toggle d-flex align-items-center gap-1.5 shadow-sm px-2.5" type="button" data-bs-toggle="dropdown" style="height: 32px; font-size: 0.82rem; border-radius: 8px;">
                         <i class="bi bi-person-circle fs-6 text-secondary"></i>

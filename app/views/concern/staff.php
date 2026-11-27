@@ -13,17 +13,6 @@
                 <?= $activeConcern ? 'Concern: ' . htmlspecialchars($activeConcern['name']) : 'Choose Concern' ?>
                 <i class="bi bi-chevron-down ms-1 small"></i>
             </button>
-            <?php if (\App\Core\Auth::can('staff', 'add')): ?>
-                <?php if ($activeConcern): ?>
-                    <a href="<?= \App\Core\Controller::url('/m/staff/create?concern_id=' . $selectedCid) ?>" class="btn btn-primary shadow-sm">
-                        <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
-                    </a>
-                <?php else: ?>
-                    <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="btn btn-primary shadow-sm">
-                        <i class="bi bi-person-plus-fill me-1"></i> Add New Staff
-                    </a>
-                <?php endif; ?>
-            <?php endif; ?>
         </div>
     </div>
 

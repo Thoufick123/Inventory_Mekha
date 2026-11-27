@@ -175,6 +175,18 @@ class AdminController extends Controller {
              ORDER BY c.id DESC"
         );
 
+        $concernChartData = DB::fetchAll(
+            "SELECT c.id, c.code, c.name,
+                    (SELECT COUNT(*) FROM variants v WHERE v.concern_id = c.id) AS total_variants,
+                    (SELECT COALESCE(SUM(s.qty), 0) FROM stocks s WHERE s.concern_id = c.id) AS total_stock_qty,
+                    (SELECT COALESCE(SUM(s.qty * v.price), 0) FROM stocks s JOIN variants v ON s.variant_id = v.id WHERE s.concern_id = c.id) AS stock_valuation,
+                    (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id) AS total_sales,
+                    (SELECT COALESCE(SUM(net_amount), 0) FROM purchase_bills pb WHERE pb.concern_id = c.id) AS total_purchases
+             FROM concerns c
+             WHERE c.status = 'active'
+             ORDER BY c.id ASC"
+        );
+
         $recentAudits = DB::fetchAll(
             "SELECT a.*, u.name AS user_name, c.name AS concern_name 
              FROM audit_log a
@@ -184,14 +196,15 @@ class AdminController extends Controller {
         );
 
         $this->render('admin/dashboard', [
-            'pageTitle'       => 'Super Admin Dashboard',
-            'currentModule'   => 'admin_dashboard',
-            'concernsCount'   => (int)$concernsCount,
-            'usersCount'      => (int)$usersCount,
-            'assetsCount'     => (int)$assetsCount,
-            'assetsValuation' => (float)$assetsValuation,
-            'concerns'        => $concerns,
-            'recentAudits'    => $recentAudits,
+            'pageTitle'        => 'Super Admin Dashboard',
+            'currentModule'    => 'admin_dashboard',
+            'concernsCount'    => (int)$concernsCount,
+            'usersCount'       => (int)$usersCount,
+            'assetsCount'      => (int)$assetsCount,
+            'assetsValuation'  => (float)$assetsValuation,
+            'concerns'         => $concerns,
+            'concernChartData' => $concernChartData,
+            'recentAudits'     => $recentAudits,
         ]);
     }
 

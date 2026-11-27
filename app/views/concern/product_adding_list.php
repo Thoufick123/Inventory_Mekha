@@ -1,28 +1,34 @@
 <div class="container-fluid px-0">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-        <div>
-            <h4 class="fw-bold mb-1 text-dark">Product Adding</h4>
-            <p class="text-secondary small mb-0">Review Product Adding bills, Purchase Billing invoices, and manage 3-tier hierarchies, attributes, and HSN codes.</p>
-        </div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h4 class="fw-bold mb-0 text-dark">Product Adding</h4>
         <div class="d-flex align-items-center flex-wrap gap-2">
-            <ul class="nav nav-pills bg-light p-1 rounded-3 border" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'purchases') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-purchases-btn" data-bs-toggle="pill" data-bs-target="#tab-purchases" type="button" role="tab">
-                        <i class="bi bi-receipt me-1"></i> Product Purchases (<?= count($bills) ?>)
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'hierarchy') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-pa-hierarchy-btn" data-bs-toggle="pill" data-bs-target="#tab-pa-hierarchy" type="button" role="tab">
-                        <i class="bi bi-diagram-3 me-1"></i> 3-Tier Hierarchy &amp; Attributes
-                    </button>
-                </li>
-            </ul>
+            <?php
+            $exportUrl = \App\Core\Controller::url('/m/product_adding/export');
+            $currentModule = 'product_adding';
+            $prefix = 'pa_exp';
+            include dirname(__DIR__) . '/partials/export_card.php';
+            ?>
             <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
                 <a href="<?= $createUrl ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background:#4f46e5;">
                     <i class="bi bi-bag-plus"></i>Create Product Purchase
                 </a>
             <?php endif; ?>
         </div>
+    </div>
+
+    <div class="mb-4">
+        <ul class="nav nav-pills bg-light p-1 rounded-3 border d-inline-flex" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'purchases') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-purchases-btn" data-bs-toggle="pill" data-bs-target="#tab-purchases" type="button" role="tab">
+                    <i class="bi bi-receipt me-1"></i> Product Purchases (<?= count($bills) ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= (($activeTab ?? 'purchases') === 'hierarchy') ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-pa-hierarchy-btn" data-bs-toggle="pill" data-bs-target="#tab-pa-hierarchy" type="button" role="tab">
+                    <i class="bi bi-diagram-3 me-1"></i> 3-Tier Hierarchy &amp; Attributes
+                </button>
+            </li>
+        </ul>
     </div>
 
     <?php if (!empty($flashSuccess)): ?>
@@ -101,16 +107,6 @@
         </div>
     </div>
 
-    <!-- Export Toolbar Card -->
-    <?php
-    $exportTitle = 'Export Product Adding Bills (Excel, PDF, CSV)';
-    $exportSubtitle = 'Download registered purchase bills, supplier invoices, line counts & stock inward status';
-    $exportUrl = \App\Core\Controller::url('/m/product_adding/export');
-    $currentModule = 'product_adding';
-    $prefix = 'pa_exp';
-    include dirname(__DIR__) . '/partials/export_card.php';
-    ?>
-
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
@@ -118,7 +114,6 @@
                 <h6 class="mb-0 fw-bold">Product Purchase Bills &amp; Eligible Purchase Billing Invoices</h6>
                 <span class="badge bg-light text-dark border"><?= count($bills) ?> bills</span>
             </div>
-            <span class="small text-muted">Partially or fully stocked Purchase Billing invoices are hidden; Product Adding bills can be deleted only when their stock is safe to reverse.</span>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">

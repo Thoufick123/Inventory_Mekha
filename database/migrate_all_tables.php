@@ -137,6 +137,20 @@ if (!in_array('attachment_paths', $cols)) {
     echo "  . `attachment_paths` already exists\n";
 }
 
+if (!in_array('purchase_billing_completed', $cols)) {
+    DB::query("ALTER TABLE `purchase_bills` ADD COLUMN `purchase_billing_completed` TINYINT(1) NOT NULL DEFAULT 0");
+    echo "  + Added `purchase_billing_completed` to `purchase_bills`\n";
+} else {
+    echo "  . `purchase_billing_completed` already exists\n";
+}
+
+if (!in_array('product_adding_completed', $cols)) {
+    DB::query("ALTER TABLE `purchase_bills` ADD COLUMN `product_adding_completed` TINYINT(1) NOT NULL DEFAULT 0");
+    echo "  + Added `product_adding_completed` to `purchase_bills`\n";
+} else {
+    echo "  . `product_adding_completed` already exists\n";
+}
+
 // 6. PURCHASE_BILL_ITEMS
 echo "\n6. Checking `purchase_bill_items`...\n";
 $cols = array_column(DB::fetchAll("SHOW COLUMNS FROM `purchase_bill_items`"), 'Field');
