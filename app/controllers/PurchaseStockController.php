@@ -352,6 +352,13 @@ class PurchaseStockController extends Controller {
         $canAddPurchaseStock = $isSuperAdmin || Auth::can('purchase_stocks', 'add');
         $canDeletePurchaseStock = $isSuperAdmin || Auth::can('purchase_stocks', 'delete');
         $damageData = PurchaseController::fetchPurchaseDamageData($selectedCid);
+        $hsnList = DB::fetchAll(
+            "SELECT code_type, hsn_code, description, category, gst_rate, rate_note
+             FROM hsn_masters
+             WHERE is_active = 1 AND code_type = 'HSN' AND (? = 0 OR concern_id = ? OR concern_id IS NULL)
+             ORDER BY hsn_code ASC",
+            [$selectedCid ?: 0, $selectedCid ?: 0]
+        );
 
         $this->render('concern/purchase_stocks', [
             'pageTitle'              => 'Purchase Stocks & Inventory',
@@ -364,6 +371,7 @@ class PurchaseStockController extends Controller {
             'finishedGoods'          => $finishedGoods,
             'metrics'                => $metrics,
             'suppliers'              => $suppliers,
+            'hsnList'                => $hsnList,
             'allConcerns'            => $allConcerns,
             'selectedCid'            => $selectedCid,
             'isSuperAdmin'           => $isSuperAdmin,
@@ -517,6 +525,8 @@ class PurchaseStockController extends Controller {
         $color = strtoupper(trim((string)($_POST['color'] ?? '')));
         $specification = trim((string)($_POST['specification'] ?? ''));
         $hsnCode = trim((string)($_POST['hsn_code'] ?? ''));
+        $gstRate = (float)($_POST['gst_rate'] ?? 0);
+        if ($gstRate < 0) $gstRate = 0.0;
         $unit = trim((string)($_POST['unit'] ?? ($sectionType === 'rolls' ? 'Rolls' : 'Pieces')));
 
         $qty = (float)($_POST['qty'] ?? 0);
@@ -564,17 +574,20 @@ class PurchaseStockController extends Controller {
 
         DB::beginTransaction();
         try {
+            $taxAmount = $gstRate > 0 ? round($totalPrice * ($gstRate / 100), 2) : 0.00;
+            $gstType = $gstRate > 0 ? 'GST' : 'Exempted';
+            $netAmount = $totalPrice + $taxAmount;
             $billNo = 'STK-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
             DB::query(
                 "INSERT INTO purchase_bills (concern_id, supplier_id, bill_no, bill_date, total_amount, tax_amount, net_amount, payment_status, inward_status, notes, created_by)
-                 VALUES (?, ?, ?, CURDATE(), ?, 0.00, ?, 'Paid', 'completed', 'Direct Purchase Stock Entry', ?)",
-                [$concernId, $supplierId, $billNo, $totalPrice, $totalPrice, Auth::id()]
+                 VALUES (?, ?, ?, CURDATE(), ?, ?, ?, 'Paid', 'completed', 'Direct Purchase Stock Entry', ?)",
+                [$concernId, $supplierId, $billNo, $totalPrice, $taxAmount, $netAmount, Auth::id()]
             );
             $billId = (int)DB::lastInsertId();
 
             DB::query(
-                "INSERT INTO purchase_bill_items (concern_id, purchase_bill_id, section_type, item_name, item_code, hsn_code, color, pattern, specification, qty, net_weight, unit, unit_price, mrp, total_price, inward_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')",
+                "INSERT INTO purchase_bill_items (concern_id, purchase_bill_id, section_type, item_name, item_code, hsn_code, color, pattern, specification, qty, net_weight, unit, unit_price, mrp, gst_type, gst_rate, tax_amount, total_price, inward_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')",
                 [
                     $concernId,
                     $billId,
@@ -590,6 +603,9 @@ class PurchaseStockController extends Controller {
                     $unit ?: ($sectionType === 'rolls' ? 'Rolls' : 'Pieces'),
                     $unitPrice,
                     $mrp,
+                    $gstType,
+                    $gstRate,
+                    $taxAmount,
                     $totalPrice,
                 ]
             );

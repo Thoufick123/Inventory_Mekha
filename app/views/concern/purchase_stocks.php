@@ -1290,8 +1290,10 @@ function escapeHtmlHtml(str) {
 
 function openCreatePurchaseStockModal(defaultTab) {
     const modalEl = document.getElementById('createPurchaseStockModal');
+    const formEl = modalEl ? modalEl.querySelector('form') : null;
     const secSel = document.getElementById('create_stock_section_type');
     if (!modalEl || !secSel) return;
+    if (formEl) formEl.reset();
     if (defaultTab && ['rolls', 'garment_other', 'finished_goods'].includes(defaultTab)) {
         secSel.value = defaultTab;
     }
@@ -1303,19 +1305,23 @@ function toggleCreateStockFields() {
     const sec = document.getElementById('create_stock_section_type')?.value || 'rolls';
     const rollFields = document.querySelectorAll('.create-roll-only');
     const mrpField = document.querySelectorAll('.create-fg-only');
-    const unitInp = document.getElementById('create_stock_unit');
     rollFields.forEach(el => el.classList.toggle('d-none', sec !== 'rolls'));
     mrpField.forEach(el => el.classList.toggle('d-none', sec !== 'finished_goods'));
-    if (unitInp && (!unitInp.value || unitInp.value === 'Rolls' || unitInp.value === 'Pieces')) {
-        unitInp.value = sec === 'rolls' ? 'Rolls' : 'Pieces';
-    }
+}
+
+function onCreateStockHsnChange(selectEl) {
+    const gstInput = document.getElementById('create_stock_gst');
+    if (!selectEl || !gstInput) return;
+    const opt = selectEl.options[selectEl.selectedIndex];
+    const gstVal = opt ? opt.getAttribute('data-gst') : '';
+    gstInput.value = gstVal !== null && gstVal !== '' ? parseFloat(gstVal).toFixed(2) : '';
 }
 
 function recalcCreateStockTotal() {
     const qty = parseFloat(document.getElementById('create_stock_qty')?.value || 0) || 0;
     const price = parseFloat(document.getElementById('create_stock_price')?.value || 0) || 0;
     const totalEl = document.getElementById('create_stock_total');
-    if (totalEl) totalEl.value = (qty * price).toFixed(2);
+    if (totalEl) totalEl.value = (qty || price) ? (qty * price).toFixed(2) : '';
 }
 
 function confirmDeletePurchaseStock(button) {
@@ -1392,51 +1398,54 @@ function confirmDeletePurchaseStock(button) {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Item / Fabric Name <span class="text-danger">*</span></label>
-                            <input type="text" name="item_name" class="form-control form-control-sm" placeholder="e.g. Cotton / Button / Shirt" required>
+                            <input type="text" name="item_name" class="form-control form-control-sm" required>
                         </div>
                         <div class="col-md-4 create-roll-only">
                             <label class="form-label small fw-semibold">Design / Pattern <span class="text-danger">*</span></label>
-                            <input type="text" name="pattern" class="form-control form-control-sm text-uppercase" placeholder="e.g. MICKY">
+                            <input type="text" name="pattern" class="form-control form-control-sm text-uppercase">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold">Color / Shade</label>
-                            <input type="text" name="color" class="form-control form-control-sm text-uppercase" placeholder="e.g. RED">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Item Code / SKU</label>
-                            <input type="text" name="item_code" class="form-control form-control-sm font-monospace" placeholder="Auto or custom code">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Specification</label>
-                            <input type="text" name="specification" class="form-control form-control-sm" placeholder="Size / GSM / Spec">
+                            <input type="text" name="color" class="form-control form-control-sm text-uppercase">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold">HSN Code</label>
-                            <input type="text" name="hsn_code" class="form-control form-control-sm font-monospace" placeholder="e.g. 5112">
+                            <select name="hsn_code" id="create_stock_hsn" class="form-select form-select-sm font-monospace" onchange="onCreateStockHsnChange(this)">
+                                <option value="" data-gst="">-- Select HSN --</option>
+                                <?php foreach ($hsnList ?? [] as $hsnItem): ?>
+                                    <option value="<?= htmlspecialchars((string)$hsnItem['hsn_code']) ?>" data-gst="<?= $hsnItem['gst_rate'] !== null ? (float)$hsnItem['gst_rate'] : '' ?>">
+                                        <?= htmlspecialchars((string)$hsnItem['hsn_code']) ?><?= !empty($hsnItem['description']) ? ' - ' . htmlspecialchars(mb_strimwidth((string)$hsnItem['description'], 0, 36, '...')) : '' ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">GST (%)</label>
+                            <input type="number" step="0.01" min="0" name="gst_rate" id="create_stock_gst" class="form-control form-control-sm">
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">Quantity <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0.01" name="qty" id="create_stock_qty" class="form-control form-control-sm" value="1" required oninput="recalcCreateStockTotal()">
+                            <input type="number" step="0.01" min="0.01" name="qty" id="create_stock_qty" class="form-control form-control-sm" required oninput="recalcCreateStockTotal()">
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">Unit <span class="text-danger">*</span></label>
-                            <input type="text" name="unit" id="create_stock_unit" class="form-control form-control-sm" value="Rolls" required>
+                            <input type="text" name="unit" id="create_stock_unit" class="form-control form-control-sm" required>
                         </div>
                         <div class="col-md-3 create-roll-only">
                             <label class="form-label small fw-semibold">Total Weight (kg)</label>
-                            <input type="number" step="0.01" min="0" name="net_weight" class="form-control form-control-sm" value="0.00">
+                            <input type="number" step="0.01" min="0" name="net_weight" class="form-control form-control-sm">
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">Unit Rate (₹)</label>
-                            <input type="number" step="0.01" min="0" name="unit_price" id="create_stock_price" class="form-control form-control-sm" value="0.00" oninput="recalcCreateStockTotal()">
+                            <input type="number" step="0.01" min="0" name="unit_price" id="create_stock_price" class="form-control form-control-sm" oninput="recalcCreateStockTotal()">
                         </div>
                         <div class="col-md-3 create-fg-only d-none">
                             <label class="form-label small fw-semibold">MRP (₹)</label>
-                            <input type="number" step="0.01" min="0" name="mrp" class="form-control form-control-sm" value="0.00">
+                            <input type="number" step="0.01" min="0" name="mrp" class="form-control form-control-sm">
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">Total Value (₹)</label>
-                            <input type="number" step="0.01" min="0" name="total_value" id="create_stock_total" class="form-control form-control-sm fw-bold" value="0.00">
+                            <input type="number" step="0.01" min="0" name="total_value" id="create_stock_total" class="form-control form-control-sm fw-bold">
                         </div>
                     </div>
                 </div>
