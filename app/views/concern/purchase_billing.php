@@ -241,11 +241,11 @@
                                     <?php else: ?><span class="text-muted">-</span><?php endif; ?>
                                 </td>
                                 <td class="text-nowrap"><?= date('d M Y', strtotime($b['bill_date'])) ?></td>
-                                <td>
+                                <td class="text-nowrap">
                                     <?php if (empty($types)): ?>
                                         <span class="text-muted small">-</span>
                                     <?php else: ?>
-                                        <div class="d-flex flex-wrap gap-1 align-items-center">
+                                        <div class="d-inline-flex flex-nowrap gap-1 align-items-center">
                                             <?php if (in_array('rolls', $types)): ?>
                                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
                                                     <i class="bi bi-layers-fill me-1"></i>Roll
