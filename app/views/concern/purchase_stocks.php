@@ -1309,13 +1309,79 @@ function toggleCreateStockFields() {
     mrpField.forEach(el => el.classList.toggle('d-none', sec !== 'finished_goods'));
 }
 
-function onCreateStockHsnChange(selectEl) {
+const purchaseStockHsnList = <?= json_encode($hsnList ?? []) ?>;
+
+function renderCreateStockHsnMenu(query = '') {
+    const menu = document.getElementById('createStockHsnMenu');
+    const hsnInput = document.getElementById('create_stock_hsn');
     const gstInput = document.getElementById('create_stock_gst');
-    if (!selectEl || !gstInput) return;
-    const opt = selectEl.options[selectEl.selectedIndex];
-    const gstVal = opt ? opt.getAttribute('data-gst') : '';
-    gstInput.value = gstVal !== null && gstVal !== '' ? parseFloat(gstVal).toFixed(2) : '';
+    if (!menu || !hsnInput) return;
+
+    const q = (query || '').trim().toLowerCase();
+    const matches = (Array.isArray(purchaseStockHsnList) ? purchaseStockHsnList : []).filter(item => {
+        if (!q) return true;
+        const hay = [item.hsn_code, item.description, item.category, item.rate_note].join(' ').toLowerCase();
+        return hay.includes(q);
+    }).slice(0, 40);
+
+    if (!matches.length) {
+        menu.innerHTML = '<div class="px-3 py-2 small text-muted">No matching HSN codes</div>';
+        menu.classList.add('show');
+        return;
+    }
+
+    menu.innerHTML = matches.map(item => {
+        const code = escapeHtmlHtml(item.hsn_code || '');
+        const desc = escapeHtmlHtml(item.description || '');
+        const note = escapeHtmlHtml(item.rate_note || '');
+        const gst = item.gst_rate !== null && item.gst_rate !== '' ? parseFloat(item.gst_rate).toFixed(2) : '';
+        return `
+            <button type="button" class="dropdown-item py-2 px-3 border-bottom text-wrap create-stock-hsn-opt"
+                    data-hsn="${code}" data-gst="${gst}" style="white-space: normal;">
+                <div class="d-flex justify-content-between align-items-center gap-2">
+                    <span class="fw-bold text-dark font-monospace">HSN ${code}</span>
+                    ${gst !== '' ? `<span class="badge bg-success-subtle text-success border border-success-subtle">${gst}% GST</span>` : ''}
+                </div>
+                ${desc ? `<div class="small text-muted mt-0.5">${desc}</div>` : ''}
+                ${note ? `<div class="small mt-0.5" style="color: #b45309;">${note}</div>` : ''}
+            </button>
+        `;
+    }).join('');
+
+    menu.querySelectorAll('.create-stock-hsn-opt').forEach(btn => {
+        btn.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            hsnInput.value = this.dataset.hsn || '';
+            if (gstInput) {
+                gstInput.value = this.dataset.gst !== '' ? this.dataset.gst : '';
+            }
+            menu.classList.remove('show');
+        });
+    });
+
+    menu.classList.add('show');
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const hsnInput = document.getElementById('create_stock_hsn');
+    const menu = document.getElementById('createStockHsnMenu');
+    const gstInput = document.getElementById('create_stock_gst');
+    if (hsnInput && menu) {
+        hsnInput.addEventListener('focus', () => renderCreateStockHsnMenu(hsnInput.value));
+        hsnInput.addEventListener('input', () => {
+            renderCreateStockHsnMenu(hsnInput.value);
+            const exact = (Array.isArray(purchaseStockHsnList) ? purchaseStockHsnList : []).find(
+                item => String(item.hsn_code || '').trim() === hsnInput.value.trim()
+            );
+            if (exact && gstInput && exact.gst_rate !== null && exact.gst_rate !== '') {
+                gstInput.value = parseFloat(exact.gst_rate).toFixed(2);
+            }
+        });
+        hsnInput.addEventListener('blur', () => {
+            setTimeout(() => menu.classList.remove('show'), 150);
+        });
+    }
+});
 
 function recalcCreateStockTotal() {
     const qty = parseFloat(document.getElementById('create_stock_qty')?.value || 0) || 0;
@@ -1410,14 +1476,10 @@ function confirmDeletePurchaseStock(button) {
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold">HSN Code</label>
-                            <select name="hsn_code" id="create_stock_hsn" class="form-select form-select-sm font-monospace" onchange="onCreateStockHsnChange(this)">
-                                <option value="" data-gst="">-- Select HSN --</option>
-                                <?php foreach ($hsnList ?? [] as $hsnItem): ?>
-                                    <option value="<?= htmlspecialchars((string)$hsnItem['hsn_code']) ?>" data-gst="<?= $hsnItem['gst_rate'] !== null ? (float)$hsnItem['gst_rate'] : '' ?>">
-                                        <?= htmlspecialchars((string)$hsnItem['hsn_code']) ?><?= !empty($hsnItem['description']) ? ' - ' . htmlspecialchars(mb_strimwidth((string)$hsnItem['description'], 0, 36, '...')) : '' ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="position-relative">
+                                <input type="text" name="hsn_code" id="create_stock_hsn" class="form-control form-control-sm font-monospace" autocomplete="off">
+                                <div id="createStockHsnMenu" class="dropdown-menu shadow-sm w-100 p-0" style="max-height: 260px; overflow-y: auto; z-index: 1065; min-width: 340px;"></div>
+                            </div>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">GST (%)</label>
