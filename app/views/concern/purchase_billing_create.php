@@ -341,12 +341,6 @@ if ($isEdit && !empty($existingItems)) {
 </style>
 <?php endif; ?>
 <div class="container-fluid px-0">
-    <!-- Header -->
-    <div class="d-flex justify-content-end align-items-center mb-3">
-        <a href="<?= $backUrl ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm rounded-2">
-            <i class="bi bi-arrow-left me-1"></i> <?= htmlspecialchars($backLabel) ?>
-        </a>
-    </div>
 
     <?php if ($isProductAddingForm && !empty($savedBill)): ?>
         <section class="card border-0 shadow-sm mb-4">
