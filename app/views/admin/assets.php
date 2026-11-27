@@ -4,9 +4,11 @@
             <h4 class="fw-bold mb-1 text-dark">Enterprise Asset Management</h4>
             <p class="text-secondary small mb-0">Track fixed equipment, machinery, factory fixtures, and company assets across all concerns.</p>
         </div>
+        <?php if (\App\Core\Auth::can('admin_assets', 'add')): ?>
         <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddAsset">
             <i class="bi bi-plus-circle me-1"></i> Add Company Asset
         </button>
+        <?php endif; ?>
     </div>
 
     <!-- Export Intelligence Toolbar -->
@@ -72,9 +74,12 @@
                                         <button type="button" class="btn btn-sm btn-outline-info" onclick='openViewAssetModal(<?= json_encode($a, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View Asset Details">
                                             <i class="bi bi-eye"></i>
                                         </button>
+                                        <?php if (\App\Core\Auth::can('admin_assets', 'edit')): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick='openEditAssetModal(<?= json_encode($a, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="Edit Asset">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <?php endif; ?>
+                                        <?php if (\App\Core\Auth::can('admin_assets', 'delete')): ?>
                                         <form action="<?= \App\Core\Controller::url('/admin/assets/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete asset <?= htmlspecialchars(addslashes($a['name'])) ?>?');">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="id" value="<?= $a['id'] ?>">
@@ -82,6 +87,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
