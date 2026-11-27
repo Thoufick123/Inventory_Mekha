@@ -124,7 +124,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light text-muted small">
                     <tr>
-                        <th>Bill No</th>
+                        <th style="width: 40px;">#</th>
                         <th>Supplier Invoice</th>
                         <th>Supplier</th>
                         <?php if (empty($selectedCid)): ?><th>Concern</th><?php endif; ?>
@@ -150,18 +150,13 @@
                             </td>
                         </tr>
                     <?php else: ?>
-                        <?php foreach ($bills as $bill): ?>
+                        <?php $paIdx = 1; foreach ($bills as $bill): ?>
                             <?php
                             $paymentStatus = strtolower((string)($bill['payment_status'] ?? 'unpaid'));
                             $inwardStatus = strtolower((string)($bill['inward_status'] ?? 'pending'));
                             ?>
                             <tr>
-                                <td>
-                                    <span class="badge bg-dark font-monospace"><?= htmlspecialchars($bill['bill_no']) ?></span>
-                                    <?php if (($bill['source_module'] ?? '') === 'purchase_billing'): ?>
-                                        <span class="badge bg-info-subtle text-info border mt-1">Purchase Billing</span>
-                                    <?php endif; ?>
-                                </td>
+                                <td class="text-muted small"><?= $paIdx++ ?></td>
                                 <td><span class="font-monospace"><?= htmlspecialchars($bill['supplier_invoice_no'] ?: '-') ?></span></td>
                                 <td>
                                     <div class="fw-semibold"><?= htmlspecialchars($bill['supplier_name'] ?? 'Supplier') ?></div>

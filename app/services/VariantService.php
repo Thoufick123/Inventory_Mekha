@@ -26,9 +26,9 @@ class VariantService
         $hsnCode = strtoupper(trim((string)($data['hsn_code'] ?? '')));
         $weight = round((float)($data['weight'] ?? 0), 3);
         $weightUnit = trim((string)($data['weight_unit'] ?? 'kg')) ?: 'kg';
-        $costPrice = round((float)($data['cost_price'] ?? 0), 2);
+        $costPrice = 0.00;
         $price = round((float)($data['price'] ?? 0), 2);
-        $mrp = round((float)($data['mrp'] ?? 0), 2);
+        $mrp = 0.00;
 
         $customAttrs = self::normalizeCustomAttributes($data['custom_attributes'] ?? []);
 
@@ -45,8 +45,6 @@ class VariantService
                AND COALESCE(v.sub_sub_category_id, c.sub_sub_category_id, 0) = ?
                AND LOWER(TRIM(COALESCE(v.size, ''))) = LOWER(TRIM(?))
                AND ROUND(v.price, 2) = ?
-               AND ROUND(v.cost_price, 2) = ?
-               AND ROUND(v.mrp, 2) = ?
              ORDER BY v.id ASC",
             [
                 $concernId,
@@ -56,8 +54,6 @@ class VariantService
                 $subSubcategoryId ?? 0,
                 $size,
                 $price,
-                $costPrice,
-                $mrp,
             ]
         );
 

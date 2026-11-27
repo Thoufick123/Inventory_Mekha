@@ -1171,7 +1171,7 @@ CREATE TABLE IF NOT EXISTS `purchase_bills` (
   `source_module` varchar(50) NOT NULL DEFAULT 'purchase_billing',
   `purchase_billing_completed` tinyint(1) NOT NULL DEFAULT '0',
   `product_adding_completed` tinyint(1) NOT NULL DEFAULT '0',
-  `supplier_id` int NOT NULL,
+  `supplier_id` int DEFAULT NULL,
   `bill_date` date NOT NULL,
   `total_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
   `tax_amount` decimal(12,2) NOT NULL DEFAULT '0.00',

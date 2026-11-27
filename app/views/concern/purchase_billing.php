@@ -130,7 +130,6 @@
                 <thead class="table-light text-muted small">
                     <tr>
                         <th style="width: 40px;">#</th>
-                        <th>Bill No</th>
                         <th>Supplier</th>
                         <th>Supplier Inv #</th>
                         <th>Bill Date</th>
@@ -146,7 +145,7 @@
                 </thead>
                 <tbody id="billsTableBody">
                     <?php if (empty($bills)): ?>
-                        <tr><td colspan="13" class="text-center py-4 text-muted">No purchase bills recorded. Click "Record Production Purchase" to create one.</td></tr>
+                        <tr><td colspan="12" class="text-center py-4 text-muted">No purchase bills recorded. Click "Record Production Purchase" to create one.</td></tr>
                     <?php else: ?>
                         <?php $bIdx = 1; foreach ($bills as $b): ?>
                             <?php
@@ -163,16 +162,6 @@
                                 data-payment="<?= $pmtStatus ?>"
                                 data-inward="<?= $inwStatus ?>">
                                 <td class="text-muted small"><?= $bIdx++ ?></td>
-                                <td>
-                                    <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . $b['id']) ?>" class="badge bg-dark font-monospace text-decoration-none">
-                                        <?= htmlspecialchars($b['bill_no']) ?>
-                                    </a>
-                                    <?php if (($b['source_module'] ?? '') === 'product_adding'): ?>
-                                        <span class="badge bg-info-subtle text-info border mt-1 d-inline-block">Product Adding</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-primary-subtle text-primary border mt-1 d-inline-block">Purchase Billing</span>
-                                    <?php endif; ?>
-                                </td>
                                 <td>
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($b['supplier_name']) ?></div>
                                     <?php if (!empty($b['concern_name']) && empty($selectedCid)): ?>

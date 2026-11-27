@@ -36,7 +36,7 @@
         <div class="col-12 col-sm-6 col-xl-4">
             <div class="card-stat d-flex justify-content-between align-items-center">
                 <div>
-                    <span class="text-secondary small fw-semibold text-uppercase">Total Cost Valuation</span>
+                    <span class="text-secondary small fw-semibold text-uppercase">Total Stock Valuation</span>
                     <h3 class="fw-bold text-success mt-1 mb-0">₹<?= number_format($totalValuation, 2) ?></h3>
                 </div>
                 <div class="stat-icon-box bg-success bg-opacity-10 text-success">
@@ -73,7 +73,6 @@
                         <small class="text-muted">
                             <?= number_format((int)$sourceMetric['variant_count']) ?>
                             <?= (int)$sourceMetric['variant_count'] === 1 ? 'variant' : 'variants' ?>
-                            · Cost ₹<?= number_format((float)$sourceMetric['valuation'], 2) ?>
                         </small>
                     </div>
                     <div class="stat-icon-box bg-<?= htmlspecialchars($sourceColor) ?> bg-opacity-10 text-<?= htmlspecialchars($sourceColor) ?>">
@@ -150,7 +149,7 @@
                         <th>Variant Description</th>
                         <th>Category / Specs</th>
                         <th>Qty</th>
-                        <th>Cost / Selling Price</th>
+                        <th>Selling Price</th>
                         <th>Net Value</th>
                         <th class="text-end">Actions</th>
                     </tr>
@@ -169,9 +168,9 @@
                                         $color = trim($cm[1]);
                                     }
                                     $hsn = trim((string)($variantAttributes['hsn'] ?? ($s['catalog_hsn'] ?? '')));
-                                    $fgCode = ($s['stock_source'] ?? '') === 'own'
-                                        ? (\App\Services\QrService::formatBrandVariantCode((int)$s['variant_id']) ?: \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']))
-                                        : \App\Services\QrService::generateFinishedGoodsCode((int)$s['variant_id']);
+                                    $labelVariantId = (int)($s['canonical_variant_id'] ?? $s['variant_id']);
+                                    $fgCode = \App\Services\QrService::formatBrandVariantCode($labelVariantId)
+                                        ?: \App\Services\QrService::generateFinishedGoodsCode($labelVariantId);
                                     $qrPayload = !empty($fgCode)
                                         ? $fgCode
                                         : (!empty($s['qr_payload'])
@@ -256,8 +255,10 @@
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="d-block text-success">Cost ₹<?= number_format((float)$s['cost_price'], 2) ?></span>
-                                            <small class="d-block text-muted">Selling ₹<?= number_format((float)$s['price'], 2) ?> · MRP ₹<?= number_format((float)$s['mrp'], 2) ?></small>
+                                            <span class="d-block fw-bold text-success">₹<?= number_format((float)$s['price'], 2) ?></span>
+                                            <?php if ((float)$s['mrp'] > 0): ?>
+                                                <small class="d-block text-muted">MRP ₹<?= number_format((float)$s['mrp'], 2) ?></small>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="fw-bold text-dark">₹<?= number_format($s['qty'] * $s['price'], 2) ?></td>
                                         <td class="text-end">
@@ -622,20 +623,12 @@
                                 <strong id="detailWeight" class="text-dark">-</strong>
                             </div>
                             <div class="col-sm-6 col-md-4">
-                                <span class="text-muted d-block">Cost Price</span>
-                                <strong id="detailCostPrice" class="text-dark text-success">-</strong>
-                            </div>
-                            <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">Selling Price</span>
-                                <strong id="detailSellingPrice" class="text-dark">-</strong>
+                                <strong id="detailSellingPrice" class="text-dark text-success">-</strong>
                             </div>
                             <div class="col-sm-6 col-md-4">
                                 <span class="text-muted d-block">Selling MRP</span>
                                 <strong id="detailMrp" class="text-dark">-</strong>
-                            </div>
-                            <div class="col-sm-6 col-md-4">
-                                <span class="text-muted d-block">Stock Valuation at Cost</span>
-                                <strong id="detailValuation" class="text-dark text-primary">-</strong>
                             </div>
                         </div>
                     </div>
@@ -916,24 +909,18 @@
                         </div>
                     </div>
 
-                    <!-- 3. Pricing & Valuation -->
-                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-1"><i class="bi bi-cash-stack me-1 text-primary"></i> 3. Pricing & Valuation</h6>
+                    <!-- 3. Pricing -->
+                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-1"><i class="bi bi-cash-stack me-1 text-primary"></i> 3. Pricing</h6>
+                    <input type="hidden" id="stockEditCostPrice" name="cost_price" value="0">
                     <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold small text-muted" for="stockEditCostPrice">Cost Price (₹) *</label>
-                            <div class="input-group">
-                                <span class="input-group-text">₹</span>
-                                <input type="number" class="form-control" id="stockEditCostPrice" name="cost_price" step="0.01" min="0" max="9999999999.99" required placeholder="0.00">
-                            </div>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label fw-semibold small text-muted" for="stockEditPrice">Selling Price (₹) *</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
                                 <input type="number" class="form-control" id="stockEditPrice" name="price" step="0.01" min="0" max="9999999999.99" required placeholder="0.00">
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label fw-semibold small text-muted" for="stockEditMrp">Selling MRP (₹) *</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
@@ -942,7 +929,7 @@
                         </div>
                         <div class="col-12">
                             <div id="stockEditPriceValidation" class="small text-danger" aria-live="polite"></div>
-                            <small class="form-text text-muted">Enter prices in this order: Cost Price &lt; Selling Price &lt; MRP.</small>
+                            <small class="form-text text-muted">Enter Selling Price &lt; MRP.</small>
                         </div>
                     </div>
                 </div>
@@ -1027,11 +1014,10 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
         document.getElementById('detailHsn').textContent = d.hsn || '-';
         document.getElementById('detailSpecStyleCode').textContent = d.styleCode || '-';
         document.getElementById('detailWeight').textContent = d.weight || '-';
-        document.getElementById('detailCostPrice').textContent = '₹' + (d.costPrice || '0.00');
+        const detailCostEl = document.getElementById('detailCostPrice');
+        if (detailCostEl) detailCostEl.textContent = '₹' + (d.costPrice || '0.00');
         document.getElementById('detailSellingPrice').textContent = '₹' + (d.price || '0.00');
         document.getElementById('detailMrp').textContent = '₹' + (d.mrp || '0.00');
-        const valuation = (parseFloat(d.quantity || 0) * parseFloat(d.costPrice || 0)).toFixed(2);
-        document.getElementById('detailValuation').textContent = '₹' + valuation;
 
         // Render QR in modal immediately from dataset
         const initialQrCode = d.qrPayload || d.wholeCode || d.productCode || '';
@@ -1108,7 +1094,8 @@ document.querySelectorAll('[data-stock-view]').forEach(button => {
                         document.getElementById('detailSpecStyleCode').textContent = v.style_code || '-';
                     }
                     document.getElementById('detailWeight').textContent = v.weight > 0 ? (v.weight + ' ' + v.weight_unit) : '-';
-                    document.getElementById('detailCostPrice').textContent = '₹' + Number(v.cost_price).toFixed(2);
+                    const detailCostEl = document.getElementById('detailCostPrice');
+                    if (detailCostEl) detailCostEl.textContent = '₹' + Number(v.cost_price).toFixed(2);
                     document.getElementById('detailSellingPrice').textContent = '₹' + Number(v.price).toFixed(2);
                     document.getElementById('detailMrp').textContent = '₹' + Number(v.mrp).toFixed(2);
                 }
@@ -1311,23 +1298,18 @@ const stockEditMrp = document.getElementById('stockEditMrp');
 const stockEditPriceValidation = document.getElementById('stockEditPriceValidation');
 
 function validateStockEditPrices() {
-    if (!stockEditCostPrice || !stockEditSellingPrice || !stockEditMrp) return true;
+    if (!stockEditSellingPrice || !stockEditMrp) return true;
 
-    [stockEditCostPrice, stockEditSellingPrice, stockEditMrp].forEach(input => input.setCustomValidity(''));
-    const costPrice = stockEditCostPrice.valueAsNumber;
+    [stockEditSellingPrice, stockEditMrp].forEach(input => input.setCustomValidity(''));
     const sellingPrice = stockEditSellingPrice.valueAsNumber;
     const mrp = stockEditMrp.valueAsNumber;
-    if (![costPrice, sellingPrice, mrp].every(Number.isFinite)) {
+    if (![sellingPrice, mrp].every(Number.isFinite)) {
         if (stockEditPriceValidation) stockEditPriceValidation.textContent = '';
         return true;
     }
 
     let message = '';
-    if (costPrice >= sellingPrice) {
-        message = 'Cost Price must be less than Selling Price.';
-        stockEditCostPrice.setCustomValidity(message);
-        stockEditSellingPrice.setCustomValidity('Selling Price must be greater than Cost Price.');
-    } else if (sellingPrice >= mrp) {
+    if (mrp > 0 && sellingPrice >= mrp) {
         message = 'Selling Price must be less than MRP.';
         stockEditSellingPrice.setCustomValidity(message);
         stockEditMrp.setCustomValidity('MRP must be greater than Selling Price.');

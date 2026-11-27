@@ -14,7 +14,14 @@ class PurchaseBillSourceService
             return;
         }
 
-        $columns = array_column(DB::fetchAll('SHOW COLUMNS FROM purchase_bills'), 'Field');
+        $purchaseBillColumns = DB::fetchAll('SHOW COLUMNS FROM purchase_bills');
+        $columns = array_column($purchaseBillColumns, 'Field');
+        foreach ($purchaseBillColumns as $column) {
+            if ($column['Field'] === 'supplier_id' && $column['Null'] !== 'YES') {
+                DB::query('ALTER TABLE purchase_bills MODIFY supplier_id INT NULL');
+                break;
+            }
+        }
         if (!in_array('source_module', $columns, true)) {
             DB::query(
                 "ALTER TABLE purchase_bills

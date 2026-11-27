@@ -28,7 +28,7 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+            <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
             <?php
                 $batchLabelItems = array_map(static fn($it) => [
                     'id'           => (int)$it['id'],
@@ -126,7 +126,7 @@
                                 <th class="text-center py-2.5">Total Wt</th>
                                 <th class="text-end py-2.5">Base Price</th>
                                 <th class="text-end py-2.5">Discount Price</th>
-                                <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                 <th class="text-center pe-3 py-2.5">Labels</th>
                                 <?php endif; ?>
                             </tr>
@@ -144,7 +144,7 @@
                                     <td class="text-center py-2 font-monospace small fw-bold"><?= number_format((float)$it['total_weight'], 2) ?> kg</td>
                                     <td class="text-end py-2 font-monospace">₹<?= number_format((float)$it['base_price'], 2) ?></td>
                                     <td class="text-end py-2 font-monospace fw-bold text-primary">₹<?= number_format((float)$it['discount_price'], 2) ?></td>
-                                    <?php if (\App\Core\Auth::can('label_generation', 'add')): ?>
+                                    <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                     <td class="text-center pe-3 py-2">
                                         <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
                                                 title="Print Labels for this Variant"

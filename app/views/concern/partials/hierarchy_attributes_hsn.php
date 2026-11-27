@@ -325,7 +325,7 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                                     <th>Product Name</th>
                                     <th>3-Tier Hierarchy</th>
                                     <th>Size &amp; Attributes</th>
-                                    <th class="text-end text-nowrap">Selling Price / MRP</th>
+                                    <th class="text-end text-nowrap">Selling Price</th>
                                     <th class="text-end text-nowrap">Stock Qty</th>
                                     <th class="text-nowrap">Created Date</th>
                                     <th class="pe-3 text-center">Status</th>
@@ -382,12 +382,6 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                                         </td>
                                         <td class="text-end text-nowrap">
                                             <div class="fw-bold text-success">₹<?= number_format((float)$vd['price'], 2) ?></div>
-                                            <?php if ((float)$vd['mrp'] > 0): ?>
-                                                <div class="small text-muted">MRP: ₹<?= number_format((float)$vd['mrp'], 2) ?></div>
-                                            <?php endif; ?>
-                                            <?php if ((float)$vd['cost_price'] > 0): ?>
-                                                <div class="small text-muted">Cost: ₹<?= number_format((float)$vd['cost_price'], 2) ?></div>
-                                            <?php endif; ?>
                                         </td>
                                         <td class="text-end text-nowrap">
                                             <span class="fw-bold <?= ((float)$vd['stock_qty'] > 0) ? 'text-primary' : 'text-muted' ?>">

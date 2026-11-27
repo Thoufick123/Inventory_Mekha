@@ -10,49 +10,60 @@
     </div>
 
     <?php if ($isSuperAdmin): ?>
-        <form method="GET" action="<?= \App\Core\Controller::url('/m/concern_damage/outward') ?>" class="card border-0 shadow-sm mb-3">
-            <div class="card-body">
-                <label class="form-label small fw-semibold" for="damageOutwardSource">Source concern *</label>
-                <select class="form-select" name="concern_id" id="damageOutwardSource" required>
-                    <option value="">Select a concern to load its damaged stock</option>
-                    <?php foreach ($allConcerns as $concern): ?>
-                        <option value="<?= (int)$concern['id'] ?>" <?= (int)$selectedCid === (int)$concern['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($concern['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <noscript><button class="btn btn-primary mt-2" type="submit">Load concern</button></noscript>
-            </div>
-        </form>
+        <form method="GET" action="<?= \App\Core\Controller::url('/m/concern_damage/outward') ?>" id="damageOutwardSourceForm" class="d-none"></form>
     <?php endif; ?>
 
-    <?php if (empty($selectedCid)): ?>
-        <div class="alert alert-info border-0 shadow-sm">Select a source concern before scanning damaged stock.</div>
-    <?php else: ?>
-        <form method="POST"
-              action="<?= \App\Core\Controller::url('/m/concern_damage/outward/store') ?>"
-              id="damageOutwardForm"
-              data-scan-url="<?= htmlspecialchars(\App\Core\Controller::url('/m/concern_damage/outward/scan'), ENT_QUOTES, 'UTF-8') ?>"
-              data-csrf-token="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>"
-              data-concern-id="<?= (int)$selectedCid ?>">
+    <form method="POST"
+          action="<?= \App\Core\Controller::url('/m/concern_damage/outward/store') ?>"
+          id="damageOutwardForm"
+          data-scan-url="<?= htmlspecialchars(\App\Core\Controller::url('/m/concern_damage/outward/scan'), ENT_QUOTES, 'UTF-8') ?>"
+          data-csrf-token="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>"
+          data-concern-id="<?= (int)$selectedCid ?>">
+        <?php if (!empty($selectedCid)): ?>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <?php if ($isSuperAdmin): ?>
                 <input type="hidden" name="concern_id" value="<?= (int)$selectedCid ?>">
             <?php endif; ?>
             <input type="hidden" name="scanned_items_json" id="damageOutwardItems">
+        <?php endif; ?>
 
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-body">
-                    <label class="form-label small fw-semibold" for="damageOutwardDestination">Destination concern *</label>
-                    <select class="form-select" name="destination_concern_id" id="damageOutwardDestination" required>
-                        <option value="">Select destination concern</option>
-                        <?php foreach ($allConcerns as $concern): ?>
-                            <?php if ((int)$concern['id'] === (int)$selectedCid) continue; ?>
-                            <option value="<?= (int)$concern['id'] ?>"><?= htmlspecialchars($concern['name']) ?> (<?= htmlspecialchars($concern['code']) ?>)</option>
-                        <?php endforeach; ?>
-                    </select>
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <?php if ($isSuperAdmin): ?>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold" for="damageOutwardSource">Source concern *</label>
+                            <select class="form-select" name="concern_id" id="damageOutwardSource" form="damageOutwardSourceForm" required>
+                                <option value="">Select a concern to load its damaged stock</option>
+                                <?php foreach ($allConcerns as $concern): ?>
+                                    <option value="<?= (int)$concern['id'] ?>" <?= (int)$selectedCid === (int)$concern['id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($concern['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <noscript><button class="btn btn-primary mt-2" type="submit" form="damageOutwardSourceForm">Load concern</button></noscript>
+                        </div>
+                    <?php endif; ?>
+                    <div class="<?= $isSuperAdmin ? 'col-md-6' : 'col-12' ?>">
+                        <label class="form-label small fw-semibold" for="damageOutwardDestination">Destination concern *</label>
+                        <select class="form-select" name="destination_concern_id" id="damageOutwardDestination" <?= empty($selectedCid) ? 'disabled' : 'required' ?>>
+                            <option value=""><?= empty($selectedCid) ? 'Select a source concern first' : 'Select destination concern' ?></option>
+                            <?php if (!empty($selectedCid)): ?>
+                                <?php foreach ($allConcerns as $concern): ?>
+                                    <?php if ((int)$concern['id'] === (int)$selectedCid) continue; ?>
+                                    <option value="<?= (int)$concern['id'] ?>"><?= htmlspecialchars($concern['name']) ?> (<?= htmlspecialchars($concern['code']) ?>)</option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
                 </div>
             </div>
+        </div>
+
+    <?php if (empty($selectedCid)): ?>
+        </form>
+        <div class="alert alert-info border-0 shadow-sm">Select a source concern before scanning damaged stock.</div>
+    <?php else: ?>
 
             <div class="card border-0 shadow-sm damage-outward-scanner mb-3">
                 <div class="card-body p-3">
@@ -102,11 +113,11 @@
                             <label class="form-label small fw-semibold" for="damageOutwardBoxes">Boxes / Cartons *</label>
                             <input type="number" min="1" max="99999" step="1" name="total_boxes" id="damageOutwardBoxes" class="form-control" value="1" required>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small fw-semibold" for="damageOutwardVehicle">Vehicle Number *</label>
                             <input type="text" name="vehicle_number" id="damageOutwardVehicle" class="form-control text-uppercase" maxlength="30" placeholder="TN 12 AB 1234" required>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small fw-semibold" for="damageOutwardDriver">Driver Name</label>
                             <input type="text" name="driver_name" id="damageOutwardDriver" class="form-control" maxlength="100">
                         </div>
@@ -114,13 +125,9 @@
                             <label class="form-label small fw-semibold" for="damageOutwardContact">Driver Contact</label>
                             <input type="tel" name="driver_contact" id="damageOutwardContact" class="form-control" maxlength="10" inputmode="numeric">
                         </div>
-                        <div class="col-12 col-md-2">
-                            <label class="form-label small fw-semibold" for="damageOutwardTransporter">Transporter</label>
-                            <input type="text" name="transporter_name" id="damageOutwardTransporter" class="form-control" maxlength="150">
-                        </div>
-                        <div class="col-12">
+                        <div class="col-12 col-md-4">
                             <label class="form-label small fw-semibold" for="damageOutwardNotes">Notes</label>
-                            <textarea name="notes" id="damageOutwardNotes" class="form-control" rows="2" maxlength="2000"></textarea>
+                            <input type="text" name="notes" id="damageOutwardNotes" class="form-control" maxlength="2000" placeholder="Optional notes">
                         </div>
                     </div>
                 </div>
@@ -166,7 +173,7 @@
     const form = document.getElementById('damageOutwardForm');
     const sourceSelect = document.getElementById('damageOutwardSource');
     if (sourceSelect) sourceSelect.addEventListener('change', () => sourceSelect.form.submit());
-    if (!form) return;
+    if (!form || !form.dataset.concernId || Number(form.dataset.concernId) <= 0) return;
 
     const tagInput = document.getElementById('damageOutwardTag');
     const scanButton = document.getElementById('damageOutwardScanButton');
@@ -192,18 +199,52 @@
                 if (index === 1) cell.className = 'fw-semibold';
                 row.appendChild(cell);
             });
+            const maxQty = Math.max(1, Math.floor(Number(item.available_qty) || 1));
+            item.qty = Math.max(1, Math.min(Math.floor(Number(item.qty) || 1), maxQty));
             const qtyCell = document.createElement('td');
             const qtyInput = document.createElement('input');
             qtyInput.type = 'number';
             qtyInput.min = '1';
             qtyInput.step = '1';
-            qtyInput.max = String(item.available_qty);
+            qtyInput.max = String(maxQty);
+            qtyInput.inputMode = 'numeric';
             qtyInput.value = String(item.qty);
             qtyInput.className = 'form-control form-control-sm text-end';
             qtyInput.setAttribute('aria-label', `Dispatch quantity for ${item.variant_name}`);
+            qtyInput.addEventListener('keydown', event => {
+                if (['.', ',', 'e', 'E', '-', '+'].includes(event.key)) {
+                    event.preventDefault();
+                }
+            });
+            const updateCountBadge = () => {
+                let sum = 0;
+                queued.forEach(q => { sum += Number(q.qty) || 0; });
+                document.getElementById('damageOutwardCount').textContent = `${formatQty(sum)} ${sum === 1 ? 'piece' : 'pieces'} scanned`;
+            };
+            qtyInput.addEventListener('input', () => {
+                const raw = qtyInput.value.trim();
+                if (raw === '') return;
+                let parsed = Math.floor(Number(raw));
+                if (!Number.isFinite(parsed) || parsed < 1) {
+                    parsed = 1;
+                    qtyInput.value = '1';
+                } else if (parsed > maxQty) {
+                    parsed = maxQty;
+                    qtyInput.value = String(maxQty);
+                    feedback.textContent = `Maximum available damaged qty for ${item.variant_name} is ${formatQty(maxQty)} pcs.`;
+                }
+                item.qty = parsed;
+                updateCountBadge();
+            });
             qtyInput.addEventListener('change', () => {
-                item.qty = Math.max(1, Math.min(Math.floor(Number(qtyInput.value) || 1), item.available_qty));
-                qtyInput.value = String(item.qty);
+                let parsed = Math.floor(Number(qtyInput.value));
+                if (!Number.isFinite(parsed) || parsed < 1) parsed = 1;
+                if (parsed > maxQty) {
+                    parsed = maxQty;
+                    feedback.textContent = `Maximum available damaged qty for ${item.variant_name} is ${formatQty(maxQty)} pcs.`;
+                }
+                item.qty = parsed;
+                qtyInput.value = String(parsed);
                 renderQueue();
             });
             qtyCell.appendChild(qtyInput);
@@ -292,7 +333,10 @@
             return;
         }
         document.getElementById('damageOutwardItems').value = JSON.stringify(
-            Array.from(queued.values(), item => ({variant_id: item.variant_id, qty: item.qty}))
+            Array.from(queued.values(), item => ({
+                variant_id: item.variant_id,
+                qty: Math.max(1, Math.min(Math.floor(Number(item.qty) || 1), Math.max(1, Math.floor(Number(item.available_qty) || 1))))
+            }))
         );
     });
     renderQueue();

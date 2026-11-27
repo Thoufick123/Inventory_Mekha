@@ -865,6 +865,20 @@ try {
     }
 } catch (\Throwable $e) {}
 
+// 27.1 PURCHASE_BILLS optional supplier
+echo "\n27.1 Checking `purchase_bills` supplier optionality...\n";
+try {
+    $supplierColumn = DB::fetch("SHOW COLUMNS FROM `purchase_bills` LIKE 'supplier_id'");
+    if ($supplierColumn && $supplierColumn['Null'] !== 'YES') {
+        DB::query("ALTER TABLE `purchase_bills` MODIFY COLUMN `supplier_id` INT NULL");
+        echo "  + Made `purchase_bills.supplier_id` nullable\n";
+    } else {
+        echo "  . `purchase_bills.supplier_id` is already nullable\n";
+    }
+} catch (\Throwable $e) {
+    echo "  ! purchase_bills supplier migration note: " . $e->getMessage() . "\n";
+}
+
 // 28. PRODUCT_ATTRIBUTES category hierarchy
 echo "\n28. Checking `product_attributes` category hierarchy columns...\n";
 try {

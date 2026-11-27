@@ -72,71 +72,6 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
             <!-- LEFT COLUMN: SCANNER & FAST SHORTCUTS (IMAGE 1)-->
             <!-- ============================================== -->
             <div class="col-12">
-                <!-- Scan Product QR Code Card -->
-                <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-3" id="pos_scanner_card" style="border: 1px solid #e2e8f0 !important;">
-                    <!-- Header with Title & Scanner Options Buttons -->
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-upc-scan text-primary fs-5"></i>
-                            <h6 class="fw-bold text-dark mb-0">Scan Product QR Code</h6>
-                        </div>
-                        <div class="d-flex align-items-center gap-1.5">
-                            <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 d-flex align-items-center gap-1 shadow-sm text-secondary" id="btnOpenScannerOptions" style="font-size: 0.76rem;" title="Configure scanner options & audio">
-                                <i class="bi bi-sliders2"></i> Scanner Options
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Large Input Box with Blue Add Button -->
-                    <div class="d-flex align-items-stretch mb-2" style="border: 1.5px solid #3b82f6; border-radius: 12px; overflow: hidden; background: #ffffff;">
-                        <div style="background: #2563eb; color: #ffffff; width: 48px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0;" id="qr_icon_box" title="Barcode / QR input">
-                            <i class="bi bi-qr-code" id="active_input_icon"></i>
-                        </div>
-                        <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="<?= \App\Core\Auth::can('billing', 'create') ? 'Point QR scanner or type Product Code / name' : 'View only access - billing terminal disabled' ?>" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" <?= \App\Core\Auth::can('billing', 'create') ? 'autofocus' : 'disabled' ?>>
-                        <datalist id="pos_catalog_list">
-                            <?php foreach ($variants as $v): ?>
-                                <option value="<?= htmlspecialchars($v['product_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format(!empty($v['is_complementary']) ? 0 : $v['price'], 0) ?><?= !empty($v['is_complementary']) ? ' · Complimentary' : '' ?>)</option>
-                            <?php endforeach; ?>
-                        </datalist>
-                        <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;" <?= !\App\Core\Auth::can('billing', 'create') ? 'disabled' : '' ?>>
-                            <i class="bi bi-arrow-right-circle"></i> Add
-                        </button>
-                    </div>
-
-                    <!-- Scanner Status & Interactive Options Toolbar -->
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 py-1.5 px-2.5 mb-2 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0; font-size: 0.75rem;">
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="badge rounded-pill bg-white text-dark border px-2 py-1 d-flex align-items-center gap-1 shadow-sm" id="badge_scanner_mode" style="cursor: pointer;" title="Active scan input mode - Click to change">
-                                <i class="bi bi-upc text-primary" id="icon_active_mode"></i> <span id="label_active_mode">Barcode Gun</span>
-                            </span>
-                            <button type="button" class="btn btn-sm p-0 text-decoration-none d-flex align-items-center gap-1" id="btn_quick_toggle_beep" title="Click to mute/unmute scan beep">
-                                <i class="bi bi-volume-up-fill text-success" id="icon_quick_beep"></i> <span class="text-secondary fw-semibold" id="label_quick_beep">Beep ON</span>
-                            </button>
-                        </div>
-                        <div class="d-flex align-items-center gap-1.5">
-                            <button type="button" class="btn btn-sm p-0 text-decoration-none d-flex align-items-center gap-1" id="btn_quick_toggle_qty" title="Click to toggle quantity mode">
-                                <i class="bi bi-123 text-primary"></i> <span class="badge bg-light text-dark border" id="badge_quick_qty">+1 / Scan</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Subtext below scanner input -->
-                    <div class="d-flex justify-content-between align-items-center small px-1 mb-2">
-                        <span class="text-muted" style="font-size: 0.76rem;">
-                            <i class="bi bi-info-circle me-1"></i> Each scanned piece is added one by one.
-                        </span>
-                        <span class="text-primary fw-semibold" id="scanner_status_text" style="font-size: 0.76rem;">
-                            Ready for next scan...
-                        </span>
-                    </div>
-
-                </div>
-            </div>
-
-            <!-- ============================================== -->
-            <!-- RIGHT COLUMN: CUSTOMER, CART & PAYMENT (IMAGE 1 & 2) -->
-            <!-- ============================================== -->
-            <div class="col-12">
                 <!-- Customer & Billed By Card (Image 1) -->
                 <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-3" style="border: 1px solid #e2e8f0 !important;">
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
@@ -300,6 +235,65 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <option value="include">Include GST (Extract GST)</option>
                             </select>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Scan Product QR Code Card -->
+                <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-3" id="pos_scanner_card" style="border: 1px solid #e2e8f0 !important;">
+                    <!-- Header with Title & Scanner Options Buttons -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-upc-scan text-primary fs-5"></i>
+                            <h6 class="fw-bold text-dark mb-0">Scan Product QR Code</h6>
+                        </div>
+                        <div class="d-flex align-items-center gap-1.5">
+                            <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 d-flex align-items-center gap-1 shadow-sm text-secondary" id="btnOpenScannerOptions" style="font-size: 0.76rem;" title="Configure scanner options & audio">
+                                <i class="bi bi-sliders2"></i> Scanner Options
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Large Input Box with Blue Add Button -->
+                    <div class="d-flex align-items-stretch mb-2" style="border: 1.5px solid #3b82f6; border-radius: 12px; overflow: hidden; background: #ffffff;">
+                        <div style="background: #2563eb; color: #ffffff; width: 48px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0;" id="qr_icon_box" title="Barcode / QR input">
+                            <i class="bi bi-qr-code" id="active_input_icon"></i>
+                        </div>
+                        <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="<?= \App\Core\Auth::can('billing', 'create') ? 'Point QR scanner or type Product Code / name' : 'View only access - billing terminal disabled' ?>" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" <?= \App\Core\Auth::can('billing', 'create') ? 'autofocus' : 'disabled' ?>>
+                        <datalist id="pos_catalog_list">
+                            <?php foreach ($variants as $v): ?>
+                                <option value="<?= htmlspecialchars($v['product_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format(!empty($v['is_complementary']) ? 0 : $v['price'], 0) ?><?= !empty($v['is_complementary']) ? ' · Complimentary' : '' ?>)</option>
+                            <?php endforeach; ?>
+                        </datalist>
+                        <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;" <?= !\App\Core\Auth::can('billing', 'create') ? 'disabled' : '' ?>>
+                            <i class="bi bi-arrow-right-circle"></i> Add
+                        </button>
+                    </div>
+
+                    <!-- Scanner Status & Interactive Options Toolbar -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 py-1.5 px-2.5 mb-2 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0; font-size: 0.75rem;">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge rounded-pill bg-white text-dark border px-2 py-1 d-flex align-items-center gap-1 shadow-sm" id="badge_scanner_mode" style="cursor: pointer;" title="Active scan input mode - Click to change">
+                                <i class="bi bi-upc text-primary" id="icon_active_mode"></i> <span id="label_active_mode">Barcode Gun</span>
+                            </span>
+                            <button type="button" class="btn btn-sm p-0 text-decoration-none d-flex align-items-center gap-1" id="btn_quick_toggle_beep" title="Click to mute/unmute scan beep">
+                                <i class="bi bi-volume-up-fill text-success" id="icon_quick_beep"></i> <span class="text-secondary fw-semibold" id="label_quick_beep">Beep ON</span>
+                            </button>
+                        </div>
+                        <div class="d-flex align-items-center gap-1.5">
+                            <button type="button" class="btn btn-sm p-0 text-decoration-none d-flex align-items-center gap-1" id="btn_quick_toggle_qty" title="Click to toggle quantity mode">
+                                <i class="bi bi-123 text-primary"></i> <span class="badge bg-light text-dark border" id="badge_quick_qty">+1 / Scan</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Subtext below scanner input -->
+                    <div class="d-flex justify-content-between align-items-center small px-1 mb-2">
+                        <span class="text-muted" style="font-size: 0.76rem;">
+                            <i class="bi bi-info-circle me-1"></i> Each scanned piece is added one by one.
+                        </span>
+                        <span class="text-primary fw-semibold" id="scanner_status_text" style="font-size: 0.76rem;">
+                            Ready for next scan...
+                        </span>
                     </div>
                 </div>
 
