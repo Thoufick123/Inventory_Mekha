@@ -580,7 +580,7 @@
     <!-- Bootstrap Bundle JS -->
     <script src="<?= \App\Core\Controller::url('/assets/js/bootstrap.bundle.min.js') ?>"></script>
     <script>window.hsnSearchEndpoint = <?= json_encode(\App\Core\Controller::url('/api/hsn/search'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;</script>
-    <script src="<?= \App\Core\Controller::url('/assets/js/hsn-selector.js') ?>"></script>
+    <script src="<?= \App\Core\Controller::url('/assets/js/hsn-selector.js?v=' . (@filemtime(dirname(__DIR__, 2) . '/public/assets/js/hsn-selector.js') ?: '20261127')) ?>"></script>
     <script src="<?= \App\Core\Controller::url('/assets/js/qrcode.min.js') ?>"></script>
     <script src="<?= \App\Core\Controller::url('/assets/js/html5-qrcode.min.js') ?>"></script>
 
