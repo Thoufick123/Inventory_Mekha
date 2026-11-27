@@ -1223,7 +1223,7 @@ function viewPurchaseStock(button) {
             const batches = Array.isArray(data.batches) ? data.batches : [];
             let batchRows = batches.length ? batches.map(b => `
                 <tr>
-                    <td class="font-monospace small">${escapeHtmlHtml(b.bill_no || '-')}${b.supplier_invoice_no ? `<div class="text-muted" style="font-size:0.72rem;">Inv: ${escapeHtmlHtml(b.supplier_invoice_no)}</div>` : ''}</td>
+                    <td class="font-monospace small">${escapeHtmlHtml(b.supplier_invoice_no || '-')}</td>
                     <td class="small">${escapeHtmlHtml(b.supplier_name || 'Direct Entry')}${b.bill_date ? `<div class="text-muted" style="font-size:0.72rem;">${escapeHtmlHtml(b.bill_date)}</div>` : ''}</td>
                     <td class="small text-end">${parseFloat(b.qty || 0).toFixed(2)} ${escapeHtmlHtml(b.unit || 'Rolls')}</td>
                     <td class="small text-end">${parseFloat(b.net_weight || 0).toFixed(2)} kg</td>
@@ -1252,7 +1252,7 @@ function viewPurchaseStock(button) {
                         <table class="table table-sm table-hover mb-0 align-middle purchase-stock-history-table">
                             <thead class="table-light small text-uppercase text-muted" style="font-size: 0.72rem;">
                                 <tr>
-                                    <th>Bill #</th>
+                                    <th>Invoice #</th>
                                     <th>Supplier</th>
                                     <th class="text-end">Qty</th>
                                     <th class="text-end">Weight</th>
@@ -1273,7 +1273,7 @@ function viewPurchaseStock(button) {
                     ${detailCard('col-md-4', 'Quantity', `<span class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Pieces')}</span>`)}
                     ${detailCard('col-md-4', 'Unit Price / MRP', `<span class="fw-bold text-dark">${formatInr(item.unit_price || 0)} / ${formatInr(item.mrp || 0)}</span>`)}
                     ${detailCard('col-md-4', 'Total Value', `<span class="fw-bold text-success">${formatInr(item.total_price || 0)}</span>`)}
-                    ${detailCard('col-md-4', 'Bill #', `<span class="fw-semibold font-monospace text-primary">${escapeHtmlHtml(item.bill_no || '-')}</span>`)}
+                    ${detailCard('col-md-4', 'Invoice #', `<span class="fw-semibold font-monospace text-primary">${escapeHtmlHtml(item.supplier_invoice_no || '-')}</span>`)}
                     ${detailCard('col-md-4', 'Supplier', `<span class="fw-semibold text-dark">${escapeHtmlHtml(item.supplier_name || 'Direct Entry')}</span>`)}
                 </div>
             `;
