@@ -148,6 +148,17 @@ class StaffController extends Controller {
                            WHERE up.concern_id IS NULL");
             } catch (\Throwable $e) {}
 
+            // Self-heal: mirror permissions between multiple staff accounts belonging to the same person (matching phone number)
+            try {
+                DB::query("INSERT IGNORE INTO user_permissions (user_id, concern_id, module_id, can_view, can_add, can_edit, can_delete)
+                           SELECT u2.id, up.concern_id, up.module_id, up.can_view, up.can_add, up.can_edit, up.can_delete
+                           FROM user_permissions up
+                           JOIN users u1 ON up.user_id = u1.id
+                           JOIN users u2 ON (u1.phone = u2.phone AND u1.phone != '' AND u1.phone IS NOT NULL)
+                           WHERE u1.id != u2.id
+                             AND u2.id NOT IN (SELECT DISTINCT user_id FROM user_permissions)");
+            } catch (\Throwable $e) {}
+
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
             error_log('StaffController ensureSchema error: ' . $e->getMessage());
@@ -790,6 +801,19 @@ class StaffController extends Controller {
 
             // Sync with users login table
             $userId = !empty($staff['user_id']) ? (int)$staff['user_id'] : null;
+            if (!$userId && $email !== '') {
+                $foundUid = DB::fetchValue("SELECT id FROM users WHERE email = ? LIMIT 1", [$email]);
+                if ($foundUid) {
+                    $userId = (int)$foundUid;
+                }
+            }
+            if (!$userId && $phone !== '') {
+                $foundUid = DB::fetchValue("SELECT id FROM users WHERE phone = ? LIMIT 1", [$phone]);
+                if ($foundUid) {
+                    $userId = (int)$foundUid;
+                }
+            }
+
             if ($userId) {
                 $uSql = "UPDATE users SET name = ?, email = ?, concern_id = ?, phone = ?, status = ?";
                 $uParams = [$name, $email, $cid, $phone, $status];
@@ -804,8 +828,8 @@ class StaffController extends Controller {
                 $uSql .= " WHERE id = ?";
                 $uParams[] = $userId;
                 DB::query($uSql, $uParams);
-            } elseif ($email !== '' && ($password !== '' || $roleId)) {
-                $assignedRole = $roleId ?: (int)DB::fetchValue("SELECT id FROM roles WHERE concern_id = ? LIMIT 1", [$cid]) ?: 3;
+            } elseif ($email !== '') {
+                $assignedRole = $roleId ?: (int)DB::fetchValue("SELECT id FROM roles WHERE (concern_id = ? OR concern_id IS NULL) AND name != 'Super Admin' LIMIT 1", [$cid]) ?: 3;
                 $passHash = $passwordHash ?: password_hash('password123', PASSWORD_BCRYPT);
                 DB::query(
                     "INSERT INTO users (concern_id, role_id, name, email, password_hash, phone, status, created_at)
@@ -842,6 +866,14 @@ class StaffController extends Controller {
                     $activePermCids = isset($updCids) ? $updCids : [$cid];
                     $postedPerms = isset($_POST['perms']) && is_array($_POST['perms']) ? $_POST['perms'] : [];
                     $this->persistUserPermissions($userId, $postedPerms, $activePermCids);
+
+                    // If another user account exists for this person (matching phone), mirror permissions too so both stay in sync
+                    if ($phone !== '') {
+                        $otherUids = DB::fetchAll("SELECT id FROM users WHERE phone = ? AND id != ?", [$phone, $userId]);
+                        foreach ($otherUids as $ou) {
+                            $this->persistUserPermissions((int)$ou['id'], $postedPerms, $activePermCids);
+                        }
+                    }
                 }
             }
 
