@@ -140,7 +140,7 @@
     <!-- Main Inventory Card with 3 Sections / Tabs -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <!-- Section Navigation Pills (3 Tabs) -->
-        <div class="card-header bg-white border-bottom py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="card-header bg-white border-bottom py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
             <ul class="nav nav-pills gap-2 mb-0" id="stockSectionTabs" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link py-2 px-3 fw-semibold d-flex align-items-center gap-2 rounded-2 <?= $activeTab === 'rolls' ? 'active' : '' ?>" 
@@ -174,7 +174,7 @@
                 </li>
             </ul>
             <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
-            <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
+            <button type="button" class="btn btn-primary btn-sm px-3 py-2 fw-semibold shadow-sm d-inline-flex align-items-center gap-2 rounded-2" style="background: #4f46e5; border-color: #4f46e5;" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
                 <i class="bi bi-plus-lg"></i> Add Stock
             </button>
             <?php endif; ?>
@@ -225,28 +225,22 @@
         <!-- TAB SECTION 1: FABRIC ROLLS                    -->
         <!-- ============================================== -->
         <?php if ($activeTab === 'rolls'): ?>
-            <div class="card-body p-2 px-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-muted small"><i class="bi bi-info-circle text-primary me-1"></i> Duplicate entries automatically accumulated with previous count.</span>
-                </div>
-            </div>
-
             <!-- View A: Consolidated Color & Design Stock (Duplicates removed, Qty added to previous count) -->
             <div id="viewRollConsolidated" class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover table-bordered table-sm align-middle mb-0 text-center small">
+                    <table class="table table-hover align-middle mb-0 text-center small">
                         <thead class="table-light">
-                            <tr class="fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
-                                <th style="width: 40px;">#</th>
-                                <th class="text-start">Design Name / Pattern</th>
-                                <th>Color / Shade</th>
+                            <tr class="fw-bold text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.03em;">
+                                <th class="ps-3" style="width: 36px;">#</th>
+                                <th class="text-start">Design / Pattern</th>
+                                <th>Color</th>
                                 <th>HSN</th>
-                                <th class="table-primary text-primary fw-bold">Accumulated Stock</th>
-                                <th>Total Fabric Weight</th>
+                                <th class="table-primary text-primary fw-bold">Stock</th>
+                                <th>Weight</th>
                                 <th class="text-end">Unit Rate</th>
-                                <th class="text-end">Total Valuation (₹)</th>
-                                <th style="width: 100px;">Status</th>
-                                <th style="width: 120px;">Actions</th>
+                                <th class="text-end">Valuation (₹)</th>
+                                <th style="width: 90px;">Status</th>
+                                <th class="pe-3" style="width: 132px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
