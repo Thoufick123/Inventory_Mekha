@@ -84,6 +84,10 @@ $router->post('/m/product_adding/suppliers/update', [PurchaseController::class, 
 $router->post('/m/product_adding/suppliers/delete', [PurchaseController::class, 'deleteSupplierAjax'], 'product_adding', 'delete');
 $router->post('/m/product_adding/categories/store', [ProductAddingController::class, 'storeHierarchyAjax'], 'product_adding', 'add');
 $router->post('/m/product_adding/attributes/store', [ProductAddingController::class, 'storeAttributeAjax'], 'product_adding', 'add');
+$router->get('/m/product_adding/brands', [ProductAddingController::class, 'brandsListAjax'], 'product_adding', 'view');
+$router->post('/m/product_adding/brands/store', [ProductAddingController::class, 'storeBrandAjax'], 'product_adding', 'add');
+$router->post('/m/product_adding/brands/update', [ProductAddingController::class, 'updateBrandAjax'], 'product_adding', 'edit');
+$router->post('/m/product_adding/brands/delete', [ProductAddingController::class, 'deleteBrandAjax'], 'product_adding', 'delete');
 $router->post('/m/product_adding/quick-category', [CatalogMappingController::class, 'quickCreateCategory'], 'product_adding', 'add');
 $router->post('/m/product_adding/quick-attribute', [CatalogMappingController::class, 'quickCreateAttribute'], 'product_adding', 'add');
 $router->post('/m/product_adding/delete-hierarchy', [CatalogMappingController::class, 'deleteHierarchy'], 'product_adding', 'delete');

@@ -686,6 +686,21 @@ if ($isEdit && !empty($existingItems)) {
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
+                        <div class="mb-3 p-2.5 border rounded-3 bg-light">
+                            <label for="productAddingBrandInput" class="form-label small fw-bold text-uppercase text-secondary mb-1">Brand Name (Optional)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" id="productAddingBrandInput" placeholder="Enter or search brand name..." autocomplete="off" maxlength="100">
+                                <input type="hidden" id="productAddingBrandEditId" value="">
+                                <button type="button" class="btn btn-outline-primary fw-semibold" id="productAddingBrandSaveBtn" title="Save Brand">
+                                    <i class="bi bi-plus-lg"></i> Save
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary d-none" id="productAddingBrandCancelEditBtn" title="Cancel Edit">
+                                    Cancel
+                                </button>
+                            </div>
+                            <div id="productAddingBrandFeedback" class="small mt-1 d-none"></div>
+                            <div id="productAddingBrandList" class="mt-2 d-flex flex-wrap gap-1.5" style="max-height: 110px; overflow-y: auto;"></div>
+                        </div>
                         <div id="productAddingLabelCountRows"></div>
                         <div id="productAddingLabelCountError" class="small text-danger mt-2" role="alert"></div>
                     </div>
@@ -6223,9 +6238,197 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     };
 
+    const brandInput = document.getElementById('productAddingBrandInput');
+    const brandEditIdInput = document.getElementById('productAddingBrandEditId');
+    const brandSaveBtn = document.getElementById('productAddingBrandSaveBtn');
+    const brandCancelEditBtn = document.getElementById('productAddingBrandCancelEditBtn');
+    const brandListEl = document.getElementById('productAddingBrandList');
+    const brandFeedbackEl = document.getElementById('productAddingBrandFeedback');
+    const brandCsrfToken = <?= json_encode($csrfToken ?? '') ?>;
+    const brandListUrl = <?= json_encode($brandListUrl ?? \App\Core\Controller::url('/m/product_adding/brands')) ?>;
+    const brandStoreUrl = <?= json_encode($brandStoreUrl ?? \App\Core\Controller::url('/m/product_adding/brands/store')) ?>;
+    const brandUpdateUrl = <?= json_encode($brandUpdateUrl ?? \App\Core\Controller::url('/m/product_adding/brands/update')) ?>;
+    const brandDeleteUrl = <?= json_encode($brandDeleteUrl ?? \App\Core\Controller::url('/m/product_adding/brands/delete')) ?>;
+    let cachedBrands = <?= json_encode($brands ?? []) ?>;
+
+    const showBrandFeedback = function (msg, isError = false) {
+        if (!brandFeedbackEl) return;
+        if (!msg) {
+            brandFeedbackEl.className = 'small mt-1 d-none';
+            brandFeedbackEl.textContent = '';
+            return;
+        }
+        brandFeedbackEl.className = `small mt-1 ${isError ? 'text-danger' : 'text-success'}`;
+        brandFeedbackEl.textContent = msg;
+    };
+
+    const resetBrandEditMode = function () {
+        if (brandEditIdInput) brandEditIdInput.value = '';
+        if (brandSaveBtn) brandSaveBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Save';
+        if (brandCancelEditBtn) brandCancelEditBtn.classList.add('d-none');
+    };
+
+    const renderBrandList = function (filterText = '') {
+        if (!brandListEl) return;
+        const q = (filterText || '').trim().toLowerCase();
+        const filtered = (Array.isArray(cachedBrands) ? cachedBrands : []).filter(function (b) {
+            return !q || String(b.name || '').toLowerCase().includes(q);
+        });
+        if (!filtered.length) {
+            brandListEl.innerHTML = '<span class="small text-muted">No saved brands match. Type a name and click Save or Generate labels.</span>';
+            return;
+        }
+        brandListEl.innerHTML = filtered.map(function (b) {
+            const bName = escapeHtml(b.name || '');
+            return `
+                <div class="badge bg-white text-dark border d-inline-flex align-items-center gap-1 px-2 py-1">
+                    <button type="button" class="btn btn-link btn-sm p-0 text-dark text-decoration-none fw-semibold brand-select-btn" data-brand-name="${bName}" style="font-size: 0.78rem;">
+                        ${bName}
+                    </button>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-primary brand-edit-btn ms-1" data-brand-id="${b.id}" data-brand-name="${bName}" title="Edit Brand" style="font-size: 0.75rem;">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-danger brand-delete-btn" data-brand-id="${b.id}" data-brand-name="${bName}" title="Delete Brand" style="font-size: 0.75rem;">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>`;
+        }).join('');
+    };
+
+    const fetchBrandsDynamic = function (query = '') {
+        const url = new URL(brandListUrl, window.location.origin);
+        if (query) url.searchParams.set('q', query);
+        fetch(url.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.success && Array.isArray(data.brands)) {
+                    if (!query) cachedBrands = data.brands;
+                    renderBrandList(query ? '' : (brandInput ? brandInput.value : ''));
+                    if (query && brandListEl) {
+                        const tmp = cachedBrands;
+                        cachedBrands = data.brands;
+                        renderBrandList('');
+                        cachedBrands = tmp;
+                    }
+                }
+            })
+            .catch(() => {});
+    };
+
+    if (brandInput) {
+        let brandSearchTimer = null;
+        brandInput.addEventListener('input', function () {
+            showBrandFeedback('');
+            renderBrandList(brandInput.value);
+            clearTimeout(brandSearchTimer);
+            brandSearchTimer = setTimeout(function () {
+                fetchBrandsDynamic(brandInput.value.trim());
+            }, 200);
+        });
+    }
+
+    if (brandCancelEditBtn) {
+        brandCancelEditBtn.addEventListener('click', function () {
+            resetBrandEditMode();
+            if (brandInput) brandInput.value = '';
+            renderBrandList('');
+            showBrandFeedback('');
+        });
+    }
+
+    if (brandSaveBtn && brandInput) {
+        brandSaveBtn.addEventListener('click', function () {
+            const name = brandInput.value.trim();
+            const editId = brandEditIdInput ? brandEditIdInput.value.trim() : '';
+            if (!name) {
+                showBrandFeedback('Please enter a brand name.', true);
+                brandInput.focus();
+                return;
+            }
+            const fd = new FormData();
+            fd.append('csrf_token', brandCsrfToken);
+            fd.append('name', name);
+            if (editId) fd.append('id', editId);
+            const targetUrl = editId ? brandUpdateUrl : brandStoreUrl;
+            brandSaveBtn.disabled = true;
+            fetch(targetUrl, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.success) {
+                    showBrandFeedback((data && data.message) || 'Could not save brand.', true);
+                    return;
+                }
+                if (Array.isArray(data.brands)) cachedBrands = data.brands;
+                showBrandFeedback(editId ? 'Brand updated.' : 'Brand saved.');
+                resetBrandEditMode();
+                renderBrandList('');
+            })
+            .catch(() => showBrandFeedback('Error saving brand.', true))
+            .finally(() => { brandSaveBtn.disabled = false; });
+        });
+    }
+
+    if (brandListEl) {
+        brandListEl.addEventListener('click', function (e) {
+            const selectBtn = e.target.closest('.brand-select-btn');
+            if (selectBtn && brandInput) {
+                brandInput.value = selectBtn.dataset.brandName || '';
+                resetBrandEditMode();
+                showBrandFeedback('');
+                return;
+            }
+            const editBtn = e.target.closest('.brand-edit-btn');
+            if (editBtn && brandInput && brandEditIdInput) {
+                brandEditIdInput.value = editBtn.dataset.brandId || '';
+                brandInput.value = editBtn.dataset.brandName || '';
+                brandInput.focus();
+                if (brandSaveBtn) brandSaveBtn.innerHTML = '<i class="bi bi-check2"></i> Update';
+                if (brandCancelEditBtn) brandCancelEditBtn.classList.remove('d-none');
+                showBrandFeedback('');
+                return;
+            }
+            const deleteBtn = e.target.closest('.brand-delete-btn');
+            if (deleteBtn) {
+                const delId = deleteBtn.dataset.brandId || '';
+                if (!delId) return;
+                const fd = new FormData();
+                fd.append('csrf_token', brandCsrfToken);
+                fd.append('id', delId);
+                fetch(brandDeleteUrl, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.success) {
+                        if (Array.isArray(data.brands)) cachedBrands = data.brands;
+                        if (brandEditIdInput && brandEditIdInput.value === delId) {
+                            resetBrandEditMode();
+                            if (brandInput) brandInput.value = '';
+                        }
+                        renderBrandList(brandInput ? brandInput.value : '');
+                        showBrandFeedback('Brand deleted.');
+                    } else {
+                        showBrandFeedback((data && data.message) || 'Could not delete brand.', true);
+                    }
+                })
+                .catch(() => showBrandFeedback('Error deleting brand.', true));
+            }
+        });
+    }
+
     const openLabelCountModal = function (targetForm, items) {
         pendingLabelForm = targetForm;
         countError.textContent = '';
+        showBrandFeedback('');
+        resetBrandEditMode();
+        renderBrandList(brandInput ? brandInput.value : '');
+        fetchBrandsDynamic('');
         countRows.innerHTML = `
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
@@ -6328,6 +6531,17 @@ document.addEventListener('DOMContentLoaded', function () {
             pendingLabelForm.querySelectorAll('[data-generated-label-item-id]').forEach(function (input) {
                 input.remove();
             });
+            pendingLabelForm.querySelectorAll('[data-generated-label-brand]').forEach(function (input) {
+                input.remove();
+            });
+            if (brandInput && brandInput.value.trim() !== '') {
+                const hiddenBrand = document.createElement('input');
+                hiddenBrand.type = 'hidden';
+                hiddenBrand.name = 'brand_name';
+                hiddenBrand.value = brandInput.value.trim();
+                hiddenBrand.dataset.generatedLabelBrand = '1';
+                pendingLabelForm.appendChild(hiddenBrand);
+            }
             inputs.forEach(function (input) {
                 const hiddenItemId = document.createElement('input');
                 hiddenItemId.type = 'hidden';
