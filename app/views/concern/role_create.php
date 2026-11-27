@@ -155,8 +155,8 @@
                     <table class="table role-matrix-table mb-0 align-middle">
                         <thead>
                             <tr>
-                                <th style="width: 34%; vertical-align: middle;">SUBMODULE</th>
-                                <th style="width: 11%;" class="text-center text-primary">
+                                <th style="width: 40%; vertical-align: middle;">SUBMODULE</th>
+                                <th style="width: 15%;" class="text-center text-primary">
                                     <div class="d-flex flex-column align-items-center justify-content-center gap-1.5 py-1">
                                         <div class="d-inline-flex align-items-center gap-1">
                                             <span class="fw-bold">VIEW</span>
@@ -171,7 +171,7 @@
                                         <input type="checkbox" id="header_check_view" class="form-check-input matrix-check header-check-col" onchange="toggleColumnAll('view', this.checked)" title="Select all View">
                                     </div>
                                 </th>
-                                <th style="width: 11%;" class="text-center text-success">
+                                <th style="width: 15%;" class="text-center text-success">
                                     <div class="d-flex flex-column align-items-center justify-content-center gap-1.5 py-1">
                                         <div class="d-inline-flex align-items-center gap-1">
                                             <span class="fw-bold">CREATE</span>
@@ -186,7 +186,7 @@
                                         <input type="checkbox" id="header_check_create" class="form-check-input matrix-check header-check-col" onchange="toggleColumnAll('create', this.checked)" title="Select all Create">
                                     </div>
                                 </th>
-                                <th style="width: 11%;" class="text-center text-warning text-dark">
+                                <th style="width: 15%;" class="text-center text-warning text-dark">
                                     <div class="d-flex flex-column align-items-center justify-content-center gap-1.5 py-1">
                                         <div class="d-inline-flex align-items-center gap-1">
                                             <span class="fw-bold">EDIT</span>
@@ -201,7 +201,7 @@
                                         <input type="checkbox" id="header_check_edit" class="form-check-input matrix-check header-check-col" onchange="toggleColumnAll('edit', this.checked)" title="Select all Edit">
                                     </div>
                                 </th>
-                                <th style="width: 11%;" class="text-center text-danger">
+                                <th style="width: 15%;" class="text-center text-danger">
                                     <div class="d-flex flex-column align-items-center justify-content-center gap-1.5 py-1">
                                         <div class="d-inline-flex align-items-center gap-1">
                                             <span class="fw-bold">DELETE</span>
@@ -216,8 +216,6 @@
                                         <input type="checkbox" id="header_check_delete" class="form-check-input matrix-check header-check-col" onchange="toggleColumnAll('delete', this.checked)" title="Select all Delete">
                                     </div>
                                 </th>
-                                <th style="width: 11%; vertical-align: middle;" class="text-center text-secondary">ADJUST</th>
-                                <th style="width: 11%; vertical-align: middle;" class="text-center text-secondary">ROW ALL</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -231,7 +229,7 @@
                             <?php foreach ($grouped as $groupName => $grpMods): $grpHash = md5($groupName); ?>
                                 <!-- GROUP HEADER -->
                                 <tr class="role-group-header" data-group="<?= htmlspecialchars(strtolower($groupName)) ?>" data-group-hash="<?= $grpHash ?>">
-                                    <td colspan="7" class="py-2.5 px-3">
+                                    <td colspan="5" class="py-2.5 px-3">
                                         <div class="d-flex align-items-center gap-2">
                                             <i class="bi bi-folder-fill text-primary"></i>
                                             <span class="fw-bold text-dark" style="font-size: 0.85rem;"><?= htmlspecialchars($groupName) ?></span>
@@ -250,10 +248,7 @@
                                                 <div style="width: 28px; height: 28px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;" class="text-secondary">
                                                     <i class="bi <?= htmlspecialchars($m['icon'] ?? 'bi-grid') ?>"></i>
                                                 </div>
-                                                <div>
-                                                    <div class="fw-semibold text-dark" style="font-size: 0.84rem;"><?= htmlspecialchars($m['name']) ?></div>
-                                                    <div class="text-muted" style="font-size: 0.7rem; font-family: monospace;"><?= htmlspecialchars($m['code']) ?></div>
-                                                </div>
+                                                <span class="fw-semibold text-dark" style="font-size: 0.84rem;"><?= htmlspecialchars($m['name']) ?></span>
                                             </div>
                                         </td>
                                         <td class="text-center">
@@ -267,12 +262,6 @@
                                         </td>
                                         <td class="text-center">
                                             <input type="checkbox" name="perms[<?= $mid ?>][delete]" value="1" class="form-check-input matrix-check matrix-check-delete perm-cell-<?= $mid ?>" onchange="onPermChanged(<?= $mid ?>)">
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="text-muted small">&mdash;</span>
-                                        </td>
-                                        <td class="text-center">
-                                            <input type="checkbox" class="form-check-input matrix-check matrix-check-row" id="row_all_<?= $mid ?>" onchange="toggleRowAll(<?= $mid ?>, this.checked)">
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
