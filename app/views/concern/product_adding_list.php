@@ -103,30 +103,57 @@
         </div>
     </div>
 
+    <style>
+        .compact-product-adding-table > :not(caption) > * > * {
+            padding: 0.38rem 0.45rem;
+            vertical-align: middle;
+        }
+        .compact-product-adding-table tbody .badge {
+            font-size: 0.68rem;
+        }
+        .pa-action-btn {
+            width: 28px;
+            height: 28px;
+            padding: 0 !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px !important;
+        }
+        .pa-action-pill {
+            height: 28px;
+            padding: 0 0.5rem !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px !important;
+            font-size: 0.74rem !important;
+        }
+    </style>
     <div class="card border-0 shadow-sm rounded-3">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-journal-text text-primary fs-5"></i>
+                <i class="bi bi-journal-text text-primary fs-6"></i>
                 <h6 class="mb-0 fw-bold">Product Purchase Bills &amp; Eligible Purchase Billing Invoices</h6>
                 <span class="badge bg-light text-dark border"><?= count($bills) ?> bills</span>
             </div>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 small">
-                <thead class="table-light text-muted small text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
+            <table class="table table-hover align-middle mb-0 small compact-product-adding-table">
+                <thead class="table-light text-secondary small text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
                     <tr>
-                        <th class="ps-3" style="width: 38px;">#</th>
+                        <th class="ps-3" style="width: 34px;">#</th>
                         <th>Invoice #</th>
                         <th>Supplier</th>
                         <?php if (empty($selectedCid)): ?><th>Concern</th><?php endif; ?>
-                        <th>Bill Date</th>
+                        <th>Date</th>
                         <th class="text-end">Lines</th>
                         <th class="text-end">Qty</th>
                         <th class="text-end">Taxable</th>
                         <th class="text-end">GST</th>
-                        <th class="text-end">Net Amount</th>
-                        <th>Payment</th>
-                        <th>Stock</th>
+                        <th class="text-end table-primary text-primary fw-bold">Net Amount</th>
+                        <th class="text-center">Payment</th>
+                        <th class="text-center">Stock</th>
                         <th class="text-end pe-3">Action</th>
                     </tr>
                 </thead>
@@ -163,41 +190,41 @@
                                 <td class="text-end"><?= number_format((float)$bill['total_qty'], 2) ?></td>
                                 <td class="text-end text-nowrap">₹<?= number_format((float)$bill['total_amount'], 2) ?></td>
                                 <td class="text-end text-nowrap">₹<?= number_format((float)$bill['tax_amount'], 2) ?></td>
-                                <td class="text-end fw-bold text-primary text-nowrap">₹<?= number_format((float)$bill['net_amount'], 2) ?></td>
-                                <td>
+                                <td class="text-end text-nowrap table-primary fw-bold text-primary">₹<?= number_format((float)$bill['net_amount'], 2) ?></td>
+                                <td class="text-center">
                                     <span class="badge <?= $paymentStatus === 'paid' ? 'text-bg-success' : ($paymentStatus === 'partial' ? 'text-bg-info' : 'text-bg-warning') ?>">
                                         <?= htmlspecialchars(ucfirst($paymentStatus)) ?>
                                     </span>
                                 </td>
-                                <td>
+                                <td class="text-center">
                                     <span class="badge <?= htmlspecialchars($bill['sync_badge_class'] ?? ($inwardStatus === 'completed' ? 'text-bg-success' : 'text-bg-warning')) ?>">
                                         <?php if (!empty($bill['qty_mismatch'])): ?><i class="bi bi-exclamation-triangle-fill me-1"></i><?php endif; ?>
                                         <?= htmlspecialchars($bill['sync_label'] ?? ($inwardStatus === 'completed' ? 'Completed' : ((int)$bill['stocked_count'] . ' / ' . (int)$bill['item_count'] . ' lines'))) ?>
                                     </span>
-                                    <div class="text-muted mt-1" style="font-size: 0.73rem;"><?= (int)$bill['stocked_count'] ?> / <?= (int)$bill['item_count'] ?> stocked</div>
+                                    <div class="text-muted" style="font-size: 0.70rem;"><?= (int)$bill['stocked_count'] ?> / <?= (int)$bill['item_count'] ?> stocked</div>
                                 </td>
                                 <td class="text-end pe-3">
                                     <div class="d-inline-flex align-items-center gap-1 flex-nowrap">
-                                        <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-info text-nowrap" title="View Details">
+                                        <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . (int)$bill['id']) ?>" class="btn btn-outline-info pa-action-btn" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         <?php if (($bill['source_module'] ?? '') === 'purchase_billing'): ?>
                                             <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'edit')): ?>
-                                                <a href="<?= \App\Core\Controller::url('/m/product_adding/edit_purchase_bill?id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap" title="Edit Invoice">
-                                                    <i class="bi bi-pencil-square me-1"></i>Edit
+                                                <a href="<?= \App\Core\Controller::url('/m/product_adding/edit_purchase_bill?id=' . (int)$bill['id']) ?>" class="btn btn-outline-primary pa-action-btn" title="Edit Invoice">
+                                                    <i class="bi bi-pencil-square"></i>
                                                 </a>
                                             <?php endif; ?>
                                             <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
                                                 <form action="<?= \App\Core\Controller::url('/m/product_adding/add_purchase_bill_to_stock') ?>" method="POST" class="d-inline">
                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
                                                     <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
-                                                    <button type="submit" class="btn btn-sm btn-outline-success text-nowrap" title="Add Invoice to Stock">
+                                                    <button type="submit" class="btn btn-outline-success pa-action-pill text-nowrap" title="Add Invoice to Stock">
                                                         <i class="bi bi-box-arrow-in-down me-1"></i>Add Stock
                                                     </button>
                                                 </form>
                                             <?php endif; ?>
                                         <?php else: ?>
-                                            <a href="<?= \App\Core\Controller::url('/m/product_adding?bill_id=' . (int)$bill['id']) ?>" class="btn btn-sm btn-outline-primary text-nowrap" title="Labels & Stock">
+                                            <a href="<?= \App\Core\Controller::url('/m/product_adding?bill_id=' . (int)$bill['id']) ?>" class="btn btn-outline-primary pa-action-pill text-nowrap" title="Labels & Stock">
                                                 <i class="bi bi-upc-scan me-1"></i>Labels &amp; Stock
                                             </a>
                                         <?php endif; ?>
@@ -205,7 +232,7 @@
                                             <form action="<?= \App\Core\Controller::url('/m/product_adding/delete_purchase_bill') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete this purchase bill? Any unused finished-goods stock will be reversed. Deletion is blocked if stock has been used, allocated to production, or damaged.');">
                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
                                                 <input type="hidden" name="bill_id" value="<?= (int)$bill['id'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap" title="Delete Purchase Bill">
+                                                <button type="submit" class="btn btn-outline-danger pa-action-btn" title="Delete Purchase Bill">
                                                     <i class="bi bi-trash3"></i>
                                                 </button>
                                             </form>
