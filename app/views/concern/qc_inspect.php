@@ -29,45 +29,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- 2D QR GARMENT SCANNER CARD (Matches Image 4) -->
-    <!-- ========================================== -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden" style="border: 1px solid #bfdbfe !important;">
-        <div class="card-header text-white py-3 px-4 d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-            <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-qr-code fs-5"></i>
-                <h6 class="mb-0 fw-bold">2D QR Garment Scanner</h6>
-            </div>
-            <span class="badge bg-white text-primary fw-bold py-1 px-2 font-monospace">
-                <i class="bi bi-broadcast me-1"></i> Scanner Ready
-            </span>
-        </div>
-        <div class="card-body p-4 bg-light bg-opacity-50">
-            <div class="row g-2 align-items-center mb-2">
-                <div class="col-md-9 col-sm-8">
-                    <div class="input-group input-group-lg shadow-sm">
-                        <span class="input-group-text bg-white border-end-0 text-primary">
-                            <i class="bi bi-upc-scan fs-4"></i>
-                        </span>
-                        <input type="text" id="inputQrScanner" class="form-control border-start-0 font-monospace fw-bold fs-5" 
-                               placeholder="Scan QR sticker tag (e.g. <?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GRMMXTXFS007') ?>)..." 
-                               autofocus autocomplete="off">
-                    </div>
-                </div>
-                <div class="col-md-3 col-sm-4">
-                    <button type="button" class="btn btn-primary btn-lg w-100 fw-semibold shadow-sm d-flex align-items-center justify-content-center gap-2" onclick="onScanLocate()">
-                        <i class="bi bi-search"></i> Scan & Locate
-                    </button>
-                </div>
-            </div>
-            <div class="small text-muted d-flex align-items-center gap-1">
-                <i class="bi bi-info-circle text-primary"></i>
-                <span>Scan product tag code e.g. <strong class="text-danger font-monospace"><?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GRMMXTXFS007') ?></strong> to locate and highlight the garment piece.</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- PIECE TABLE & FILTER TABS (Matches Image 4) -->
+    <!-- PIECE TABLE & FILTER TABS                  -->
     <!-- ========================================== -->
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
