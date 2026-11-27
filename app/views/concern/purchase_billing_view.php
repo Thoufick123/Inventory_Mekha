@@ -82,17 +82,17 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
 ?>
 <div class="container-fluid px-0">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4 d-print-none">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 d-print-none">
         <div>
-            <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-dark font-monospace fs-6 px-3 py-2"><?= htmlspecialchars($bill['bill_no']) ?></span>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge bg-dark font-monospace px-2 py-1"><?= htmlspecialchars($bill['bill_no']) ?></span>
                 <span class="badge bg-success-subtle text-success border px-2 py-1"><?= ucfirst($bill['payment_status']) ?></span>
                 <span class="badge bg-info-subtle text-info border px-2 py-1"><?= ucfirst($bill['inward_status']) ?> Inward</span>
             </div>
-            <h4 class="fw-bold mt-2 mb-1 text-dark">Production Purchase Details</h4>
+            <h5 class="fw-bold mt-1 mb-0 text-dark">Production Purchase Details</h5>
             <p class="text-secondary small mb-0">Recorded on <?= date('d M Y', strtotime($bill['bill_date'])) ?> &bull; Supplier Invoice: <strong><?= htmlspecialchars($bill['supplier_invoice_no'] ?: 'N/A') ?></strong></p>
         </div>
-        <div class="d-flex gap-2 d-print-none">
+        <div class="d-flex gap-2 flex-wrap d-print-none">
             <button type="button" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1" onclick="triggerInvoicePrint()">
                 <i class="bi bi-printer me-1"></i> Print Invoice
             </button>
@@ -126,14 +126,16 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
         <div class="tab-pane fade show active" id="paneInteractive" role="tabpanel">
 
     <!-- Overview Cards -->
-    <div class="row g-3 mb-4">
+    <div class="row g-2 mb-3">
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3">
-                <span class="text-muted small text-uppercase fw-semibold mb-1">Supplier Details</span>
-                <h6 class="fw-bold text-dark mb-1"><?= htmlspecialchars($bill['supplier_name']) ?></h6>
-                <div class="small text-secondary"><?= htmlspecialchars($bill['supplier_company'] ?: '') ?></div>
-                <div class="small text-muted mt-2">
-                    <i class="bi bi-telephone me-1"></i> <?= htmlspecialchars($bill['supplier_phone'] ?: '-') ?><br>
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-primary">
+                <span class="text-muted text-uppercase fw-bold mb-1" style="font-size: 0.70rem; letter-spacing: 0.04em;">Supplier Details</span>
+                <h6 class="fw-bold text-dark mb-0"><?= htmlspecialchars($bill['supplier_name']) ?></h6>
+                <?php if (!empty($bill['supplier_company'])): ?>
+                    <div class="small text-secondary"><?= htmlspecialchars($bill['supplier_company']) ?></div>
+                <?php endif; ?>
+                <div class="small text-muted mt-1">
+                    <i class="bi bi-telephone me-1"></i> <?= htmlspecialchars($bill['supplier_phone'] ?: '-') ?> &bull;
                     <i class="bi bi-geo-alt me-1"></i> <?= htmlspecialchars($bill['supplier_district'] ?: '-') ?>, <?= htmlspecialchars($bill['supplier_state'] ?: 'Tamil Nadu') ?><br>
                     <span class="font-monospace">GSTIN: <?= htmlspecialchars($bill['supplier_gstin'] ?: 'N/A') ?></span>
                 </div>
@@ -141,47 +143,44 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
         </div>
 
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3">
-                <span class="text-muted small text-uppercase fw-semibold mb-1">Purchase & Payment Info</span>
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-info">
+                <span class="text-muted text-uppercase fw-bold mb-1" style="font-size: 0.70rem; letter-spacing: 0.04em;">Purchase & Payment Info</span>
                 <?php if (!empty($bill['fabric_description'])): ?>
-                    <div class="fw-semibold text-dark mb-1"><?= htmlspecialchars($bill['fabric_description']) ?></div>
+                    <div class="fw-semibold text-dark small mb-1"><?= htmlspecialchars($bill['fabric_description']) ?></div>
                 <?php endif; ?>
-                <div class="small text-muted mt-1">
-                    <strong>Purchase Date:</strong> <?= date('d-m-Y', strtotime($bill['bill_date'])) ?><br>
-                    <strong>Supplier Invoice #:</strong> <?= htmlspecialchars($bill['supplier_invoice_no'] ?: '-') ?><br>
-                    <strong>Payment Method:</strong> <span class="badge bg-light text-dark border text-capitalize"><?= htmlspecialchars(str_replace('_', ' ', $bill['payment_method'] ?? 'credit')) ?></span><br>
-                    <strong>Paid Amount:</strong> ₹<?= number_format((float)($bill['paid_amount'] ?? 0), 2) ?><br>
+                <div class="small text-muted">
+                    <strong>Date:</strong> <?= date('d-m-Y', strtotime($bill['bill_date'])) ?> &bull;
+                    <strong>Inv #:</strong> <?= htmlspecialchars($bill['supplier_invoice_no'] ?: '-') ?><br>
+                    <strong>Method:</strong> <span class="badge bg-light text-dark border text-capitalize"><?= htmlspecialchars(str_replace('_', ' ', $bill['payment_method'] ?? 'credit')) ?></span> &bull;
+                    <strong>Paid:</strong> ₹<?= number_format((float)($bill['paid_amount'] ?? 0), 2) ?><br>
                     <strong>Notes:</strong> <?= htmlspecialchars($bill['notes'] ?: 'None') ?>
                 </div>
                 <?php if (!empty($billAttachments)): ?>
-                    <div class="mt-3">
-                        <div class="small fw-semibold text-dark mb-1">Invoice Attachments</div>
-                        <div class="d-flex flex-wrap gap-2">
-                            <?php foreach ($billAttachments as $index => $attachmentPath): ?>
-                                <a href="<?= htmlspecialchars(\App\Services\CloudinaryService::url($attachmentPath)) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-paperclip me-1"></i> Attachment <?= $index + 1 ?>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
+                    <div class="mt-2 d-flex flex-wrap gap-1">
+                        <?php foreach ($billAttachments as $index => $attachmentPath): ?>
+                            <a href="<?= htmlspecialchars(\App\Services\CloudinaryService::url($attachmentPath)) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.75rem;">
+                                <i class="bi bi-paperclip me-1"></i> Attachment <?= $index + 1 ?>
+                            </a>
+                        <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-light-subtle">
-                <span class="text-muted small text-uppercase fw-semibold mb-1">Financial Summary</span>
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-success">
+                <span class="text-muted text-uppercase fw-bold mb-1" style="font-size: 0.70rem; letter-spacing: 0.04em;">Financial Summary</span>
                 <div class="d-flex justify-content-between small text-secondary mb-1">
                     <span>Subtotal (Base Value):</span>
                     <strong class="text-dark">₹<?= number_format($bill['total_amount'], 2) ?></strong>
                 </div>
-                <div class="d-flex justify-content-between small text-secondary mb-2">
+                <div class="d-flex justify-content-between small text-secondary mb-1">
                     <span>Taxes (GST):</span>
                     <strong class="text-dark">₹<?= number_format($bill['tax_amount'], 2) ?></strong>
                 </div>
                 <hr class="my-1">
-                <div class="d-flex justify-content-between align-items-center mt-2">
-                    <span class="fw-bold text-dark fs-6">Total Price:</span>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <span class="fw-bold text-dark small text-uppercase">Total Price:</span>
                     <h4 class="fw-bold mb-0" style="color: #16a34a;">₹<?= number_format($bill['net_amount'], 2) ?></h4>
                 </div>
             </div>
@@ -197,21 +196,21 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
             'finished_goods' => 'Finished Goods',
         ];
         ?>
-        <div class="card border-0 shadow-sm rounded-3 mb-4">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+        <div class="card border-0 shadow-sm rounded-3 mb-3">
+            <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-table text-primary fs-5"></i>
+                    <i class="bi bi-table text-primary fs-6"></i>
                     <h6 class="mb-0 fw-bold text-dark">Purchase Billing Items (<?= count($items) ?> Items)</h6>
                 </div>
                 <?php if (\App\Core\Auth::can('purchase_billing', 'export')): ?>
-                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-outline-success btn-sm py-1 px-3 d-flex align-items-center gap-1 shadow-sm">
+                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/download_items?id=' . $bill['id']) ?>" class="btn btn-outline-success btn-sm py-1 px-2 d-flex align-items-center gap-1 shadow-sm">
                     <i class="bi bi-file-earmark-spreadsheet"></i> Download Items (CSV)
                 </a>
                 <?php endif; ?>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover table-bordered align-middle mb-0 small">
-                    <thead class="table-light text-uppercase text-muted">
+                <table class="table table-sm table-hover table-bordered align-middle mb-0 small">
+                    <thead class="table-light text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.03em;">
                         <tr>
                             <th class="text-center" style="width: 42px;">#</th>
                             <th>Product Type</th>
