@@ -46,30 +46,23 @@
             vertical-align: middle;
         }
     </style>
-    <!-- Page Header & Action Bar -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
-        <div class="d-flex align-items-center gap-3">
-            <div class="rounded-3 p-2 d-flex align-items-center justify-content-center text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); width: 48px; height: 48px;">
-                <i class="bi bi-boxes fs-4"></i>
-            </div>
-            <div>
-                <h4 class="fw-bold mb-0 text-dark">Purchase Stocks & Inventory</h4>
-                <p class="text-muted small mb-0">Monitor inwarded fabric rolls and trims/garment supplies with current stock balance.</p>
-            </div>
-        </div>
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            <?php if (\App\Core\Auth::can('purchase_stocks', 'export') && $activeTab !== 'damage'): ?>
-            <a href="<?= \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . $activeTab . ($selectedCid ? '&concern_id=' . $selectedCid : '')) ?>" class="btn btn-outline-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2">
-                <i class="bi bi-file-earmark-spreadsheet"></i> Export <?= match($activeTab) { 'rolls' => 'Rolls', 'garment_other' => 'Trims', default => 'Stocks' } ?> (CSV)
-            </a>
-            <?php endif; ?>
-            <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
-            <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
-                <i class="bi bi-plus-lg"></i> Add Stock
-            </button>
-            <?php endif; ?>
-        </div>
+    <?php if ($activeTab !== 'damage'): ?>
+        <?php
+        $exportUrl = \App\Core\Controller::url('/m/purchase_stocks/export?tab=' . urlencode($activeTab) . ($selectedCid ? '&concern_id=' . (int)$selectedCid : ''));
+        $currentModule = 'purchase_stocks';
+        $prefix = 'pstock_exp';
+        include __DIR__ . '/../partials/export_card.php';
+        ?>
+    <?php endif; ?>
+
+    <!-- Action Bar -->
+    <?php if ($canAddPurchaseStock && $activeTab !== 'damage'): ?>
+    <div class="d-flex justify-content-end align-items-center mb-3 gap-2">
+        <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-inline-flex align-items-center gap-2 rounded-2" onclick="openCreatePurchaseStockModal('<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>')">
+            <i class="bi bi-plus-lg"></i> Add Stock
+        </button>
     </div>
+    <?php endif; ?>
 
     <!-- Super Admin Concern Switcher Banner (if Super Admin) -->
     <?php if (App\Core\Auth::isSuperAdmin() && !empty($allConcerns)): ?>
