@@ -518,16 +518,19 @@ class ProductionStockRequestController extends Controller {
             [$id]
         );
 
-        // Fetch live available stock for each line at source location
-        $sourceType = $request['from_location_type'];
-        $sourceTarget = $request['from_location_id'];
+        // Fetch live available stock for each line at source concern
+        $sourceConcernId = (int)($request['source_concern_id'] ?: $request['concern_id']);
         foreach ($items as &$item) {
-            $item['live_source_available'] = StockService::getAvailable(
-                (int)$item['variant_id'],
-                $sourceType,
-                $sourceTarget,
-                (int)$request['concern_id']
+            $avail = DB::fetchValue(
+                "SELECT COALESCE(SUM(qty_in - qty_out), 0)
+                 FROM stock_ledger
+                 WHERE concern_id = ? AND variant_id = ?
+                   AND location NOT LIKE '%:DAMAGED'
+                   AND location NOT LIKE '%:IN_TRANSIT'
+                   AND location NOT LIKE '%:RESERVED'",
+                [$sourceConcernId, (int)$item['variant_id']]
             );
+            $item['live_source_available'] = max(0.0, (float)$avail);
         }
         unset($item);
 

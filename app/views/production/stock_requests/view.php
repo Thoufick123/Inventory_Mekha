@@ -47,7 +47,10 @@
         <div class="col-12 col-md-4">
             <div class="card border-0 shadow-sm rounded-3 h-100 p-3">
                 <div class="small fw-bold text-muted text-uppercase mb-2"><i class="bi bi-box-arrow-right me-1 text-primary"></i> Source Origin</div>
-                <div class="fw-bold text-dark fs-6"><?= htmlspecialchars($request['from_location_type']) ?> #<?= (int)$request['from_location_id'] ?></div>
+                <div class="fw-bold text-dark fs-6">
+                    <?= htmlspecialchars($request['source_concern_name'] ?: ($request['concern_name'] ?: ($request['from_location_type'] . ' #' . (int)$request['from_location_id']))) ?>
+                    <span class="badge bg-light text-secondary border ms-1 small"><?= htmlspecialchars($request['from_location_type']) ?></span>
+                </div>
                 <small class="text-secondary d-block">Debits Live AVAILABLE stock upon dispatch.</small>
                 <?php if (!empty($request['dispatched_at'])): ?>
                     <div class="mt-2 pt-2 border-top small">
@@ -61,7 +64,10 @@
         <div class="col-12 col-md-4">
             <div class="card border-0 shadow-sm rounded-3 h-100 p-3">
                 <div class="small fw-bold text-muted text-uppercase mb-2"><i class="bi bi-box-arrow-in-left me-1 text-success"></i> Destination Target</div>
-                <div class="fw-bold text-dark fs-6"><?= htmlspecialchars($request['to_location_type']) ?> #<?= (int)$request['to_location_id'] ?></div>
+                <div class="fw-bold text-dark fs-6">
+                    <?= htmlspecialchars($request['destination_concern_name'] ?: ($request['concern_name'] ?: ($request['to_location_type'] . ' #' . (int)$request['to_location_id']))) ?>
+                    <span class="badge bg-light text-secondary border ms-1 small"><?= htmlspecialchars($request['to_location_type']) ?></span>
+                </div>
                 <small class="text-secondary d-block">Credits destination stock upon receipt confirmation.</small>
                 <?php if (!empty($request['received_at'])): ?>
                     <div class="mt-2 pt-2 border-top small">

@@ -393,7 +393,7 @@ class InwardController extends Controller {
         // Fetch the exact dispatched variants, aggregated by variant ID.
         $items = DB::fetchAll("
             SELECT oi.variant_id, SUM(oi.qty) AS qty,
-                   MAX(oi.qr_codes) AS outward_qr_codes,
+                   NULL AS outward_qr_codes,
                    v.name AS variant_name, v.product_code, v.size, v.price,
                    COALESCE(NULLIF(v.mrp, 0), (SELECT pbi.mrp FROM purchase_bill_items pbi WHERE pbi.variant_id = v.id AND pbi.mrp > 0 ORDER BY pbi.id DESC LIMIT 1), 0) AS mrp,
                    v.attributes AS variant_attributes,
