@@ -149,7 +149,7 @@
                                     <?php
                                     $qcStockedQty = (float)($qc['qc_stocked_qty'] ?? 0);
                                     $availStockQty = (float)($qc['available_stock_qty'] ?? 0);
-                                    $isInStock = $qcStockedQty > 0;
+                                    $isInStock = $availStockQty > 0 || $qcStockedQty > 0;
                                     ?>
                                     <span class="badge <?= $isInStock ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border' ?>" style="font-size: 0.70rem;">
                                         <?= $isInStock ? 'In Stock' : 'Not in Stock' ?>
