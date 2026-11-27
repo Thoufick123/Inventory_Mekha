@@ -407,7 +407,7 @@ $router->post('/m/stitching_wastage/update', [ProductionController::class, 'upda
 $router->post('/m/stitching_wastage/delete', [ProductionController::class, 'deleteStitchingBatch'], 'stitching_wastage', 'delete');
 // Production QC (Quality Control Inspections - Image 1)
 $router->get('/production/qc', [ProductionController::class, 'qc'], 'qc_stocks', 'view');
-$router->get('/production/qc/create', [ProductionController::class, 'createQc'], 'qc_stocks', 'add');
+$router->get('/production/qc/create', [ProductionController::class, 'createQc'], 'qc_stocks', 'add|edit');
 $router->get('/production/qc/view', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/production/qc/details', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/production/qc/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit|add');
@@ -424,7 +424,7 @@ $router->post('/production/qc/reinspect', [ProductionController::class, 'reinspe
 $router->get('/api/qc/stitching-details', [ProductionController::class, 'apiStitchingDetailsForQc'], 'qc_stocks', 'view');
 
 $router->get('/m/qc_stocks', [ProductionController::class, 'qc'], 'qc_stocks', 'view');
-$router->get('/m/qc_stocks/create', [ProductionController::class, 'createQc'], 'qc_stocks', 'add');
+$router->get('/m/qc_stocks/create', [ProductionController::class, 'createQc'], 'qc_stocks', 'add|edit');
 $router->get('/m/qc_stocks/view', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/m/qc_stocks/details', [ProductionController::class, 'viewQc'], 'qc_stocks', 'view');
 $router->get('/m/qc_stocks/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit|add');

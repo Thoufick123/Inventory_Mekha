@@ -7349,7 +7349,8 @@ class ProductionController extends Controller {
      * Initialize QC Inspection Batch (Image 3: /production/qc/create)
      */
     public function createQc(): void {
-        ModuleGuard::enforce('qc_stocks', 'add');
+        $savedQcId = (int)($_GET['qc_id'] ?? 0);
+        ModuleGuard::enforce('qc_stocks', $savedQcId > 0 ? 'add|edit' : 'add');
         $this->ensureQcSchema();
         $cid = Auth::concernId();
         if (!$cid && !Auth::isSuperAdmin()) {
