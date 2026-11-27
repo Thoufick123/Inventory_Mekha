@@ -220,10 +220,6 @@
                     <label for="shop_return_reason" class="form-label small fw-semibold mb-1">Reason / Notes</label>
                     <input type="text" id="shop_return_reason" name="reason" class="form-control form-control-sm" placeholder="e.g. Fitting issue, defect, customer requested refund..." required>
                 </div>
-                <div class="mb-3">
-                    <label for="shop_return_photo_url_input" class="form-label small fw-semibold mb-1">Photo / Inspection URL (optional)</label>
-                    <input type="url" id="shop_return_photo_url_input" class="form-control form-control-sm" maxlength="255" placeholder="https://...">
-                </div>
 
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                     <div><span class="badge bg-danger-subtle text-danger">STEP 2A: RETURNING OLD ITEMS</span> <small class="text-muted ms-2" id="shop_return_selected_count">0 of 0 items selected</small></div>
@@ -634,7 +630,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('shop_return_date').value = String(currentReturn.return_date || '').substring(0, 10);
                 document.getElementById('shop_return_reason').value = currentReturn.reason || '';
                 document.getElementById('shop_return_settlement_reference_input').value = currentReturn.settlement_reference || '';
-                document.getElementById('shop_return_photo_url_input').value = currentReturn.photo_url || '';
+                document.getElementById('shop_return_photo_url').value = currentReturn.photo_url || '';
                 returnType = currentReturn.type || 'RETURN';
                 document.getElementById('shop_return_settlement_mode').value = currentReturn.settlement_mode || 'Cash';
                 replacementItems.push(...(editData.out_items || []));
@@ -648,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('shop_return_date').value = todayDate;
                 document.getElementById('shop_return_reason').value = '';
                 document.getElementById('shop_return_settlement_reference_input').value = '';
-                document.getElementById('shop_return_photo_url_input').value = '';
+                document.getElementById('shop_return_photo_url').value = '';
                 document.getElementById('shop_return_settlement_mode').value = 'Cash';
                 document.getElementById('shop_return_change_invoice').classList.add('d-none');
                 document.getElementById('modalShopReturnTitle').textContent = 'Step 2: Select Items & Action Type';
@@ -843,7 +839,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('shop_return_in_items').value = JSON.stringify(inItems);
         document.getElementById('shop_return_out_items').value = JSON.stringify(outItems);
         document.getElementById('shop_return_settlement_reference').value = document.getElementById('shop_return_settlement_reference_input').value.trim();
-        document.getElementById('shop_return_photo_url').value = document.getElementById('shop_return_photo_url_input').value.trim();
         document.getElementById('shop_return_process_button').disabled = true;
     });
 
