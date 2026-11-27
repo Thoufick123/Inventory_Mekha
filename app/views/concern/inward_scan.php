@@ -443,6 +443,50 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
     </div>
 </div>
 
+<!-- ========================================================================================= -->
+<!-- 4. MODAL: Confirm Inward Acceptance -->
+<!-- ========================================================================================= -->
+<div class="modal fade" id="modalConfirmInwardAcceptance" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
+            <div class="modal-header bg-success text-white py-3 px-4">
+                <h6 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+                    <i class="bi bi-box-arrow-in-down fs-5"></i>
+                    <span id="confirmInwardModalTitle">Confirm Inward Acceptance</span>
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <p class="text-dark fw-semibold mb-3" id="confirmInwardModalSubtitle">
+                    Review the pieces below before crediting stock to warehouse inventory:
+                </p>
+                <div class="row g-2">
+                    <div class="col-6" id="confirmInwardVerifiedBox">
+                        <div class="p-3 bg-white border border-success rounded-3 text-center shadow-sm">
+                            <div class="small text-uppercase fw-bold text-success mb-1" style="font-size: 0.72rem;">Verified (Good)</div>
+                            <div class="fs-4 fw-bold text-success font-monospace" id="confirmInwardVerifiedCount">+0 pcs</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.72rem;">Credited to warehouse stock</div>
+                        </div>
+                    </div>
+                    <div class="col-6" id="confirmInwardDamagedBox">
+                        <div class="p-3 bg-white border border-danger rounded-3 text-center shadow-sm">
+                            <div class="small text-uppercase fw-bold text-danger mb-1" style="font-size: 0.72rem;">Damaged (Quarantine)</div>
+                            <div class="fs-4 fw-bold text-danger font-monospace" id="confirmInwardDamagedCount">0 pcs</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.72rem;">Moved to quarantine</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-white py-2.5 px-4 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-light border px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success px-4 fw-bold" id="btnConfirmInwardSubmit" onclick="confirmInwardModalSubmit()">
+                    <i class="bi bi-check2-circle me-1"></i> Confirm &amp; Add to Stock
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Include QR Code Library -->
 <script src="<?= \App\Core\Controller::url('/assets/js/qrcode.min.js') ?>"></script>
 
@@ -668,27 +712,69 @@ function recalculateTotals() {
 }
 
 // Validate Submission
+let inwardConfirmed = false;
+
 function validateCreditSubmission(e) {
+    if (inwardConfirmed) {
+        return true;
+    }
+
     const vQty = parseInt(document.getElementById('submitVerifiedQty').value) || 0;
     const dQty = parseInt(document.getElementById('submitDamagedQty').value) || 0;
 
     if (vQty <= 0 && dQty <= 0) {
-        alert('Please scan or enter at least 1 verified or damaged piece before updating inventory stock.');
         e.preventDefault();
+        const feedback = document.getElementById('scanFeedbackAlert');
+        if (feedback) {
+            feedback.innerHTML = '<span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle me-1"></i>Please scan or enter at least 1 verified or damaged piece before updating inventory stock.</span>';
+        }
         return false;
     }
 
-    const confirmation = isDamageTransfer
-        ? `Confirm damage inward?\n\n${vQty + dQty} damaged pcs will be added to quarantined stock.`
-        : `Confirm Inward Acceptance?\n\nVerified: +${vQty} pcs will be credited directly to warehouse inventory.\nDamaged: ${dQty} pcs will be quarantined.`;
-    if (!confirm(confirmation)) {
-        e.preventDefault();
-        return false;
+    e.preventDefault();
+    const titleEl = document.getElementById('confirmInwardModalTitle');
+    const subEl = document.getElementById('confirmInwardModalSubtitle');
+    const vBox = document.getElementById('confirmInwardVerifiedBox');
+    const dBox = document.getElementById('confirmInwardDamagedBox');
+    const vCountEl = document.getElementById('confirmInwardVerifiedCount');
+    const dCountEl = document.getElementById('confirmInwardDamagedCount');
+
+    if (isDamageTransfer) {
+        if (titleEl) titleEl.textContent = 'Confirm Damage Inward';
+        if (subEl) subEl.textContent = 'Damaged pieces will be added to quarantined stock at this concern:';
+        if (vBox) vBox.classList.add('d-none');
+        if (dBox) dBox.className = 'col-12';
+        if (dCountEl) dCountEl.textContent = `${vQty + dQty} pcs`;
+    } else {
+        if (titleEl) titleEl.textContent = 'Confirm Inward Acceptance';
+        if (subEl) subEl.textContent = 'Review the pieces below before crediting stock to warehouse inventory:';
+        if (vBox) vBox.classList.remove('d-none');
+        if (dBox) dBox.className = 'col-6';
+        if (vCountEl) vCountEl.textContent = `+${vQty} pcs`;
+        if (dCountEl) dCountEl.textContent = `${dQty} pcs`;
     }
 
-    document.getElementById('btnSubmitStock').disabled = true;
-    document.getElementById('btnSubmitStock').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Crediting Stock to Inventory...';
-    return true;
+    const modalEl = document.getElementById('modalConfirmInwardAcceptance');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+    return false;
+}
+
+function confirmInwardModalSubmit() {
+    inwardConfirmed = true;
+    const modalEl = document.getElementById('modalConfirmInwardAcceptance');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const inst = bootstrap.Modal.getInstance(modalEl);
+        if (inst) inst.hide();
+    }
+    const submitBtn = document.getElementById('btnSubmitStock');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Crediting Stock to Inventory...';
+    }
+    const form = document.getElementById('formCreditStock');
+    if (form) form.submit();
 }
 
 // One-Variant-QR Verification Workstation Logic
