@@ -361,16 +361,6 @@ function markEditPermsDirty() {
 
 function onEditPermCheckboxChange(mid, act, checked) {
     markEditPermsDirty();
-    if (checked && (act === 'add' || act === 'edit' || act === 'delete')) {
-        const viewCb = document.getElementById('edit_m_view_' + mid);
-        if (viewCb) viewCb.checked = true;
-    }
-    if (!checked && act === 'view') {
-        ['add', 'edit', 'delete'].forEach(a => {
-            const cb = document.getElementById('edit_m_' + a + '_' + mid);
-            if (cb) cb.checked = false;
-        });
-    }
     updateEditHeaderCheckboxesState();
 }
 
@@ -380,23 +370,7 @@ function toggleEditHeaderColumn(action, checked) {
         const row = cb.closest('tr');
         if (row && row.style.display === 'none') return;
         cb.checked = checked;
-        const mid = row ? row.getAttribute('data-mid') : null;
-        if (checked && action !== 'view' && mid) {
-            const vCb = document.getElementById('edit_m_view_' + mid);
-            if (vCb) vCb.checked = true;
-        }
     });
-    if (!checked && action === 'view') {
-        ['add', 'edit', 'delete'].forEach(act => {
-            document.querySelectorAll('.edit-matrix-perm-' + act).forEach(cb => {
-                const row = cb.closest('tr');
-                if (row && row.style.display === 'none') return;
-                cb.checked = false;
-            });
-            const h = document.getElementById('edit_header_check_' + act);
-            if (h) { h.checked = false; h.indeterminate = false; }
-        });
-    }
     updateEditHeaderCheckboxesState();
 }
 
