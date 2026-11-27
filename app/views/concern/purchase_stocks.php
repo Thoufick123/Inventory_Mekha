@@ -751,46 +751,46 @@
                                     $labelRef = $g['bill_no'] ?: ('PO-' . $g['purchase_bill_id']);
                                 ?>
                                     <tr>
-                                        <td class="ps-3 text-muted fw-semibold"><?= $gIdx++ ?></td>
-                                        <td>
-                                            <span class="font-monospace fw-bold text-dark badge bg-light text-dark border">
+                                        <td class="ps-3 text-muted fw-semibold py-1 px-2"><?= $gIdx++ ?></td>
+                                        <td class="py-1 px-2">
+                                            <span class="font-monospace fw-bold text-dark badge bg-light text-dark border" style="font-size: 0.72rem;">
                                                 <?= htmlspecialchars($g['item_code'] ?: ('SUP-' . $g['id'])) ?>
                                             </span>
                                         </td>
-                                        <td class="text-start">
-                                            <div class="fw-bold text-dark"><?= htmlspecialchars($g['item_name']) ?></div>
+                                        <td class="text-start py-1 px-2">
+                                            <div class="fw-bold text-dark font-monospace text-uppercase"><?= htmlspecialchars($g['item_name']) ?></div>
                                             <?php if (!empty($g['specification']) && $g['specification'] !== $g['item_name']): ?>
                                                 <div class="text-muted small" style="font-size: 0.72rem;"><?= htmlspecialchars($g['specification']) ?></div>
                                             <?php endif; ?>
                                         </td>
-                                        <td>
-                                            <span class="badge bg-light text-secondary border"><?= htmlspecialchars($g['unit'] ?: 'Pcs') ?></span>
+                                        <td class="py-1 px-2">
+                                            <span class="badge bg-light text-secondary border" style="font-size: 0.72rem;"><?= htmlspecialchars($g['unit'] ?: 'Pcs') ?></span>
                                         </td>
-                                        <td class="fw-bold text-dark">
-                                            <?= (float)$qty ?> <?= htmlspecialchars($g['unit'] ?: 'Pcs') ?>
+                                        <td class="fw-bold text-dark py-1 px-2">
+                                            <?= (float)$qty ?> <span class="fw-normal text-muted"><?= htmlspecialchars($g['unit'] ?: 'Pcs') ?></span>
                                         </td>
-                                        <td>
+                                        <td class="table-primary py-1 px-2">
                                             <?php if ($isInStock && $availableQty > 0): ?>
-                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                                    <i class="bi bi-box-seam me-1"></i><?= number_format($availableQty, 2) ?> <?= htmlspecialchars($g['unit'] ?: 'Pcs') ?> Available
+                                                <span class="fw-bold text-primary">
+                                                    <?= number_format($availableQty, 2) ?> <span class="fw-normal text-muted"><?= htmlspecialchars($g['unit'] ?: 'Pcs') ?></span>
                                                 </span>
                                             <?php elseif ($isInStock): ?>
-                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
-                                                    <i class="bi bi-shield-x me-1"></i>Quarantined / Out of Stock
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size: 0.7rem;">
+                                                    <i class="bi bi-shield-x me-1"></i>Out of Stock
                                                 </span>
                                             <?php else: ?>
-                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1" style="font-size: 0.7rem;">
                                                     <i class="bi bi-hourglass-split me-1"></i>Pending Inward
                                                 </span>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="text-end fw-semibold text-dark">
+                                        <td class="text-end fw-semibold text-dark py-1 px-2">
                                             ₹<?= number_format($uPrice, 2) ?>
                                         </td>
-                                        <td class="text-end fw-bold text-dark">
+                                        <td class="text-end fw-bold text-dark py-1 px-2">
                                             ₹<?= number_format($tot, 2) ?>
                                         </td>
-                                        <td>
+                                        <td class="py-1 px-2">
                                             <?php if ($isInStock && $availableQty > 0): ?>
                                                 <span class="badge bg-success text-white px-2 py-1" style="font-size: 0.68rem;">IN STOCK</span>
                                             <?php elseif ($isInStock): ?>
