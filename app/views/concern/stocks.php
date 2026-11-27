@@ -21,9 +21,9 @@
     ?>
 
     <!-- Summary Statistics -->
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-sm-6 col-xl-4">
-            <div class="card-stat d-flex justify-content-between align-items-center">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-5 g-3 mb-4">
+        <div class="col">
+            <div class="card-stat h-100 d-flex justify-content-between align-items-center">
                 <div>
                     <span class="text-secondary small fw-semibold text-uppercase">Total Physical Inventory Units</span>
                     <h3 class="fw-bold text-dark mt-1 mb-0"><?= number_format((float)$totalUnits, 0) ?></h3>
@@ -33,8 +33,8 @@
                 </div>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-xl-4">
-            <div class="card-stat d-flex justify-content-between align-items-center">
+        <div class="col">
+            <div class="card-stat h-100 d-flex justify-content-between align-items-center">
                 <div>
                     <span class="text-secondary small fw-semibold text-uppercase">Total Stock Valuation</span>
                     <h3 class="fw-bold text-success mt-1 mb-0">₹<?= number_format($totalValuation, 2) ?></h3>
@@ -44,8 +44,8 @@
                 </div>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-xl-4">
-            <div class="card-stat d-flex justify-content-between align-items-center">
+        <div class="col">
+            <div class="card-stat h-100 d-flex justify-content-between align-items-center">
                 <div>
                     <span class="text-secondary small fw-semibold text-uppercase">Unique In-Stock Variants</span>
                     <h3 class="fw-bold text-primary mt-1 mb-0"><?= number_format((int)$uniqueVariantCount) ?></h3>
@@ -60,13 +60,12 @@
         $sourceCards = [
             ['own', 'Own Product Units', 'bi-scissors', 'info'],
             ['purchase', 'Purchase Product Units', 'bi-bag-check', 'warning'],
-            ['other', 'Other Source Units', 'bi-arrow-left-right', 'secondary'],
         ];
         foreach ($sourceCards as [$sourceKey, $sourceLabel, $sourceIcon, $sourceColor]):
             $sourceMetric = $stockSourceMetrics[$sourceKey];
         ?>
-            <div class="col-12 col-sm-6 col-xl-4">
-                <div class="card-stat d-flex justify-content-between align-items-center">
+            <div class="col">
+                <div class="card-stat h-100 d-flex justify-content-between align-items-center">
                     <div>
                         <span class="text-secondary small fw-semibold text-uppercase"><?= htmlspecialchars($sourceLabel) ?></span>
                         <h3 class="fw-bold text-dark mt-1 mb-0"><?= number_format((float)$sourceMetric['units'], 0) ?> units</h3>
@@ -98,42 +97,78 @@
             'description' => 'Mapped finished goods from purchase inward',
             'items' => [],
         ],
-        'other' => [
-            'title' => 'Other Sources',
-            'description' => 'Stock with no matching production or purchase source entry',
-            'items' => [],
-        ],
     ];
+    $stockFilterConcerns = [];
+    $stockFilterCategories = [];
     foreach ($stocks as $stock) {
         $source = $stock['stock_source'] ?? 'other';
         if (!isset($stockGroups[$source])) {
             continue;
         }
         $stockGroups[$source]['items'][] = $stock;
+        $cName = trim((string)($stock['concern_name'] ?? ''));
+        if ($cName !== '') {
+            $stockFilterConcerns[$cName] = $cName;
+        }
+        $catName = trim((string)($stock['category_name'] ?? 'General'));
+        if ($catName !== '') {
+            $stockFilterCategories[$catName] = $catName;
+        }
     }
-    $activeStockSource = !empty($stockGroups['own']['items'])
-        ? 'own'
-        : (!empty($stockGroups['purchase']['items']) ? 'purchase' : 'other');
+    ksort($stockFilterConcerns);
+    ksort($stockFilterCategories);
+    $visibleStocksCount = count($stockGroups['own']['items']) + count($stockGroups['purchase']['items']);
+    $activeStockSource = !empty($stockGroups['own']['items']) ? 'own' : 'purchase';
     ?>
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
             <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-box-seam me-2 text-primary"></i> Current Stock</h6>
-            <span class="badge bg-light text-dark border"><?= count($stocks) ?> Stock Lines</span>
+            <span class="badge bg-light text-dark border" id="stockLinesCountBadge"><?= $visibleStocksCount ?> Stock Lines</span>
         </div>
-        <div class="px-3 pt-3 border-bottom">
-            <div class="nav nav-pills flex-nowrap gap-2 overflow-auto" role="tablist" aria-label="Stock source">
-                <?php foreach ($stockGroups as $source => $group): ?>
-                    <button type="button"
-                            class="nav-link text-nowrap <?= $activeStockSource === $source ? 'active' : '' ?>"
-                            data-stock-source-tab="<?= htmlspecialchars($source) ?>"
-                            role="tab"
-                            aria-controls="stock-table-body"
-                            aria-selected="<?= $activeStockSource === $source ? 'true' : 'false' ?>">
-                        <i class="bi <?= $source === 'own' ? 'bi-boxes' : ($source === 'purchase' ? 'bi-bag-check' : 'bi-arrow-left-right') ?> me-1"></i>
-                        <?= htmlspecialchars($group['title']) ?>
-                        <span class="badge <?= $activeStockSource === $source ? 'bg-light text-primary' : 'bg-white text-dark border' ?> ms-1"><?= count($group['items']) ?></span>
+        <div class="px-3 pt-3 pb-2 border-bottom">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="nav nav-pills flex-nowrap gap-2 overflow-auto" role="tablist" aria-label="Stock source">
+                    <?php foreach ($stockGroups as $source => $group): ?>
+                        <button type="button"
+                                class="nav-link text-nowrap <?= $activeStockSource === $source ? 'active' : '' ?>"
+                                data-stock-source-tab="<?= htmlspecialchars($source) ?>"
+                                role="tab"
+                                aria-controls="stock-table-body"
+                                aria-selected="<?= $activeStockSource === $source ? 'true' : 'false' ?>">
+                            <i class="bi <?= $source === 'own' ? 'bi-boxes' : 'bi-bag-check' ?> me-1"></i>
+                            <?= htmlspecialchars($group['title']) ?>
+                            <span class="badge <?= $activeStockSource === $source ? 'bg-light text-primary' : 'bg-white text-dark border' ?> ms-1"><?= count($group['items']) ?></span>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="input-group input-group-sm" style="width: 240px;">
+                        <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" id="stockSearchInput" class="form-control" placeholder="Search name, code, size, color...">
+                    </div>
+                    <?php if ($showConcernColumn && !empty($stockFilterConcerns)): ?>
+                        <select id="stockConcernFilter" class="form-select form-select-sm" style="width: auto; min-width: 150px;">
+                            <option value="">All Concerns</option>
+                            <?php foreach ($stockFilterConcerns as $cLabel): ?>
+                                <option value="<?= htmlspecialchars(strtolower($cLabel), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($cLabel) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    <?php endif; ?>
+                    <select id="stockCategoryFilter" class="form-select form-select-sm" style="width: auto; min-width: 150px;">
+                        <option value="">All Categories</option>
+                        <?php foreach ($stockFilterCategories as $catLabel): ?>
+                            <option value="<?= htmlspecialchars(strtolower($catLabel), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($catLabel) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select id="stockStatusFilter" class="form-select form-select-sm" style="width: auto; min-width: 140px;">
+                        <option value="">All Stock</option>
+                        <option value="in_stock">In Stock (&gt; 0)</option>
+                        <option value="complementary">Complementary</option>
+                    </select>
+                    <button type="button" id="stockFilterReset" class="btn btn-sm btn-outline-secondary d-none" title="Clear filters">
+                        <i class="bi bi-x-lg"></i>
                     </button>
-                <?php endforeach; ?>
+                </div>
             </div>
         </div>
         <div class="table-responsive">
@@ -155,7 +190,7 @@
                     </tr>
                 </thead>
                 <tbody id="stock-table-body">
-                    <?php if (empty($stocks)): ?>
+                    <?php if ($visibleStocksCount === 0): ?>
                         <tr><td colspan="<?= $stockColumnCount ?>" class="text-center py-4 text-muted">No label-generated own or purchase product stock is available.</td></tr>
                     <?php else: ?>
                         <?php foreach ($stockGroups as $group): ?>
@@ -218,7 +253,28 @@
                                     $isFinishedGoods = in_array($s['stock_source'] ?? '', ['own', 'purchase'], true);
                                     $stockUnit = $isFinishedGoods ? 'pcs' : ($s['weight_unit'] ?: 'pcs');
                                 ?>
-                                    <tr data-stock-source="<?= htmlspecialchars($s['stock_source']) ?>" class="<?= $s['stock_source'] === $activeStockSource ? '' : 'd-none' ?>">
+                                    <?php
+                                    $rowSearchText = strtolower(trim(implode(' ', array_filter([
+                                        $s['variant_name'] ?? '',
+                                        $s['product_code'] ?? '',
+                                        $fgCode ?? '',
+                                        $s['size'] ?? '',
+                                        $color,
+                                        $s['category_name'] ?? '',
+                                        $subcatDisplay,
+                                        $s['concern_name'] ?? '',
+                                        $s['style_code'] ?? '',
+                                    ]))));
+                                    $rowConcernKey = strtolower(trim((string)($s['concern_name'] ?? '')));
+                                    $rowCategoryKey = strtolower(trim((string)($s['category_name'] ?? 'General')));
+                                    ?>
+                                    <tr data-stock-source="<?= htmlspecialchars($s['stock_source']) ?>"
+                                        data-search="<?= htmlspecialchars($rowSearchText, ENT_QUOTES, 'UTF-8') ?>"
+                                        data-concern="<?= htmlspecialchars($rowConcernKey, ENT_QUOTES, 'UTF-8') ?>"
+                                        data-category="<?= htmlspecialchars($rowCategoryKey, ENT_QUOTES, 'UTF-8') ?>"
+                                        data-qty="<?= (float)$s['qty'] ?>"
+                                        data-complementary="<?= !empty($s['is_complementary']) ? '1' : '0' ?>"
+                                        class="<?= $s['stock_source'] === $activeStockSource ? '' : 'd-none' ?>">
                                         <td>
                                             <input type="checkbox" class="form-check-input stock-row-checkbox"
                                                    data-variant-id="<?= (int)$s['variant_id'] ?>"
@@ -958,9 +1014,69 @@
 <?php endif; ?>
 
 <script>
+const stockSearchInput = document.getElementById('stockSearchInput');
+const stockConcernFilter = document.getElementById('stockConcernFilter');
+const stockCategoryFilter = document.getElementById('stockCategoryFilter');
+const stockStatusFilter = document.getElementById('stockStatusFilter');
+const stockFilterReset = document.getElementById('stockFilterReset');
+const stockLinesCountBadge = document.getElementById('stockLinesCountBadge');
+let currentActiveStockSource = <?= json_encode($activeStockSource) ?>;
+
+function applyStockFilters() {
+    const query = (stockSearchInput?.value || '').trim().toLowerCase();
+    const concernVal = (stockConcernFilter?.value || '').trim().toLowerCase();
+    const categoryVal = (stockCategoryFilter?.value || '').trim().toLowerCase();
+    const statusVal = (stockStatusFilter?.value || '').trim();
+    const hasFilter = Boolean(query || concernVal || categoryVal || statusVal);
+    if (stockFilterReset) stockFilterReset.classList.toggle('d-none', !hasFilter);
+
+    const rows = document.querySelectorAll('tr[data-stock-source]');
+    let visibleCount = 0;
+    const sourceMatchCounts = { own: 0, purchase: 0 };
+
+    rows.forEach(row => {
+        const rowSource = row.dataset.stockSource || '';
+        const matchesSearch = !query || (row.dataset.search || '').includes(query);
+        const matchesConcern = !concernVal || (row.dataset.concern || '') === concernVal;
+        const matchesCategory = !categoryVal || (row.dataset.category || '') === categoryVal;
+        const rowQty = parseFloat(row.dataset.qty || '0') || 0;
+        const isComp = row.dataset.complementary === '1';
+        const matchesStatus = !statusVal || (statusVal === 'in_stock' ? rowQty > 0 : (statusVal === 'complementary' ? isComp : true));
+
+        const matchesFilters = matchesSearch && matchesConcern && matchesCategory && matchesStatus;
+        if (matchesFilters && sourceMatchCounts[rowSource] !== undefined) {
+            sourceMatchCounts[rowSource]++;
+        }
+
+        const visible = rowSource === currentActiveStockSource && matchesFilters;
+        row.classList.toggle('d-none', !visible);
+        if (visible) visibleCount++;
+    });
+
+    document.querySelectorAll('[data-stock-source-tab]').forEach(tab => {
+        const src = tab.dataset.stockSourceTab;
+        const badge = tab.querySelector('.badge');
+        if (badge && sourceMatchCounts[src] !== undefined) {
+            badge.textContent = String(sourceMatchCounts[src]);
+        }
+    });
+
+    if (stockLinesCountBadge) {
+        stockLinesCountBadge.textContent = `${visibleCount} Stock Lines`;
+    }
+
+    const emptyRow = document.getElementById('stock-source-empty-row');
+    if (emptyRow) {
+        emptyRow.classList.toggle('d-none', visibleCount > 0);
+        emptyRow.querySelector('td').textContent = hasFilter
+            ? `No matching ${currentActiveStockSource === 'own' ? 'own' : 'purchase'} product stock found.`
+            : `No ${currentActiveStockSource === 'own' ? 'own' : 'purchase'} product stock available.`;
+    }
+}
+
 document.querySelectorAll('[data-stock-source-tab]').forEach(button => {
     button.addEventListener('click', () => {
-        const source = button.dataset.stockSourceTab;
+        currentActiveStockSource = button.dataset.stockSourceTab;
         document.querySelectorAll('[data-stock-source-tab]').forEach(tab => {
             const active = tab === button;
             tab.classList.toggle('active', active);
@@ -974,20 +1090,24 @@ document.querySelectorAll('[data-stock-source-tab]').forEach(button => {
                 count.classList.toggle('border', !active);
             }
         });
-        const rows = document.querySelectorAll('tr[data-stock-source]');
-        let visibleCount = 0;
-        rows.forEach(row => {
-            const visible = row.dataset.stockSource === source;
-            row.classList.toggle('d-none', !visible);
-            if (visible) visibleCount++;
-        });
-        const emptyRow = document.getElementById('stock-source-empty-row');
-        if (emptyRow) {
-            emptyRow.classList.toggle('d-none', visibleCount > 0);
-            emptyRow.querySelector('td').textContent = `No ${source === 'own' ? 'own' : (source === 'purchase' ? 'purchase' : 'other')} product stock available.`;
-        }
+        applyStockFilters();
     });
 });
+
+if (stockSearchInput) stockSearchInput.addEventListener('input', applyStockFilters);
+if (stockConcernFilter) stockConcernFilter.addEventListener('change', applyStockFilters);
+if (stockCategoryFilter) stockCategoryFilter.addEventListener('change', applyStockFilters);
+if (stockStatusFilter) stockStatusFilter.addEventListener('change', applyStockFilters);
+if (stockFilterReset) {
+    stockFilterReset.addEventListener('click', () => {
+        if (stockSearchInput) stockSearchInput.value = '';
+        if (stockConcernFilter) stockConcernFilter.value = '';
+        if (stockCategoryFilter) stockCategoryFilter.value = '';
+        if (stockStatusFilter) stockStatusFilter.value = '';
+        applyStockFilters();
+    });
+}
+applyStockFilters();
 
 // View Details Modal Handler
 document.querySelectorAll('[data-stock-view]').forEach(button => {

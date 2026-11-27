@@ -196,9 +196,9 @@ if ($isEdit && !empty($existingItems)) {
 }
 .fg-quick-fill-grid {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: .4rem;
-    overflow-x: auto;
+    overflow: visible;
 }
 .fg-quick-fill-grid > div:not(.d-none) {
     flex: 1 1 0;
@@ -361,59 +361,70 @@ if ($isEdit && !empty($existingItems)) {
         <section class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
                 <h5 class="fw-bold mb-0"><i class="bi bi-receipt text-primary me-2"></i>Purchase &amp; Supplier Details</h5>
-                <span class="badge text-bg-light border"><?= htmlspecialchars($savedBill['bill_no']) ?></span>
             </div>
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Target concern</div>
                         <div class="fw-semibold"><?= htmlspecialchars($savedBill['concern_name'] ?? '—') ?></div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Supplier</div>
                         <div class="fw-semibold"><?= htmlspecialchars($savedBill['supplier_name'] ?? '—') ?></div>
                         <?php if (!empty($savedBill['supplier_company'])): ?>
                             <div class="small text-muted"><?= htmlspecialchars($savedBill['supplier_company']) ?></div>
                         <?php endif; ?>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Supplier invoice</div>
                         <div class="fw-semibold"><?= htmlspecialchars($savedBill['supplier_invoice_no'] ?? '—') ?></div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Purchase date</div>
                         <div class="fw-semibold">
                             <?= !empty($savedBill['bill_date']) ? htmlspecialchars(date('d M Y', strtotime((string) $savedBill['bill_date']))) : '—' ?>
                         </div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Payment status</div>
                         <div class="fw-semibold"><?= htmlspecialchars(ucfirst((string) ($savedBill['payment_status'] ?? 'unpaid'))) ?></div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Payment method</div>
                         <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) ($savedBill['payment_method'] ?? 'credit')))) ?></div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Paid amount</div>
                         <div class="fw-semibold">₹<?= number_format((float) ($savedBill['paid_amount'] ?? 0), 2) ?></div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Stock status</div>
                         <div class="fw-semibold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) ($savedBill['inward_status'] ?? 'pending')))) ?></div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Purchase amount</div>
                         <div class="fw-semibold">₹<?= number_format((float) ($savedBill['total_amount'] ?? 0), 2) ?></div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Tax amount</div>
                         <div class="fw-semibold">₹<?= number_format((float) ($savedBill['tax_amount'] ?? 0), 2) ?></div>
                     </div>
-                    <div class="col-sm-6 col-lg-3">
+                    <div class="col-6 col-md-4 col-lg-2">
                         <div class="small text-muted">Net amount</div>
                         <div class="fw-semibold text-primary">₹<?= number_format((float) ($savedBill['net_amount'] ?? 0), 2) ?></div>
                     </div>
+                    <?php if ($savedBillAttachments): ?>
+                        <div class="col-6 col-md-4 col-lg-2">
+                            <div class="small text-muted">Invoice attachments</div>
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                <?php foreach ($savedBillAttachments as $index => $attachmentPath): ?>
+                                    <a href="<?= htmlspecialchars(\App\Services\CloudinaryService::url($attachmentPath)) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-paperclip me-1"></i>Attachment <?= $index + 1 ?>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     <?php if (trim((string) ($savedBill['notes'] ?? '')) !== ''): ?>
                         <div class="col-12">
                             <div class="small text-muted">Purchase notes</div>
@@ -426,34 +437,11 @@ if ($isEdit && !empty($existingItems)) {
                             <div><?= nl2br(htmlspecialchars((string) $savedBill['fabric_description'])) ?></div>
                         </div>
                     <?php endif; ?>
-                    <?php if ($savedBillAttachments): ?>
-                        <div class="col-12">
-                            <div class="small text-muted">Invoice attachments</div>
-                            <div class="d-flex flex-wrap gap-2">
-                                <?php foreach ($savedBillAttachments as $index => $attachmentPath): ?>
-                                    <a href="<?= htmlspecialchars(\App\Services\CloudinaryService::url($attachmentPath)) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-paperclip me-1"></i>Attachment <?= $index + 1 ?>
-                                    </a>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
                 </div>
             </div>
         </section>
 
         <section class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <div>
-                    <h5 class="fw-bold mb-1">Labels &amp; Stock — <?= htmlspecialchars($savedBill['bill_no']) ?></h5>
-                    <div class="small text-muted">
-                        <?= htmlspecialchars($savedBill['supplier_name'] ?? 'Supplier') ?>
-                        · Supplier invoice <?= htmlspecialchars($savedBill['supplier_invoice_no'] ?? '-') ?>
-                        · The most recent label-copy count becomes the stock quantity; each line can be added once.
-                    </div>
-                </div>
-                <span class="badge text-bg-primary"><?= count($savedBillItems) ?> bill lines</span>
-            </div>
             <?php if (empty($savedBillItems)): ?>
                 <div class="card-body text-muted">This saved bill has no printable lines.</div>
             <?php else: ?>
@@ -558,16 +546,6 @@ if ($isEdit && !empty($existingItems)) {
                                             </button>
                                             <?php if ($isSavedItemInStock): ?>
                                                 <span class="badge text-bg-success ms-1">In stock</span>
-                                                <?php if ($needsStockCorrection): ?>
-                                                    <button
-                                                        type="submit"
-                                                        form="productAddingStockCorrectionForm<?= $savedItemId ?>"
-                                                        class="btn btn-sm btn-warning ms-1"
-                                                        title="Add the missing bill quantity to stock and record the correction"
-                                                        onclick="return confirm('Add the missing bill quantity to stock? An audit entry will be recorded.')">
-                                                        Correct stock
-                                                    </button>
-                                                <?php endif; ?>
                                             <?php elseif ($savedItem['labels_complete']): ?>
                                                 <button type="submit" form="productAddingStockForm<?= $savedItemId ?>" class="btn btn-sm btn-success ms-1" data-product-adding-stock-button="<?= $savedItemId ?>">
                                                     <i class="bi bi-box-arrow-in-down me-1"></i>Add stock
@@ -704,17 +682,10 @@ if ($isEdit && !empty($existingItems)) {
             </div>
             <div class="card-body p-4">
                 <div class="row g-3 mb-3">
-                    <div class="<?= empty($selectedCid) ? 'col-md-2' : 'col-md-3' ?>">
-                        <label class="form-label small fw-semibold mb-1">Invoice / Bill No <span class="text-danger">*</span></label>
-                        <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control form-control-sm" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
-                        <div class="invalid-feedback" id="billSupplierInvoiceFeedback" aria-live="polite">Invoice / Bill number is required.</div>
-                        <div class="form-text small" id="billSupplierInvoiceStatus" aria-live="polite"></div>
-                    </div>
-
                     <?php if (empty($selectedCid)): ?>
                         <div class="col-lg-3 col-md-6">
-                            <label class="form-label small fw-semibold">Target Concern <span class="text-danger">*</span></label>
-                            <select name="concern_id" id="billConcernId" class="form-select" required>
+                            <label class="form-label small fw-semibold mb-1">Target Concern <span class="text-danger">*</span></label>
+                            <select name="concern_id" id="billConcernId" class="form-select form-select-sm" required>
                                 <option value="">-- Choose Concern --</option>
                                 <?php foreach ($allConcerns ?? [] as $con): ?>
                                     <option value="<?= $con['id'] ?>" <?= ($isEdit && $bill['concern_id'] == $con['id']) ? 'selected' : '' ?>>
@@ -725,6 +696,13 @@ if ($isEdit && !empty($existingItems)) {
                             <div class="invalid-feedback">Target concern is required.</div>
                         </div>
                     <?php endif; ?>
+
+                    <div class="<?= empty($selectedCid) ? 'col-md-2' : 'col-md-3' ?>">
+                        <label class="form-label small fw-semibold mb-1">Invoice / Bill No <span class="text-danger">*</span></label>
+                        <input type="text" name="supplier_invoice_no" id="billSupplierInvoiceNo" class="form-control form-control-sm" placeholder="e.g. INV-2026-8891" value="<?= htmlspecialchars($isEdit ? ($bill['supplier_invoice_no'] ?? '') : '') ?>" required>
+                        <div class="invalid-feedback" id="billSupplierInvoiceFeedback" aria-live="polite">Invoice / Bill number is required.</div>
+                        <div class="form-text small" id="billSupplierInvoiceStatus" aria-live="polite"></div>
+                    </div>
 
                     <div class="<?= empty($selectedCid) ? 'col-md-3' : 'col-md-4' ?>">
                         <label class="form-label small fw-semibold mb-1">Supplier <?= $supplierIsOptional ? '<span class="text-muted">(optional)</span>' : '<span class="text-danger">*</span>' ?></label>
@@ -3153,6 +3131,9 @@ function buildProductAddingAttributeSelectionControls(cardId) {
             <button type="button" class="btn btn-sm btn-primary" onclick="generateProductAddingVariantRows(${cardId})">
                 <i class="bi bi-grid me-1"></i>Generate combinations
             </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="promptAddProductAddingAttribute(${cardId})">
+                <i class="bi bi-plus-lg me-1"></i>Add Attribute
+            </button>
         </div>
     </div>`;
 }
@@ -3205,15 +3186,6 @@ function buildProductAddingFields(id) {
     if (!isProductAddingForm) return '';
     return `
         <div class="card border shadow-none rounded-3">
-            <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
-                <div>
-                    <strong class="small text-dark">Finished Goods Variant Matrix</strong>
-                    <div class="small text-muted">Allocate purchased quantities and prices per variant.</div>
-                </div>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="promptAddProductAddingAttribute(${id})"><i class="bi bi-plus-lg me-1"></i>Add Attribute</button>
-                </div>
-            </div>
             <div class="card-body pb-2">
                 ${buildProductAddingAttributeSelectionControls(id)}
             </div>
@@ -3221,7 +3193,6 @@ function buildProductAddingFields(id) {
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <div>
                         <div class="fw-bold small text-dark"><i class="bi bi-lightning-charge-fill text-primary me-1"></i>Quick Fill (All Columns)</div>
-                        <div class="small text-muted">Set shared values once and apply them to all variant rows.</div>
                     </div>
                     <button type="button" class="btn btn-sm btn-primary" onclick="applyProductAddingQuickFill(${id})">
                         <i class="bi bi-check2-all me-1"></i>Apply to All Rows

@@ -4,6 +4,8 @@
  */
 (function () {
     const requestIds = new WeakMap();
+    const dropdownsByInput = new WeakMap();
+    const inputsByDropdown = new WeakMap();
     let debounceTimer = null;
     let activeIndex = -1;
 
@@ -12,30 +14,25 @@
     }
 
     function getDropdown(input) {
-        let results = input.parentElement.querySelector('.hsn-autocomplete-results');
-        if (results) return results;
+        let results = dropdownsByInput.get(input);
+        if (results && results.isConnected) return results;
 
-        if (getComputedStyle(input.parentElement).position === 'static') {
-            input.parentElement.style.position = 'relative';
-        }
         results = document.createElement('div');
         results.className = 'hsn-autocomplete-results shadow-lg border rounded-3';
-        results.style.cssText = 'display:none;position:absolute;z-index:1095;background:#ffffff;border:1px solid #cbd5e1;min-width:340px;max-width:520px;max-height:280px;overflow-y:auto;box-shadow:0 12px 28px rgba(15,23,42,0.18);padding:4px 0;';
-        input.parentElement.appendChild(results);
+        results.style.cssText = 'display:none;position:fixed;z-index:2050;background:#ffffff;border:1px solid #cbd5e1;min-width:340px;max-width:520px;max-height:280px;overflow-y:auto;box-shadow:0 12px 28px rgba(15,23,42,0.18);padding:4px 0;';
+        document.body.appendChild(results);
+        dropdownsByInput.set(input, results);
+        inputsByDropdown.set(results, input);
         return results;
     }
 
     function positionDropdown(input, results) {
         if (!input || !results) return;
-        const parent = input.parentElement;
-        if (parent) {
-            parent.style.zIndex = '1090';
-        }
-        const top = input.offsetTop + input.offsetHeight + 3;
-        const left = input.offsetLeft;
-        const minW = Math.max(input.offsetWidth, 340);
-        results.style.top = top + 'px';
-        results.style.left = left + 'px';
+        const rect = input.getBoundingClientRect();
+        const minW = Math.max(rect.width, 340);
+        const maxLeft = Math.max(8, window.innerWidth - minW - 12);
+        results.style.top = (rect.bottom + 3) + 'px';
+        results.style.left = Math.max(8, Math.min(rect.left, maxLeft)) + 'px';
         results.style.minWidth = minW + 'px';
     }
 
@@ -313,7 +310,7 @@
         const input = event.target.closest('[data-hsn-autocomplete]');
         if (!input) return;
 
-        const results = input.parentElement.querySelector('.hsn-autocomplete-results');
+        const results = dropdownsByInput.get(input);
         if (!results || results.style.display === 'none') return;
 
         const items = results.querySelectorAll('.hsn-item-result');
@@ -340,7 +337,7 @@
     document.addEventListener('click', event => {
         if (event.target.closest('[data-hsn-autocomplete], .hsn-autocomplete-results')) return;
         document.querySelectorAll('.hsn-autocomplete-results').forEach(results => {
-            const input = results.parentElement ? results.parentElement.querySelector('[data-hsn-autocomplete]') : null;
+            const input = inputsByDropdown.get(results) || (results.parentElement ? results.parentElement.querySelector('[data-hsn-autocomplete]') : null);
             closeDropdown(input, results);
         });
     });

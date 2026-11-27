@@ -256,7 +256,6 @@
                                 <th>Total Fabric Weight</th>
                                 <th class="text-end">Unit Rate</th>
                                 <th class="text-end">Total Valuation (₹)</th>
-                                <th class="text-start">Inward History</th>
                                 <th style="width: 100px;">Status</th>
                                 <th style="width: 120px;">Actions</th>
                             </tr>
@@ -264,7 +263,7 @@
                         <tbody>
                             <?php if (empty($consolidatedRolls)): ?>
                                 <tr>
-                                    <td colspan="11" class="text-center py-5 text-muted">
+                                    <td colspan="10" class="text-center py-5 text-muted">
                                         <i class="bi bi-stack display-6 text-secondary d-block mb-2"></i>
                                         <strong>No fabric roll specifications registered yet.</strong>
                                         <div class="small mt-1">Record a purchase bill and click <strong>Add to Stock</strong> in Label Generation to automatically populate the Color & Design roll stock registry.</div>
@@ -311,15 +310,6 @@
                                         </td>
                                         <td class="text-end fw-bold text-dark py-1 px-2">
                                             ₹<?= number_format((float)$cr['total_value'], 2) ?>
-                                        </td>
-                                        <td class="text-start py-1 px-2">
-                                            <span class="fw-semibold text-dark"><i class="bi bi-receipt text-secondary me-1"></i><?= (int)$cr['bills_count'] ?> batch(es)</span>
-                                            <?php if (!empty($cr['last_bill_no'])): ?>
-                                                <div class="text-muted small">
-                                                    <span class="font-monospace fw-semibold text-primary"><?= htmlspecialchars($cr['last_bill_no']) ?></span>
-                                                    <?= !empty($cr['last_supplier_name']) ? (' &bull; ' . htmlspecialchars($cr['last_supplier_name'])) : '' ?>
-                                                </div>
-                                            <?php endif; ?>
                                         </td>
                                         <td class="py-1 px-2">
                                             <span class="badge bg-<?= (float)$cr['qty'] > 0 ? 'success' : 'secondary' ?> text-white px-2 py-1">
@@ -739,7 +729,6 @@
                                 <th>Available Stock</th>
                                 <th class="text-end">Unit Price</th>
                                 <th class="text-end">Stock Value (₹)</th>
-                                <th class="text-start">Purchase Bill Ref</th>
                                 <th style="width: 100px;">Status</th>
                                 <th style="width: 120px;">Actions</th>
                             </tr>
@@ -747,7 +736,7 @@
                         <tbody>
                             <?php if (empty($garmentOther)): ?>
                                 <tr>
-                                    <td colspan="11" class="text-center py-5 text-muted">
+                                    <td colspan="10" class="text-center py-5 text-muted">
                                         <i class="bi bi-scissors display-6 text-secondary d-block mb-2"></i>
                                         <strong>No garment supplies or trims found in purchase stock.</strong>
                                         <div class="small mt-1">Record buttons, threads, zippers, or trims in purchase billing and inward them via <strong>Add to Stock</strong> in Label Generation.</div>
@@ -813,16 +802,6 @@
                                         </td>
                                         <td class="text-end fw-bold text-dark">
                                             ₹<?= number_format($tot, 2) ?>
-                                        </td>
-                                        <td class="text-start">
-                                            <div>
-                                                <a href="<?= \App\Core\Controller::url('/m/purchase_billing/view?id=' . $g['purchase_bill_id']) ?>" class="fw-semibold text-primary font-monospace text-decoration-none">
-                                                    <?= htmlspecialchars($g['bill_no']) ?>
-                                                </a>
-                                            </div>
-                                            <div class="text-muted" style="font-size: 0.70rem;">
-                                                <?= htmlspecialchars($g['supplier_name'] ?: 'Vendor') ?> &bull; <?= date('d M Y', strtotime($g['bill_date'])) ?>
-                                            </div>
                                         </td>
                                         <td>
                                             <?php if ($isInStock && $availableQty > 0): ?>

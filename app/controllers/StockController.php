@@ -294,7 +294,7 @@ class StockController extends Controller {
         }
         unset($stock);
         $totalUnits = array_sum(array_column($stocks, 'qty'));
-        $totalValuation = array_reduce($stocks, fn($sum, $item) => $sum + ($item['qty'] * $item['cost_price']), 0);
+        $totalValuation = array_reduce($stocks, fn($sum, $item) => $sum + ((float)$item['qty'] * (float)$item['price']), 0);
         $stockSourceMetrics = [
             'own' => ['units' => 0.0, 'valuation' => 0.0, 'variants' => []],
             'purchase' => ['units' => 0.0, 'valuation' => 0.0, 'variants' => []],
@@ -308,7 +308,7 @@ class StockController extends Controller {
             }
             $variantKey = (int)$stock['concern_id'] . ':' . (int)$stock['variant_id'];
             $quantity = (float)$stock['qty'];
-            $value = $quantity * (float)$stock['cost_price'];
+            $value = $quantity * (float)$stock['price'];
             $stockSourceMetrics[$source]['units'] += $quantity;
             $stockSourceMetrics[$source]['valuation'] += $value;
             $stockSourceMetrics[$source]['variants'][$variantKey] = true;
@@ -693,7 +693,7 @@ class StockController extends Controller {
                 'stock' => $stock ? [
                     'location'              => $stock['location'],
                     'qty'                   => (float)$stock['qty'],
-                    'net_value'             => (float)$stock['qty'] * (float)$variant['cost_price'],
+                    'net_value'             => (float)$stock['qty'] * (float)$variant['price'],
                     'latest_inbound_module' => $stock['latest_inbound_module'],
                 ] : null,
                 'total_stock_qty'    => (float)($totalStock['total_qty'] ?? 0),
@@ -1266,7 +1266,7 @@ class StockController extends Controller {
         $totalQty = 0;
         $totalVal = 0;
         foreach ($stocks as $s) {
-            $val = (float)$s['qty'] * (float)$s['cost_price'];
+            $val = (float)$s['qty'] * (float)$s['price'];
             $totalQty += (float)$s['qty'];
             $totalVal += $val;
             $rows[] = [
