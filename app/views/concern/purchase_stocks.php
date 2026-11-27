@@ -705,19 +705,19 @@
         <?php if ($activeTab === 'garment_other'): ?>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover table-bordered align-middle mb-0 text-center small compact-purchase-stock-table">
+                    <table class="table table-hover align-middle mb-0 text-center small">
                         <thead class="table-light">
-                            <tr class="fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.03em;">
-                                <th style="width: 40px;">#</th>
-                                <th style="width: 120px;">Item Code</th>
-                                <th class="text-start">Supply Item Name & Description</th>
-                                <th>Unit of Measure</th>
-                                <th>Inwarded Qty</th>
-                                <th>Available Stock</th>
+                            <tr class="fw-bold text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.03em;">
+                                <th class="ps-3" style="width: 36px;">#</th>
+                                <th style="width: 96px;">Code</th>
+                                <th class="text-start">Supply Item</th>
+                                <th>Unit</th>
+                                <th>Inwarded</th>
+                                <th>Available</th>
                                 <th class="text-end">Unit Price</th>
-                                <th class="text-end">Stock Value (₹)</th>
-                                <th style="width: 100px;">Status</th>
-                                <th style="width: 120px;">Actions</th>
+                                <th class="text-end">Valuation (₹)</th>
+                                <th style="width: 90px;">Status</th>
+                                <th class="pe-3" style="width: 132px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -751,7 +751,7 @@
                                     $labelRef = $g['bill_no'] ?: ('PO-' . $g['purchase_bill_id']);
                                 ?>
                                     <tr>
-                                        <td class="text-muted fw-semibold"><?= $gIdx++ ?></td>
+                                        <td class="ps-3 text-muted fw-semibold"><?= $gIdx++ ?></td>
                                         <td>
                                             <span class="font-monospace fw-bold text-dark badge bg-light text-dark border">
                                                 <?= htmlspecialchars($g['item_code'] ?: ('SUP-' . $g['id'])) ?>
