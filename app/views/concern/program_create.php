@@ -195,12 +195,14 @@
 </div>
 
 <?php include __DIR__ . '/partials/program_roll_picker_assets.php'; ?>
+<?php include __DIR__ . '/partials/program_catalog_attributes_assets.php'; ?>
 <script>
 // Available Rolls JSON data from backend with out-of-qty calculations
 const availableRollsData = <?= json_encode($availableRolls, JSON_UNESCAPED_UNICODE) ?>;
 const categoriesData = <?= json_encode($categories, JSON_UNESCAPED_UNICODE) ?>;
 const catalogsData = <?= json_encode($catalogs, JSON_UNESCAPED_UNICODE) ?>;
 const CATALOGS = catalogsData;
+window.ProgramCatalogAttributes.init(<?= json_encode($attributeSizes ?? [], JSON_UNESCAPED_UNICODE) ?>, CATALOGS);
 
 let rollCardCounter = 0;
 
@@ -368,6 +370,8 @@ function createRollCardHtml(index, preselectedRollId = null) {
                         ${catlgOptionsHtml}
                     </select>
                 </div>
+
+                ${window.ProgramCatalogAttributes.buildSectionHtml(index)}
             </div>
         </div>
     `;
@@ -417,6 +421,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const subcatSelect = card.querySelector('.select-roll-subcat');
         const subsubcatSelect = card.querySelector('.select-roll-subsubcat');
         const catalogSelect = card.querySelector('.select-roll-catalog');
+        window.ProgramCatalogAttributes.bindCardEvents(card);
 
         window.ProgramRollPicker.attach(card, availableRollsData, id => getEffectiveRollStock(id, card));
 
@@ -484,6 +489,7 @@ document.addEventListener('DOMContentLoaded', function() {
             catSelect.value = '';
             subcatSelect.innerHTML = '<option value="">-- Select Category First --</option>';
             subsubcatSelect.innerHTML = '<option value="">-- Select Sub Category First --</option>';
+            window.ProgramCatalogAttributes.syncForCard(card, '', null, false);
 
             validateRollAllocation(allocatedInput, stock, exceedMsg);
             updateAllCreateCardsStock(card);
@@ -559,6 +565,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (opt && opt.value) {
                 catalogBadge.textContent = opt.textContent.trim();
                 catalogBadge.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
+                window.ProgramCatalogAttributes.syncForCard(card, opt.value, null, true);
             } else {
                 updateHierarchyBadgeFromCats(catSelect, subcatSelect, subsubcatSelect, catalogBadge, catalogSelect);
             }
@@ -566,16 +573,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 3-Tier category cascade
         catSelect.addEventListener('change', function() {
+            if (catalogSelect) catalogSelect.value = '';
             loadSubcatsForCard(catSelect, subcatSelect, subsubcatSelect);
             updateHierarchyBadgeFromCats(catSelect, subcatSelect, subsubcatSelect, catalogBadge, catalogSelect);
         });
 
         subcatSelect.addEventListener('change', function() {
+            if (catalogSelect) catalogSelect.value = '';
             loadSubSubcatsForCard(subcatSelect, subsubcatSelect);
             updateHierarchyBadgeFromCats(catSelect, subcatSelect, subsubcatSelect, catalogBadge, catalogSelect);
         });
 
         subsubcatSelect.addEventListener('change', function() {
+            if (catalogSelect) catalogSelect.value = '';
             updateHierarchyBadgeFromCats(catSelect, subcatSelect, subsubcatSelect, catalogBadge, catalogSelect);
         });
 
@@ -727,12 +737,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateHierarchyBadgeFromCats(catSelect, subcatSelect, subsubcatSelect, badgeEl, catalogSelect) {
+        const card = badgeEl ? badgeEl.closest('.roll-card') : null;
         if (catalogSelect && catalogSelect.value) {
             const selOpt = catalogSelect.options[catalogSelect.selectedIndex];
             if (badgeEl && selOpt) {
                 badgeEl.textContent = selOpt.text.trim();
                 badgeEl.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
             }
+            window.ProgramCatalogAttributes.syncForCard(card, catalogSelect.value, null, true);
             return;
         }
 
@@ -740,6 +752,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const subsubId = subsubcatSelect ? subsubcatSelect.value : '';
         const subcatId = subcatSelect ? subcatSelect.value : '';
         const catId = catSelect ? catSelect.value : '';
+        const hasHierarchy = Boolean(catId || subcatId || subsubId);
 
         if (catalogSelect && typeof CATALOGS !== 'undefined' && CATALOGS.length > 0) {
             let matched = null;
@@ -758,6 +771,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     badgeEl.textContent = `${matched.style_code ? '[' + matched.style_code + '] ' : ''}${matched.name}`;
                     badgeEl.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
                 }
+                window.ProgramCatalogAttributes.syncForCard(card, matched.id, null, hasHierarchy);
                 return;
             }
         }
@@ -773,6 +787,7 @@ document.addEventListener('DOMContentLoaded', function() {
             badgeEl.textContent = 'No Catalog Selected';
             badgeEl.className = 'badge bg-white text-secondary border roll-catalog-badge';
         }
+        window.ProgramCatalogAttributes.syncForCard(card, '', null, hasHierarchy);
     }
 
     function validateRollAllocation(input, remaining, msgEl) {

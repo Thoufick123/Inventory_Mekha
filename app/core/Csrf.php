@@ -27,6 +27,15 @@ class Csrf {
     public static function validateRequest(): bool {
         $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
         if (!self::verify(is_string($token) ? $token : null)) {
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+                && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            $referer = $_SERVER['HTTP_REFERER'] ?? '';
+            if (!$isAjax && $referer !== '' && filter_var($referer, FILTER_VALIDATE_URL)) {
+                Auth::startSession();
+                $_SESSION['flash_error'] = 'Your session refreshed or expired. Please try submitting again.';
+                header('Location: ' . $referer);
+                exit;
+            }
             http_response_code(419);
             die('CSRF token validation failed. Please refresh and try again.');
         }

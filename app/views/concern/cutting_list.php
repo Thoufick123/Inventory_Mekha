@@ -313,6 +313,14 @@
                                                 <i class="bi bi-pencil"></i>
                                             </a>
                                             <?php endif; ?>
+                                            <?php if (empty($b['outward_id']) && empty($b['inward_source_outward_id']) && \App\Core\Auth::can('cutting_wastage', 'edit')): ?>
+                                                <button type="button" class="btn btn-outline-success" title="Cutting Outward to Concern"
+                                                        onclick="openCuttingOutwardModal(<?= (int)$b['id'] ?>, '<?= htmlspecialchars(addslashes($bNo)) ?>', '<?= htmlspecialchars(addslashes($b['cutting_name'] ?: ('Lot #' . $b['id']))) ?>', <?= (int)($b['cut_pieces'] ?? 0) ?>)">
+                                                    <i class="bi bi-send"></i> Cutting Outward
+                                                </button>
+                                            <?php elseif (!empty($b['outward_id'])): ?>
+                                                <span class="btn btn-sm btn-success disabled" title="Already Outwarded"><i class="bi bi-check2"></i> Outwarded</span>
+                                            <?php endif; ?>
                                             <?php if ($availScrap > 0.01 && \App\Core\Auth::can('cutting_wastage', 'add')): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sell-scrap" 
                                                         data-batch-id="<?= $b['id'] ?>"
@@ -338,6 +346,72 @@
     <?php endif; ?>
 
 </div>
+
+<!-- CUTTING OUTWARD TO CONCERN MODAL -->
+<div class="modal fade" id="modalCuttingOutward" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form action="<?= \App\Core\Controller::url('/production/cutting/outward') ?>" method="POST" class="modal-content border-0 shadow-lg rounded-4">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
+            <input type="hidden" name="cutting_id" id="outwardCuttingId" value="">
+            <div class="modal-header bg-success text-white">
+                <h6 class="modal-title fw-bold"><i class="bi bi-send me-2"></i> Cutting Outward to Concern</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="p-3 bg-light border rounded-3 mb-3 small">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Cutting Batch:</span>
+                        <strong class="font-monospace text-primary" id="outwardCuttingBatchNo">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Lot Name:</span>
+                        <strong class="text-dark" id="outwardCuttingName">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Cut Pieces:</span>
+                        <strong class="text-success" id="outwardCuttingPcs">0 pcs</strong>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark">Destination Concern <span class="text-danger">*</span></label>
+                    <select name="destination_concern_id" class="form-select form-select-sm" required>
+                        <option value="">-- Select Destination Concern --</option>
+                        <?php foreach ($concerns ?? [] as $con): ?>
+                            <option value="<?= (int)$con['id'] ?>"><?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold">Vehicle Number</label>
+                        <input type="text" name="vehicle_number" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold">Driver Name</label>
+                        <input type="text" name="driver_name" class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label small fw-semibold">Notes</label>
+                    <input type="text" name="notes" class="form-control form-control-sm">
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success btn-sm px-3 fw-semibold"><i class="bi bi-send me-1"></i> Dispatch Cutting Outward</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+function openCuttingOutwardModal(id, batchNo, name, pcs) {
+    document.getElementById('outwardCuttingId').value = id;
+    document.getElementById('outwardCuttingBatchNo').textContent = batchNo || '-';
+    document.getElementById('outwardCuttingName').textContent = name || '-';
+    document.getElementById('outwardCuttingPcs').textContent = (pcs || 0) + ' pcs';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCuttingOutward')).show();
+}
+</script>
 
 <!-- CONFIRM DELETE CUTTING BATCH MODAL -->
 <div class="modal fade" id="modalDeleteCutting" tabindex="-1" aria-hidden="true">

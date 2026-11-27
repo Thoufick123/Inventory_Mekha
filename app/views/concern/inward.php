@@ -205,7 +205,9 @@
                                         <a href="<?= $scanUrl ?>" class="fw-bold text-decoration-none text-primary font-monospace"><?= htmlspecialchars($ib['batch_no']) ?></a>
                                         <div>
                                             <span class="badge bg-light text-muted border font-monospace" style="font-size: 0.7rem;"><i class="bi bi-send me-1"></i><?= htmlspecialchars($ib['outward_no']) ?></span>
-                                            <?php if (!empty($ib['damage_transfer'])): ?>
+                                            <?php if (!empty($ib['cutting_id'])): ?>
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem;">CUTTING OUTWARD</span>
+                                            <?php elseif (!empty($ib['damage_transfer'])): ?>
                                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.68rem;">DAMAGED STOCK</span>
                                             <?php endif; ?>
                                         </div>
@@ -251,9 +253,8 @@
                             </td>
                             <td class="text-end pe-3">
                                 <div class="d-flex align-items-center justify-content-end gap-1">
-                                    <?php if (empty($ib['damage_transfer'])): ?>
+                                    <?php if (empty($ib['damage_transfer']) && empty($ib['cutting_id']) && !empty($ib['batch_id'])): ?>
                                         <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
-                                        <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
                                     <?php endif; ?>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-info" title="Consignment Log"><i class="bi bi-clock-history"></i></a>
@@ -263,7 +264,21 @@
                                     <?php if (\App\Core\Auth::can('inward', 'delete')): ?>
                                     <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Consignment"><i class="bi bi-trash"></i></button>
                                     <?php endif; ?>
-                                    <?php if (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
+                                    <?php if (!empty($ib['cutting_id'])): ?>
+                                        <?php if ($ib['status_badge'] === 'completed'): ?>
+                                            <a href="<?= \App\Core\Controller::url('/production/cutting') ?>" class="btn btn-sm btn-success fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
+                                                <i class="bi bi-scissors"></i> View in Cutting
+                                            </a>
+                                        <?php elseif (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
+                                            <form action="<?= \App\Core\Controller::url('/m/inward/receive-cutting') ?>" method="POST" class="d-inline">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
+                                                <input type="hidden" name="outward_id" value="<?= (int)$ib['outward_id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-success fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
+                                                    <i class="bi bi-box-arrow-in-down"></i> Add to Cutting (<?= $scanQty ?>)
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php elseif (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
                                         <i class="bi bi-box-arrow-in-down"></i> <?= !empty($ib['damage_transfer']) ? 'Receive Damage' : 'Inward' ?> (<?= $scanQty ?>)
                                     </a>
@@ -303,7 +318,9 @@
                     <div>
                         <a href="<?= $scanUrl ?>" class="fw-bold fs-6 text-primary font-monospace text-decoration-none"><?= htmlspecialchars($ib['batch_no']) ?></a>
                         <div><span class="badge bg-light text-muted border font-monospace"><?= htmlspecialchars($ib['outward_no']) ?></span></div>
-                        <?php if (!empty($ib['damage_transfer'])): ?>
+                        <?php if (!empty($ib['cutting_id'])): ?>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle mt-1">CUTTING OUTWARD</span>
+                        <?php elseif (!empty($ib['damage_transfer'])): ?>
                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1">DAMAGED STOCK</span>
                         <?php endif; ?>
                     </div>
@@ -341,12 +358,25 @@
                 <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
                     <small class="text-muted font-monospace"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></small>
                     <div class="d-flex align-items-center gap-1">
-                        <?php if (empty($ib['damage_transfer'])): ?>
+                        <?php if (empty($ib['damage_transfer']) && empty($ib['cutting_id']) && !empty($ib['batch_id'])): ?>
                             <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
-                            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
                         <?php endif; ?>
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
-                        <?php if (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
+                        <?php if (!empty($ib['cutting_id'])): ?>
+                            <?php if ($ib['status_badge'] === 'completed'): ?>
+                                <a href="<?= \App\Core\Controller::url('/production/cutting') ?>" class="btn btn-sm btn-success fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
+                                    <i class="bi bi-scissors"></i> View in Cutting
+                                </a>
+                            <?php elseif (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
+                                <form action="<?= \App\Core\Controller::url('/m/inward/receive-cutting') ?>" method="POST" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
+                                    <input type="hidden" name="outward_id" value="<?= (int)$ib['outward_id'] ?>">
+                                    <button type="submit" class="btn btn-sm btn-success fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
+                                        <i class="bi bi-box-arrow-in-down"></i> Add to Cutting (<?= $scanQty ?>)
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                        <?php elseif (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add')): ?>
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
                             <i class="bi bi-box-arrow-in-down"></i> <?= !empty($ib['damage_transfer']) ? 'Receive Damage' : 'Inward' ?> (<?= $scanQty ?>)
                         </a>

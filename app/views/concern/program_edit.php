@@ -195,6 +195,7 @@
 </div>
 
 <?php include __DIR__ . '/partials/program_roll_picker_assets.php'; ?>
+<?php include __DIR__ . '/partials/program_catalog_attributes_assets.php'; ?>
 <script>
 // Data from server
 const AVAILABLE_ROLLS = <?= json_encode($availableRolls) ?>;
@@ -203,6 +204,7 @@ const SUBCATEGORIES = <?= json_encode($subcategories ?? []) ?>;
 const SUBSUBCATEGORIES = <?= json_encode($subSubcategories ?? []) ?>;
 const CATALOGS = <?= json_encode($catalogs) ?>;
 const EXISTING_ROLLS = <?= json_encode($existingRolls) ?>;
+window.ProgramCatalogAttributes.init(<?= json_encode($attributeSizes ?? [], JSON_UNESCAPED_UNICODE) ?>, CATALOGS);
 
 let rollCardCounter = 0;
 
@@ -401,6 +403,8 @@ function createRollCardHtml(index, rollData = null) {
                     ${catalogOptionsHtml}
                 </select>
             </div>
+
+            ${window.ProgramCatalogAttributes.buildSectionHtml(index)}
         </div>
     </div>
     `;
@@ -413,6 +417,21 @@ function addRollCard(rollData = null) {
     const cardEl = document.getElementById(`rollCard_${index}`);
     if (cardEl && window.ProgramRollPicker) {
         window.ProgramRollPicker.attach(cardEl, AVAILABLE_ROLLS, id => getEffectiveRollStock(id, index));
+    }
+    if (cardEl && window.ProgramCatalogAttributes) {
+        window.ProgramCatalogAttributes.bindCardEvents(cardEl);
+        let savedSizes = null;
+        if (rollData && rollData.selected_sizes) {
+            try {
+                const parsed = typeof rollData.selected_sizes === 'string'
+                    ? JSON.parse(rollData.selected_sizes)
+                    : rollData.selected_sizes;
+                if (Array.isArray(parsed) && parsed.length > 0) savedSizes = parsed;
+            } catch (e) {}
+        }
+        const initCatId = rollData ? (rollData.catalog_id || '') : '';
+        const hasInitHier = Boolean(initCatId || (rollData && (rollData.category_id || rollData.subcategory_id || rollData.sub_sub_category_id)));
+        window.ProgramCatalogAttributes.syncForCard(cardEl, initCatId, savedSizes, hasInitHier);
     }
     
     // If existing subcategory/sub-sub were selected, populate them
@@ -849,6 +868,87 @@ function loadSubSubcategoriesForRoll(index, preselectedSubSubId = null) {
             }
             updateHierarchyBadgeFromCats(index);
         });
+}
+
+function handleCatalogSelectChange(index) {
+    const cardEl = document.getElementById(`rollCard_${index}`);
+    const catalogSelect = document.getElementById(`catalogSelect_${index}`);
+    const catBadge = document.getElementById(`catalogBadge_${index}`);
+    const catSelect = document.getElementById(`catSelect_${index}`);
+    const subSelect = document.getElementById(`subcatSelect_${index}`);
+    const subSubSelect = document.getElementById(`subsubSelect_${index}`);
+    const catalogId = catalogSelect ? catalogSelect.value : '';
+
+    if (catalogId && catalogSelect) {
+        const selOpt = catalogSelect.options[catalogSelect.selectedIndex];
+        if (catBadge && selOpt) {
+            catBadge.textContent = selOpt.text.trim();
+            catBadge.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
+        }
+        if (window.ProgramCatalogAttributes) {
+            window.ProgramCatalogAttributes.syncForCard(cardEl, catalogId, null, true);
+        }
+    } else {
+        updateHierarchyBadgeFromCats(index);
+    }
+}
+
+function updateHierarchyBadgeFromCats(index) {
+    const cardEl = document.getElementById(`rollCard_${index}`);
+    const catSelect = document.getElementById(`catSelect_${index}`);
+    const subSelect = document.getElementById(`subcatSelect_${index}`);
+    const subSubSelect = document.getElementById(`subsubSelect_${index}`);
+    const catalogSelect = document.getElementById(`catalogSelect_${index}`);
+    const catBadge = document.getElementById(`catalogBadge_${index}`);
+
+    const catId = catSelect ? catSelect.value : '';
+    const subcatId = subSelect ? subSelect.value : '';
+    const subsubId = subSubSelect ? subSubSelect.value : '';
+    const hasHierarchy = Boolean(catId || subcatId || subsubId);
+
+    let matched = null;
+    if (typeof CATALOGS !== 'undefined' && CATALOGS.length > 0) {
+        if (subsubId) {
+            matched = CATALOGS.find(c => String(c.sub_sub_category_id) === String(subsubId));
+        }
+        if (!matched && subcatId && catId) {
+            matched = CATALOGS.find(c => String(c.subcategory_id) === String(subcatId) && String(c.category_id) === String(catId));
+        }
+        if (!matched && catId) {
+            matched = CATALOGS.find(c => String(c.category_id) === String(catId) && (!c.subcategory_id || String(c.subcategory_id) === String(subcatId)));
+        }
+    }
+
+    if (matched && catalogSelect) {
+        catalogSelect.value = matched.id;
+        if (catBadge) {
+            catBadge.textContent = `${matched.style_code ? '[' + matched.style_code + '] ' : ''}${matched.name}`;
+            catBadge.className = 'badge bg-primary text-white border-0 roll-catalog-badge';
+        }
+        if (window.ProgramCatalogAttributes) {
+            window.ProgramCatalogAttributes.syncForCard(cardEl, matched.id, null, hasHierarchy);
+        }
+        return;
+    }
+
+    if (catalogSelect && !catalogSelect.value) {
+        const c1 = catSelect && catSelect.selectedIndex > 0 ? catSelect.options[catSelect.selectedIndex].text : '';
+        const c2 = subSelect && subSelect.selectedIndex > 0 ? subSelect.options[subSelect.selectedIndex].text : '';
+        const c3 = subSubSelect && subSubSelect.selectedIndex > 0 ? subSubSelect.options[subSubSelect.selectedIndex].text : '';
+        const parts = [c1, c2, c3].filter(p => Boolean(p) && !p.startsWith('--'));
+        if (catBadge) {
+            if (parts.length > 0) {
+                catBadge.textContent = parts.join(' > ');
+                catBadge.className = 'badge bg-info-subtle text-info-emphasis border border-info-subtle roll-catalog-badge';
+            } else {
+                catBadge.textContent = 'No Catalog Selected';
+                catBadge.className = 'badge bg-white text-secondary border roll-catalog-badge';
+            }
+        }
+    }
+    if (window.ProgramCatalogAttributes) {
+        window.ProgramCatalogAttributes.syncForCard(cardEl, catalogSelect ? catalogSelect.value : '', null, hasHierarchy);
+    }
 }
 
 // Scanner handling

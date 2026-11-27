@@ -163,6 +163,9 @@ class ProductionController extends Controller {
             if (!in_array('roll_price', $prCols)) {
                 DB::query('ALTER TABLE `program_rolls` ADD COLUMN roll_price DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER roll_weight');
             }
+            if (!in_array('selected_sizes', $prCols)) {
+                DB::query('ALTER TABLE `program_rolls` ADD COLUMN selected_sizes TEXT NULL AFTER catalog_id');
+            }
 
             // Align table collations to prevent "1267 Illegal mix of collations" error
             try {
@@ -2050,11 +2053,12 @@ class ProductionController extends Controller {
         // Load Categories for 3-tier hierarchy
         if ($cid) {
             $categories = DB::fetchAll("SELECT * FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]);
-            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status != 'inactive' ORDER BY id DESC", [$cid]);
+            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, sizes, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status != 'inactive' ORDER BY id DESC", [$cid]);
         } else {
             $categories = DB::fetchAll("SELECT * FROM categories WHERE status = 'active' ORDER BY name ASC");
-            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND status != 'inactive' ORDER BY id DESC");
+            $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, sizes, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND status != 'inactive' ORDER BY id DESC");
         }
+        $attributeSizes = DB::fetchAll("SELECT attribute_value, MIN(sort_order) AS sort_order, MIN(id) AS id FROM product_attributes WHERE attribute_type = 'size' GROUP BY attribute_value ORDER BY sort_order ASC, id ASC");
 
         $this->render('concern/program_create', [
             'pageTitle'      => 'Create Production Program',
@@ -2064,6 +2068,7 @@ class ProductionController extends Controller {
             'availableRolls' => $availableRolls,
             'categories'     => $categories,
             'catalogs'       => $catalogs,
+            'attributeSizes' => $attributeSizes,
             'selectedCid'    => $cid,
         ]);
     }
@@ -2557,6 +2562,11 @@ class ProductionController extends Controller {
 
             $tagCode = QrService::generateTagCode($rollItem['item_name'], $rollItem['color'], $rollItem['pattern'] ?: ($rollItem['specification'] ?? ''), (string)$rollItem['id']);
 
+            $selectedSizes = array_values(array_unique(array_filter(array_map(
+                static fn($s) => trim((string)$s),
+                is_array($r['sizes'] ?? null) ? $r['sizes'] : []
+            ), static fn($s) => $s !== '')));
+
             $validatedRolls[] = [
                 'purchase_bill_item_id' => $rollItemId,
                 'roll_piece_tag'        => $tagCode ?: ($rollItem['item_code'] ?? ''),
@@ -2572,6 +2582,8 @@ class ProductionController extends Controller {
                 'subcategory_id'        => $subcatId,
                 'sub_sub_category_id'   => $subSubcatId,
                 'catalog_id'            => $catalogId,
+                'selected_sizes'        => !empty($selectedSizes) ? json_encode($selectedSizes) : null,
+                'selected_sizes_arr'    => $selectedSizes,
             ];
         }
 
@@ -2604,9 +2616,9 @@ class ProductionController extends Controller {
                         concern_id, program_id, purchase_bill_item_id,
                         roll_piece_tag, fabric_name, color, unit,
                         total_roll_qty, allocated_qty, roll_weight, roll_price, target_pieces,
-                        category_id, subcategory_id, sub_sub_category_id, catalog_id,
+                        category_id, subcategory_id, sub_sub_category_id, catalog_id, selected_sizes,
                         created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
                     [
                         $cid,
                         $programId,
@@ -2624,8 +2636,12 @@ class ProductionController extends Controller {
                         $vr['subcategory_id'],
                         $vr['sub_sub_category_id'],
                         $vr['catalog_id'],
+                        $vr['selected_sizes'],
                     ]
                 );
+                if (!empty($vr['catalog_id']) && !empty($vr['selected_sizes_arr'])) {
+                    $this->syncProgramRollCatalogSizes((int)$vr['catalog_id'], $vr['selected_sizes_arr'], (int)$cid);
+                }
             }
 
             // Audit Log
@@ -2957,7 +2973,8 @@ class ProductionController extends Controller {
         $categories = DB::fetchAll("SELECT * FROM categories WHERE {$catWhere} AND status = 'active' ORDER BY name ASC", $catParams);
         $subcategories = DB::fetchAll("SELECT * FROM subcategories WHERE {$catWhere} AND status = 'active' ORDER BY name ASC", $catParams);
         $subSubcategories = DB::fetchAll("SELECT * FROM sub_subcategories WHERE {$catWhere} AND status = 'active' ORDER BY name ASC", $catParams);
-        $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND {$catWhere} AND status != 'inactive' ORDER BY id DESC", $catParams);
+        $catalogs = DB::fetchAll("SELECT id, style_code, short_code, name, sizes, category_id, subcategory_id, sub_sub_category_id FROM catalogs WHERE source_module = 'production_catalog' AND {$catWhere} AND status != 'inactive' ORDER BY id DESC", $catParams);
+        $attributeSizes = DB::fetchAll("SELECT attribute_value, MIN(sort_order) AS sort_order, MIN(id) AS id FROM product_attributes WHERE attribute_type = 'size' GROUP BY attribute_value ORDER BY sort_order ASC, id ASC");
 
         $this->render('concern/program_edit', [
             'pageTitle'        => 'Edit Production Program: ' . $program['program_no'],
@@ -2969,6 +2986,7 @@ class ProductionController extends Controller {
             'subcategories'    => $subcategories,
             'subSubcategories' => $subSubcategories,
             'catalogs'         => $catalogs,
+            'attributeSizes'   => $attributeSizes,
             'selectedCid'      => $cid,
         ]);
     }
@@ -3223,6 +3241,11 @@ class ProductionController extends Controller {
 
             $tagCode = QrService::generateTagCode($rollItem['item_name'], $rollItem['color'], $rollItem['pattern'] ?: ($rollItem['specification'] ?? ''), (string)$rollItem['id']);
 
+            $selectedSizes = array_values(array_unique(array_filter(array_map(
+                static fn($s) => trim((string)$s),
+                is_array($r['sizes'] ?? null) ? $r['sizes'] : []
+            ), static fn($s) => $s !== '')));
+
             $validatedRolls[] = [
                 'program_roll_id'       => $programRollId,
                 'purchase_bill_item_id' => $rollItemId,
@@ -3239,6 +3262,8 @@ class ProductionController extends Controller {
                 'subcategory_id'        => $subcatId,
                 'sub_sub_category_id'   => $subSubcatId,
                 'catalog_id'            => $catalogId,
+                'selected_sizes'        => !empty($selectedSizes) ? json_encode($selectedSizes) : null,
+                'selected_sizes_arr'    => $selectedSizes,
             ];
         }
 
@@ -3286,6 +3311,7 @@ class ProductionController extends Controller {
                     $vr['subcategory_id'],
                     $vr['sub_sub_category_id'],
                     $vr['catalog_id'],
+                    $vr['selected_sizes'],
                 ];
 
                 if ($vr['program_roll_id'] && isset($existingRollMap[$vr['program_roll_id']])) {
@@ -3306,7 +3332,8 @@ class ProductionController extends Controller {
                             category_id = ?,
                             subcategory_id = ?,
                             sub_sub_category_id = ?,
-                            catalog_id = ?
+                            catalog_id = ?,
+                            selected_sizes = ?
                          WHERE id = ? AND program_id = ?",
                         array_merge([$programConcernId], $rollValues, [$programRollId, $id])
                     );
@@ -3316,14 +3343,18 @@ class ProductionController extends Controller {
                             concern_id, program_id, purchase_bill_item_id,
                             roll_piece_tag, fabric_name, color, unit,
                             total_roll_qty, allocated_qty, roll_weight, roll_price, target_pieces,
-                            category_id, subcategory_id, sub_sub_category_id, catalog_id,
+                            category_id, subcategory_id, sub_sub_category_id, catalog_id, selected_sizes,
                             created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
                         array_merge([$programConcernId, $id], $rollValues)
                     );
                     $programRollId = (int)DB::lastInsertId();
                 }
                 $keptRollIds[] = $programRollId;
+
+                if (!empty($vr['catalog_id']) && !empty($vr['selected_sizes_arr'])) {
+                    $this->syncProgramRollCatalogSizes((int)$vr['catalog_id'], $vr['selected_sizes_arr'], $programConcernId);
+                }
 
                 // Persist the roll's catalog on the purchased item as well so the
                 // category auto-syncs when this roll is used in another program.
@@ -3479,12 +3510,21 @@ class ProductionController extends Controller {
             'used_weight'           => "DECIMAL(12,2) DEFAULT 0.00 AFTER wastage_percent",
             'fabric_cost_per_piece' => "DECIMAL(12,2) DEFAULT 0.00 AFTER used_weight",
             'sold_wastage_qty'      => "DECIMAL(12,2) DEFAULT 0.00 AFTER wastage_unit",
+            'outward_id'            => "INT NULL AFTER sold_wastage_qty",
+            'destination_concern_id'=> "INT NULL AFTER outward_id",
+            'outward_status'        => "VARCHAR(40) NULL AFTER destination_concern_id",
+            'inward_source_outward_id' => "INT NULL AFTER outward_status",
         ];
 
         foreach ($colsToAdd as $col => $def) {
             if (!in_array($col, $existingCols)) {
                 DB::query("ALTER TABLE cutting_logs ADD COLUMN $col $def");
             }
+        }
+
+        $outCols = array_column(DB::fetchAll("DESCRIBE outwards"), 'Field');
+        if (!in_array('cutting_id', $outCols)) {
+            DB::query("ALTER TABLE outwards ADD COLUMN cutting_id INT NULL AFTER destination_concern_id");
         }
 
         DB::query("ALTER TABLE cutting_logs MODIFY COLUMN raw_variant_id INT NULL");
@@ -3681,6 +3721,11 @@ class ProductionController extends Controller {
             $totalScrapRevenue += (float)$s['total_price'];
         }
 
+        $concerns = DB::fetchAll(
+            "SELECT id, name, code FROM concerns WHERE status = 'active' AND (? IS NULL OR id != ?) ORDER BY name ASC",
+            [$cid, $cid]
+        );
+
         $this->render('concern/cutting_list', [
             'pageTitle'         => 'Fabric Cutting & Wastage Tracking',
             'currentModule'     => 'cutting_wastage',
@@ -3692,8 +3737,116 @@ class ProductionController extends Controller {
             'totalWastageSold'  => $totalWastageSold,
             'availableWastage'  => max(0.00, $totalWastageGen - $totalWastageSold),
             'totalScrapRevenue' => $totalScrapRevenue,
+            'concerns'          => $concerns,
+            'csrfToken'         => Auth::csrfToken(),
             'selectedCid'       => $cid,
         ]);
+    }
+
+    /**
+     * Dispatch a cutting batch outward to another concern's Inward module.
+     */
+    public function outwardCuttingBatch(): void {
+        ModuleGuard::enforce('cutting_wastage', 'edit|add');
+        $this->ensureCuttingSchema();
+        $this->validateCsrf();
+
+        $cid = Auth::concernId();
+        $cuttingId = (int)($_POST['cutting_id'] ?? 0);
+        $destCid = (int)($_POST['destination_concern_id'] ?? 0);
+        $vehicleNo = trim((string)($_POST['vehicle_number'] ?? ''));
+        $driverName = trim((string)($_POST['driver_name'] ?? ''));
+        $notes = trim((string)($_POST['notes'] ?? ''));
+
+        if ($cuttingId <= 0 || $destCid <= 0) {
+            $this->flash('error', 'Select a valid cutting batch and destination concern.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+
+        $cutting = DB::fetch(
+            "SELECT * FROM cutting_logs WHERE id = ?" . ($cid ? " AND concern_id = ?" : ""),
+            $cid ? [$cuttingId, $cid] : [$cuttingId]
+        );
+        if (!$cutting) {
+            $this->flash('error', 'Cutting batch not found.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+        if (!empty($cutting['outward_id'])) {
+            $this->flash('warning', 'This cutting batch has already been outwarded.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+        $sourceCid = (int)$cutting['concern_id'];
+        if ($destCid === $sourceCid) {
+            $this->flash('error', 'Destination concern must be different from the current concern.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+        $destConcern = DB::fetch("SELECT id, name, code FROM concerns WHERE id = ? AND status = 'active'", [$destCid]);
+        if (!$destConcern) {
+            $this->flash('error', 'Selected destination concern was not found.');
+            $this->redirect('/production/cutting');
+            return;
+        }
+
+        $cuttingItems = DB::fetchAll("SELECT * FROM cutting_items WHERE cutting_id = ? ORDER BY id ASC", [$cuttingId]);
+        $totalCutPcs = (int)($cutting['cut_pieces'] ?? 0);
+        if ($totalCutPcs <= 0 && !empty($cuttingItems)) {
+            $totalCutPcs = array_sum(array_map(static fn($r) => (int)($r['cut_pieces'] ?? 0), $cuttingItems));
+        }
+
+        DB::beginTransaction();
+        try {
+            $outwardNo = 'OUT-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            $gatePassNo = 'GP-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            $batchNo = $cutting['batch_no'] ?: $cutting['log_no'];
+
+            DB::query(
+                "INSERT INTO outwards (concern_id, outward_no, gate_pass_no, outward_date, transfer_type, destination_concern_id, cutting_id, location, warehouse_name, total_boxes, vehicle_number, driver_name, dispatched_by_name, notes, status, dispatched_at, created_at)
+                 VALUES (?, ?, ?, CURDATE(), 'concern', ?, ?, 'Main Store', ?, 1, ?, ?, ?, ?, 'dispatched', NOW(), NOW())",
+                [
+                    $sourceCid,
+                    $outwardNo,
+                    $gatePassNo,
+                    $destCid,
+                    $cuttingId,
+                    $destConcern['name'],
+                    $vehicleNo !== '' ? $vehicleNo : null,
+                    $driverName !== '' ? $driverName : null,
+                    Auth::user()['name'] ?? 'System Administrator',
+                    $notes !== '' ? $notes : ("Cutting Outward: {$batchNo}"),
+                ]
+            );
+            $outwardId = (int)DB::lastInsertId();
+
+            foreach ($cuttingItems as $ci) {
+                $vId = (int)($ci['variant_id'] ?? 0);
+                $pcs = (int)($ci['cut_pieces'] ?? 0);
+                if ($vId > 0 && $pcs > 0) {
+                    DB::query(
+                        "INSERT INTO outward_items (concern_id, outward_id, variant_id, qty) VALUES (?, ?, ?, ?)",
+                        [$sourceCid, $outwardId, $vId, $pcs]
+                    );
+                }
+            }
+
+            DB::query(
+                "UPDATE cutting_logs SET outward_id = ?, destination_concern_id = ?, outward_status = 'DISPATCHED' WHERE id = ?",
+                [$outwardId, $destCid, $cuttingId]
+            );
+
+            DB::commit();
+            $this->flash('success', "Cutting batch {$batchNo} outwarded ({$outwardNo}) to {$destConcern['name']}. It is now in their Inward module.");
+        } catch (\Throwable $e) {
+            if (DB::pdo()->inTransaction()) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Failed to outward cutting batch: ' . $e->getMessage());
+        }
+
+        $this->redirect('/production/cutting');
     }
 
     /**
@@ -3761,6 +3914,84 @@ class ProductionController extends Controller {
     /**
      * AJAX endpoint to fetch rolls & dynamic variant breakdown for a selected program
      */
+    /**
+     * Ensure any size attributes selected/added during Program setup exist in the catalog and variants table.
+     */
+    private function syncProgramRollCatalogSizes(int $catalogId, array $selectedSizes, int $concernId): void {
+        if ($catalogId <= 0 || empty($selectedSizes)) {
+            return;
+        }
+        $cat = DB::fetch(
+            "SELECT id, concern_id, style_code, name, category_id, subcategory_id, sizes
+             FROM catalogs WHERE id = ? AND source_module = 'production_catalog'",
+            [$catalogId]
+        );
+        if (!$cat) {
+            return;
+        }
+
+        $existingSizes = [];
+        if (!empty($cat['sizes'])) {
+            $decoded = json_decode((string)$cat['sizes'], true);
+            if (is_array($decoded)) {
+                $existingSizes = array_values(array_filter(array_map('trim', $decoded), static fn($s) => $s !== ''));
+            }
+        }
+        $mergedSizes = $existingSizes;
+        $existingUpper = array_map('strtoupper', $existingSizes);
+        foreach ($selectedSizes as $sz) {
+            $sz = trim((string)$sz);
+            if ($sz !== '' && !in_array(strtoupper($sz), $existingUpper, true)) {
+                $mergedSizes[] = $sz;
+                $existingUpper[] = strtoupper($sz);
+            }
+        }
+        if (count($mergedSizes) !== count($existingSizes)) {
+            DB::query("UPDATE catalogs SET sizes = ? WHERE id = ?", [json_encode($mergedSizes), $catalogId]);
+        }
+
+        $targetCid = $concernId > 0 ? $concernId : (int)($cat['concern_id'] ?: 1);
+        $styleCode = $cat['style_code'] ?: ('STY-' . $catalogId);
+        $styleName = $cat['name'] ?: 'Product Style';
+
+        foreach ($selectedSizes as $sz) {
+            $sz = trim((string)$sz);
+            if ($sz === '') continue;
+
+            $existingVar = DB::fetch(
+                "SELECT id FROM variants WHERE catalog_id = ? AND UPPER(TRIM(size)) = UPPER(TRIM(?)) LIMIT 1",
+                [$catalogId, $sz]
+            );
+            if ($existingVar) {
+                continue;
+            }
+
+            $sku = $styleCode . '-' . strtoupper($sz);
+            $dupSku = DB::fetch("SELECT id FROM variants WHERE concern_id = ? AND product_code = ? LIMIT 1", [$targetCid, $sku]);
+            if ($dupSku) {
+                $sku = $styleCode . '-' . $catalogId . '-' . strtoupper($sz);
+            }
+            $varName = $styleName . ' - ' . $sz;
+
+            DB::query(
+                "INSERT INTO variants (
+                    concern_id, catalog_id, product_code, name,
+                    category_id, subcategory_id, size,
+                    price, mrp, creation_date, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, CURDATE(), 'active', NOW())",
+                [
+                    $targetCid,
+                    $catalogId,
+                    $sku,
+                    $varName,
+                    $cat['category_id'] ?: null,
+                    $cat['subcategory_id'] ?: null,
+                    $sz,
+                ]
+            );
+        }
+    }
+
     public function apiCuttingProgramDetails(): void {
         header('Content-Type: application/json');
         try {
@@ -3892,6 +4123,20 @@ class ProductionController extends Controller {
                         'size'     => $ds,
                         'price'    => 0.00,
                     ];
+                }
+            }
+
+            if (!empty($r['selected_sizes'])) {
+                $selSizes = json_decode((string)$r['selected_sizes'], true);
+                if (is_array($selSizes) && !empty($selSizes)) {
+                    $selUpper = array_map(static fn($s) => strtoupper(trim((string)$s)), $selSizes);
+                    $filtered = array_values(array_filter(
+                        $variants,
+                        static fn($v) => in_array(strtoupper(trim((string)($v['size'] ?? ''))), $selUpper, true)
+                    ));
+                    if (!empty($filtered)) {
+                        $variants = $filtered;
+                    }
                 }
             }
 
