@@ -28,6 +28,25 @@
         </div>
     </div>
 
+    <!-- Compact Inline QR Scan Bar -->
+    <div class="row g-2 align-items-center mb-3">
+        <div class="col-md-9 col-sm-8">
+            <div class="input-group input-group-sm shadow-sm">
+                <span class="input-group-text bg-white border-end-0 text-primary">
+                    <i class="bi bi-upc-scan"></i>
+                </span>
+                <input type="text" id="inputQrScanner" class="form-control border-start-0 font-monospace fw-semibold"
+                       placeholder="Scan QR sticker tag (e.g. <?= htmlspecialchars($pieces[0]['tag_code'] ?? 'GRMV010') ?>)..."
+                       autofocus autocomplete="off">
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-4">
+            <button type="button" class="btn btn-primary btn-sm w-100 fw-semibold shadow-sm d-flex align-items-center justify-content-center gap-1" onclick="onScanLocate()">
+                <i class="bi bi-search"></i> Scan &amp; Locate
+            </button>
+        </div>
+    </div>
+
     <!-- ========================================== -->
     <!-- PIECE TABLE & FILTER TABS                  -->
     <!-- ========================================== -->
