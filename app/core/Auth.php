@@ -5,6 +5,76 @@ namespace App\Core;
 
 class Auth {
     private static bool $permissionsRefreshed = false;
+    private static bool $permissionsSchemaEnsured = false;
+
+    public static function ensurePermissionsSchema(): void {
+        if (self::$permissionsSchemaEnsured) {
+            return;
+        }
+
+        try {
+            // 1. Link unlinked staff to user accounts by email or phone
+            DB::query("UPDATE staff s JOIN users u ON (s.email = u.email AND s.email != '') OR (s.phone = u.phone AND s.phone != '') SET s.user_id = u.id WHERE s.user_id IS NULL");
+
+            // 2. Ensure role 'IT' defaults to View-only on purchase modules (Purchase Billing, Purchase Stocks, Product Adding)
+            $itRoles = DB::fetchAll("SELECT id FROM roles WHERE LOWER(TRIM(name)) = 'it'");
+            if (!empty($itRoles)) {
+                $itRoleIds = implode(',', array_map('intval', array_column($itRoles, 'id')));
+                $purchMods = DB::fetchAll("SELECT id FROM modules WHERE code IN ('purchase_billing', 'purchase_stocks', 'product_adding')");
+                foreach ($purchMods as $pm) {
+                    $pmId = (int)$pm['id'];
+                    DB::query("UPDATE role_permissions SET can_add = 0, can_edit = 0, can_delete = 0 WHERE role_id IN ({$itRoleIds}) AND module_id = ?", [$pmId]);
+                    DB::query("INSERT IGNORE INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
+                               SELECT r.id, ?, 1, 0, 0, 0 FROM roles r WHERE r.id IN ({$itRoleIds})", [$pmId]);
+                }
+            }
+
+            // 3. Ensure staff members named 'mani', 'suguna', 'sugunamani' or phone '7338965560' have explicit view-only permissions on purchase modules
+            $purchMods = DB::fetchAll("SELECT id FROM modules WHERE code IN ('purchase_billing', 'purchase_stocks', 'product_adding')");
+            $targetStaffUsers = DB::fetchAll(
+                "SELECT DISTINCT u.id, u.concern_id 
+                 FROM users u 
+                 LEFT JOIN staff s ON (s.user_id = u.id OR s.phone = u.phone OR s.email = u.email)
+                 WHERE u.phone = '7338965560' OR s.phone = '7338965560' 
+                    OR LOWER(u.name) IN ('mani', 'sugunamani', 'suguna')
+                    OR LOWER(s.name) IN ('mani', 'sugunamani', 'suguna')"
+            );
+            foreach ($targetStaffUsers as $tu) {
+                $tUid = (int)$tu['id'];
+                $tCid = (int)($tu['concern_id'] ?? 0);
+                foreach ($purchMods as $pm) {
+                    $pmId = (int)$pm['id'];
+                    DB::query(
+                        "INSERT INTO user_permissions (user_id, concern_id, module_id, can_view, can_add, can_edit, can_delete)
+                         VALUES (?, NULL, ?, 1, 0, 0, 0)
+                         ON DUPLICATE KEY UPDATE can_view = 1, can_add = 0, can_edit = 0, can_delete = 0",
+                        [$tUid, $pmId]
+                    );
+                    if ($tCid > 0) {
+                        DB::query(
+                            "INSERT INTO user_permissions (user_id, concern_id, module_id, can_view, can_add, can_edit, can_delete)
+                             VALUES (?, ?, ?, 1, 0, 0, 0)
+                             ON DUPLICATE KEY UPDATE can_view = 1, can_add = 0, can_edit = 0, can_delete = 0",
+                            [$tUid, $tCid, $pmId]
+                        );
+                    }
+                }
+            }
+
+            // 4. Mirror permissions across staff user accounts with matching phone numbers
+            DB::query("INSERT IGNORE INTO user_permissions (user_id, concern_id, module_id, can_view, can_add, can_edit, can_delete)
+                       SELECT u2.id, up.concern_id, up.module_id, up.can_view, up.can_add, up.can_edit, up.can_delete
+                       FROM user_permissions up
+                       JOIN users u1 ON up.user_id = u1.id
+                       JOIN users u2 ON (u1.phone = u2.phone AND u1.phone != '' AND u1.phone IS NOT NULL)
+                       WHERE u1.id != u2.id
+                         AND u2.id NOT IN (SELECT DISTINCT user_id FROM user_permissions)");
+
+            self::$permissionsSchemaEnsured = true;
+        } catch (\Throwable $e) {
+            error_log('Auth ensurePermissionsSchema error: ' . $e->getMessage());
+        }
+    }
 
     public static function startSession(): void {
         if (session_status() === PHP_SESSION_NONE) {
@@ -58,6 +128,7 @@ class Auth {
 
             // Real-time user state & permission refresh so permission/role changes take effect immediately without re-login
             if (!self::isSuperAdmin()) {
+                self::ensurePermissionsSchema();
                 $freshUser = DB::fetch("SELECT role_id, concern_id, status FROM users WHERE id = ?", [$userId]);
                 if ($freshUser) {
                     if ($freshUser['status'] !== 'active') {
@@ -333,7 +404,7 @@ class Auth {
                 );
             }
 
-            // Fallback: If no permissions found for this specific concern or null, check if this user has ANY configured permissions
+            // Fallback 1: If no permissions found for this specific concern or null, check if this user has ANY configured permissions
             if (empty($userPerms)) {
                 $userPerms = DB::fetchAll(
                     "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
@@ -343,6 +414,39 @@ class Auth {
                      ORDER BY (up.concern_id IS NOT NULL) ASC",
                     [$userId]
                 );
+            }
+
+            // Fallback 2: Check matching phone or linked staff record for configured permissions
+            if (empty($userPerms)) {
+                $userPhone = DB::fetchValue("SELECT phone FROM users WHERE id = ?", [$userId]);
+                if (empty($userPhone)) {
+                    $userPhone = DB::fetchValue("SELECT phone FROM staff WHERE user_id = ?", [$userId]);
+                }
+                if (!empty($userPhone)) {
+                    $userPerms = DB::fetchAll(
+                        "SELECT m.code, up.can_view, up.can_add, up.can_edit, up.can_delete 
+                         FROM user_permissions up
+                         JOIN users u ON up.user_id = u.id
+                         JOIN modules m ON up.module_id = m.id
+                         WHERE u.phone = ? AND u.id != ?
+                         ORDER BY (up.concern_id IS NOT NULL) ASC",
+                        [$userPhone, $userId]
+                    );
+
+                    // Self-heal: persist mirrored permissions to user_permissions immediately
+                    if (!empty($userPerms)) {
+                        try {
+                            $stmtSync = DB::pdo()->prepare(
+                                "INSERT IGNORE INTO user_permissions (user_id, concern_id, module_id, can_view, can_add, can_edit, can_delete)
+                                 SELECT ?, up.concern_id, up.module_id, up.can_view, up.can_add, up.can_edit, up.can_delete
+                                 FROM user_permissions up
+                                 JOIN users u ON up.user_id = u.id
+                                 WHERE u.phone = ? AND u.id != ?"
+                            );
+                            $stmtSync->execute([$userId, $userPhone, $userId]);
+                        } catch (\Throwable $e) {}
+                    }
+                }
             }
 
             foreach ($userPerms as $up) {
