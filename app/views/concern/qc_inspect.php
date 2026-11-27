@@ -162,12 +162,12 @@
                                             <i class="bi bi-check-lg"></i> Pass
                                         </button>
                                         <button type="button" class="btn btn-outline-danger fw-semibold px-2.5 py-1" 
-                                                onclick="openRejectModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['tag_code'], ENT_QUOTES) ?>', '<?= htmlspecialchars(($p['size'] ?: 'STD') . ' / ' . ($p['color'] ?: 'STD') . ($p['product_code'] ? ' (' . $p['product_code'] . ')' : ''), ENT_QUOTES) ?>')" 
+                                                onclick="openRejectModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['tag_code'], ENT_QUOTES) ?>', '<?= htmlspecialchars(($p['size'] ?: 'STD') . ' / ' . ($p['color'] ?: 'STD'), ENT_QUOTES) ?>')" 
                                                 title="Reject / Damage">
                                             <i class="bi bi-x-lg"></i> Reject
                                         </button>
                                         <button type="button" class="btn btn-outline-warning fw-semibold px-2.5 py-1 text-dark" 
-                                                onclick="openReworkModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['tag_code'], ENT_QUOTES) ?>', '<?= htmlspecialchars(($p['size'] ?: 'STD') . ' / ' . ($p['color'] ?: 'STD') . ($p['product_code'] ? ' (' . $p['product_code'] . ')' : ''), ENT_QUOTES) ?>')" 
+                                                onclick="openReworkModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['tag_code'], ENT_QUOTES) ?>', '<?= htmlspecialchars(($p['size'] ?: 'STD') . ' / ' . ($p['color'] ?: 'STD'), ENT_QUOTES) ?>')" 
                                                 title="Send to Rework">
                                             <i class="bi bi-arrow-repeat"></i> Rework
                                         </button>
