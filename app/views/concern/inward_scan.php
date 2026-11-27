@@ -19,11 +19,6 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
             </h4>
         </div>
         <div class="d-flex gap-2">
-            <?php if (!$isDamageTransfer): ?>
-                <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-outline-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
-                    <i class="bi bi-upc-scan"></i> Label Generation
-                </a>
-            <?php endif; ?>
             <?php if (!empty($outward['batch_id'])): ?>
             <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$outward['batch_id']) ?>" target="_blank" class="btn btn-outline-info btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
                 <i class="bi bi-printer"></i> Print Batch Labels
@@ -139,55 +134,6 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                     <div class="fw-bold font-monospace text-primary fs-6 mt-1"><?= htmlspecialchars($outward['batch_no']) ?></div>
                 </div>
             <?php endif; ?>
-
-            <!-- Outward Dispatch Details -->
-            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
-                <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
-                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-1">
-                        <i class="bi bi-info-circle text-primary"></i> Outward Dispatch Details
-                    </h6>
-                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 0.72rem;">Traceability</span>
-                </div>
-
-                <?php if ($isDamageTransfer): ?>
-                    <div class="small mb-2 d-flex justify-content-between">
-                        <span class="text-muted">Manifest:</span>
-                        <span class="fw-bold font-monospace text-primary"><?= htmlspecialchars($outward['outward_no']) ?></span>
-                    </div>
-                    <div class="small mb-2 d-flex justify-content-between">
-                        <span class="text-muted">Vehicle:</span>
-                        <span class="fw-semibold font-monospace text-dark"><?= htmlspecialchars($outward['vehicle_number'] ?: '—') ?></span>
-                    </div>
-                <?php else: ?>
-                    <div class="small mb-2 d-flex justify-content-between">
-                        <span class="text-muted">Outward Gate Pass:</span>
-                        <span class="fw-bold font-monospace text-primary"><?= htmlspecialchars($outward['gate_pass_no'] ?: $outward['outward_no']) ?></span>
-                    </div>
-                    <div class="small mb-2 d-flex justify-content-between">
-                        <span class="text-muted">Production Batch:</span>
-                        <span class="fw-bold font-monospace text-dark"><?= htmlspecialchars($outward['batch_no']) ?></span>
-                    </div>
-                    <div class="small mb-2 d-flex justify-content-between">
-                        <span class="text-muted">Program #:</span>
-                        <span class="fw-semibold font-monospace text-muted"><?= htmlspecialchars($outward['program_no']) ?></span>
-                    </div>
-                    <div class="small mb-3 d-flex justify-content-between">
-                        <span class="text-muted">Product / Style:</span>
-                        <span class="fw-bold text-dark text-end"><?= htmlspecialchars($outward['program_name']) ?></span>
-                    </div>
-                <?php endif; ?>
-
-                <div class="p-2.5 rounded-2" style="background: <?= $isDamageTransfer ? '#fff5f5' : '#fffbeb' ?>; border: 1px solid <?= $isDamageTransfer ? '#fecaca' : '#fef3c7' ?>;">
-                    <div class="d-flex align-items-center justify-content-between mb-1">
-                        <span class="small fw-semibold text-dark"><i class="bi bi-geo-alt-fill <?= $isDamageTransfer ? 'text-danger' : 'text-warning' ?> me-1"></i> <?= $isDamageTransfer ? 'Source Concern:' : 'Origin Unit:' ?></span>
-                        <span class="badge <?= $isDamageTransfer ? 'bg-danger bg-opacity-10 text-danger' : 'bg-warning bg-opacity-50 text-dark' ?> font-monospace"><?= htmlspecialchars($isDamageTransfer ? $outward['source_concern_code'] : $outward['source_unit_code']) ?></span>
-                    </div>
-                    <div class="small fw-bold text-dark"><?= htmlspecialchars($isDamageTransfer ? $outward['source_concern_name'] : $outward['source_unit_name']) ?></div>
-                    <?php if (!$isDamageTransfer): ?>
-                        <div class="small text-muted"><?= htmlspecialchars($outward['manager_name']) ?></div>
-                    <?php endif; ?>
-                </div>
-            </div>
         </div>
 
         <!-- Right Column: Live Cross-Check Scanner & Variant Breakdown -->
@@ -198,9 +144,6 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                     <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-1">
                         <i class="bi bi-upc-scan text-primary"></i> <?= $isDamageTransfer ? 'Live Damaged Stock Receipt Scanner' : 'Live Product & QR Cross-Check Scanner' ?>
                     </h6>
-                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size: 0.72rem;">
-                        <i class="bi bi-box-arrow-in-down me-1"></i> Inward to: <?= htmlspecialchars($outward['dest_warehouse_name']) ?> (<?= htmlspecialchars($outward['dest_warehouse_code']) ?>)
-                    </span>
                 </div>
 
                 <div class="input-group input-group-lg my-2 shadow-sm">
@@ -342,20 +285,12 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                 <input type="hidden" name="move_to_labels" id="submitMoveToLabels" value="0">
 
                 <div class="row g-2">
-                    <div class="col-12 <?= $isDamageTransfer ? '' : 'col-md-8' ?>">
+                    <div class="col-12">
                         <button type="submit" onclick="document.getElementById('submitMoveToLabels').value='0'" class="btn btn-success btn-lg w-100 fw-bold shadow py-3 d-flex align-items-center justify-content-center gap-2 text-uppercase" id="btnSubmitStock" style="letter-spacing: 0.03em;">
                             <i class="bi bi-box-arrow-in-down fs-4"></i>
-                            <?= $isDamageTransfer ? 'Receive Damaged Stock' : 'Update / Credit Inward Stock' ?> (+<span id="btnIncrementalQty">0</span> pcs) to <?= htmlspecialchars($outward['dest_warehouse_name']) ?>
+                            <?= $isDamageTransfer ? 'Receive Damaged Stock' : 'Add to Stock' ?> (+<span id="btnIncrementalQty">0</span> pcs) to <?= htmlspecialchars($outward['dest_warehouse_name']) ?>
                         </button>
                     </div>
-                    <?php if (!$isDamageTransfer): ?>
-                    <div class="col-12 col-md-4">
-                        <button type="submit" onclick="document.getElementById('submitMoveToLabels').value='1'" class="btn btn-primary btn-lg w-100 fw-bold shadow py-3 d-flex align-items-center justify-content-center gap-2 text-uppercase" id="btnSubmitAndLabels" title="Credit Stock and immediately proceed to Label Generation" style="letter-spacing: 0.03em;">
-                            <i class="bi bi-upc-scan fs-4"></i>
-                            Inward & Move to Labels
-                        </button>
-                    </div>
-                    <?php endif; ?>
                 </div>
             </form>
             <?php else: ?>
