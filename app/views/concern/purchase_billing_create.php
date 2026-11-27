@@ -507,6 +507,30 @@ if ($isEdit && !empty($existingItems)) {
                                                 <?= htmlspecialchars($savedItem['item_code'] ?? '') ?>
                                                 <?php if (!empty($savedItem['hsn_code'])): ?> · HSN <?= htmlspecialchars($savedItem['hsn_code']) ?><?php endif; ?>
                                             </div>
+                                            <?php
+                                            $attrParts = [];
+                                            $vAttrsRaw = $savedItem['variant_attributes'] ?? '';
+                                            $vAttrs = is_string($vAttrsRaw) && $vAttrsRaw !== '' ? json_decode($vAttrsRaw, true) : (is_array($vAttrsRaw) ? $vAttrsRaw : []);
+                                            if (!is_array($vAttrs)) $vAttrs = [];
+                                            $itemSize = trim((string)($savedItem['variant_size'] ?? ($savedItem['size'] ?? ($vAttrs['size'] ?? ($vAttrs['Size'] ?? '')))));
+                                            $itemColor = trim((string)($savedItem['color'] ?? ($vAttrs['color'] ?? ($vAttrs['Color'] ?? ''))));
+                                            if ($itemSize !== '') $attrParts[] = 'Size: ' . $itemSize;
+                                            if ($itemColor !== '') $attrParts[] = 'Color: ' . $itemColor;
+                                            if (!empty($savedItem['pattern'])) $attrParts[] = 'Pattern: ' . trim((string)$savedItem['pattern']);
+                                            foreach ($vAttrs as $ak => $av) {
+                                                $akNorm = strtolower(trim((string)$ak));
+                                                if (in_array($akNorm, ['size', 'color'], true)) continue;
+                                                $avStr = is_array($av) ? implode(', ', $av) : trim((string)$av);
+                                                if ($avStr !== '') {
+                                                    $attrParts[] = ucwords(str_replace('_', ' ', (string)$ak)) . ': ' . $avStr;
+                                                }
+                                            }
+                                            ?>
+                                            <?php if (!empty($attrParts)): ?>
+                                                <div class="small text-primary-emphasis mt-1">
+                                                    <?= htmlspecialchars(implode(' · ', $attrParts)) ?>
+                                                </div>
+                                            <?php endif; ?>
                                             <div class="small text-muted">
                                                 Unit ₹<?= number_format((float) ($savedItem['unit_price'] ?? 0), 2) ?>
                                                 · Line ₹<?= number_format((float) ($savedItem['total_price'] ?? 0), 2) ?>

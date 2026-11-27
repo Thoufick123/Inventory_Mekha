@@ -179,6 +179,8 @@ class ProductAddingController extends Controller
                 PurchaseStockItemOverrideService::initTable();
                 $savedBillItems = DB::fetchAll(
                     "SELECT pbi.*, pbi.qty AS purchase_qty_original,
+                            v.size AS variant_size,
+                            v.attributes AS variant_attributes,
                             COALESCE((
                                 SELECT lj.qty
                                 FROM label_jobs lj
@@ -202,6 +204,7 @@ class ProductAddingController extends Controller
                                   AND sl.ref_module IN ('Purchase Inward Item', 'Product Adding Stock Correction')
                             ), 0) AS finished_goods_inward_qty
                      FROM purchase_bill_items pbi
+                     LEFT JOIN variants v ON v.id = pbi.variant_id
                      LEFT JOIN purchase_stock_item_overrides pso
                        ON pso.purchase_bill_item_id = pbi.id AND pso.concern_id = pbi.concern_id
                      WHERE pbi.purchase_bill_id = ?
