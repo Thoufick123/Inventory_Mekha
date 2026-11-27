@@ -106,19 +106,6 @@
                                     <div class="fw-bold font-monospace text-primary" style="font-size:0.92rem;">
                                         <?= htmlspecialchars($o['outward_no']) ?>
                                     </div>
-                                    <small class="text-muted d-block" style="font-size:0.75rem;">
-                                        Dispatched by <?= htmlspecialchars($o['display_dispatched_by'] ?? 'System Administrator') ?>
-                                    </small>
-                                    <?php if (!empty($o['sales_invoice_no'])): ?>
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle mt-1">
-                                            POS <?= htmlspecialchars($o['sales_invoice_no']) ?>
-                                        </span>
-                                    <?php endif; ?>
-                                    <?php if (!empty($o['source_concern_code'])): ?>
-                                        <span class="badge bg-light text-secondary border px-1.5 py-0 mt-0.5" style="font-size: 0.68rem;">
-                                            <?= htmlspecialchars($o['source_concern_code']) ?>
-                                        </span>
-                                    <?php endif; ?>
                                 </td>
 
                                 <!-- 2. PRODUCT -->
@@ -261,7 +248,7 @@
 <?php if (\App\Core\Auth::can('outward', 'create')): ?>
 <!-- Modal: Unified Outward Dispatch -->
 <div class="modal fade" id="modalAddOutward" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <form action="<?= \App\Core\Controller::url('/m/outward/store') ?>" method="POST" id="formAddOutward" class="modal-content border-0 shadow">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
             <input type="hidden" name="dispatch_mode" value="unified">
@@ -550,7 +537,7 @@
 
 <!-- Modal 3: Traceability Details Modal -->
 <div class="modal fade" id="modalTraceability" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-dark text-white py-3">
                 <h5 class="modal-title fw-bold"><i class="bi bi-shield-check me-2 text-info"></i> Consignment Traceability Audit</h5>
@@ -1119,59 +1106,57 @@ function openTraceabilityModal(outwardNo, id, concernId) {
                     <div class="col-12 mt-2">
                         <div class="card border rounded-3 p-3 bg-white">
                             <small class="fw-bold text-dark text-uppercase d-block mb-2">Itemized Product Details</small>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered align-middle mb-0 small">
-                                    <thead class="bg-light text-uppercase" style="font-size: 0.7rem;">
+                            <table class="table table-sm table-bordered align-middle mb-0 small w-100">
+                                <thead class="bg-light text-uppercase" style="font-size: 0.7rem;">
+                                    <tr>
+                                        <th>Product Details</th>
+                                        <th>Variant ID</th>
+                                        <th>Specs &amp; Attributes</th>
+                                        <th>HSN / GST</th>
+                                        <th class="text-end">Price / MRP</th>
+                                        <th class="text-end">Dispatched Qty</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.items.map(it => {
+                                        const hierarchy = it.hierarchy_path || [it.category_name, it.subcategory_name].filter(Boolean).join(' › ');
+                                        const extraAttrs = Object.entries(it.custom_attributes || {}).map(([k, v]) => `<span class="badge bg-light text-dark border me-1">${k}: ${v}</span>`).join('');
+                                        const weightInfo = parseFloat(it.weight || 0) > 0 ? `<div class="text-muted" style="font-size:0.72rem;">Weight: ${parseFloat(it.weight)} ${it.weight_unit || 'kg'}</div>` : '';
+                                        const hsnInfo = it.hsn_code ? `<span class="font-monospace fw-semibold">${it.hsn_code}</span>` : '<span class="text-muted">—</span>';
+                                        const gstInfo = (it.gst_rate !== null && it.gst_rate !== undefined && it.gst_rate !== '') ? `<div class="text-muted" style="font-size:0.72rem;">GST ${parseFloat(it.gst_rate)}%</div>` : '';
+                                        const priceVal = parseFloat(it.price || it.unit_price || 0);
+                                        const mrpVal = parseFloat(it.mrp || 0);
+                                        const costVal = parseFloat(it.cost_price || 0);
+                                        const variantCode = it.variant_id ? String(it.variant_id).padStart(3, '0') : (it.product_code || '-');
+                                        return `
                                         <tr>
-                                            <th>Product Details</th>
-                                            <th>Product Code</th>
-                                            <th>Specs &amp; Attributes</th>
-                                            <th>HSN / GST</th>
-                                            <th class="text-end">Price / MRP</th>
-                                            <th class="text-end">Dispatched Qty</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${data.items.map(it => {
-                                            const hierarchy = it.hierarchy_path || [it.category_name, it.subcategory_name].filter(Boolean).join(' › ');
-                                            const extraAttrs = Object.entries(it.custom_attributes || {}).map(([k, v]) => `<span class="badge bg-light text-dark border me-1">${k}: ${v}</span>`).join('');
-                                            const weightInfo = parseFloat(it.weight || 0) > 0 ? `<div class="text-muted" style="font-size:0.72rem;">Weight: ${parseFloat(it.weight)} ${it.weight_unit || 'kg'}</div>` : '';
-                                            const hsnInfo = it.hsn_code ? `<span class="font-monospace fw-semibold">${it.hsn_code}</span>` : '<span class="text-muted">—</span>';
-                                            const gstInfo = (it.gst_rate !== null && it.gst_rate !== undefined && it.gst_rate !== '') ? `<div class="text-muted" style="font-size:0.72rem;">GST ${parseFloat(it.gst_rate)}%</div>` : '';
-                                            const priceVal = parseFloat(it.price || it.unit_price || 0);
-                                            const mrpVal = parseFloat(it.mrp || 0);
-                                            const costVal = parseFloat(it.cost_price || 0);
-                                            return `
-                                            <tr>
-                                                <td>
-                                                    <div class="fw-bold text-dark">${it.variant_name || '-'}</div>
-                                                    ${hierarchy ? `<div class="text-muted" style="font-size:0.72rem;">${hierarchy}</div>` : ''}
-                                                    ${it.style_code ? `<div class="font-monospace text-secondary" style="font-size:0.7rem;">Style: ${it.style_code}</div>` : ''}
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-light text-dark border font-monospace">${it.product_code || '-'}</span>
-                                                    ${it.variant_id ? `<div class="text-muted font-monospace mt-1" style="font-size:0.7rem;">ID: #${it.variant_id}</div>` : ''}
-                                                </td>
-                                                <td>
-                                                    <div>
-                                                        ${it.size ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">Size: ${it.size}</span>` : ''}
-                                                        ${it.color ? `<span class="badge bg-secondary-subtle text-dark border me-1">Color: ${it.color}</span>` : ''}
-                                                    </div>
-                                                    ${extraAttrs ? `<div class="mt-1">${extraAttrs}</div>` : ''}
-                                                    ${weightInfo}
-                                                </td>
-                                                <td>${hsnInfo}${gstInfo}</td>
-                                                <td class="text-end text-nowrap">
-                                                    <div class="fw-semibold text-dark">₹${priceVal.toFixed(2)}</div>
-                                                    ${mrpVal > 0 ? `<div class="text-muted" style="font-size:0.72rem;">MRP: ₹${mrpVal.toFixed(2)}</div>` : ''}
-                                                    ${costVal > 0 ? `<div class="text-muted" style="font-size:0.7rem;">Cost: ₹${costVal.toFixed(2)}</div>` : ''}
-                                                </td>
-                                                <td class="text-end fw-bold text-success text-nowrap">${parseInt(it.qty)} pcs</td>
-                                            </tr>`;
-                                        }).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
+                                            <td>
+                                                <div class="fw-bold text-dark">${it.variant_name || '-'}</div>
+                                                ${hierarchy ? `<div class="text-muted" style="font-size:0.72rem;">${hierarchy}</div>` : ''}
+                                                ${it.style_code ? `<div class="font-monospace text-secondary" style="font-size:0.7rem;">Style: ${it.style_code}</div>` : ''}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-light text-dark border font-monospace">${variantCode}</span>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    ${it.size ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">Size: ${it.size}</span>` : ''}
+                                                    ${it.color ? `<span class="badge bg-secondary-subtle text-dark border me-1">Color: ${it.color}</span>` : ''}
+                                                </div>
+                                                ${extraAttrs ? `<div class="mt-1">${extraAttrs}</div>` : ''}
+                                                ${weightInfo}
+                                            </td>
+                                            <td>${hsnInfo}${gstInfo}</td>
+                                            <td class="text-end text-nowrap">
+                                                <div class="fw-semibold text-dark">₹${priceVal.toFixed(2)}</div>
+                                                ${mrpVal > 0 ? `<div class="text-muted" style="font-size:0.72rem;">MRP: ₹${mrpVal.toFixed(2)}</div>` : ''}
+                                                ${costVal > 0 ? `<div class="text-muted" style="font-size:0.7rem;">Cost: ₹${costVal.toFixed(2)}</div>` : ''}
+                                            </td>
+                                            <td class="text-end fw-bold text-success text-nowrap">${parseInt(it.qty)} pcs</td>
+                                        </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 `;
@@ -1208,7 +1193,7 @@ function openTraceabilityModal(outwardNo, id, concernId) {
                             <div class="row g-2 small">
                                 <div class="col-md-4">
                                     <span class="text-muted">Origin Facility / Unit:</span><br>
-                                    <strong>${data.production_unit} (${data.source_concern})</strong>
+                                    <strong>${data.source_concern || '-'}</strong>
                                 </div>
                                 <div class="col-md-4">
                                     <span class="text-muted">Destination Target:</span><br>

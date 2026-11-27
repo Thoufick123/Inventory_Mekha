@@ -319,12 +319,8 @@ class DamageController extends Controller {
             }
 
             $today = date('Ymd');
-            $sequence = (int)DB::fetchValue(
-                "SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?",
-                ["OUT-{$today}-%"]
-            ) + 1;
-            $outwardNo = 'OUT-' . $today . '-' . str_pad((string)$sequence, 4, '0', STR_PAD_LEFT);
-            $gatePassNo = 'GP-' . $today . '-' . str_pad((string)$sequence, 4, '0', STR_PAD_LEFT);
+            $outwardNo = OutwardController::nextOutwardNo();
+            $gatePassNo = 'GP-' . $today . '-' . substr($outwardNo, 4);
             $productionUnitId = (int)DB::fetchValue(
                 "SELECT id FROM production_units WHERE concern_id = ? ORDER BY id ASC LIMIT 1",
                 [$concernId]

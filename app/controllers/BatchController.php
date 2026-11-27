@@ -521,10 +521,8 @@ class BatchController extends Controller {
                 $destCon = DB::fetch("SELECT id, name FROM concerns WHERE id = ?", [$destConcernId]);
                 $destWhName = $destCon['name'] ?? $warehouseName;
 
-                $countOutToday = (int)DB::fetchValue("SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?", ["OUT-{$today}-%"]);
-                $outSeq = str_pad((string)($countOutToday + 1), 4, '0', STR_PAD_LEFT);
-                $outwardNo = "OUT-{$today}-{$outSeq}";
-                $gatePassNo = "GP-{$today}-{$outSeq}";
+                $outwardNo = OutwardController::nextOutwardNo();
+                $gatePassNo = "GP-{$today}-" . substr($outwardNo, 4);
 
                 DB::query("
                     INSERT INTO outwards (
@@ -749,10 +747,8 @@ class BatchController extends Controller {
         $transporterName = trim($_POST['transporter_name'] ?? 'Express Logistics');
 
         $today = date('Ymd');
-        $countOutToday = (int)DB::fetchValue("SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?", ["OUT-{$today}-%"]);
-        $outSeq = str_pad((string)($countOutToday + 1), 4, '0', STR_PAD_LEFT);
-        $outwardNo = "OUT-{$today}-{$outSeq}";
-        $gatePassNo = "GP-{$today}-{$outSeq}";
+        $outwardNo = OutwardController::nextOutwardNo();
+        $gatePassNo = "GP-{$today}-" . substr($outwardNo, 4);
 
         $puId = (int)($batch['production_unit_id'] ?: 1);
         $totalBoxes = max(1, (int)($batch['total_boxes'] ?: 1));

@@ -13,6 +13,17 @@ use App\Services\StockService;
 use Exception;
 
 class OutwardController extends Controller {
+    public static function nextOutwardNo(): string
+    {
+        $maxId = (int) (DB::fetchValue('SELECT COALESCE(MAX(id), 0) FROM outwards') ?: 0);
+        $nextSeq = $maxId + 1;
+        do {
+            $candidate = 'out-' . str_pad((string)$nextSeq, 2, '0', STR_PAD_LEFT);
+            $exists = (bool) DB::fetchValue('SELECT id FROM outwards WHERE outward_no = ? LIMIT 1', [$candidate]);
+            $nextSeq++;
+        } while ($exists);
+        return $candidate;
+    }
     private static bool $schemaEnsured = false;
 
     private function isOutwardInSourceScope(array $outward): bool {
@@ -578,10 +589,8 @@ class OutwardController extends Controller {
             }
 
             $today = date('Ymd');
-            $countToday = (int)DB::fetchValue("SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?", ["OUT-{$today}-%"]);
-            $sequence = str_pad((string)($countToday + 1), 4, '0', STR_PAD_LEFT);
-            $outwardNo = "OUT-{$today}-{$sequence}";
-            $gatePassNo = "GP-{$today}-{$sequence}";
+            $outwardNo = self::nextOutwardNo();
+            $gatePassNo = 'GP-' . $today . '-' . substr($outwardNo, 4);
 
             DB::beginTransaction();
             $transactionStarted = true;
@@ -853,10 +862,8 @@ class OutwardController extends Controller {
         $notes           = trim($_POST['notes'] ?? '');
 
         $today = date('Ymd');
-        $countToday = (int)DB::fetchValue("SELECT COUNT(*) FROM outwards WHERE outward_no LIKE ?", ["OUT-{$today}-%"]);
-        $seq = str_pad((string)($countToday + 1), 4, '0', STR_PAD_LEFT);
-        $outwardNo = "OUT-{$today}-{$seq}";
-        $gatePassNo = "GP-{$today}-{$seq}";
+        $outwardNo = self::nextOutwardNo();
+        $gatePassNo = 'GP-' . $today . '-' . substr($outwardNo, 4);
         $handoffCompleted = false;
 
         DB::beginTransaction();

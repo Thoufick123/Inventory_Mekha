@@ -1301,6 +1301,66 @@ class CatalogMappingController extends Controller
     /**
      * Delete Category / Subcategory / Sub-Subcategory / Attribute
      */
+    public static function ensureComplementarySchema(): void
+    {
+        foreach (['categories', 'subcategories', 'sub_subcategories', 'variants'] as $table) {
+            try {
+                $cols = array_column(DB::fetchAll("DESCRIBE {$table}"), 'Field');
+                if (!in_array('is_complementary', $cols, true)) {
+                    DB::query("ALTER TABLE {$table} ADD COLUMN is_complementary TINYINT(1) NOT NULL DEFAULT 0");
+                }
+            } catch (Exception $e) {
+                // Ignore if table does not exist yet
+            }
+        }
+    }
+
+    public function toggleHierarchyComplementary(): void
+    {
+        $this->ensureSchema();
+        self::ensureComplementarySchema();
+        $this->validateCsrf();
+
+        $type = trim((string)($_POST['type'] ?? ''));
+        $id = (int)($_POST['id'] ?? 0);
+        $isComplementary = ((int)($_POST['is_complementary'] ?? 0) === 1) ? 1 : 0;
+        $returnUrl = $_POST['return_url'] ?? '/m/product_adding?tab=hierarchy';
+
+        $tableMap = [
+            'category' => ['table' => 'categories', 'var_col' => 'category_id', 'label' => 'Main Category'],
+            'subcategory' => ['table' => 'subcategories', 'var_col' => 'subcategory_id', 'label' => 'Subcategory'],
+            'subsubcategory' => ['table' => 'sub_subcategories', 'var_col' => 'sub_sub_category_id', 'label' => 'Sub-Subcategory'],
+        ];
+
+        if ($id <= 0 || !isset($tableMap[$type])) {
+            $this->flash('error', 'Invalid hierarchy complementary request.');
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        $cfg = $tableMap[$type];
+        $row = DB::fetch("SELECT id, name FROM {$cfg['table']} WHERE id = ?", [$id]);
+        if (!$row) {
+            $this->flash('error', "{$cfg['label']} not found.");
+            $this->redirect($returnUrl);
+            return;
+        }
+
+        DB::query("UPDATE {$cfg['table']} SET is_complementary = ? WHERE id = ?", [$isComplementary, $id]);
+        DB::query("UPDATE variants SET is_complementary = ? WHERE {$cfg['var_col']} = ?", [$isComplementary, $id]);
+        DB::query(
+            "UPDATE variants v
+             JOIN catalogs c ON c.id = v.catalog_id
+             SET v.is_complementary = ?
+             WHERE c.{$cfg['var_col']} = ?",
+            [$isComplementary, $id]
+        );
+
+        $stateLabel = $isComplementary ? 'Complementary (Billed Price ₹0.00)' : 'Regular Pricing';
+        $this->flash('success', "{$cfg['label']} '{$row['name']}' and its products set to {$stateLabel}.");
+        $this->redirect($returnUrl);
+    }
+
     public function deleteHierarchy(): void
     {
         $this->ensureSchema();

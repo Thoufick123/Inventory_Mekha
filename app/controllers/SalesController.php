@@ -1213,7 +1213,14 @@ class SalesController extends Controller {
             $variantId = (int)$matches[1];
         }
 
-        $sql = "SELECT v.id, v.product_code, v.name, v.price, v.mrp, v.size, v.attributes, v.is_complementary, c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, COALESCE(s.qty, 0) AS available_qty
+        \App\Controllers\CatalogMappingController::ensureComplementarySchema();
+        $sql = "SELECT v.id, v.product_code, v.name, v.price, v.mrp, v.size, v.attributes,
+                       (CASE WHEN COALESCE(v.is_complementary, 0) = 1
+                             OR COALESCE(cat.is_complementary, 0) = 1
+                             OR COALESCE(sub.is_complementary, 0) = 1
+                             OR COALESCE(ssc.is_complementary, 0) = 1
+                        THEN 1 ELSE 0 END) AS is_complementary,
+                       c.hsn_code AS catalog_hsn, c.gst_rate AS catalog_gst_rate, COALESCE(s.qty, 0) AS available_qty
                 FROM variants v
                 LEFT JOIN (
                     SELECT variant_id, concern_id, SUM(qty) AS qty
@@ -1222,6 +1229,9 @@ class SalesController extends Controller {
                     GROUP BY variant_id, concern_id
                 ) s ON v.id = s.variant_id AND s.concern_id = ?
                 LEFT JOIN catalogs c ON c.id = v.catalog_id AND c.concern_id = v.concern_id
+                LEFT JOIN categories cat ON cat.id = COALESCE(v.category_id, c.category_id)
+                LEFT JOIN subcategories sub ON sub.id = COALESCE(v.subcategory_id, c.subcategory_id)
+                LEFT JOIN sub_subcategories ssc ON ssc.id = COALESCE(v.sub_sub_category_id, c.sub_sub_category_id)
                 WHERE v.concern_id = ? AND v.status = 'active'";
         $params = [$cid, $cid];
 
@@ -1264,7 +1274,7 @@ class SalesController extends Controller {
                 'product_code'      => $variant['product_code'],
                 'name'          => $variant['name'],
                 'size'          => $variant['size'] ?: '-',
-                'price'         => (int)$variant['is_complementary'] === 1 ? 0.0 : (float)$variant['price'],
+                'price'         => (float)$variant['price'],
                 'mrp'           => (float)($variant['mrp'] > 0 ? $variant['mrp'] : $variant['price']),
                 'is_complementary' => (int)$variant['is_complementary'] === 1,
                 'available_qty' => (float)$variant['available_qty'],
@@ -1338,7 +1348,12 @@ class SalesController extends Controller {
         }
 
         $batches = DB::fetchAll(
-            "SELECT b.id, b.batch_no, b.batch_qty, b.variant_id, v.attributes, v.is_complementary,
+            "SELECT b.id, b.batch_no, b.batch_qty, b.variant_id, v.attributes,
+                    (CASE WHEN COALESCE(v.is_complementary, 0) = 1
+                          OR COALESCE(cat.is_complementary, 0) = 1
+                          OR COALESCE(sub.is_complementary, 0) = 1
+                          OR COALESCE(ssc.is_complementary, 0) = 1
+                     THEN 1 ELSE 0 END) AS is_complementary,
                     v.name AS product_name, v.product_code, v.size, v.price, v.mrp,
                     COALESCE(c.gst_rate, cat.default_gst_rate) AS gst_pct,
                     COALESCE(c.hsn_code, '') AS hsn_code,
@@ -1350,7 +1365,9 @@ class SalesController extends Controller {
              FROM batches b
              JOIN variants v ON v.id = b.variant_id AND v.concern_id = b.concern_id
              LEFT JOIN catalogs c ON c.id = v.catalog_id AND c.concern_id = v.concern_id
-             LEFT JOIN categories cat ON cat.id = v.category_id
+             LEFT JOIN categories cat ON cat.id = COALESCE(v.category_id, c.category_id)
+             LEFT JOIN subcategories sub ON sub.id = COALESCE(v.subcategory_id, c.subcategory_id)
+             LEFT JOIN sub_subcategories ssc ON ssc.id = COALESCE(v.sub_sub_category_id, c.sub_sub_category_id)
              LEFT JOIN stocks s ON s.concern_id = b.concern_id
                                AND s.variant_id = b.variant_id
                                AND s.location = 'Main Store'
@@ -1368,7 +1385,7 @@ class SalesController extends Controller {
             $batch['available_qty'] = (float)$batch['available_qty'];
             $batch['batch_remaining_qty'] = (float)$batch['batch_remaining_qty'];
             $batch['is_complementary'] = (int)$batch['is_complementary'] === 1;
-            $batch['price'] = $batch['is_complementary'] ? 0.0 : (float)$batch['price'];
+            $batch['price'] = (float)$batch['price'];
             $batch['mrp'] = (float)$batch['mrp'];
             $batch['gst_pct'] = $batch['gst_pct'] === null ? null : (float)$batch['gst_pct'];
             $batch['hsn_code'] = !empty($attributes['hsn']) ? $attributes['hsn'] : $batch['hsn_code'];
@@ -1664,9 +1681,18 @@ class SalesController extends Controller {
                 $qty = (float)$qtyInput;
                 $itemDiscount = (float)$discountInput;
                 $variant = DB::fetch(
-                    "SELECT price, is_complementary
-                     FROM variants
-                     WHERE id = ? AND concern_id = ? AND status = 'active'
+                    "SELECT v.price,
+                            (CASE WHEN COALESCE(v.is_complementary, 0) = 1
+                                  OR COALESCE(cat.is_complementary, 0) = 1
+                                  OR COALESCE(sub.is_complementary, 0) = 1
+                                  OR COALESCE(ssc.is_complementary, 0) = 1
+                             THEN 1 ELSE 0 END) AS is_complementary
+                     FROM variants v
+                     LEFT JOIN catalogs c ON c.id = v.catalog_id AND c.concern_id = v.concern_id
+                     LEFT JOIN categories cat ON cat.id = COALESCE(v.category_id, c.category_id)
+                     LEFT JOIN subcategories sub ON sub.id = COALESCE(v.subcategory_id, c.subcategory_id)
+                     LEFT JOIN sub_subcategories ssc ON ssc.id = COALESCE(v.sub_sub_category_id, c.sub_sub_category_id)
+                     WHERE v.id = ? AND v.concern_id = ? AND v.status = 'active'
                      LIMIT 1 FOR UPDATE",
                     [$variantId, $cid]
                 );
@@ -1674,7 +1700,9 @@ class SalesController extends Controller {
                     throw new \RuntimeException('A selected product is no longer available in this concern.');
                 }
                 $isComplementary = (int)$variant['is_complementary'] === 1;
-                $unitPrice = (float)$variant['price'];
+                $unitPrice = (!$isComplementary && isset($item['custom_unit_price']) && is_numeric($item['custom_unit_price']) && (float)$item['custom_unit_price'] >= 0)
+                    ? (float)$item['custom_unit_price']
+                    : (float)$variant['price'];
                 $productionBatchId = (int)($item['batch_id'] ?? 0);
                 if ($productionBatchId > 0) {
                     $batch = DB::fetch(

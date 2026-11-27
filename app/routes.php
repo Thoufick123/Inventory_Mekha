@@ -91,6 +91,8 @@ $router->post('/m/product_adding/brands/delete', [ProductAddingController::class
 $router->post('/m/product_adding/quick-category', [CatalogMappingController::class, 'quickCreateCategory'], 'product_adding', 'add');
 $router->post('/m/product_adding/quick-attribute', [CatalogMappingController::class, 'quickCreateAttribute'], 'product_adding', 'add');
 $router->post('/m/product_adding/delete-hierarchy', [CatalogMappingController::class, 'deleteHierarchy'], 'product_adding', 'delete');
+$router->post('/m/product_adding/toggle-hierarchy-complementary', [CatalogMappingController::class, 'toggleHierarchyComplementary'], 'product_adding', 'edit');
+$router->post('/production/catalog-mapping/toggle-hierarchy-complementary', [CatalogMappingController::class, 'toggleHierarchyComplementary'], 'catalog_mapping', 'edit');
 $router->post('/m/product_adding/create-hsn', [CatalogMappingController::class, 'createHsn'], 'product_adding', 'add');
 $router->post('/m/product_adding/update-hsn', [CatalogMappingController::class, 'updateHsn'], 'product_adding', 'edit');
 $router->post('/m/product_adding/delete-hsn', [CatalogMappingController::class, 'deleteHsn'], 'product_adding', 'delete');

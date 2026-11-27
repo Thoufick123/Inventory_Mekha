@@ -172,9 +172,9 @@
                                         <div class="fw-bold text-dark">
                                             <?= htmlspecialchars($it['hierarchy_path'] ?: ($it['catalog_name'] ?: 'Production Catalog')) ?>
                                         </div>
-                                        <?php if ($it['product_code']): ?>
+                                        <?php if (!empty($it['variant_id']) || !empty($it['product_code'])): ?>
                                             <span class="badge bg-light text-secondary border font-monospace mt-1" style="font-size:0.7rem;">
-                                                Product Code: <?= htmlspecialchars($it['product_code']) ?>
+                                                Variant ID: <?= htmlspecialchars(\App\Services\QrService::formatBrandVariantCode((int)($it['variant_id'] ?? 0)) ?: (string)($it['product_code'] ?? '')) ?>
                                             </span>
                                         <?php endif; ?>
                                     </td>

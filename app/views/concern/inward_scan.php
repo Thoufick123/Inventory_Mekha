@@ -210,14 +210,13 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                                         </div>
                                         <div>
                                             <div class="fw-bold text-dark"><?= htmlspecialchars($it['variant_name']) ?></div>
-                                            <div class="font-monospace small text-muted"><?= htmlspecialchars($it['product_code']) ?></div>
+                                            <div class="font-monospace small text-muted"><?= htmlspecialchars(\App\Services\QrService::formatBrandVariantCode((int)$it['variant_id']) ?: (string)$it['variant_id']) ?></div>
                                             <span class="badge bg-light text-muted border" style="font-size: 0.68rem;"><?= htmlspecialchars($it['category_name'] ?: '—') ?></span>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
                                     <div class="font-monospace small text-dark fw-semibold"><?= htmlspecialchars((string)$it['tag_code']) ?: 'QR unavailable' ?></div>
-                                    <div class="small text-muted fw-semibold font-monospace" style="font-size: 0.75rem;">Product Code: <?= htmlspecialchars((string)$it['product_code']) ?></div>
                                 </td>
                                 <td>
                                     <div><span class="badge bg-light text-dark border"><?= htmlspecialchars((string)($it['size'] ?? '') ?: '—') ?></span></div>
@@ -341,7 +340,7 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                         <div>
                             <h5 class="fw-bold text-dark mb-0" id="modalProductName">—</h5>
                             <div class="font-monospace small text-muted mt-0.5">
-                                Product Code: <span class="fw-bold text-dark" id="modalSkuCode">—</span> · Tag: <span class="fw-bold text-primary font-monospace" id="modalVariantTag">—</span>
+                                Variant ID: <span class="fw-bold text-primary font-monospace" id="modalVariantTag">—</span><span class="d-none" id="modalSkuCode">—</span>
                             </div>
                         </div>
                         <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" id="modalCategoryBadge">Finished Garment</span>

@@ -61,9 +61,6 @@ final class PosBillingCalculator {
         string $priceMode,
         bool $isComplementary = false
     ): array {
-        if ($isComplementary) {
-            $unitPrice = 0.0;
-        }
         if (!is_finite($unitPrice) || $unitPrice < 0) {
             throw new InvalidArgumentException('Unit price must be a non-negative number.');
         }
@@ -83,6 +80,19 @@ final class PosBillingCalculator {
         $grossAmount = round($unitPrice * $quantity, 2);
         $appliedDiscount = min($discount, $grossAmount);
         $discountedAmount = round(max(0, $grossAmount - $appliedDiscount), 2);
+
+        if ($isComplementary) {
+            $baseUnitPrice = ($priceMode === 'include' && $gstRate > 0)
+                ? round($unitPrice / (1 + ($gstRate / 100)), 2)
+                : round($unitPrice, 2);
+            return [
+                'base_unit_price' => $baseUnitPrice,
+                'taxable_amount' => 0.0,
+                'gst_amount' => 0.0,
+                'discount_amount' => 0.0,
+                'billed_amount' => 0.0,
+            ];
+        }
 
         if ($priceMode === 'include' && $gstRate > 0) {
             $baseUnitPrice = round($unitPrice / (1 + ($gstRate / 100)), 2);

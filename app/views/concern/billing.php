@@ -261,7 +261,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         <input type="text" id="pos_qr_input" list="pos_catalog_list" class="form-control border-0 shadow-none px-3 text-dark" placeholder="<?= \App\Core\Auth::can('billing', 'create') ? 'Point QR scanner or type Product Code / name' : 'View only access - billing terminal disabled' ?>" style="font-size: 0.95rem; border-radius: 0;" autocomplete="off" <?= \App\Core\Auth::can('billing', 'create') ? 'autofocus' : 'disabled' ?>>
                         <datalist id="pos_catalog_list">
                             <?php foreach ($variants as $v): ?>
-                                <option value="<?= htmlspecialchars($v['product_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format(!empty($v['is_complementary']) ? 0 : $v['price'], 0) ?><?= !empty($v['is_complementary']) ? ' · Complimentary' : '' ?>)</option>
+                                <option value="<?= htmlspecialchars($v['product_code']) ?>"><?= htmlspecialchars($v['name']) ?> (₹<?= number_format((float)$v['price'], 0) ?><?= !empty($v['is_complementary']) ? ' · Complimentary' : '' ?>)</option>
                             <?php endforeach; ?>
                         </datalist>
                         <button type="button" id="btn_add_qr" class="btn text-white px-3 fw-bold d-flex align-items-center gap-1" style="background: #4f46e5; border-radius: 0; border: none; font-size: 0.92rem; white-space: nowrap;" <?= !\App\Core\Auth::can('billing', 'create') ? 'disabled' : '' ?>>
@@ -1601,7 +1601,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             scanned_codes: [query],
                             size: v.size,
                             hsn_code: v.hsn_code || '',
-                            price: isComplementary ? 0 : Number(v.price),
+                            price: Number(v.price),
                             is_complementary: isComplementary,
                             mrp: v.mrp,
                             gst_pct: Number(v.gst_pct),
@@ -1672,11 +1672,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const gstType = gstTypeSelect ? gstTypeSelect.value : 'both';
         const priceMode = gstPriceModeSelect ? gstPriceModeSelect.value : 'exclude';
         const gstRate = gstType === 'exempt' ? 0 : (parseFloat(item.gst_pct) || 0);
-        const unitPrice = parseFloat(item.price) || 0;
+        const unitPrice = item.is_complementary
+            ? (parseFloat(item.price) || 0)
+            : (item.custom_unit_price !== undefined && item.custom_unit_price !== null
+                ? (parseFloat(item.custom_unit_price) || 0)
+                : (parseFloat(item.price) || 0));
         const qty = Math.max(1, parseInt(item.qty, 10) || 1);
         const grossAmount = Math.round(unitPrice * qty * 100) / 100;
         const discount = Math.min(grossAmount, Math.max(0, parseFloat(item.discount) || 0));
         const discountedAmount = Math.round(Math.max(0, grossAmount - discount) * 100) / 100;
+
+        if (item.is_complementary) {
+            const baseUnitPrice = (priceMode === 'include' && gstRate > 0)
+                ? Math.round((unitPrice / (1 + gstRate / 100)) * 100) / 100
+                : Math.round(unitPrice * 100) / 100;
+            return {
+                baseUnitPrice,
+                taxableAmount: 0,
+                gstAmount: 0,
+                discount: 0,
+                billedAmount: 0,
+                gstRate
+            };
+        }
 
         if (priceMode === 'include' && gstRate > 0) {
             const baseUnitPrice = Math.round((unitPrice / (1 + gstRate / 100)) * 100) / 100;
@@ -1759,8 +1777,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         <input type="number" min="0" step="1" class="form-control form-control-sm text-end font-monospace item-discount-input" 
                                value="${discount.toFixed(0)}" data-index="${index}" style="width: 75px; font-size: 0.8rem; padding: 0.2rem 0.4rem;">
                     </td>
-                    <td class="text-end fw-bold font-monospace text-dark fs-6 item-billed-price">
-                        ₹${line.billedAmount.toFixed(2)}
+                    <td>
+                        <div class="input-group input-group-sm justify-content-end">
+                            <span class="input-group-text bg-light px-1.5" style="font-size: 0.78rem;">₹</span>
+                            <input type="number" min="0" step="0.01" class="form-control form-control-sm text-end font-monospace fw-bold text-dark item-billed-price-input"
+                                   value="${line.billedAmount.toFixed(2)}" data-index="${index}" aria-label="Billed price for ${escapeHtml(item.name)}"
+                                   style="width: 92px; font-size: 0.84rem; padding: 0.2rem 0.4rem;" ${item.is_complementary ? 'readonly' : ''}>
+                        </div>
                     </td>
                     <td class="text-center">
                         <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="removeCartItem(${index})" title="Remove item">
@@ -1776,8 +1799,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 input.addEventListener('change', function() {
                     const idx = parseInt(this.getAttribute('data-index'));
                     const qty = Math.max(1, parseInt(cart[idx].qty, 10) || 1);
-                    const maxDiscount = Math.max(0, (parseFloat(cart[idx].price) || 0) * qty);
+                    const unitPrice = cart[idx].custom_unit_price !== undefined ? (parseFloat(cart[idx].custom_unit_price) || 0) : (parseFloat(cart[idx].price) || 0);
+                    const maxDiscount = Math.max(0, unitPrice * qty);
                     cart[idx].discount = Math.min(maxDiscount, Math.max(0, parseFloat(this.value) || 0));
+                    renderCart();
+                });
+            });
+
+            // Attach billed price change listeners
+            document.querySelectorAll('.item-billed-price-input').forEach(input => {
+                input.addEventListener('change', function() {
+                    const idx = parseInt(this.getAttribute('data-index'));
+                    if (cart[idx].is_complementary) {
+                        this.value = '0.00';
+                        return;
+                    }
+                    const targetBilled = Math.max(0, parseFloat(this.value) || 0);
+                    const qty = Math.max(1, parseInt(cart[idx].qty, 10) || 1);
+                    const gstType = gstTypeSelect ? gstTypeSelect.value : 'both';
+                    const priceMode = gstPriceModeSelect ? gstPriceModeSelect.value : 'exclude';
+                    const gstRate = gstType === 'exempt' ? 0 : (parseFloat(cart[idx].gst_pct) || 0);
+                    const basePrice = parseFloat(cart[idx].price) || 0;
+                    const grossAmount = Math.round(basePrice * qty * 100) / 100;
+                    const targetDiscounted = (priceMode === 'exclude' && gstRate > 0)
+                        ? (targetBilled / (1 + gstRate / 100))
+                        : targetBilled;
+                    if (targetDiscounted > grossAmount + 0.005) {
+                        cart[idx].custom_unit_price = Math.round((targetDiscounted / qty) * 100) / 100;
+                        cart[idx].discount = 0;
+                    } else {
+                        delete cart[idx].custom_unit_price;
+                        cart[idx].discount = Math.round(Math.max(0, grossAmount - targetDiscounted) * 100) / 100;
+                    }
                     renderCart();
                 });
             });

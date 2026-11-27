@@ -833,6 +833,10 @@ class ProductAddingController extends Controller
                     [$cid, $catalogId, $sku, $styleName . ' - ' . $size . ($color !== '' ? ' - ' . $color : ''), $categoryId, $subcategoryId, $size, json_encode($attributes), $costPrice, $sellingPrice, $mrp]
                 );
                 $variantId = (int) DB::lastInsertId();
+                $variantCode = \App\Services\QrService::formatBrandVariantCode($variantId);
+                if ($variantCode !== '') {
+                    DB::query('UPDATE variants SET product_code = ? WHERE id = ?', [$variantCode, $variantId]);
+                }
                 $createdIds[] = $variantId;
 
                 if ($qty > 0) {

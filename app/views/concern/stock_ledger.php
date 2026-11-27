@@ -58,7 +58,7 @@
                                 <td class="small text-muted font-monospace"><?= date('d M Y H:i:s', strtotime($l['created_at'])) ?></td>
                                 <td>
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($l['variant_name']) ?></div>
-                                    <small class="d-block text-muted">Product Code: <span class="badge bg-dark font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars($l['product_code']) ?></span></small>
+                                    <small class="d-block text-muted">Variant ID: <span class="badge bg-dark font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars(\App\Services\QrService::formatBrandVariantCode((int)($l['variant_id'] ?? 0)) ?: (string)($l['variant_id'] ?? $l['product_code'])) ?></span></small>
                                 </td>
                                 <td>
                                     <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">

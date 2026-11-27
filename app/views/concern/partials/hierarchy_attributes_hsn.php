@@ -40,14 +40,16 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                             <tr>
                                 <th>Category</th>
                                 <th class="text-center">GST</th>
+                                <th class="text-center">Complementary</th>
                                 <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($categories)): ?>
-                                <tr><td colspan="<?= $canDeleteHierarchy ? '3' : '2' ?>" class="text-center py-3 text-muted">No categories created.</td></tr>
+                                <tr><td colspan="<?= $canDeleteHierarchy ? '4' : '3' ?>" class="text-center py-3 text-muted">No categories created.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($categories as $c): ?>
+                                    <?php $isCatComp = !empty($c['is_complementary']); ?>
                                     <tr>
                                         <td>
                                             <strong class="text-dark"><?= htmlspecialchars($c['name']) ?></strong>
@@ -57,6 +59,15 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
                                                 <?= $c['default_gst_rate'] === null ? 'Rate not set' : number_format((float)$c['default_gst_rate'], 2) . '%' ?>
                                             </span>
+                                        </td>
+                                        <td class="text-center text-nowrap">
+                                            <button type="button"
+                                                    class="btn btn-sm py-0 px-2 fw-semibold <?= $isCatComp ? 'btn-warning text-dark' : 'btn-outline-secondary' ?>"
+                                                    style="font-size: 0.72rem;"
+                                                    title="<?= $isCatComp ? 'Click to disable complementary pricing' : 'Click to mark all products in this category as complementary (₹0 billed)' ?>"
+                                                    onclick="toggleHierarchyComplementary('category', <?= (int)$c['id'] ?>, <?= $isCatComp ? 0 : 1 ?>)">
+                                                <i class="bi <?= $isCatComp ? 'bi-gift-fill' : 'bi-gift' ?> me-1"></i><?= $isCatComp ? 'Complementary' : 'Set Free' ?>
+                                            </button>
                                         </td>
                                         <?php if ($canDeleteHierarchy): ?>
                                         <td class="text-center">
@@ -96,14 +107,16 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                             <tr>
                                 <th>Subcategory</th>
                                 <th class="text-center">Code</th>
+                                <th class="text-center">Complementary</th>
                                 <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($subcategories)): ?>
-                                <tr><td colspan="<?= $canDeleteHierarchy ? '3' : '2' ?>" class="text-center py-3 text-muted">No subcategories created.</td></tr>
+                                <tr><td colspan="<?= $canDeleteHierarchy ? '4' : '3' ?>" class="text-center py-3 text-muted">No subcategories created.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($subcategories as $sc): ?>
+                                    <?php $isSubComp = !empty($sc['is_complementary']); ?>
                                     <tr>
                                         <td>
                                             <strong class="text-dark"><?= htmlspecialchars($sc['name']) ?></strong>
@@ -111,6 +124,15 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                                         </td>
                                         <td class="text-center text-nowrap">
                                             <span class="badge bg-light text-secondary border font-monospace">[<?= htmlspecialchars($sc['code'] ?: 'SUB') ?>]</span>
+                                        </td>
+                                        <td class="text-center text-nowrap">
+                                            <button type="button"
+                                                    class="btn btn-sm py-0 px-2 fw-semibold <?= $isSubComp ? 'btn-warning text-dark' : 'btn-outline-secondary' ?>"
+                                                    style="font-size: 0.72rem;"
+                                                    title="<?= $isSubComp ? 'Click to disable complementary pricing' : 'Click to mark all products in this subcategory as complementary (₹0 billed)' ?>"
+                                                    onclick="toggleHierarchyComplementary('subcategory', <?= (int)$sc['id'] ?>, <?= $isSubComp ? 0 : 1 ?>)">
+                                                <i class="bi <?= $isSubComp ? 'bi-gift-fill' : 'bi-gift' ?> me-1"></i><?= $isSubComp ? 'Complementary' : 'Set Free' ?>
+                                            </button>
                                         </td>
                                         <?php if ($canDeleteHierarchy): ?>
                                         <td class="text-center">
@@ -150,14 +172,16 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                             <tr>
                                 <th>Sub-Subcategory</th>
                                 <th class="text-center">Code</th>
+                                <th class="text-center">Complementary</th>
                                 <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($subSubcategories)): ?>
-                                <tr><td colspan="<?= $canDeleteHierarchy ? '3' : '2' ?>" class="text-center py-3 text-muted">No Tier-3 categories created.</td></tr>
+                                <tr><td colspan="<?= $canDeleteHierarchy ? '4' : '3' ?>" class="text-center py-3 text-muted">No Tier-3 categories created.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($subSubcategories as $ssc): ?>
+                                    <?php $isSscComp = !empty($ssc['is_complementary']); ?>
                                     <tr>
                                         <td>
                                             <strong class="text-dark"><?= htmlspecialchars($ssc['name']) ?></strong>
@@ -165,6 +189,15 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                                         </td>
                                         <td class="text-center text-nowrap">
                                             <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace">[<?= htmlspecialchars($ssc['code'] ?: 'SS') ?>]</span>
+                                        </td>
+                                        <td class="text-center text-nowrap">
+                                            <button type="button"
+                                                    class="btn btn-sm py-0 px-2 fw-semibold <?= $isSscComp ? 'btn-warning text-dark' : 'btn-outline-secondary' ?>"
+                                                    style="font-size: 0.72rem;"
+                                                    title="<?= $isSscComp ? 'Click to disable complementary pricing' : 'Click to mark all products in this sub-subcategory as complementary (₹0 billed)' ?>"
+                                                    onclick="toggleHierarchyComplementary('subsubcategory', <?= (int)$ssc['id'] ?>, <?= $isSscComp ? 0 : 1 ?>)">
+                                                <i class="bi <?= $isSscComp ? 'bi-gift-fill' : 'bi-gift' ?> me-1"></i><?= $isSscComp ? 'Complementary' : 'Set Free' ?>
+                                            </button>
                                         </td>
                                         <?php if ($canDeleteHierarchy): ?>
                                         <td class="text-center">
@@ -812,7 +845,21 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
 </div>
 <?php endif; ?>
 
+<form id="hierarchyComplementaryForm" action="<?= \App\Core\Controller::url($hierarchyPrefix . '/toggle-hierarchy-complementary') ?>" method="POST" class="d-none">
+    <input type="hidden" name="csrf_token" value="<?= $csrfVal ?>">
+    <input type="hidden" name="return_url" value="<?= htmlspecialchars($hierarchyReturn) ?>">
+    <input type="hidden" name="type" id="compHierarchyType" value="">
+    <input type="hidden" name="id" id="compHierarchyId" value="">
+    <input type="hidden" name="is_complementary" id="compHierarchyValue" value="0">
+</form>
+
 <script>
+function toggleHierarchyComplementary(type, id, nextVal) {
+    document.getElementById('compHierarchyType').value = type;
+    document.getElementById('compHierarchyId').value = id;
+    document.getElementById('compHierarchyValue').value = nextVal;
+    document.getElementById('hierarchyComplementaryForm').submit();
+}
 function handleAttributeTypeChange(val) {
     const box = document.getElementById('containerNewAttributeType');
     const input = document.getElementById('inputNewAttributeType');

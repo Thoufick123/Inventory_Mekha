@@ -55,11 +55,18 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
             <h3 class="fw-bold text-dark mb-1">POS Billing</h3>
             <div class="text-muted">Bills and payment collection overview</div>
         </div>
-        <?php if (\App\Core\Auth::can('billing', 'add')): ?>
-        <a href="<?= htmlspecialchars($createBillUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn btn-primary px-4 py-2 fw-semibold">
-            <i class="bi bi-plus-lg me-1"></i> Create Bill
-        </a>
-        <?php endif; ?>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <?php if (\App\Core\Auth::can('customers', 'view') || \App\Core\Auth::can('billing', 'view')): ?>
+            <a href="<?= \App\Core\Controller::url('/m/customers') ?>" class="btn btn-outline-primary px-3 py-2 fw-semibold">
+                <i class="bi bi-people me-1"></i> Customer Details
+            </a>
+            <?php endif; ?>
+            <?php if (\App\Core\Auth::can('billing', 'add')): ?>
+            <a href="<?= htmlspecialchars($createBillUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn btn-primary px-4 py-2 fw-semibold">
+                <i class="bi bi-plus-lg me-1"></i> Create Bill
+            </a>
+            <?php endif; ?>
+        </div>
     </div>
 
     <div class="row g-3 mb-4">

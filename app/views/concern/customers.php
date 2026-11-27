@@ -6,7 +6,19 @@
             <span class="mx-1">/</span>
             <span class="text-muted">Shop</span>
             <span class="mx-1">/</span>
-            <span class="text-dark fw-semibold">Retail Customers</span>
+            <a href="<?= \App\Core\Controller::url('/m/billing') ?>" class="text-decoration-none text-muted">POS Billing</a>
+            <span class="mx-1">/</span>
+            <span class="text-dark fw-semibold">Customer Details</span>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <a href="<?= \App\Core\Controller::url('/m/billing') ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to POS Billing
+            </a>
+            <?php if (\App\Core\Auth::can('customers', 'add')): ?>
+            <button type="button" id="btnAddCustomer" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalAddCustomer" style="background: #4f46e5; border-color: #4f46e5;">
+                <i class="bi bi-person-plus-fill"></i> + Add Customer
+            </button>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -18,25 +30,6 @@
     $prefix = 'cust_exp';
     include __DIR__ . '/../partials/export_card.php';
     ?>
-
-    <!-- Section Title & Subheader (Image 1) -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <div>
-            <div class="text-muted small mb-1" style="font-size: 0.76rem;">
-                <i class="bi bi-shop text-primary me-1"></i> Shop / Customer Details
-            </div>
-            <h4 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2" style="letter-spacing: -0.01em;">
-                <i class="bi bi-people-fill text-primary fs-4"></i> Customer Directory & CRM
-            </h4>
-        </div>
-        <div>
-            <?php if (\App\Core\Auth::can('customers', 'add')): ?>
-            <button type="button" id="btnAddCustomer" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalAddCustomer" style="background: #4f46e5; border-color: #4f46e5;">
-                <i class="bi bi-person-plus-fill"></i> + Add Customer
-            </button>
-            <?php endif; ?>
-        </div>
-    </div>
 
     <!-- 4 KPI Stat Cards (Image 1) -->
     <div class="row g-3 mb-4">
