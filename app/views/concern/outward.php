@@ -195,6 +195,9 @@
                                         <button type="button" class="btn btn-sm btn-outline-info p-1 px-2" title="Traceability Details" onclick="openTraceabilityModal('<?= htmlspecialchars($o['outward_no']) ?>', <?= (int)$o['id'] ?>, <?= (int)($selectedConcernId ?? 0) ?>)">
                                             <i class="bi bi-link-45deg fs-6"></i>
                                         </button>
+                                        <button type="button" class="btn btn-sm btn-outline-dark p-1 px-1.5" title="Outward Master QR" onclick="openTraceabilityModal('<?= htmlspecialchars($o['outward_no']) ?>', <?= (int)$o['id'] ?>, <?= (int)($selectedConcernId ?? 0) ?>)">
+                                            <i class="bi bi-qr-code"></i>
+                                        </button>
 
                                         <!-- 2. Print Delivery Challan & Invoice -->
                                         <?php if (!empty($o['linked_batch_id'])): ?>
@@ -566,6 +569,7 @@
     </div>
 </div>
 
+<script src="<?= \App\Core\Controller::url('/assets/js/qrcode.min.js') ?>"></script>
 <script>
 // Catalog variants lookup for barcode/QR scanner
 const availableVariants = <?= json_encode($stockVariants) ?>;
@@ -1175,19 +1179,28 @@ function openTraceabilityModal(outwardNo, id, concernId) {
 
             var html = `
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="p-3 bg-light rounded-3 border">
+                    <div class="col-md-5">
+                        <div class="p-3 bg-light rounded-3 border h-100">
                             <small class="text-muted d-block mb-1">Outward Gate Pass</small>
                             <div class="fw-bold font-monospace fs-5 text-primary">${data.outward_no}</div>
                             <small class="text-muted d-block mt-2 mb-1">Dispatch Type / Batch</small>
                             <div class="fw-bold text-dark font-monospace">${data.batch_no}</div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="p-3 bg-light rounded-3 border">
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded-3 border h-100">
                             <small class="text-muted d-block mb-1">Product & Total Quantity</small>
                             <div class="fw-bold text-dark">${data.product_name} (${data.size})</div>
                             <div class="fs-5 fw-bold text-success mt-1">${data.pieces_count} pcs <span class="fs-6 text-muted font-normal">(${data.cartons_count} box)</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-2 bg-light rounded-3 border h-100 d-flex flex-column align-items-center justify-content-center text-center">
+                            <div id="outwardMasterQrBox" class="bg-white p-1 rounded border mb-1"></div>
+                            <div class="font-monospace fw-bold text-dark" style="font-size: 0.7rem;">${data.outward_no}</div>
+                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 mt-1" style="font-size: 0.7rem;" onclick="printOutwardMasterQr('${String(data.outward_no).replace(/'/g, "\\'")}', '${String(data.destination || '').replace(/'/g, "\\'")}', '${data.pieces_count || 0}')">
+                                <i class="bi bi-printer me-1"></i>Print QR
+                            </button>
                         </div>
                     </div>
                     <div class="col-12">
@@ -1224,10 +1237,37 @@ function openTraceabilityModal(outwardNo, id, concernId) {
                 </div>
             `;
             document.getElementById('traceBody').innerHTML = html;
+            const qrBox = document.getElementById('outwardMasterQrBox');
+            if (qrBox && typeof QRCode !== 'undefined' && data.outward_no) {
+                qrBox.innerHTML = '';
+                new QRCode(qrBox, {
+                    text: String(data.outward_no),
+                    width: 72,
+                    height: 72,
+                    correctLevel: QRCode.CorrectLevel ? QRCode.CorrectLevel.M : 0
+                });
+            }
         })
         .catch(function(err) {
             document.getElementById('traceBody').innerHTML = '<div class="alert alert-danger">Error: ' + err.message + '</div>';
         });
+}
+
+function printOutwardMasterQr(outwardNo, destination, piecesCount) {
+    const qrSource = document.querySelector('#outwardMasterQrBox img, #outwardMasterQrBox canvas');
+    const qrDataUrl = qrSource
+        ? (qrSource.tagName === 'IMG' ? qrSource.src : qrSource.toDataURL('image/png'))
+        : '';
+    const win = window.open('', '_blank', 'width=420,height=480');
+    if (!win) return;
+    win.document.write(`<!doctype html><html><head><title>Outward QR - ${outwardNo}</title>
+        <style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;} .box{border:1px solid #cbd5e1;border-radius:10px;padding:18px;display:inline-block;} .code{font-family:monospace;font-size:18px;font-weight:bold;margin-top:10px;} .meta{font-size:12px;color:#475569;margin-top:6px;}</style>
+        </head><body><div class="box">
+        ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:180px;height:180px;" alt="Outward QR">` : ''}
+        <div class="code">${outwardNo}</div>
+        <div class="meta">Destination: ${destination || '-'} &bull; ${piecesCount} pcs</div>
+        </div><script>window.onload=function(){window.print();};<\/script></body></html>`);
+    win.document.close();
 }
 
 </script>

@@ -597,8 +597,41 @@ function processManualScan() {
         return;
     }
 
-    // Match in reconcile table
+    // Match outward master QR (scans whole outward list completely)
     const scanCode = val.toUpperCase();
+    const outwardMasterCode = <?= json_encode(strtoupper(trim((string)($outward['outward_no'] ?? '')))) ?>;
+    if (outwardMasterCode && scanCode === outwardMasterCode) {
+        let updatedLines = 0;
+        let addedPieces = 0;
+        document.querySelectorAll('#tableReconcile tbody tr').forEach(row => {
+            const verifiedInput = row.querySelector('.input-verified');
+            const damagedInput = row.querySelector('.input-damaged');
+            if (!verifiedInput || !damagedInput) return;
+            const targetInput = scanMode === 'good' ? verifiedInput : damagedInput;
+            const cur = parseInt(targetInput.value, 10) || 0;
+            const verified = parseInt(verifiedInput.value, 10) || 0;
+            const damaged = parseInt(damagedInput.value, 10) || 0;
+            const max = parseInt(verifiedInput.getAttribute('max'), 10) || 0;
+            const remaining = Math.max(0, max - (verified + damaged));
+            if (remaining > 0) {
+                targetInput.value = cur + remaining;
+                updatedLines++;
+                addedPieces += remaining;
+            }
+        });
+        recalculateTotals();
+        if (updatedLines > 0) {
+            feedback.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Outward QR (${escapeHtml(val)}) scanned — ${updatedLines} line(s) / ${addedPieces} pcs scanned completely!</span>`;
+            playSound('success');
+        } else {
+            feedback.innerHTML = `<span class="text-info fw-semibold"><i class="bi bi-info-circle me-1"></i> All items in outward ${escapeHtml(val)} are already scanned.</span>`;
+        }
+        input.value = '';
+        input.focus();
+        return;
+    }
+
+    // Match in reconcile table
     const matchedRow = Array.from(document.querySelectorAll('#tableReconcile tbody tr')).find(row => {
         return [row.dataset.tagCode, row.dataset.productCode, row.dataset.variantId]
             .some(code => code && code.toUpperCase() === scanCode);
