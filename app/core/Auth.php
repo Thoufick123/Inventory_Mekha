@@ -140,6 +140,19 @@ class Auth {
                         $_SESSION['user']['concern_id'] = (int)$_SESSION['concern']['id'];
                     }
                 }
+                $activeCid = (int)($_SESSION['user']['concern_id'] ?? 0);
+                if ($activeCid > 0) {
+                    $mods = DB::fetchAll(
+                        "SELECT m.code FROM concern_modules cm 
+                         JOIN modules m ON cm.module_id = m.id 
+                         WHERE cm.concern_id = ? AND cm.enabled = 1",
+                        [$activeCid]
+                    );
+                    $registeredModuleCount = (int)DB::fetchValue("SELECT COUNT(*) FROM modules");
+                    $_SESSION['enabled_modules'] = $registeredModuleCount < 5
+                        ? array_values(array_unique(array_merge(array_column($mods, 'code'), ModuleRegistry::concernCodes())))
+                        : array_column($mods, 'code');
+                }
                 self::loadPermissions($userId, (int)($_SESSION['user']['role_id'] ?? 0));
                 self::$permissionsRefreshed = true;
             }

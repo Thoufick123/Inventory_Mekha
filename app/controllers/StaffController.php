@@ -866,14 +866,6 @@ class StaffController extends Controller {
                     $activePermCids = isset($updCids) ? $updCids : [$cid];
                     $postedPerms = isset($_POST['perms']) && is_array($_POST['perms']) ? $_POST['perms'] : [];
                     $this->persistUserPermissions($userId, $postedPerms, $activePermCids);
-
-                    // If another user account exists for this person (matching phone), mirror permissions too so both stay in sync
-                    if ($phone !== '') {
-                        $otherUids = DB::fetchAll("SELECT id FROM users WHERE phone = ? AND id != ?", [$phone, $userId]);
-                        foreach ($otherUids as $ou) {
-                            $this->persistUserPermissions((int)$ou['id'], $postedPerms, $activePermCids);
-                        }
-                    }
                 }
             }
 
