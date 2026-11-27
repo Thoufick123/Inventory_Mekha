@@ -686,20 +686,20 @@ if ($isEdit && !empty($existingItems)) {
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="mb-3 p-2.5 border rounded-3 bg-light">
-                            <label for="productAddingBrandInput" class="form-label small fw-bold text-uppercase text-secondary mb-1">Brand Name (Optional)</label>
+                        <div class="mb-3 p-3 border rounded-3 bg-light">
+                            <label for="productAddingBrandInput" class="form-label small fw-bold text-uppercase text-secondary mb-2">Brand Name (Optional)</label>
                             <div class="input-group input-group-sm">
                                 <input type="text" class="form-control" id="productAddingBrandInput" placeholder="Enter or search brand name..." autocomplete="off" maxlength="100">
                                 <input type="hidden" id="productAddingBrandEditId" value="">
-                                <button type="button" class="btn btn-outline-primary fw-semibold" id="productAddingBrandSaveBtn" title="Save Brand">
-                                    <i class="bi bi-plus-lg"></i> Save
+                                <button type="button" class="btn btn-outline-primary fw-semibold px-3" id="productAddingBrandSaveBtn" title="Save Brand">
+                                    <i class="bi bi-plus-lg me-1"></i>Save
                                 </button>
                                 <button type="button" class="btn btn-outline-secondary d-none" id="productAddingBrandCancelEditBtn" title="Cancel Edit">
                                     Cancel
                                 </button>
                             </div>
-                            <div id="productAddingBrandFeedback" class="small mt-1 d-none"></div>
-                            <div id="productAddingBrandList" class="mt-2 d-flex flex-wrap gap-1.5" style="max-height: 110px; overflow-y: auto;"></div>
+                            <div id="productAddingBrandFeedback" class="small mt-2 d-none"></div>
+                            <div id="productAddingBrandList" class="mt-2 d-flex flex-wrap gap-2" style="max-height: 110px; overflow-y: auto;"></div>
                         </div>
                         <div id="productAddingLabelCountRows"></div>
                         <div id="productAddingLabelCountError" class="small text-danger mt-2" role="alert"></div>
