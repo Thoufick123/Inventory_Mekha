@@ -409,6 +409,7 @@ $router->get('/production/qc/details', [ProductionController::class, 'viewQc'], 
 $router->get('/production/qc/inspect', [ProductionController::class, 'inspectQc'], 'qc_stocks', 'edit|add');
 $router->get('/production/qc/export', [ProductionController::class, 'exportQc'], 'qc_stocks', 'export');
 $router->post('/production/qc/store', [ProductionController::class, 'storeQc'], 'qc_stocks', 'add');
+$router->post('/production/qc/add-staff', [ProductionController::class, 'storeQcStaffAjax'], 'qc_stocks', 'add');
 $router->post('/production/qc/update', [ProductionController::class, 'updateQc'], 'qc_stocks', 'edit');
 $router->post('/production/qc/save-inspection', [ProductionController::class, 'saveQcInspection'], 'qc_stocks', 'edit|add');
 $router->post('/production/qc/complete-inspection', [ProductionController::class, 'completeQcInspection'], 'qc_stocks', 'edit|add');
