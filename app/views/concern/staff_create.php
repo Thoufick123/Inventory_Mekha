@@ -1,6 +1,6 @@
 <?php
-// Group operational modules to match Images 1 & 2 hierarchy exactly
-$groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+// Group operational modules to match concern provisioning hierarchy
+$groupOrder = ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
 $groupedModules = [];
 foreach ($modules as $m) {
     if ($m['code'] === 'cash') continue; // Unified under 'Cash & Cash Flow' (cash_flow)
@@ -8,6 +8,11 @@ foreach ($modules as $m) {
     if ($m['code'] === 'variants' || $m['group_name'] === 'Masters') continue;
     $grp = $m['group_name'] ?: 'General';
     $groupedModules[$grp][] = $m;
+}
+foreach (array_keys($groupedModules) as $grpKey) {
+    if (!in_array($grpKey, $groupOrder, true)) {
+        $groupOrder[] = $grpKey;
+    }
 }
 ?>
 <div class="container-fluid px-0">

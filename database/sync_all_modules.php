@@ -16,8 +16,8 @@ $masterModules = [
     // Super Admin Modules (4)
     ['code' => 'admin_dashboard',  'name' => 'Dashboard',            'icon' => 'bi-speedometer2',     'sort' => 1,  'group' => 'Super Admin', 'admin_only' => 1],
     ['code' => 'admin_concerns',   'name' => 'Concern Management',   'icon' => 'bi-buildings',        'sort' => 2,  'group' => 'Super Admin', 'admin_only' => 1],
-    ['code' => 'admin_assets',     'name' => 'Asset Management',     'icon' => 'bi-building-gear',   'sort' => 3,  'group' => 'Super Admin', 'admin_only' => 1],
-    ['code' => 'admin_reports',    'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line',  'sort' => 4,  'group' => 'Super Admin', 'admin_only' => 1],
+    ['code' => 'admin_assets',     'name' => 'Asset Management',     'icon' => 'bi-building-gear',   'sort' => 3,  'group' => 'Super Admin', 'admin_only' => 0],
+    ['code' => 'admin_reports',    'name' => 'Consolidated Reports', 'icon' => 'bi-bar-chart-line',  'sort' => 4,  'group' => 'Super Admin', 'admin_only' => 0],
 
     // Concern Operational Modules (25)
     ['code' => 'concern_dashboard', 'name' => 'Concern Dashboard',   'icon' => 'bi-speedometer',      'sort' => 10, 'group' => 'Dashboard',   'admin_only' => 0],

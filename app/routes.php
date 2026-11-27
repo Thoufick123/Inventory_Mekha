@@ -51,13 +51,13 @@ $router->post('/admin/concerns/store', [AdminController::class, 'storeConcern'],
 $router->post('/admin/concerns/update', [AdminController::class, 'updateConcern'], 'super_admin');
 $router->post('/admin/concerns/delete', [AdminController::class, 'deleteConcern'], 'super_admin');
 $router->post('/admin/concerns/toggle-module', [AdminController::class, 'toggleModule'], 'super_admin');
-$router->get('/admin/assets', [AdminController::class, 'assets'], 'super_admin');
-$router->get('/admin/assets/export', [AdminController::class, 'exportAssets'], 'super_admin');
-$router->post('/admin/assets/store', [AdminController::class, 'storeAsset'], 'super_admin');
-$router->post('/admin/assets/update', [AdminController::class, 'updateAsset'], 'super_admin');
-$router->post('/admin/assets/delete', [AdminController::class, 'deleteAsset'], 'super_admin');
-$router->get('/admin/reports', [AdminController::class, 'reports'], 'super_admin');
-$router->get('/admin/reports/export', [AdminController::class, 'exportReports'], 'super_admin');
+$router->get('/admin/assets', [AdminController::class, 'assets'], 'admin_assets', 'view');
+$router->get('/admin/assets/export', [AdminController::class, 'exportAssets'], 'admin_assets', 'view');
+$router->post('/admin/assets/store', [AdminController::class, 'storeAsset'], 'admin_assets', 'add');
+$router->post('/admin/assets/update', [AdminController::class, 'updateAsset'], 'admin_assets', 'edit');
+$router->post('/admin/assets/delete', [AdminController::class, 'deleteAsset'], 'admin_assets', 'delete');
+$router->get('/admin/reports', [AdminController::class, 'reports'], 'admin_reports', 'view');
+$router->get('/admin/reports/export', [AdminController::class, 'exportReports'], 'admin_reports', 'view');
 
 // ==========================================
 // CONCERN MODULES (Strictly Guarded by concern_modules)

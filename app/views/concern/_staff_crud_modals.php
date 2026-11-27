@@ -157,8 +157,18 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (!empty($groupedModules) && !empty($groupOrder)): ?>
-                                    <?php foreach ($groupOrder as $grpName): ?>
+                                <?php if (!empty($groupedModules)): 
+                                    $modalGroupOrder = $groupOrder ?? ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+                                    if (!in_array('Super Admin', $modalGroupOrder, true)) {
+                                        array_unshift($modalGroupOrder, 'Super Admin');
+                                    }
+                                    foreach (array_keys($groupedModules) as $grpKey) {
+                                        if (!in_array($grpKey, $modalGroupOrder, true)) {
+                                            $modalGroupOrder[] = $grpKey;
+                                        }
+                                    }
+                                    foreach ($modalGroupOrder as $grpName):
+                                ?>
                                         <?php if (empty($groupedModules[$grpName])) continue; ?>
                                         <tr class="table-secondary matrix-group-header" data-group="<?= htmlspecialchars($grpName) ?>">
                                             <td colspan="5" class="fw-bold text-dark py-1.5 px-3 text-uppercase" style="font-size: 0.74rem; letter-spacing: 0.05em; background: #e2e8f0;">

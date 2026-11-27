@@ -238,7 +238,7 @@ class StaffController extends Controller {
         $modules = DB::fetchAll(
             "SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC"
         );
-        $groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+        $groupOrder = ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
         $groupedModules = [];
         foreach ($modules as $m) {
             if ($m['code'] === 'cash') continue;
@@ -246,6 +246,12 @@ class StaffController extends Controller {
             if ($m['code'] === 'variants' || ($m['group_name'] ?? '') === 'Masters') continue;
             $grp = $m['group_name'] ?: 'General';
             $groupedModules[$grp][] = $m;
+        }
+
+        foreach (array_keys($groupedModules) as $grpKey) {
+            if (!in_array($grpKey, $groupOrder, true)) {
+                $groupOrder[] = $grpKey;
+            }
         }
 
         $concernModules = [];
@@ -1567,7 +1573,6 @@ class StaffController extends Controller {
                AND code != 'cash' 
                AND code != 'concern_dashboard' 
                AND (group_name IS NULL OR group_name != 'Dashboard')
-               AND (group_name IS NULL OR group_name != 'Super Admin')
              ORDER BY group_name ASC, sort_order ASC, id ASC"
         );
 
