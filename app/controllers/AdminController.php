@@ -137,6 +137,9 @@ class AdminController extends Controller {
                            SELECT id, ?, 1, 1, 1, 1 FROM roles", [$dashModId]);
             }
 
+            // Self-heal: ensure admin_assets and admin_reports are provisionable to concerns
+            DB::query("UPDATE modules SET is_super_admin_only = 0 WHERE code IN ('admin_assets', 'admin_reports') AND is_super_admin_only != 0");
+
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
             error_log('AdminController ensureSchema error: ' . $e->getMessage());
