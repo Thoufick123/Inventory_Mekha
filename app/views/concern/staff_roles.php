@@ -23,31 +23,6 @@ $activeTab = $activeTab ?? 'staff';
 ?>
 
 <div class="container-fluid px-0">
-    <!-- Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1">
-                    <i class="bi bi-shield-lock-fill me-1"></i> Access Control & Security
-                </span>
-                <h4 class="fw-bold mb-0 text-dark">Staff Access & Module CRUD Permissions</h4>
-            </div>
-            <p class="text-secondary small mb-0">
-                Configure module permissions (View, Create, Edit, Delete) and authorized business locations for personnel and system roles.
-            </p>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('staff', 'add')): ?>
-            <a href="<?= \App\Core\Controller::url('/m/staff/roles/create') ?>" class="btn btn-primary shadow-sm fw-semibold">
-                <i class="bi bi-plus-lg me-1"></i> Create Role
-            </a>
-            <?php endif; ?>
-            <a href="<?= \App\Core\Controller::url('/m/staff') ?>" class="btn btn-outline-secondary shadow-sm">
-                <i class="bi bi-people-fill me-1"></i> View All Staff
-            </a>
-        </div>
-    </div>
-
     <!-- Quick Stats Cards -->
     <div class="row g-3 mb-4">
         <div class="col-sm-6 col-xl-3">
@@ -391,13 +366,31 @@ $activeTab = $activeTab ?? 'staff';
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($groupedModules as $grpName => $grpMods): ?>
+                                    <?php
+                                    $selectedRoleObj = null;
+                                    foreach ($allRoles as $r) {
+                                        if ((int)$r['id'] === (int)$selectedRoleId) {
+                                            $selectedRoleObj = $r;
+                                            break;
+                                        }
+                                    }
+                                    $roleConcernId = !empty($selectedRoleObj['concern_id']) ? (int)$selectedRoleObj['concern_id'] : 0;
+                                    $allowedRoleModuleIds = $roleConcernId > 0 ? ($concernModules[$roleConcernId] ?? []) : null;
+                                    $renderedAnyGroup = false;
+                                    ?>
+                                    <?php foreach ($groupedModules as $grpName => $grpMods):
+                                        $visibleMods = $allowedRoleModuleIds === null
+                                            ? $grpMods
+                                            : array_values(array_filter($grpMods, fn($m) => in_array((int)$m['id'], $allowedRoleModuleIds, true)));
+                                        if (empty($visibleMods)) continue;
+                                        $renderedAnyGroup = true;
+                                    ?>
                                         <tr class="table-secondary">
                                             <td colspan="5" class="fw-bold text-dark py-2 px-3 text-uppercase" style="font-size: 0.78rem; letter-spacing: 0.05em;">
                                                 <i class="bi bi-folder2-open me-1.5 text-primary"></i> <?= htmlspecialchars($grpName) ?> Group
                                             </td>
                                         </tr>
-                                        <?php foreach ($grpMods as $m): 
+                                        <?php foreach ($visibleMods as $m): 
                                             $mid = (int)$m['id'];
                                             $p = $matrixPerms[$mid] ?? ['can_view' => 1, 'can_add' => 0, 'can_edit' => 0, 'can_delete' => 0];
                                         ?>
@@ -447,6 +440,13 @@ $activeTab = $activeTab ?? 'staff';
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php endforeach; ?>
+                                    <?php if (!$renderedAnyGroup): ?>
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4 text-muted small">
+                                                No modules are enabled for the selected concern.
+                                            </td>
+                                        </tr>
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
