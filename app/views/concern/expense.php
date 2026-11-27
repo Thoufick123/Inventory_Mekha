@@ -205,7 +205,9 @@
                     <i class="bi bi-building me-1"></i> Warehouse
                 </label>
                 <select name="concern_id" class="form-select form-select-sm" style="border-radius: 8px; font-size: 0.84rem;">
-                    <option value="" <?= empty($filterConcernId) ? 'selected' : '' ?>>All Warehouses / Concerns</option>
+                    <?php if (empty($selectedCid)): ?>
+                        <option value="" <?= empty($filterConcernId) ? 'selected' : '' ?>>All Warehouses / Concerns</option>
+                    <?php endif; ?>
                     <?php foreach ($allConcerns as $con): ?>
                         <option value="<?= $con['id'] ?>" <?= ($filterConcernId == $con['id']) ? 'selected' : '' ?>>
                             <?= htmlspecialchars($con['name']) ?> (<?= htmlspecialchars($con['code']) ?>)
@@ -453,14 +455,9 @@
 
                     <!-- Category with Live Filtration & Instant Add -->
                     <div class="col-md-6 position-relative" id="cat_combobox_wrapper">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label class="form-label small fw-bold text-secondary text-uppercase mb-0">
-                                Category <span class="text-danger">*</span>
-                            </label>
-                            <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" style="font-size: 0.8rem;" onclick="triggerAddCategoryFocus()">
-                                <i class="bi bi-plus-circle me-1"></i>+ Add Category
-                            </button>
-                        </div>
+                        <label class="form-label small fw-bold text-secondary text-uppercase mb-1">
+                            Category <span class="text-danger">*</span>
+                        </label>
                         
                         <!-- Searchable & Filterable Combobox Input Group -->
                         <div class="input-group input-group-sm">

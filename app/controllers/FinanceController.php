@@ -99,7 +99,9 @@ class FinanceController extends Controller {
         }
 
         // Available concerns & accounts
-        $allConcerns = DB::fetchAll("SELECT * FROM concerns WHERE status = 'active' ORDER BY id ASC");
+        $allConcerns = $cid
+            ? DB::fetchAll("SELECT * FROM concerns WHERE id = ? AND status = 'active' ORDER BY id ASC", [$cid])
+            : DB::fetchAll("SELECT * FROM concerns WHERE status = 'active' ORDER BY id ASC");
         if ($filterConcernId) {
             $accounts = DB::fetchAll("SELECT * FROM cash_accounts WHERE concern_id = ? AND status = 'active'", [$filterConcernId]);
         } else {
