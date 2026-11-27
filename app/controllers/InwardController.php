@@ -956,8 +956,8 @@ class InwardController extends Controller {
 
             $inwardNo = 'INW-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
             DB::query(
-                "INSERT INTO inwards (concern_id, outward_id, from_concern_id, inward_no, inward_date, status, notes, created_by, created_at)
-                 VALUES (?, ?, ?, ?, CURDATE(), 'received', ?, ?, NOW())",
+                "INSERT INTO inwards (concern_id, outward_id, from_concern_id, inward_type, inward_no, inward_date, status, remarks, created_by, created_at)
+                 VALUES (?, ?, ?, 'transfer', ?, CURDATE(), 'VERIFIED', ?, ?, NOW())",
                 [
                     $destCid,
                     $outwardId,

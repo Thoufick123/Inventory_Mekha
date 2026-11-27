@@ -255,7 +255,6 @@
                                 <div class="d-flex align-items-center justify-content-end gap-1">
                                     <?php if (empty($ib['damage_transfer']) && empty($ib['cutting_id']) && !empty($ib['batch_id'])): ?>
                                         <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
-                                        <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
                                     <?php endif; ?>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                                     <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-info" title="Consignment Log"><i class="bi bi-clock-history"></i></a>
@@ -361,7 +360,6 @@
                     <div class="d-flex align-items-center gap-1">
                         <?php if (empty($ib['damage_transfer']) && empty($ib['cutting_id']) && !empty($ib['batch_id'])): ?>
                             <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$ib['batch_id']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Batch Labels"><i class="bi bi-printer text-primary"></i></a>
-                            <a href="<?= \App\Core\Controller::url('/m/label_generation') ?>" class="btn btn-sm btn-outline-primary" title="Move to Label Generation"><i class="bi bi-upc-scan"></i></a>
                         <?php endif; ?>
                         <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Batch Details"><i class="bi bi-eye"></i></a>
                         <?php if (!empty($ib['cutting_id'])): ?>
