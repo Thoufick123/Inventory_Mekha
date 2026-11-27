@@ -222,7 +222,7 @@
                                 </thead>
                                 <tbody id="tbodyStitchingItems">
                                     <?php foreach ($items as $it): ?>
-                                        <tr data-catalog-id="<?= (int)$it['catalog_id'] ?>" data-item-id="<?= (int)$it['id'] ?>">
+                                        <tr data-catalog-id="<?= (int)$it['catalog_id'] ?>" data-item-id="<?= (int)$it['id'] ?>" data-product-code="<?= htmlspecialchars($it['product_code'] ?: '') ?>">
                                             <td class="ps-3 py-2">
                                                 <input type="hidden" name="items[<?= (int)$it['id'] ?>][cut_qty]" class="input-cut-qty" value="<?= (int)$it['cut_qty'] ?>">
 
@@ -232,9 +232,6 @@
                                                     </span>
                                                     <div class="fw-bold text-dark small">
                                                         <?= htmlspecialchars($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])) ?>
-                                                    </div>
-                                                    <div class="text-muted font-monospace" style="font-size: 0.75rem;">
-                                                        Product Code: <?= htmlspecialchars($it['product_code'] ?: 'N/A') ?>
                                                     </div>
                                                 </div>
                                             </td>
@@ -696,9 +693,8 @@ function openStitchingBatchModalFromEditTable(batchId) {
     document.querySelectorAll('#tbodyStitchingItems tr').forEach(function(tr) {
         const id = parseInt(tr.getAttribute('data-item-id'), 10) || 0;
         const nameEl = tr.querySelector('.fw-bold.text-dark.small');
-        const codeEl = tr.querySelector('.font-monospace');
         const qtyEl = tr.querySelector('.input-stitch-qty');
-        const codeText = codeEl ? codeEl.textContent.replace('Product Code:', '').trim() : '';
+        const codeText = (tr.getAttribute('data-product-code') || '').trim();
         items.push({
             id: id,
             name: nameEl ? nameEl.textContent.trim() : 'Variant',

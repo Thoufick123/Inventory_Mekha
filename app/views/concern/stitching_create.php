@@ -427,9 +427,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="fw-bold text-dark small">
                             ${escapeHtml(it.variant_name || (it.size + ' - ' + it.color))}
                         </div>
-                        <div class="text-muted font-monospace" style="font-size: 0.75rem;">
-                            Product Code: ${escapeHtml(it.product_code || 'N/A')}
-                        </div>
                     </div>
                 </td>
                 <td class="text-center py-2">
