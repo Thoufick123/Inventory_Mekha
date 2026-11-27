@@ -8,47 +8,69 @@ $canEditHierarchy = \App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can($hiera
 $canDeleteHierarchy = \App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can($hierarchyModule, 'delete');
 $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::csrfToken());
 ?>
-<div class="row g-4">
+<style>
+    .compact-hierarchy-table > :not(caption) > * > * {
+        padding: 0.35rem 0.5rem;
+        vertical-align: middle;
+    }
+    .compact-hierarchy-table tbody .badge {
+        font-size: 0.68rem;
+    }
+</style>
+<div class="row g-3">
 
     <!-- 1. MAIN CATEGORIES (TIER-1) -->
     <div class="col-lg-4">
         <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                 <div>
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-folder-fill text-primary me-1.5"></i> 1. Main Categories</h6>
-                    <small class="text-muted" style="font-size: 0.75rem;">Tier-1 Department Level</small>
+                    <small class="text-muted" style="font-size: 0.72rem;">Tier-1 Department Level</small>
                 </div>
                 <?php if ($canAddHierarchy): ?>
-                <button type="button" class="btn btn-sm btn-outline-primary rounded-3 fw-semibold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalAddCategory">
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalAddCategory">
                     <i class="bi bi-plus-circle me-1"></i> Add Tier-1
                 </button>
                 <?php endif; ?>
             </div>
             <div class="card-body p-0">
-                <ul class="list-group list-group-flush small">
-                    <?php if (empty($categories)): ?>
-                        <li class="list-group-item text-center py-4 text-muted">No categories created.</li>
-                    <?php else: ?>
-                        <?php foreach ($categories as $c): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-2.5">
-                                <div>
-                                    <strong class="text-dark"><?= htmlspecialchars($c['name']) ?></strong>
-                                    <div class="small text-muted font-monospace">Code: [<?= htmlspecialchars($c['code'] ?: 'CAT') ?>] &bull; HSN <?= htmlspecialchars($c['default_hsn'] ?: 'Not set') ?></div>
-                                </div>
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
-                                        <?= $c['default_gst_rate'] === null ? 'Rate not set' : number_format((float)$c['default_gst_rate'], 2) . '% GST' ?>
-                                    </span>
-                                    <?php if ($canDeleteHierarchy): ?>
-                                    <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-1.5 border-0 shadow-none" title="Delete Main Category" onclick="confirmDeleteHierarchy('category', <?= $c['id'] ?>, '<?= htmlspecialchars(addslashes($c['name'])) ?>')">
-                                        <i class="bi bi-trash fs-6"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </ul>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover align-middle mb-0 small compact-hierarchy-table">
+                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.70rem;">
+                            <tr>
+                                <th>Category</th>
+                                <th class="text-center">GST</th>
+                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($categories)): ?>
+                                <tr><td colspan="<?= $canDeleteHierarchy ? '3' : '2' ?>" class="text-center py-3 text-muted">No categories created.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($categories as $c): ?>
+                                    <tr>
+                                        <td>
+                                            <strong class="text-dark"><?= htmlspecialchars($c['name']) ?></strong>
+                                            <div class="text-muted font-monospace" style="font-size: 0.72rem;">[<?= htmlspecialchars($c['code'] ?: 'CAT') ?>] &bull; HSN <?= htmlspecialchars($c['default_hsn'] ?: 'Not set') ?></div>
+                                        </td>
+                                        <td class="text-center text-nowrap">
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
+                                                <?= $c['default_gst_rate'] === null ? 'Rate not set' : number_format((float)$c['default_gst_rate'], 2) . '%' ?>
+                                            </span>
+                                        </td>
+                                        <?php if ($canDeleteHierarchy): ?>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 border-0 shadow-none" title="Delete Main Category" onclick="confirmDeleteHierarchy('category', <?= $c['id'] ?>, '<?= htmlspecialchars(addslashes($c['name'])) ?>')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                        <?php endif; ?>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -56,42 +78,53 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
     <!-- 2. SUBCATEGORIES (TIER-2) -->
     <div class="col-lg-4">
         <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                 <div>
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-diagram-2 text-info me-1.5"></i> 2. Subcategories</h6>
-                    <small class="text-muted" style="font-size: 0.75rem;">Tier-2 Product Group</small>
+                    <small class="text-muted" style="font-size: 0.72rem;">Tier-2 Product Group</small>
                 </div>
                 <?php if ($canAddHierarchy): ?>
-                <button type="button" class="btn btn-sm btn-outline-info rounded-3 fw-semibold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalAddSubcategory">
+                <button type="button" class="btn btn-sm btn-outline-info rounded-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalAddSubcategory">
                     <i class="bi bi-plus-circle me-1"></i> Add Tier-2
                 </button>
                 <?php endif; ?>
             </div>
             <div class="card-body p-0">
-                <ul class="list-group list-group-flush small">
-                    <?php if (empty($subcategories)): ?>
-                        <li class="list-group-item text-center py-4 text-muted">No subcategories created.</li>
-                    <?php else: ?>
-                        <?php foreach ($subcategories as $sc): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-2.5">
-                                <div>
-                                    <strong class="text-dark"><?= htmlspecialchars($sc['name']) ?></strong>
-                                    <div class="small text-muted">Parent: <span class="badge bg-light text-dark border"><?= htmlspecialchars($sc['category_name']) ?></span></div>
-                                </div>
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="badge bg-light text-secondary border font-monospace">
-                                        [<?= htmlspecialchars($sc['code'] ?: 'SUB') ?>]
-                                    </span>
-                                    <?php if ($canDeleteHierarchy): ?>
-                                    <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-1.5 border-0 shadow-none" title="Delete Subcategory" onclick="confirmDeleteHierarchy('subcategory', <?= $sc['id'] ?>, '<?= htmlspecialchars(addslashes($sc['name'])) ?>')">
-                                        <i class="bi bi-trash fs-6"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </ul>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover align-middle mb-0 small compact-hierarchy-table">
+                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.70rem;">
+                            <tr>
+                                <th>Subcategory</th>
+                                <th class="text-center">Code</th>
+                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($subcategories)): ?>
+                                <tr><td colspan="<?= $canDeleteHierarchy ? '3' : '2' ?>" class="text-center py-3 text-muted">No subcategories created.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($subcategories as $sc): ?>
+                                    <tr>
+                                        <td>
+                                            <strong class="text-dark"><?= htmlspecialchars($sc['name']) ?></strong>
+                                            <div class="text-muted" style="font-size: 0.72rem;">Parent: <span class="badge bg-light text-dark border"><?= htmlspecialchars($sc['category_name']) ?></span></div>
+                                        </td>
+                                        <td class="text-center text-nowrap">
+                                            <span class="badge bg-light text-secondary border font-monospace">[<?= htmlspecialchars($sc['code'] ?: 'SUB') ?>]</span>
+                                        </td>
+                                        <?php if ($canDeleteHierarchy): ?>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 border-0 shadow-none" title="Delete Subcategory" onclick="confirmDeleteHierarchy('subcategory', <?= $sc['id'] ?>, '<?= htmlspecialchars(addslashes($sc['name'])) ?>')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                        <?php endif; ?>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -99,42 +132,53 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
     <!-- 3. SUB-SUBCATEGORIES (TIER-3) -->
     <div class="col-lg-4">
         <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                 <div>
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-diagram-3 text-success me-1.5"></i> 3. Sub-Subcategories</h6>
-                    <small class="text-muted" style="font-size: 0.75rem;">Tier-3 Garment Style Specification</small>
+                    <small class="text-muted" style="font-size: 0.72rem;">Tier-3 Garment Style Specification</small>
                 </div>
                 <?php if ($canAddHierarchy): ?>
-                <button type="button" class="btn btn-sm btn-outline-success rounded-3 fw-semibold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalAddSubSubcategory">
+                <button type="button" class="btn btn-sm btn-outline-success rounded-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalAddSubSubcategory">
                     <i class="bi bi-plus-circle me-1"></i> Add Tier-3
                 </button>
                 <?php endif; ?>
             </div>
             <div class="card-body p-0">
-                <ul class="list-group list-group-flush small">
-                    <?php if (empty($subSubcategories)): ?>
-                        <li class="list-group-item text-center py-4 text-muted">No Tier-3 categories created.</li>
-                    <?php else: ?>
-                        <?php foreach ($subSubcategories as $ssc): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-2.5">
-                                <div>
-                                    <strong class="text-dark"><?= htmlspecialchars($ssc['name']) ?></strong>
-                                    <div class="small text-muted"><?= htmlspecialchars($ssc['category_name']) ?> &rsaquo; <?= htmlspecialchars($ssc['subcategory_name'] ?? 'General') ?></div>
-                                </div>
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace">
-                                        [<?= htmlspecialchars($ssc['code'] ?: 'SS') ?>]
-                                    </span>
-                                    <?php if ($canDeleteHierarchy): ?>
-                                    <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-1.5 border-0 shadow-none" title="Delete Tier-3 Sub-Subcategory" onclick="confirmDeleteHierarchy('subsubcategory', <?= $ssc['id'] ?>, '<?= htmlspecialchars(addslashes($ssc['name'])) ?>')">
-                                        <i class="bi bi-trash fs-6"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </ul>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover align-middle mb-0 small compact-hierarchy-table">
+                        <thead class="table-light text-uppercase text-secondary" style="font-size: 0.70rem;">
+                            <tr>
+                                <th>Sub-Subcategory</th>
+                                <th class="text-center">Code</th>
+                                <?php if ($canDeleteHierarchy): ?><th class="text-center" style="width: 38px;">Del</th><?php endif; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($subSubcategories)): ?>
+                                <tr><td colspan="<?= $canDeleteHierarchy ? '3' : '2' ?>" class="text-center py-3 text-muted">No Tier-3 categories created.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($subSubcategories as $ssc): ?>
+                                    <tr>
+                                        <td>
+                                            <strong class="text-dark"><?= htmlspecialchars($ssc['name']) ?></strong>
+                                            <div class="text-muted" style="font-size: 0.72rem;"><?= htmlspecialchars($ssc['category_name']) ?> &rsaquo; <?= htmlspecialchars($ssc['subcategory_name'] ?? 'General') ?></div>
+                                        </td>
+                                        <td class="text-center text-nowrap">
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace">[<?= htmlspecialchars($ssc['code'] ?: 'SS') ?>]</span>
+                                        </td>
+                                        <?php if ($canDeleteHierarchy): ?>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 border-0 shadow-none" title="Delete Tier-3 Sub-Subcategory" onclick="confirmDeleteHierarchy('subsubcategory', <?= $ssc['id'] ?>, '<?= htmlspecialchars(addslashes($ssc['name'])) ?>')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                        <?php endif; ?>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -142,18 +186,18 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
     <!-- 4. PRODUCT ATTRIBUTES (SIZES, COLORS, FITS) -->
     <div class="col-12">
         <div class="card border-0 shadow-sm rounded-3">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                 <div>
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-tags-fill text-warning-emphasis me-1.5"></i> Product Attributes Master (Sizes, Colors, Fits)</h6>
-                    <small class="text-muted" style="font-size: 0.75rem;">Reusable variant attributes automatically suggested during product creation</small>
+                    <small class="text-muted" style="font-size: 0.72rem;">Reusable variant attributes automatically suggested during product creation</small>
                 </div>
                 <?php if ($canAddHierarchy): ?>
-                <button type="button" class="btn btn-sm btn-outline-warning text-dark rounded-3 fw-semibold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalAddAttribute">
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark rounded-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalAddAttribute">
                     <i class="bi bi-plus-circle me-1"></i> Add Attribute
                 </button>
                 <?php endif; ?>
             </div>
-            <div class="card-body p-4">
+            <div class="card-body p-0">
                 <?php
                     $groupedAttrs = [];
                     foreach ($attributes as $a) {
@@ -167,28 +211,42 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                         <p class="small mb-0">No attributes created yet. Add sizes, colors, fits, or custom attribute types here.</p>
                     </div>
                 <?php else: ?>
-                    <?php foreach ($groupedAttrs as $type => $typeAttrs): ?>
-                        <div class="mb-3">
-                            <strong class="small text-secondary d-block mb-2">Available <?= htmlspecialchars(ucfirst($type)) ?> Attributes:</strong>
-                            <div class="d-flex flex-wrap gap-2">
-                                <?php foreach ($typeAttrs as $sa):
-                                    $splitVals = preg_split('/[,;|]+/', (string)$sa['attribute_value']);
-                                    foreach ($splitVals as $sv):
-                                        $sv = trim($sv);
-                                        if ($sv === '') continue;
-                                ?>
-                                    <span class="badge bg-white text-dark border px-3 py-2 fs-6 shadow-xs font-monospace d-inline-flex align-items-center gap-1.5">
-                                        <span><?= htmlspecialchars($sv) ?></span>
-                                        <?php if ($canDeleteHierarchy): ?>
-                                        <button type="button" class="btn btn-link text-danger p-0 ms-1 text-decoration-none shadow-none" style="font-size: 0.8rem; line-height: 1;" title="Delete Attribute <?= htmlspecialchars($sv) ?>" onclick="confirmDeleteHierarchy('attribute', <?= $sa['id'] ?>, '<?= htmlspecialchars(addslashes($sv)) ?>', '<?= htmlspecialchars(addslashes($sv)) ?>')">
-                                            <i class="bi bi-x-circle-fill"></i>
-                                        </button>
-                                        <?php endif; ?>
-                                    </span>
-                                <?php endforeach; endforeach; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover align-middle mb-0 small compact-hierarchy-table">
+                            <thead class="table-light text-uppercase text-secondary" style="font-size: 0.70rem;">
+                                <tr>
+                                    <th style="width: 220px;">Attribute Type</th>
+                                    <th>Available Values</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($groupedAttrs as $type => $typeAttrs): ?>
+                                    <tr>
+                                        <td class="fw-bold text-dark"><?= htmlspecialchars(ucfirst($type)) ?></td>
+                                        <td>
+                                            <div class="d-flex flex-wrap gap-1.5">
+                                                <?php foreach ($typeAttrs as $sa):
+                                                    $splitVals = preg_split('/[,;|]+/', (string)$sa['attribute_value']);
+                                                    foreach ($splitVals as $sv):
+                                                        $sv = trim($sv);
+                                                        if ($sv === '') continue;
+                                                ?>
+                                                    <span class="badge bg-light text-dark border px-2 py-1 font-monospace d-inline-flex align-items-center gap-1">
+                                                        <span><?= htmlspecialchars($sv) ?></span>
+                                                        <?php if ($canDeleteHierarchy): ?>
+                                                        <button type="button" class="btn btn-link text-danger p-0 ms-1 text-decoration-none shadow-none" style="font-size: 0.75rem; line-height: 1;" title="Delete Attribute <?= htmlspecialchars($sv) ?>" onclick="confirmDeleteHierarchy('attribute', <?= $sa['id'] ?>, '<?= htmlspecialchars(addslashes($sv)) ?>', '<?= htmlspecialchars(addslashes($sv)) ?>')">
+                                                            <i class="bi bi-x-circle-fill"></i>
+                                                        </button>
+                                                        <?php endif; ?>
+                                                    </span>
+                                                <?php endforeach; endforeach; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
@@ -197,10 +255,10 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
     <!-- 5. HSN MASTER -->
     <div class="col-12">
         <div class="card border-0 shadow-sm rounded-3">
-            <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="card-header bg-white py-2 px-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-upc-scan text-primary me-1.5"></i> HSN Master</h6>
-                    <small class="text-muted" style="font-size: 0.75rem;">Active goods HSN codes available for category and product configuration</small>
+                    <small class="text-muted" style="font-size: 0.72rem;">Active goods HSN codes available for category and product configuration</small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" id="catalogHsnCount">
@@ -225,8 +283,8 @@ $csrfVal = htmlspecialchars(!empty($csrfToken) ? $csrfToken : \App\Core\Auth::cs
                     </div>
                 <?php else: ?>
                     <div class="table-responsive" style="max-height: 480px;">
-                        <table class="table table-sm table-hover align-middle mb-0">
-                            <thead class="table-light position-sticky top-0" style="z-index: 1;">
+                        <table class="table table-sm table-bordered table-hover align-middle mb-0 small compact-hierarchy-table">
+                            <thead class="table-light text-uppercase text-secondary position-sticky top-0" style="z-index: 1; font-size: 0.70rem;">
                                 <tr>
                                     <th class="ps-3 text-nowrap">HSN Code</th>
                                     <th>Description</th>
