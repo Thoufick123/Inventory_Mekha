@@ -90,8 +90,14 @@ class StaffController extends Controller {
                 DB::query('ALTER TABLE `staff` ADD COLUMN `password_hash` VARCHAR(255) NULL AFTER `email`');
             }
 
-            // Self-heal: ensure admin_assets and admin_reports are provisionable to concerns
-            DB::query("UPDATE modules SET is_super_admin_only = 0 WHERE code IN ('admin_assets', 'admin_reports') AND is_super_admin_only != 0");
+            // Self-heal: ensure admin_assets and admin_reports are provisionable and enabled for ALL concerns
+            DB::query("UPDATE modules SET is_super_admin_only = 0 WHERE code IN ('admin_assets', 'admin_reports')");
+            DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled)
+                       SELECT c.id, m.id, 1
+                       FROM concerns c
+                       CROSS JOIN modules m
+                       WHERE m.code IN ('admin_assets', 'admin_reports')
+                       ON DUPLICATE KEY UPDATE enabled = 1");
 
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
