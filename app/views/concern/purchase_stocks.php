@@ -1246,13 +1246,13 @@ function viewPurchaseStock(button) {
 
             bodyEl.innerHTML = `
                 <div class="row g-3 mb-3">
-                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Design / Pattern</div><div class="fw-bold">${escapeHtmlHtml(item.design_name || '-')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">Color / Shade</div><div class="fw-bold text-uppercase">${escapeHtmlHtml(item.color || '-')}</div></div></div>
-                    <div class="col-md-4"><div class="p-2.5 rounded border bg-light"><div class="small text-muted">HSN Code</div><div class="fw-bold font-monospace">${escapeHtmlHtml(item.hsn_code || '-')}</div></div></div>
-                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Accumulated Stock</div><div class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</div></div></div>
-                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Total Fabric Weight</div><div class="fw-bold">${parseFloat(item.net_weight || 0).toFixed(2)} kg</div></div></div>
-                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Unit Rate</div><div class="fw-bold">₹${parseFloat(item.last_unit_price || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
-                    <div class="col-md-3"><div class="p-2.5 rounded border"><div class="small text-muted">Total Valuation</div><div class="fw-bold text-success">₹${parseFloat(item.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div></div>
+                    ${detailCard('col-md-4', 'Design / Pattern', `<span class="fw-bold text-dark">${escapeHtmlHtml(item.design_name || '-')}</span>`, true)}
+                    ${detailCard('col-md-4', 'Color / Shade', `<span class="fw-bold text-uppercase text-dark">${escapeHtmlHtml(item.color || '-')}</span>`, true)}
+                    ${detailCard('col-md-4', 'HSN Code', `<span class="fw-bold font-monospace text-dark">${escapeHtmlHtml(item.hsn_code || '-')}</span>`, true)}
+                    ${detailCard('col-md-3', 'Accumulated Stock', `<span class="fw-bold text-primary">${parseFloat(item.qty || 0).toFixed(2)} ${escapeHtmlHtml(item.unit || 'Rolls')}</span>`)}
+                    ${detailCard('col-md-3', 'Total Fabric Weight', `<span class="fw-bold text-dark">${parseFloat(item.net_weight || 0).toFixed(2)} kg</span>`)}
+                    ${detailCard('col-md-3', 'Unit Rate', `<span class="fw-bold text-dark">${formatInr(item.last_unit_price || 0)}</span>`)}
+                    ${detailCard('col-md-3', 'Total Valuation', `<span class="fw-bold text-success">${formatInr(item.total_value || 0)}</span>`)}
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="fw-bold small text-uppercase text-muted mb-0">Inward Batch History (${batches.length})</h6>
