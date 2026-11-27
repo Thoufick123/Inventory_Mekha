@@ -110,9 +110,14 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
                             </h6>
                             <small class="text-secondary">Configure View, Create (Add), Edit, and Delete access for each module.</small>
                         </div>
-                        <span class="badge bg-white text-secondary border px-2.5 py-1" id="edit_matrix_status_badge" style="font-size: 0.74rem;">
-                            <i class="bi bi-shield-check me-1 text-primary"></i> Module access loaded
-                        </span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-white text-secondary border px-2.5 py-1" id="edit_matrix_status_badge" style="font-size: 0.74rem;">
+                                <i class="bi bi-shield-check me-1 text-primary"></i> Module access loaded
+                            </span>
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2" style="font-size: 0.74rem;" onclick="clearAllEditPermissions()" title="Uncheck all permissions">
+                                <i class="bi bi-x-square me-1"></i> Clear All
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Permissions Table -->
@@ -385,6 +390,13 @@ function toggleEditHeaderColumn(action, checked) {
             if (h) { h.checked = false; h.indeterminate = false; }
         });
     }
+    updateEditHeaderCheckboxesState();
+}
+
+function clearAllEditPermissions() {
+    document.querySelectorAll('.edit-matrix-perm-check').forEach(cb => {
+        cb.checked = false;
+    });
     updateEditHeaderCheckboxesState();
 }
 
