@@ -525,11 +525,12 @@ class StockController extends Controller {
                         si.color AS item_color, si.size AS item_size, si.stitching_qty AS item_stitched_qty,
                         si.cut_qty AS item_cut_qty, si.per_pc_weight, si.total_weight AS item_total_weight
                  FROM stitching_logs sl
-                 JOIN stitching_items si ON si.stitching_id = sl.id
+                 LEFT JOIN stitching_items si ON si.stitching_id = sl.id
+                    AND (si.variant_id = ? OR (? > 0 AND si.catalog_id = ? AND LOWER(TRIM(COALESCE(si.size, ''))) = LOWER(TRIM(?))))
                  LEFT JOIN stitching_masters sm ON sl.tailor_id = sm.id
-                 WHERE si.variant_id = ?
-                 ORDER BY sl.id DESC LIMIT 1",
-                [$variantId]
+                 WHERE si.id IS NOT NULL OR sl.produced_variant_id = ?
+                 ORDER BY CASE WHEN si.variant_id = ? THEN 0 ELSE 1 END, sl.id DESC LIMIT 1",
+                [$variantId, $catId, $catId, (string)($variant['size'] ?? ''), $variantId, $variantId]
             );
 
             $cuttingId = $stitchingRecord['cutting_id'] ?? ($qcRecord['cutting_batch_id'] ?? null);
@@ -666,8 +667,27 @@ class StockController extends Controller {
                 $effectiveWeight = (float)$stitchingRecord['per_pc_weight'];
                 $effectiveWeightUnit = 'kg';
             }
+            if ($effectiveWeight <= 0 && !empty($stitchingRecord['item_total_weight']) && !empty($stitchingRecord['item_stitched_qty'])) {
+                $effectiveWeight = round((float)$stitchingRecord['item_total_weight'] / (float)$stitchingRecord['item_stitched_qty'], 3);
+                $effectiveWeightUnit = 'kg';
+            }
+            if ($effectiveWeight <= 0 && !empty($stitchingRecord['stitch_weight']) && !empty($stitchingRecord['stitched_pieces'])) {
+                $effectiveWeight = round((float)$stitchingRecord['stitch_weight'] / (float)$stitchingRecord['stitched_pieces'], 3);
+                $effectiveWeightUnit = 'kg';
+            }
             if ($effectiveWeight <= 0 && !empty($variantAttributes['weight'])) {
                 $effectiveWeight = (float)$variantAttributes['weight'];
+            }
+            if ($effectiveWeight <= 0) {
+                $pbiWeightRow = DB::fetch(
+                    "SELECT net_weight, qty FROM purchase_bill_items WHERE variant_id = ? AND net_weight > 0 ORDER BY id DESC LIMIT 1",
+                    [$variantId]
+                );
+                if ($pbiWeightRow && (float)$pbiWeightRow['net_weight'] > 0) {
+                    $pbiQty = max(1.0, (float)($pbiWeightRow['qty'] ?? 1));
+                    $effectiveWeight = round((float)$pbiWeightRow['net_weight'] / $pbiQty, 3);
+                    $effectiveWeightUnit = 'kg';
+                }
             }
 
             echo json_encode([
