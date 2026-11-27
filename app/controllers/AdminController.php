@@ -38,13 +38,16 @@ class AdminController extends Controller {
             );
         }
 
-        $batchModule = DB::fetch("SELECT id FROM modules WHERE code = 'batch'");
-        if ($batchModule) {
-            $batchModuleId = (int)$batchModule['id'];
-            DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$batchModuleId]);
-            DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$batchModuleId]);
-            DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$batchModuleId]);
-            DB::query("DELETE FROM modules WHERE id = ?", [$batchModuleId]);
+        $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
+        foreach ($obsoleteCodes as $obsCode) {
+            $obsMod = DB::fetch("SELECT id FROM modules WHERE code = ?", [$obsCode]);
+            if ($obsMod) {
+                $obsId = (int)$obsMod['id'];
+                DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$obsId]);
+                DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$obsId]);
+                DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$obsId]);
+                DB::query("DELETE FROM modules WHERE id = ?", [$obsId]);
+            }
         }
 
         return DB::fetchAll(
@@ -152,6 +155,19 @@ class AdminController extends Controller {
                        WHERE (r.name LIKE '%Administrator%' OR r.name LIKE '%Admin%')
                          AND m.code IN ('admin_assets', 'admin_reports')
                        ON DUPLICATE KEY UPDATE can_view = 1, can_add = 1, can_edit = 1, can_delete = 1");
+
+            // Purge obsolete modules
+            $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
+            foreach ($obsoleteCodes as $obsCode) {
+                $obsMod = DB::fetch("SELECT id FROM modules WHERE code = ?", [$obsCode]);
+                if ($obsMod) {
+                    $obsId = (int)$obsMod['id'];
+                    DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM modules WHERE id = ?", [$obsId]);
+                }
+            }
 
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {

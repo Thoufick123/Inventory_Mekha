@@ -99,6 +99,19 @@ class StaffController extends Controller {
                        WHERE m.code IN ('admin_assets', 'admin_reports')
                        ON DUPLICATE KEY UPDATE enabled = 1");
 
+            // Purge obsolete modules
+            $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
+            foreach ($obsoleteCodes as $obsCode) {
+                $obsMod = DB::fetch("SELECT id FROM modules WHERE code = ?", [$obsCode]);
+                if ($obsMod) {
+                    $obsId = (int)$obsMod['id'];
+                    DB::query("DELETE FROM user_permissions WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM role_permissions WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM concern_modules WHERE module_id = ?", [$obsId]);
+                    DB::query("DELETE FROM modules WHERE id = ?", [$obsId]);
+                }
+            }
+
             self::$schemaEnsured = true;
         } catch (\Throwable $e) {
             error_log('StaffController ensureSchema error: ' . $e->getMessage());
@@ -253,6 +266,7 @@ class StaffController extends Controller {
             if ($m['code'] === 'cash') continue;
             if ($m['code'] === 'concern_dashboard' || ($m['group_name'] ?? '') === 'Dashboard') continue;
             if ($m['code'] === 'variants' || ($m['group_name'] ?? '') === 'Masters') continue;
+            if (in_array($m['code'], ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'], true)) continue;
             $grp = $m['group_name'] ?: 'General';
             $groupedModules[$grp][] = $m;
         }
@@ -1575,12 +1589,13 @@ class StaffController extends Controller {
             $selectedCid = (int)$allConcerns[0]['id'];
         }
 
-        // Fetch only operational concern modules (exclude super_admin_only, dashboard, cash)
+        // Fetch only operational concern modules (exclude super_admin_only, dashboard, cash, obsolete)
         $modules = DB::fetchAll(
             "SELECT * FROM modules 
              WHERE is_super_admin_only = 0 
                AND code != 'cash' 
                AND code != 'concern_dashboard' 
+               AND code NOT IN ('label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles')
                AND (group_name IS NULL OR group_name != 'Dashboard')
              ORDER BY group_name ASC, sort_order ASC, id ASC"
         );

@@ -214,11 +214,12 @@
 
                         <?php
                         $groupedAll = [];
+                        $excludedCodes = ['concern_dashboard', 'cash', 'label_generation', 'catalog_mapping', 'suppliers', 'purchase_damage', 'dispatch', 'batch', 'staff_create', 'staff_roles'];
                         foreach ($allModules as $mod) {
-                            if ($mod['code'] === 'concern_dashboard' || $mod['group_name'] === 'Dashboard' || $mod['code'] === 'cash') {
+                            if (in_array($mod['code'], $excludedCodes, true) || $mod['group_name'] === 'Dashboard' || $mod['group_name'] === 'Masters') {
                                 continue;
                             }
-                            $groupName = $mod['code'] === 'catalog_mapping' ? 'Purchase' : $mod['group_name'];
+                            $groupName = $mod['group_name'] ?: 'General';
                             $groupedAll[$groupName][] = $mod;
                         }
                         ?>

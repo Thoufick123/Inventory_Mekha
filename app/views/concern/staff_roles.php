@@ -14,6 +14,7 @@ $totalRoles = count($allRoles);
 $groupedModules = [];
 foreach ($modules as $m) {
     if ($m['code'] === 'cash') continue; // Unified under 'Cash & Cash Flow'
+    if (in_array($m['code'], ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'], true)) continue;
     $grp = $m['group_name'] ?: 'General';
     $groupedModules[$grp][] = $m;
 }
