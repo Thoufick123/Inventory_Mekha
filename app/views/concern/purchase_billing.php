@@ -6,13 +6,9 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             <?php
-            $exportTitle = '';
-            $exportSubtitle = '';
             $exportUrl = \App\Core\Controller::url('/m/purchase_billing/export');
             $prefix = 'pbill_exp';
-            $inlineExportControls = true;
             include __DIR__ . '/../partials/export_card.php';
-            unset($inlineExportControls);
             ?>
             <?php if (\App\Core\Auth::can('purchase_billing', 'create')): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background: #4f46e5;">

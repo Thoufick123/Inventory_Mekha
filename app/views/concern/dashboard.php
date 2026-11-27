@@ -1,71 +1,10 @@
 <div class="container-fluid px-0">
-    <!-- Operations & Ledger Export Intelligence Toolbar -->
-    <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('concern_dashboard', 'export') || \App\Core\Auth::can('stocks', 'export')): ?>
-    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4" style="border: 1px solid #e2e8f0 !important;">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div class="d-flex align-items-center gap-3">
-                <div style="width: 44px; height: 44px; background: #ecfdf5; color: #16a34a; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0; border: 1px solid #bbf7d0;">
-                    <i class="bi bi-file-earmark-excel"></i>
-                </div>
-                <div>
-                    <h6 class="fw-bold text-dark mb-0">Export Concern Operations & Ledger (Excel & PDF)</h6>
-                </div>
-            </div>
-
-            <div class="d-flex flex-wrap align-items-center gap-3">
-                <!-- Period Selector -->
-                <div class="d-flex align-items-center gap-1">
-                    <label class="small text-muted mb-0 fw-semibold" style="font-size: 0.76rem;">Period:</label>
-                    <select id="concern_dash_period" class="form-select form-select-sm" style="width: 175px; border-radius: 8px; font-size: 0.85rem;">
-                        <option value="all" selected>All Time</option>
-                        <option value="single_day">Single Day</option>
-                        <option value="this_month">This Month</option>
-                        <option value="last_month">Last Month</option>
-                        <option value="3_months">Particular 3 Months</option>
-                        <option value="6_months">Six Months</option>
-                        <option value="custom">Custom Date Range</option>
-                    </select>
-                </div>
-
-                <!-- Single Date Picker -->
-                <div id="concern_single_date_box" class="d-none align-items-center gap-1">
-                    <input type="date" id="concern_single_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" style="width: 130px; border-radius: 8px; font-size: 0.82rem;">
-                </div>
-
-                <!-- Custom Range Pickers -->
-                <div id="concern_custom_date_box" class="d-none align-items-center gap-1">
-                    <input type="date" id="concern_from_date" class="form-control form-control-sm" value="<?= date('Y-m-01') ?>" style="width: 125px; border-radius: 8px; font-size: 0.82rem;">
-                    <span class="text-muted small">to</span>
-                    <input type="date" id="concern_to_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" style="width: 125px; border-radius: 8px; font-size: 0.82rem;">
-                </div>
-
-                <!-- Export Dropdown Button -->
-                <div class="dropdown">
-                    <button type="button" class="btn btn-success btn-sm px-3 fw-bold d-flex align-items-center gap-2 shadow-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 8px; height: 35px; background: #16a34a; border: none;">
-                        <i class="bi bi-download"></i> Export
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-sm py-1" style="border-radius: 10px; border: 1px solid #e2e8f0; font-size: 0.88rem; min-width: 170px;">
-                        <li>
-                            <a class="dropdown-item py-2 d-flex align-items-center gap-2 fw-semibold text-success" href="javascript:void(0)" onclick="runConcernDashExport('excel')">
-                                <i class="bi bi-file-earmark-excel fs-6"></i> Export Excel
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item py-2 d-flex align-items-center gap-2 fw-semibold text-danger" href="javascript:void(0)" onclick="runConcernDashExport('pdf')">
-                                <i class="bi bi-file-earmark-pdf fs-6"></i> Export PDF
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item py-2 d-flex align-items-center gap-2 fw-semibold text-secondary" href="javascript:void(0)" onclick="runConcernDashExport('csv')">
-                                <i class="bi bi-file-earmark-arrow-down fs-6"></i> CSV
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
+    <?php
+    $exportUrl = \App\Core\Controller::url('/dashboard/export');
+    $currentModule = 'concern_dashboard';
+    $prefix = 'concern_dash_exp';
+    include __DIR__ . '/../partials/export_card.php';
+    ?>
 
     <!-- Concern KPI Cards -->
     <div class="row g-3 mb-4">

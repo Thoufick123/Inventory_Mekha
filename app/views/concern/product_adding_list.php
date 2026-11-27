@@ -3,14 +3,10 @@
         <h4 class="fw-bold mb-0 text-dark">Product Adding</h4>
         <div class="d-flex align-items-center flex-wrap gap-2">
             <?php
-            $exportTitle = '';
-            $exportSubtitle = '';
             $exportUrl = \App\Core\Controller::url('/m/product_adding/export');
             $currentModule = 'product_adding';
             $prefix = 'pa_exp';
-            $inlineExportControls = true;
             include dirname(__DIR__) . '/partials/export_card.php';
-            unset($inlineExportControls);
             ?>
             <?php if (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('product_adding', 'add')): ?>
                 <a href="<?= $createUrl ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background:#4f46e5;">
