@@ -40,11 +40,6 @@ $activeTab = $activeTab ?? 'staff';
             <a href="<?= \App\Core\Controller::url('/m/staff') ?>" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-people-fill me-1"></i> View All Staff
             </a>
-            <?php if (\App\Core\Auth::can('staff', 'add')): ?>
-            <a href="<?= \App\Core\Controller::url('/m/staff/roles/create') ?>" class="btn btn-primary shadow-sm">
-                <i class="bi bi-plus-circle me-1"></i> Add New Role
-            </a>
-            <?php endif; ?>
         </div>
     </div>
 
@@ -274,14 +269,7 @@ $activeTab = $activeTab ?? 'staff';
                                                     <i class="bi bi-eye"></i>
                                                 </button>
 
-                                                <!-- 2. Assign Role & Locations Access -->
-                                                <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
-                                                <button type="button" class="btn btn-xs btn-outline-warning text-dark" onclick='openRoleAssignModal(<?= $staffJson ?>)' title="Assign System Role & Concern Locations">
-                                                    <i class="bi bi-shield-lock"></i>
-                                                </button>
-                                                <?php endif; ?>
-
-                                                <!-- 3. Edit Staff Details & CRUD Permissions -->
+                                                <!-- 2. Edit Staff Details & CRUD Permissions -->
                                                 <?php if (\App\Core\Auth::can('staff', 'edit')): ?>
                                                 <button type="button" class="btn btn-xs btn-outline-primary" onclick='openEditStaffModal(<?= $staffJson ?>)' title="Edit Staff & CRUD Permissions">
                                                     <i class="bi bi-pencil"></i>
@@ -327,11 +315,6 @@ $activeTab = $activeTab ?? 'staff';
                             Listing of all <?= count($allRoles) ?> created roles, their access scope, and how many staff members are assigned to each role.
                         </p>
                     </div>
-                    <?php if (\App\Core\Auth::can('staff', 'add')): ?>
-                    <a href="<?= \App\Core\Controller::url('/m/staff/roles/create') ?>" class="btn btn-primary btn-sm shadow-sm">
-                        <i class="bi bi-plus-circle me-1"></i> Add New Role
-                    </a>
-                    <?php endif; ?>
                 </div>
 
                 <div class="table-responsive">
@@ -350,7 +333,7 @@ $activeTab = $activeTab ?? 'staff';
                                 <tr>
                                     <td colspan="5" class="text-center py-5 text-muted">
                                         <i class="bi bi-shield-x fs-2 d-block mb-2 text-secondary opacity-50"></i>
-                                        No configured roles found. Click "Add New Role" to create one.
+                                        No configured roles found.
                                     </td>
                                 </tr>
                             <?php else: ?>
@@ -657,233 +640,7 @@ $activeTab = $activeTab ?? 'staff';
     </div>
 </div>
 
-<!-- ======================================================== -->
-<!-- MODAL: ASSIGN ROLE & CONCERN ACCESS (FOR INDIVIDUAL STAFF) -->
-<!-- ======================================================== -->
-<div class="modal fade" id="modalAssignRole" tabindex="-1" aria-labelledby="modalAssignRoleLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-            <div class="modal-header border-bottom px-4 py-3 bg-light">
-                <div class="d-flex align-items-center gap-2">
-                    <span style="width: 38px; height: 38px; background: #eff6ff; color: #2563eb; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
-                        <i class="bi bi-shield-lock-fill"></i>
-                    </span>
-                    <div>
-                        <h5 class="modal-title fw-bold text-dark mb-0">Assign Role & Location Access</h5>
-                        <small class="text-secondary" id="modal_staff_title_info">Select permissions and authorized business concerns.</small>
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            
-            <form method="POST" action="<?= \App\Core\Controller::url('/m/staff/assign-role') ?>">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                <input type="hidden" name="staff_id" id="assign_staff_id" value="">
-                
-                <div class="modal-body p-4" style="max-height: 75vh; overflow-y: auto;">
-                    <!-- Staff Overview Banner -->
-                    <div class="alert alert-light border rounded-3 p-3 mb-4 d-flex justify-content-between align-items-center" style="background: #f8fafc;">
-                        <div>
-                            <small class="text-muted d-block text-uppercase fw-semibold" style="font-size: 0.7rem;">Staff Member</small>
-                            <span class="fw-bold text-dark fs-6" id="assign_staff_name">-</span>
-                            <span class="badge bg-secondary font-monospace ms-2" id="assign_staff_code">-</span>
-                        </div>
-                        <div class="text-end">
-                            <small class="text-muted d-block text-uppercase fw-semibold" style="font-size: 0.7rem;">Home Concern</small>
-                            <span class="badge bg-primary font-monospace" id="assign_home_concern">-</span>
-                        </div>
-                    </div>
 
-                    <!-- 1. System Login Account -->
-                    <h6 class="fw-bold text-dark mb-3">
-                        <i class="bi bi-person-badge me-1.5 text-primary"></i> 1. System Login Account
-                    </h6>
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Login Email <span class="text-danger">*</span></label>
-                            <input type="email" name="email" id="assign_email" class="form-control" required placeholder="user@invento.com">
-                            <small class="text-muted">Username used to sign in to GRM Inventory.</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Password</label>
-                            <div class="input-group">
-                                <input type="password" name="password" id="assign_password" class="form-control" placeholder="Enter new or leave blank">
-                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('assign_password', this)">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                            </div>
-                            <small class="text-muted">Leave blank to keep existing password.</small>
-                        </div>
-                    </div>
-
-                    <hr class="my-3 opacity-25">
-
-                    <!-- 2. Assign System Role -->
-                    <h6 class="fw-bold text-dark mb-3">
-                        <i class="bi bi-award me-1.5 text-primary"></i> 2. Assign System Role
-                    </h6>
-                    <div class="mb-4">
-                        <label class="form-label small fw-semibold text-secondary">Choose Role <span class="text-danger">*</span></label>
-                        <select name="role_id" id="assign_role_id" class="form-select" required onchange="loadRolePermissionsForStaff(this.value)">
-                            <option value="">-- Select Role --</option>
-                            <?php foreach ($allRoles as $r): ?>
-                                <option value="<?= $r['id'] ?>">
-                                    <?= htmlspecialchars($r['name']) ?> <?= $r['concern_id'] ? '(Concern Specific)' : '(Global Role)' ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <small class="text-muted d-block mt-1">This role governs the default CRUD permissions and modules this staff member can access.</small>
-                    </div>
-
-                    <hr class="my-3 opacity-25">
-
-                    <!-- 3. Authorized Locations / Concerns (Multi-Concern Access) -->
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="fw-bold text-dark mb-0">
-                            <i class="bi bi-buildings me-1.5 text-primary"></i> 3. Authorized Business Concerns
-                        </h6>
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="selectAllConcerns(true)">Select All</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="selectAllConcerns(false)">Clear</button>
-                        </div>
-                    </div>
-                    <p class="small text-muted mb-3">
-                        Select which concerns this personnel can switch between upon login or via the top navigation switcher:
-                    </p>
-
-                    <div class="row g-2 mb-4" id="concern_checkboxes_container">
-                        <?php foreach ($allConcerns as $c): ?>
-                            <div class="col-md-6">
-                                <div class="border rounded-3 p-2.5 d-flex align-items-center gap-2 hover-shadow">
-                                    <input class="form-check-input concern-check m-0" type="checkbox" name="concern_ids[]" value="<?= $c['id'] ?>" id="cid_check_<?= $c['id'] ?>">
-                                    <label class="form-check-label flex-grow-1 cursor-pointer" for="cid_check_<?= $c['id'] ?>" style="cursor: pointer;">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span class="fw-semibold text-dark small"><?= htmlspecialchars($c['name']) ?></span>
-                                            <span class="badge bg-light text-dark border font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars($c['code']) ?></span>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-
-                    <hr class="my-3 opacity-25">
-
-                    <!-- 4. Optional Custom Granular CRUD Checkbox Matrix for this staff member -->
-                    <div class="accordion" id="accordionCustomPerms">
-                        <div class="accordion-item border rounded-3 overflow-hidden">
-                            <h2 class="accordion-header" id="headingCustom">
-                                <button class="accordion-button collapsed py-2.5 px-3 bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCustom">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <input class="form-check-input m-0" type="checkbox" name="is_custom_perms" id="is_custom_perms" value="1" onclick="event.stopPropagation();">
-                                        <label class="fw-bold text-dark small mb-0" for="is_custom_perms">
-                                            <i class="bi bi-sliders me-1 text-primary"></i> Customize Granular CRUD Permissions for this Staff Member
-                                        </label>
-                                    </div>
-                                </button>
-                            </h2>
-                            <div id="collapseCustom" class="accordion-collapse collapse" data-bs-parent="#accordionCustomPerms">
-                                <div class="accordion-body p-3">
-                                    <p class="small text-muted mb-3">
-                                        Check or uncheck View, Create, Edit, and Delete operations for this specific staff member:
-                                    </p>
-                                    <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
-                                        <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 0.8rem;">
-                                            <thead class="bg-light text-secondary text-uppercase" style="font-size: 0.7rem; position: sticky; top: 0; z-index: 1;">
-                                                <tr>
-                                                    <th>Module</th>
-                                                    <th class="text-center text-primary">View</th>
-                                                    <th class="text-center text-success">Create</th>
-                                                    <th class="text-center text-warning text-dark">Edit</th>
-                                                    <th class="text-center text-danger">Delete</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <?php foreach ($modules as $m): $mid = (int)$m['id']; ?>
-                                                    <tr>
-                                                        <td class="fw-semibold text-dark">
-                                                            <i class="bi <?= htmlspecialchars($m['icon']) ?> me-1 text-secondary"></i>
-                                                            <?= htmlspecialchars($m['name']) ?>
-                                                        </td>
-                                                        <td class="text-center">
-                                                            <input type="checkbox" name="custom_perms[<?= $mid ?>][view]" value="1" class="custom-perm-view custom-perm-<?= $mid ?>">
-                                                        </td>
-                                                        <td class="text-center">
-                                                            <input type="checkbox" name="custom_perms[<?= $mid ?>][add]" value="1" class="custom-perm-add custom-perm-<?= $mid ?>">
-                                                        </td>
-                                                        <td class="text-center">
-                                                            <input type="checkbox" name="custom_perms[<?= $mid ?>][edit]" value="1" class="custom-perm-edit custom-perm-<?= $mid ?>">
-                                                        </td>
-                                                        <td class="text-center">
-                                                            <input type="checkbox" name="custom_perms[<?= $mid ?>][delete]" value="1" class="custom-perm-delete custom-perm-<?= $mid ?>">
-                                                        </td>
-                                                    </tr>
-                                                <?php endforeach; ?>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal-footer border-top px-4 py-3 bg-light d-flex justify-content-between">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm px-4">
-                        <i class="bi bi-check2-circle me-1"></i> Save Role & Access
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- ======================================================== -->
-<!-- MODAL: CREATE NEW ROLE -->
-<!-- ======================================================== -->
-<div class="modal fade" id="modalCreateRole" tabindex="-1" aria-labelledby="modalCreateRoleLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-            <div class="modal-header border-bottom px-4 py-3 bg-light">
-                <div class="d-flex align-items-center gap-2">
-                    <span style="width: 38px; height: 38px; background: #eff6ff; color: #2563eb; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
-                        <i class="bi bi-shield-plus"></i>
-                    </span>
-                    <h5 class="modal-title fw-bold text-dark mb-0">Create New System Role</h5>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            
-            <form method="POST" action="<?= \App\Core\Controller::url('/m/staff/create-role') ?>">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Role Name <span class="text-danger">*</span></label>
-                        <input type="text" name="name" class="form-control" required placeholder="e.g. Inventory Supervisor, POS Cashier, Senior Stitcher">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Description</label>
-                        <textarea name="description" class="form-control" rows="2" placeholder="Brief summary of duties and access permissions"></textarea>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold text-secondary">Scope</label>
-                        <select name="concern_id" class="form-select">
-                            <option value="">Global Role (Available across all concerns)</option>
-                            <?php foreach ($allConcerns as $c): ?>
-                                <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?> Only</option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer border-top px-4 py-2 bg-light">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm px-3">Create Role & Open Matrix</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <!-- ======================================================== -->
 <!-- MODAL: INDIVIDUAL USER GRANULAR PERMISSIONS MATRIX -->
@@ -987,84 +744,6 @@ $activeTab = $activeTab ?? 'staff';
 </div>
 
 <script>
-function openRoleAssignModal(data) {
-    if (!data) return;
-
-    document.getElementById('assign_staff_id').value = data.id;
-    document.getElementById('assign_staff_name').innerText = data.name;
-    document.getElementById('assign_staff_code').innerText = data.staff_code;
-    document.getElementById('assign_home_concern').innerText = data.concern_code + ' - ' + data.concern_name;
-    document.getElementById('assign_email').value = data.email || '';
-    document.getElementById('assign_password').value = '';
-
-    const roleSelect = document.getElementById('assign_role_id');
-    const resolvedRoleId = data.role_id || (roleSelect ? roleSelect.value : '');
-    if (roleSelect) {
-        if (data.role_id) {
-            roleSelect.value = data.role_id;
-        } else {
-            roleSelect.selectedIndex = 1;
-        }
-    }
-
-    // Reset all concern checkboxes
-    document.querySelectorAll('.concern-check').forEach(cb => cb.checked = false);
-
-    let assigned = data.assigned_cids || [];
-    if (assigned.length === 0 && data.concern_id) {
-        assigned = [parseInt(data.concern_id)];
-    }
-
-    assigned.forEach(cid => {
-        const cb = document.getElementById('cid_check_' + cid);
-        if (cb) cb.checked = true;
-    });
-
-    // Uncheck custom perms accordion by default
-    const customToggle = document.getElementById('is_custom_perms');
-    if (customToggle) customToggle.checked = false;
-    const collapseEl = document.getElementById('collapseCustom');
-    if (collapseEl && collapseEl.classList.contains('show')) {
-        bootstrap.Collapse.getInstance(collapseEl)?.hide();
-    }
-
-    if (resolvedRoleId) {
-        loadRolePermissionsForStaff(resolvedRoleId);
-    }
-
-    const modalEl = document.getElementById('modalAssignRole');
-    if (modalEl) {
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-    }
-}
-
-function loadRolePermissionsForStaff(roleId) {
-    if (!roleId) return;
-    fetch('<?= \App\Core\Controller::url('/api/staff/role-permissions?role_id=') ?>' + roleId)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.permissions) {
-                Object.keys(data.permissions).forEach(mid => {
-                    const p = data.permissions[mid];
-                    const v = document.querySelector('.custom-perm-view.custom-perm-' + mid);
-                    const a = document.querySelector('.custom-perm-add.custom-perm-' + mid);
-                    const e = document.querySelector('.custom-perm-edit.custom-perm-' + mid);
-                    const d = document.querySelector('.custom-perm-delete.custom-perm-' + mid);
-                    if (v) v.checked = !!p.view;
-                    if (a) a.checked = !!p.add;
-                    if (e) e.checked = !!p.edit;
-                    if (d) d.checked = !!p.delete;
-                });
-            }
-        })
-        .catch(err => console.error('Error loading role permissions:', err));
-}
-
-function selectAllConcerns(check) {
-    document.querySelectorAll('.concern-check').forEach(cb => cb.checked = check);
-}
-
 function syncMatrixHeaderCheckboxes() {
     ['view', 'add', 'edit', 'delete'].forEach(act => {
         const headerCb = document.getElementById('matrix_header_check_' + act);
