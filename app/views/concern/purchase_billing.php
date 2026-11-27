@@ -2,10 +2,18 @@
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h4 class="fw-bold mb-1 text-dark">Purchase Billing</h4>
-            <p class="text-secondary small mb-0">Record vendor purchase bills, fabric rolls, trims/accessories and finished goods with GST calculation.</p>
+            <h4 class="fw-bold mb-0 text-dark">Purchase Billing</h4>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <?php
+            $exportTitle = '';
+            $exportSubtitle = '';
+            $exportUrl = \App\Core\Controller::url('/m/purchase_billing/export');
+            $prefix = 'pbill_exp';
+            $inlineExportControls = true;
+            include __DIR__ . '/../partials/export_card.php';
+            unset($inlineExportControls);
+            ?>
             <?php if (\App\Core\Auth::can('purchase_billing', 'create')): ?>
             <a href="<?= \App\Core\Controller::url('/m/purchase_billing/create') ?>" class="btn text-white shadow-sm px-3 py-2 fw-semibold rounded-2 d-flex align-items-center gap-2" style="background: #4f46e5;">
                 <i class="bi bi-bag-plus fs-6"></i> Record Production Purchase
@@ -13,15 +21,6 @@
             <?php endif; ?>
         </div>
     </div>
-
-    <!-- Export Intelligence Toolbar -->
-    <?php
-    $exportTitle = 'Export Purchase Invoices (Excel & PDF)';
-    $exportSubtitle = 'Download vendor bills, procurement totals, GST tax breakdown & payment settlement status';
-    $exportUrl = \App\Core\Controller::url('/m/purchase_billing/export');
-    $prefix = 'pbill_exp';
-    include __DIR__ . '/../partials/export_card.php';
-    ?>
 
     <!-- Quick Metrics Overview Cards -->
     <?php

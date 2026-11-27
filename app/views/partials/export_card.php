@@ -37,8 +37,10 @@ if (!\App\Core\Auth::isSuperAdmin()) {
         return; // Suppress export card entirely for view-only users
     }
 }
+$inlineExportControls = !empty($inlineExportControls);
 ?>
 
+<?php if (!$inlineExportControls): ?>
 <div class="card border-0 shadow-sm rounded-4 <?= !empty($exportTitle) ? 'p-3' : 'p-2' ?> bg-white mb-4" style="border: 1px solid #e2e8f0 !important;">
     <div class="d-flex flex-wrap <?= !empty($exportTitle) ? 'justify-content-between' : 'justify-content-end' ?> align-items-center gap-3">
         <?php if (!empty($exportTitle)): ?>
@@ -55,6 +57,7 @@ if (!\App\Core\Auth::isSuperAdmin()) {
             </div>
         </div>
         <?php endif; ?>
+<?php endif; ?>
 
         <!-- Period Select & Export Action Buttons -->
         <div class="d-flex flex-wrap align-items-center gap-2">
@@ -108,8 +111,10 @@ if (!\App\Core\Auth::isSuperAdmin()) {
                 </ul>
             </div>
         </div>
+<?php if (!$inlineExportControls): ?>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 if (typeof window.triggerCardExport === 'undefined') {
