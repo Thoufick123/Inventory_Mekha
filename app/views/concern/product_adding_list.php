@@ -45,59 +45,59 @@
     <div class="tab-content">
         <div class="tab-pane fade <?= (($activeTab ?? 'purchases') === 'purchases') ? 'show active' : '' ?>" id="tab-purchases" role="tabpanel">
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-5 g-3 mb-4">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-5 g-3 mb-4">
         <div class="col">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="small text-muted fw-semibold text-uppercase">Purchase Bills</div>
-                        <div class="fs-4 fw-bold text-dark"><?= number_format((int)($summary['total_bills'] ?? 0)) ?></div>
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white border-start border-4 border-primary">
+                <div class="card-body p-3 d-flex justify-content-between align-items-center gap-2">
+                    <div class="min-w-0">
+                        <div class="text-uppercase text-muted fw-bold mb-1 text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em;">Purchase Bills</div>
+                        <div class="fs-4 fw-bold text-dark lh-1"><?= number_format((int)($summary['total_bills'] ?? 0)) ?></div>
                     </div>
-                    <span class="rounded-circle p-3 bg-primary-subtle text-primary"><i class="bi bi-receipt"></i></span>
+                    <span class="rounded-3 bg-primary-subtle text-primary d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px;"><i class="bi bi-receipt fs-5"></i></span>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="small text-muted fw-semibold text-uppercase">Bill Lines</div>
-                        <div class="fs-4 fw-bold text-dark"><?= number_format((int)($summary['total_items'] ?? 0)) ?></div>
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white border-start border-4 border-info">
+                <div class="card-body p-3 d-flex justify-content-between align-items-center gap-2">
+                    <div class="min-w-0">
+                        <div class="text-uppercase text-muted fw-bold mb-1 text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em;">Bill Lines</div>
+                        <div class="fs-4 fw-bold text-dark lh-1"><?= number_format((int)($summary['total_items'] ?? 0)) ?></div>
                     </div>
-                    <span class="rounded-circle p-3 bg-info-subtle text-info"><i class="bi bi-list-ul"></i></span>
+                    <span class="rounded-3 bg-info-subtle text-info d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px;"><i class="bi bi-list-ul fs-5"></i></span>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="small text-muted fw-semibold text-uppercase">Total GST</div>
-                        <div class="fs-5 fw-bold text-dark">₹<?= number_format((float)($summary['total_tax'] ?? 0), 2) ?></div>
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white border-start border-4 border-secondary">
+                <div class="card-body p-3 d-flex justify-content-between align-items-center gap-2">
+                    <div class="min-w-0">
+                        <div class="text-uppercase text-muted fw-bold mb-1 text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em;">Total GST</div>
+                        <div class="fs-5 fw-bold text-dark lh-1">₹<?= number_format((float)($summary['total_tax'] ?? 0), 2) ?></div>
                     </div>
-                    <span class="rounded-circle p-3 bg-warning-subtle text-warning"><i class="bi bi-percent"></i></span>
+                    <span class="rounded-3 bg-secondary-subtle text-secondary d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px;"><i class="bi bi-percent fs-5"></i></span>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="small text-muted fw-semibold text-uppercase">Net Purchases</div>
-                        <div class="fs-5 fw-bold text-success">₹<?= number_format((float)($summary['total_net'] ?? 0), 2) ?></div>
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white border-start border-4 border-success">
+                <div class="card-body p-3 d-flex justify-content-between align-items-center gap-2">
+                    <div class="min-w-0">
+                        <div class="text-uppercase text-muted fw-bold mb-1 text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em;">Net Purchases</div>
+                        <div class="fs-5 fw-bold text-success lh-1">₹<?= number_format((float)($summary['total_net'] ?? 0), 2) ?></div>
                     </div>
-                    <span class="rounded-circle p-3 bg-success-subtle text-success"><i class="bi bi-wallet2"></i></span>
+                    <span class="rounded-3 bg-success-subtle text-success d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px;"><i class="bi bi-wallet2 fs-5"></i></span>
                 </div>
             </div>
         </div>
         <div class="col">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="small text-muted fw-semibold text-uppercase">Pending Stock Bills</div>
-                        <div class="fs-4 fw-bold text-warning"><?= number_format((int)($summary['pending_bills'] ?? 0)) ?></div>
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white border-start border-4 border-warning">
+                <div class="card-body p-3 d-flex justify-content-between align-items-center gap-2">
+                    <div class="min-w-0">
+                        <div class="text-uppercase text-muted fw-bold mb-1 text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em;">Pending Stock Bills</div>
+                        <div class="fs-4 fw-bold text-warning lh-1"><?= number_format((int)($summary['pending_bills'] ?? 0)) ?></div>
                     </div>
-                    <span class="rounded-circle p-3 bg-warning-subtle text-warning"><i class="bi bi-box-seam"></i></span>
+                    <span class="rounded-3 bg-warning-subtle text-warning d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px;"><i class="bi bi-box-seam fs-5"></i></span>
                 </div>
             </div>
         </div>
