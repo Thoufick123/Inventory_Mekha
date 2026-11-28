@@ -77,9 +77,24 @@ foreach (array_keys($groupedModules) as $grpKey) {
                             </label>
                             <div class="input-group">
                                 <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
-                                    <i class="bi bi-shield-check"></i>
+                                    <i class="bi bi-shield-check text-primary"></i>
                                 </span>
-                                <input type="text" name="role_name" id="staff_role_input" class="form-control border-start-0 border-end-0" placeholder="" list="role_datalist" value="<?php
+                                <select name="role_id" id="staff_create_role_id" class="form-select border-start-0" required style="border-radius: 0 8px 8px 0;" onchange="onRoleDropdownChange(this)">
+                                    <option value="">-- Select System Role (<?= count($roles) ?> Available) --</option>
+                                    <?php foreach ($roles as $r): ?>
+                                        <?php 
+                                            $scopeText = !empty($r['concern_code']) ? ($r['concern_code'] . ' - ' . $r['concern_name']) : 'Global (All Concerns)';
+                                            $isSelected = ((int)($oldInput['role_id'] ?? 0) === (int)$r['id']) || (!empty($oldInput['role_name']) && strtolower(trim($oldInput['role_name'])) === strtolower(trim($r['name'])));
+                                        ?>
+                                        <option value="<?= (int)$r['id'] ?>" 
+                                                data-name="<?= htmlspecialchars($r['name']) ?>" 
+                                                data-concern-id="<?= (int)($r['concern_id'] ?? 0) ?>"
+                                                <?= $isSelected ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($r['name']) ?> &nbsp;&bull;&nbsp; [<?= htmlspecialchars($scopeText) ?>] &nbsp;&bull;&nbsp; Role #<?= (int)$r['id'] ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <input type="hidden" name="role_name" id="staff_role_name_hidden" value="<?php
                                     $curRoleVal = '';
                                     if (!empty($oldInput['role_name'])) {
                                         $curRoleVal = $oldInput['role_name'];
@@ -92,27 +107,7 @@ foreach (array_keys($groupedModules) as $grpKey) {
                                         }
                                     }
                                     echo htmlspecialchars($curRoleVal);
-                                ?>" required autocomplete="off" oninput="onRoleInputChanged(this.value)">
-                                <input type="hidden" name="role_id" id="staff_create_role_id" value="<?= htmlspecialchars($oldInput['role_id'] ?? '') ?>">
-                                <button class="btn btn-outline-secondary dropdown-toggle border-start-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 0 8px 8px 0;">
-                                    <span class="visually-hidden">Toggle Dropdown</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="max-height: 250px; overflow-y: auto;">
-                                    <li><h6 class="dropdown-header text-uppercase small" style="font-size: 0.68rem;">Existing System Roles</h6></li>
-                                    <?php foreach ($roles as $r): ?>
-                                        <li>
-                                            <button class="dropdown-item d-flex justify-content-between align-items-center" type="button" onclick="selectRoleCombobox('<?= (int)$r['id'] ?>', '<?= htmlspecialchars(addslashes($r['name'])) ?>')">
-                                                <span><?= htmlspecialchars($r['name']) ?></span>
-                                                <span class="badge bg-light text-muted border font-monospace ms-2" style="font-size: 0.68rem;">Role #<?= $r['id'] ?></span>
-                                            </button>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                                <datalist id="role_datalist">
-                                    <?php foreach ($roles as $r): ?>
-                                        <option value="<?= htmlspecialchars($r['name']) ?>" data-id="<?= (int)$r['id'] ?>"></option>
-                                    <?php endforeach; ?>
-                                </datalist>
+                                ?>">
                             </div>
                         </div>
                     </div>
@@ -311,6 +306,11 @@ foreach (array_keys($groupedModules) as $grpKey) {
                                 </h6>
                                 <small class="text-secondary">Configure specific View, Create, Edit, and Delete operational rights across selected concern modules.</small>
                             </div>
+                            <div id="role_perm_sync_banner" class="d-none">
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1.5 font-monospace fw-semibold" style="font-size: 0.76rem;">
+                                    <i class="bi bi-shield-fill-check me-1"></i> Permissions auto-loaded from: <span id="sync_role_name_badge"></span>
+                                </span>
+                            </div>
                         </div>
 
                         <!-- DYNAMIC CONCERN TABS (Shown separately for each selected concern) -->
@@ -448,6 +448,7 @@ foreach (array_keys($groupedModules) as $grpKey) {
 window.allConcerns = <?= json_encode($allConcerns ?? []) ?>;
 window.allRolePerms = <?= json_encode($allRolePerms ?? []) ?>;
 window.concernModules = <?= json_encode($concernModules ?? []) ?>;
+window.allModules = <?= json_encode(array_map(fn($m) => ['id' => (int)$m['id'], 'code' => $m['code']], $modules)) ?>;
 window.activeConcernId = null;
 window.concernPerms = <?= json_encode(!empty($oldInput['perms']) ? $oldInput['perms'] : new stdClass()) ?>;
 
@@ -545,7 +546,10 @@ function applyConcernView(cid) {
     if (!cid) return;
     const c = (window.allConcerns || []).find(item => parseInt(item.id) === cid);
     const name = c ? c.name : 'Concern #' + cid;
-    const allowed = window.concernModules[cid] || [];
+    const allModIds = (window.allModules || []).map(m => parseInt(m.id));
+    const allowed = (window.concernModules[cid] && window.concernModules[cid].length > 0)
+        ? window.concernModules[cid]
+        : allModIds;
 
     const badge = document.getElementById('active_tab_module_count_badge');
     if (badge) {
@@ -598,24 +602,54 @@ function onPermCheckboxChange(mid, act, checked) {
     updateHeaderCheckboxesState();
 }
 
+function populateConcernPermsFromRole(cid, roleId) {
+    if (!cid || !roleId || !window.allRolePerms) return;
+    const roleIdInt = parseInt(roleId);
+    const rPerms = window.allRolePerms[roleIdInt] || {};
+    const allModIds = (window.allModules || []).map(m => parseInt(m.id));
+    const allowed = (window.concernModules[cid] && window.concernModules[cid].length > 0)
+        ? window.concernModules[cid]
+        : allModIds;
+
+    window.concernPerms[cid] = {};
+    allowed.forEach(mid => {
+        const rp = rPerms[mid];
+        window.concernPerms[cid][mid] = rp ? {
+            view: rp.view === 1 ? 1 : 0,
+            add: rp.add === 1 ? 1 : 0,
+            edit: rp.edit === 1 ? 1 : 0,
+            delete: rp.delete === 1 ? 1 : 0
+        } : { view: 0, add: 0, edit: 0, delete: 0 };
+    });
+}
+
 function onConcernSelectionChanged() {
     saveActiveTabPerms();
+    const roleSelect = document.getElementById('staff_create_role_id');
+    const roleId = roleSelect ? parseInt(roleSelect.value || 0) : 0;
+    if (roleId) {
+        getSelectedConcernIds().forEach(cid => {
+            if (!window.concernPerms[cid] || Object.keys(window.concernPerms[cid]).length === 0) {
+                populateConcernPermsFromRole(cid, roleId);
+            }
+        });
+    }
     renderConcernTabs();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const roleId = document.getElementById('staff_role_id')?.value;
-    if (roleId) {
-        onRoleChangedInCreate(roleId);
-    }
-
     // Attach listeners to concern checkboxes
     document.querySelectorAll('.create-concern-check').forEach(cb => {
         cb.addEventListener('change', onConcernSelectionChanged);
     });
 
-    renderConcernTabs();
-    updateHeaderCheckboxesState();
+    const roleSelect = document.getElementById('staff_create_role_id');
+    if (roleSelect && roleSelect.value) {
+        onRoleDropdownChange(roleSelect);
+    } else {
+        renderConcernTabs();
+        updateHeaderCheckboxesState();
+    }
 });
 
 function toggleHeaderColumn(action, checked) {
@@ -834,57 +868,72 @@ function updatePhoneCounter(input) {
     }
 }
 
-function selectRoleCombobox(roleId, roleName) {
-    const roleInput = document.getElementById('staff_role_input');
-    const roleIdInput = document.getElementById('staff_create_role_id');
-    if (roleInput) roleInput.value = roleName;
-    if (roleIdInput) roleIdInput.value = roleId;
-    applyRolePermissions(roleId);
-}
+function onRoleDropdownChange(selectEl) {
+    if (!selectEl) return;
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    const roleIdVal = selectEl.value;
+    const roleId = parseInt(roleIdVal || 0);
 
-function onRoleInputChanged(val) {
-    const roleIdInput = document.getElementById('staff_create_role_id');
-    const term = (val || '').trim().toLowerCase();
-    
-    // Check if entered text matches an existing role in the datalist
-    let foundId = '';
-    const datalist = document.getElementById('role_datalist');
-    if (datalist) {
-        for (const opt of datalist.options) {
-            if (opt.value.trim().toLowerCase() === term) {
-                foundId = opt.getAttribute('data-id') || '';
-                break;
-            }
+    const hiddenName = document.getElementById('staff_role_name_hidden');
+    const desigInput = document.getElementById('staff_create_designation');
+    const syncBanner = document.getElementById('role_perm_sync_banner');
+    const syncNameBadge = document.getElementById('sync_role_name_badge');
+
+    if (!roleId || !selectedOption) {
+        if (hiddenName) hiddenName.value = '';
+        if (syncBanner) syncBanner.classList.add('d-none');
+        return;
+    }
+
+    const roleName = selectedOption.getAttribute('data-name') || '';
+    const roleConcernId = parseInt(selectedOption.getAttribute('data-concern-id') || 0);
+
+    if (hiddenName) hiddenName.value = roleName;
+    if (desigInput && !desigInput.value) desigInput.value = roleName;
+
+    if (syncBanner && syncNameBadge) {
+        syncNameBadge.textContent = roleName;
+        syncBanner.classList.remove('d-none');
+    }
+
+    // 1. If this role is assigned to a specific concern, ensure that concern checkbox is checked
+    if (roleConcernId > 0) {
+        const targetCb = document.getElementById('create_cid_' + roleConcernId);
+        if (targetCb && !targetCb.checked) {
+            targetCb.checked = true;
+        }
+        window.activeConcernId = roleConcernId;
+    }
+
+    // 2. If no concern is checked at all, check the first available concern
+    let selectedCids = getSelectedConcernIds();
+    if (selectedCids.length === 0) {
+        const firstCb = document.querySelector('.create-concern-check');
+        if (firstCb) {
+            firstCb.checked = true;
+            selectedCids = getSelectedConcernIds();
+            window.activeConcernId = selectedCids[0];
         }
     }
-    if (roleIdInput) {
-        roleIdInput.value = foundId;
-    }
-    if (foundId) {
-        applyRolePermissions(foundId);
-    }
+
+    // 3. Populate permissions for all selected concerns from this role
+    selectedCids.forEach(cid => {
+        populateConcernPermsFromRole(cid, roleId);
+    });
+
+    // 4. Update tabs and refresh active concern view
+    renderConcernTabs();
 }
 
 function applyRolePermissions(roleId) {
     if (!roleId || !window.allRolePerms) return;
-    const roleIdInt = parseInt(roleId);
-    const rPerms = window.allRolePerms[roleIdInt] || {};
-    
-    // Auto populate permissions for active concern
     const selectedCids = getSelectedConcernIds();
     selectedCids.forEach(cid => {
-        if (!window.concernPerms[cid]) window.concernPerms[cid] = {};
-        const allowed = window.concernModules[cid] || [];
-        allowed.forEach(mid => {
-            if (rPerms[mid]) {
-                window.concernPerms[cid][mid] = { ...rPerms[mid] };
-            }
-        });
+        populateConcernPermsFromRole(cid, roleId);
     });
 
     if (window.activeConcernId) {
-        loadConcernPermsToMatrix(window.activeConcernId);
-        updateHeaderCheckboxesState();
+        applyConcernView(window.activeConcernId);
     }
 }
 
@@ -897,7 +946,10 @@ function preparePermsOnSubmit() {
 
     const selectedCids = getSelectedConcernIds();
     selectedCids.forEach(cid => {
-        const allowed = window.concernModules[cid] || [];
+        const allModIds = (window.allModules || []).map(m => parseInt(m.id));
+        const allowed = (window.concernModules[cid] && window.concernModules[cid].length > 0)
+            ? window.concernModules[cid]
+            : allModIds;
         const perms = window.concernPerms[cid] || {};
         allowed.forEach(mid => {
             const p = perms[mid] || {};

@@ -201,14 +201,7 @@ $activeTab = $activeTab ?? 'staff';
                                         </td>
                                         <td class="text-end pe-4">
                                             <div class="d-inline-flex align-items-center gap-1.5 flex-wrap justify-content-end">
-                                                <!-- 1. Configure Permissions Matrix -->
-                                                <a href="<?= \App\Core\Controller::url('/m/staff/roles?tab=matrix&matrix_role_id=' . $r['id']) ?>" 
-                                                   class="btn btn-xs btn-outline-primary d-inline-flex align-items-center gap-1" 
-                                                   title="Configure module CRUD permissions for this role">
-                                                    <i class="bi bi-ui-checks-grid"></i> Matrix
-                                                </a>
-
-                                                <!-- 2. Delete Role (if not primary admin and 0 staff assigned) -->
+                                                <!-- Delete Role (if not primary admin and 0 staff assigned) -->
                                                 <?php if (!$isPrimaryAdmin && \App\Core\Auth::can('staff', 'delete')): ?>
                                                     <?php if ($sc === 0 && $uc === 0): ?>
                                                         <form action="<?= \App\Core\Controller::url('/m/staff/roles/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete role <?= htmlspecialchars(addslashes($r['name'])) ?>?');">
@@ -223,6 +216,8 @@ $activeTab = $activeTab ?? 'staff';
                                                             <i class="bi bi-trash"></i>
                                                         </button>
                                                     <?php endif; ?>
+                                                <?php elseif ($isPrimaryAdmin): ?>
+                                                    <span class="text-muted small">&mdash;</span>
                                                 <?php endif; ?>
                                             </div>
                                         </td>
