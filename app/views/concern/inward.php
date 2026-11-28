@@ -124,9 +124,6 @@
     include dirname(__DIR__) . '/partials/export_card.php';
     ?>
 
-<<<<<<< HEAD
-    <!-- 2. Search & Filter Bar -->
-=======
     <!-- 2. View Mode Switcher -->
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div class="d-flex align-items-center gap-2">
@@ -144,7 +141,6 @@
     </div>
 
     <!-- 3. Search & Filter Bar -->
->>>>>>> 8d6dd225cebc6743df3e92d8c47cfc3f5e264b60
     <div class="card border-0 shadow-sm rounded-3 mb-4 p-3 bg-white">
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-4">
@@ -191,15 +187,6 @@
             <table class="table table-bordered table-striped table-hover align-middle mb-0 inward-table-format" id="inwardLedgerTable">
                 <thead>
                     <tr>
-<<<<<<< HEAD
-                        <th class="ps-3">OUTWARD NO.</th>
-                        <th>PRODUCT</th>
-                        <th>SOURCE</th>
-                        <th>QUANTITY & BOXES</th>
-                        <th>DISPATCH DATE & VEHICLE</th>
-                        <th>STATUS</th>
-                        <th class="text-end pe-3">ACTIONS</th>
-=======
                         <th>Batch / Outward</th>
                         <th>Program &amp; Product</th>
                         <th>Source &rarr; Destination</th>
@@ -207,7 +194,6 @@
                         <th>Dispatch Date &amp; Vehicle</th>
                         <th class="text-center">Status</th>
                         <th class="text-center">Actions</th>
->>>>>>> 8d6dd225cebc6743df3e92d8c47cfc3f5e264b60
                     </tr>
                 </thead>
                 <tbody>

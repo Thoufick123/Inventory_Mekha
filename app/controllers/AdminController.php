@@ -50,6 +50,18 @@ class AdminController extends Controller {
             }
         }
 
+        // Auto-provision any newly synced concern modules for existing active concerns
+        $concerns = DB::fetchAll("SELECT id FROM concerns WHERE status = 'active' OR status IS NULL OR status = ''");
+        $allMods = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'dispatch'");
+        foreach ($concerns as $cn) {
+            foreach ($allMods as $m) {
+                $has = DB::fetchValue("SELECT id FROM concern_modules WHERE concern_id = ? AND module_id = ?", [$cn['id'], $m['id']]);
+                if (!$has) {
+                    DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)", [$cn['id'], $m['id']]);
+                }
+            }
+        }
+
         return DB::fetchAll(
             "SELECT * FROM modules
              WHERE is_super_admin_only = 0

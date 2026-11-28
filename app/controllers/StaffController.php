@@ -1619,6 +1619,22 @@ class StaffController extends Controller {
                 $canDelete = !empty($permissions[$mid]['delete']) ? 1 : 0;
 
                 $stmt->execute([$roleId, $mid, $canView, $canAdd, $canEdit, $canDelete]);
+                if ($canView || $canAdd || $canEdit || $canDelete) {
+                    if ($concernId && $concernId > 0) {
+                        DB::query(
+                            "INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)
+                             ON DUPLICATE KEY UPDATE enabled = 1",
+                            [$concernId, $mid]
+                        );
+                    } else {
+                        DB::query(
+                            "INSERT INTO concern_modules (concern_id, module_id, enabled)
+                             SELECT c.id, ?, 1 FROM concerns c WHERE c.status = 'active'
+                             ON DUPLICATE KEY UPDATE enabled = 1",
+                            [$mid]
+                        );
+                    }
+                }
             }
 
             $roleName = DB::fetchValue("SELECT name FROM roles WHERE id = ?", [$roleId]) ?: "Role #{$roleId}";
@@ -1742,6 +1758,22 @@ class StaffController extends Controller {
                     $canDelete = 0;
                 }
                 $stmt->execute([$newRoleId, $mid, $canView, $canAdd, $canEdit, $canDelete]);
+                if ($canView || $canAdd || $canEdit || $canDelete) {
+                    if ($concernId && $concernId > 0) {
+                        DB::query(
+                            "INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)
+                             ON DUPLICATE KEY UPDATE enabled = 1",
+                            [$concernId, $mid]
+                        );
+                    } else {
+                        DB::query(
+                            "INSERT INTO concern_modules (concern_id, module_id, enabled)
+                             SELECT c.id, ?, 1 FROM concerns c WHERE c.status = 'active'
+                             ON DUPLICATE KEY UPDATE enabled = 1",
+                            [$mid]
+                        );
+                    }
+                }
             }
 
             AuditLog::record(
@@ -1817,6 +1849,22 @@ class StaffController extends Controller {
                     $canDelete = 0;
                 }
                 $stmt->execute([$roleId, $mid, $canView, $canAdd, $canEdit, $canDelete]);
+                if ($canView || $canAdd || $canEdit || $canDelete) {
+                    if ($concernId && $concernId > 0) {
+                        DB::query(
+                            "INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)
+                             ON DUPLICATE KEY UPDATE enabled = 1",
+                            [$concernId, $mid]
+                        );
+                    } else {
+                        DB::query(
+                            "INSERT INTO concern_modules (concern_id, module_id, enabled)
+                             SELECT c.id, ?, 1 FROM concerns c WHERE c.status = 'active'
+                             ON DUPLICATE KEY UPDATE enabled = 1",
+                            [$mid]
+                        );
+                    }
+                }
             }
 
             AuditLog::record(
@@ -2064,6 +2112,13 @@ class StaffController extends Controller {
                     }
                 }
                 $stmtUp->execute([$userId, $authCid, $mid, $v, $a, $e, $d]);
+                if ($v || $a || $e || $d) {
+                    DB::query(
+                        "INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)
+                         ON DUPLICATE KEY UPDATE enabled = 1",
+                        [$authCid, $mid]
+                    );
+                }
             }
         }
     }
