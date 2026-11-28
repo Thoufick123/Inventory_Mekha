@@ -4,20 +4,36 @@
  * Location: inventory_mekha/app/views/concern/stitching_view.php
  */
 ?>
-<div class="container-fluid px-4 py-3">
-
-    <!-- BREADCRUMBS -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb mb-0 small">
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="text-decoration-none text-muted">Home</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog') ?>" class="text-decoration-none text-muted">Production</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/stitching') ?>" class="text-decoration-none text-muted">Stitching</a></li>
-            <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page"><?= htmlspecialchars($batch['display_batch_no']) ?></li>
-        </ol>
-    </nav>
+<style>
+.stitching-view-table {
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.stitching-view-table thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.stitching-view-table tbody td {
+    padding: 0.55rem 0.75rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.stitching-view-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
+<div class="container-fluid px-3 pt-1 pb-3">
 
     <!-- HEADER -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
         <div>
             <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
                 <i class="bi bi-stack text-primary"></i> <?= htmlspecialchars($batch['stitching_name'] ?: $batch['display_batch_no']) ?>
@@ -116,39 +132,43 @@
                     <h6 class="mb-0 fw-bold text-dark">Variant Assembly Breakdown</h6>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light text-uppercase small text-secondary">
+                    <table class="table table-bordered table-striped table-hover align-middle mb-0 stitching-view-table">
+                        <thead>
                             <tr>
-                                <th class="ps-3 py-2.5">Catalog & Variant</th>
-                                <th class="text-center py-2.5">Cut Qty</th>
-                                <th class="text-center py-2.5">Stitched Qty</th>
-                                <th class="text-center py-2.5">Per Pc Wt</th>
-                                <th class="text-center py-2.5">Total Wt</th>
-                                <th class="text-end py-2.5">Base Price</th>
-                                <th class="text-end py-2.5">Discount Price</th>
+                                <th>Catalog &amp; Variant</th>
+                                <th class="text-center">Cut Qty</th>
+                                <th class="text-center">Stitched Qty</th>
+                                <th class="text-end">Per Pc Wt</th>
+                                <th class="text-end">Total Wt</th>
+                                <th class="text-end">Base Price</th>
+                                <th class="text-end">Discount Price</th>
                                 <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
-                                <th class="text-center pe-3 py-2.5">Labels</th>
+                                <th class="text-center">Labels</th>
                                 <?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($items as $it): ?>
+                            <?php foreach ($items as $it):
+                                $varLabel = $it['variant_name'] ?: ($it['size'] . ' - ' . $it['color']);
+                                $varTitle = $varLabel . ' | ' . ($it['catalog_name'] ?: 'Catalog') . ' | ' . ($it['product_code'] ?: '-');
+                            ?>
                                 <tr>
-                                    <td class="ps-3 py-2">
-                                        <div class="fw-bold text-dark small"><?= htmlspecialchars($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])) ?></div>
-                                        <div class="text-muted small"><?= htmlspecialchars($it['catalog_name'] ?: 'Catalog') ?> &bull; Product Code: <?= htmlspecialchars($it['product_code'] ?: '-') ?></div>
+                                    <td>
+                                        <div class="text-truncate fw-semibold text-dark" style="max-width: 240px;" title="<?= htmlspecialchars($varTitle) ?>">
+                                            <?= htmlspecialchars($varLabel) ?>
+                                        </div>
                                     </td>
-                                    <td class="text-center py-2 font-monospace"><?= (int)$it['cut_qty'] ?></td>
-                                    <td class="text-center py-2 font-monospace fw-bold text-success"><?= (int)$it['stitching_qty'] ?></td>
-                                    <td class="text-center py-2 font-monospace small"><?= number_format((float)$it['per_pc_weight'], 3) ?> kg</td>
-                                    <td class="text-center py-2 font-monospace small fw-bold"><?= number_format((float)$it['total_weight'], 2) ?> kg</td>
-                                    <td class="text-end py-2 font-monospace">₹<?= number_format((float)$it['base_price'], 2) ?></td>
-                                    <td class="text-end py-2 font-monospace fw-bold text-primary">₹<?= number_format((float)$it['discount_price'], 2) ?></td>
+                                    <td class="text-center font-monospace"><?= (int)$it['cut_qty'] ?></td>
+                                    <td class="text-center font-monospace fw-bold text-success"><?= (int)$it['stitching_qty'] ?></td>
+                                    <td class="text-end font-monospace small"><?= number_format((float)$it['per_pc_weight'], 3) ?> kg</td>
+                                    <td class="text-end font-monospace small fw-bold"><?= number_format((float)$it['total_weight'], 2) ?> kg</td>
+                                    <td class="text-end font-monospace">₹<?= number_format((float)$it['base_price'], 2) ?></td>
+                                    <td class="text-end font-monospace fw-bold text-primary">₹<?= number_format((float)$it['discount_price'], 2) ?></td>
                                     <?php if (\App\Core\Auth::can('label_generation', 'add') || \App\Core\Auth::can('stitching_wastage', 'view')): ?>
-                                    <td class="text-center pe-3 py-2">
+                                    <td class="text-center">
                                         <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
                                                 title="Print Labels for this Variant"
-                                                onclick='openStitchingVariantLabelModal(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['variant_name'] ?: ($it['size'] . ' - ' . $it['color'])), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode('Product Code: ' . ($it['product_code'] ?: '-') . ' • stitched qty ' . max(1, (int)$it['stitching_qty'])), ENT_QUOTES) ?>, <?= max(1, (int)$it['stitching_qty']) ?>)'>
+                                                onclick='openStitchingVariantLabelModal(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($varLabel), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode('Product Code: ' . ($it['product_code'] ?: '-') . ' • stitched qty ' . max(1, (int)$it['stitching_qty'])), ENT_QUOTES) ?>, <?= max(1, (int)$it['stitching_qty']) ?>)'>
                                             <i class="bi bi-printer me-1"></i>Print
                                         </button>
                                     </td>
