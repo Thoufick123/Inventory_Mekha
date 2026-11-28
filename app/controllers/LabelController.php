@@ -1338,6 +1338,7 @@ class LabelController extends Controller {
         elseif ($labelType === 'production') {
             $prodPrintMode = trim($_POST['prod_print_mode'] ?? 'variant');
             $batchId = (int)($_POST['batch_id'] ?? 0);
+            $requestedBrandName = trim((string)($_POST['brand_name'] ?? ''));
             if (!$batchId && is_string($rawItemId) && strpos($rawItemId, 'batch_') === 0) {
                 $batchId = (int)str_replace('batch_', '', $rawItemId);
                 $prodPrintMode = 'batch';
@@ -1525,7 +1526,7 @@ class LabelController extends Controller {
                         'variant_size'   => $itemSize,
                         'product_code'   => $tagCode,
                         'stock_tab'      => 'production',
-                        'brand_name'     => $bItem['brand_name'] ?: $concernName,
+                        'brand_name'     => $requestedBrandName !== '' ? $requestedBrandName : ($bItem['brand_name'] ?: $concernName),
                         'category_name'  => $bItem['category_name'] ?: 'Apparel',
                         'cost_or_ref'    => 'Batch #' . $batchNo,
                     ];
@@ -1767,7 +1768,7 @@ class LabelController extends Controller {
                 'variant_size'   => $item['variant_size'] ?: ($item['size'] ?: 'Free'),
                 'product_code'   => $tagCode,
                 'stock_tab'      => 'production',
-                'brand_name'     => $item['brand_name'] ?: $concernName,
+                'brand_name'     => $requestedBrandName !== '' ? $requestedBrandName : ($item['brand_name'] ?: $concernName),
                 'category_name'  => $item['category_name'] ?: 'Apparel',
                 'cost_or_ref'    => 'Batch #' . ($item['log_no'] ?? $item['batch_no'] ?? '1'),
                 'extra_details'  => [

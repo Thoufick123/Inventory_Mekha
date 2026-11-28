@@ -508,19 +508,36 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
         <div class="card border-0 shadow-sm rounded-4 p-3 bg-white invoice-print-container" id="printableInvoiceCard">
             <!-- Printable Document Body -->
             <div class="invoice-box border p-4 rounded-3 bg-white text-dark">
+                <?php
+                $activeConcern = \App\Core\Auth::concern();
+                $displayConcernName = !empty($bill['concern_name']) ? $bill['concern_name'] : ($activeConcern['name'] ?? 'Inventory Management');
+                $displayConcernCode = !empty($bill['concern_code']) ? $bill['concern_code'] : ($activeConcern['code'] ?? '');
+                $displayConcernAddress = !empty($bill['concern_address']) ? $bill['concern_address'] : ($activeConcern['address'] ?? '');
+                $displayConcernGstin = !empty($bill['concern_gstin']) ? $bill['concern_gstin'] : ($activeConcern['gstin'] ?? '');
+                $displayConcernPhone = !empty($bill['concern_phone']) ? $bill['concern_phone'] : ($activeConcern['phone'] ?? '');
+                $displayConcernLogo = !empty($bill['concern_logo']) ? $bill['concern_logo'] : ($activeConcern['logo'] ?? '');
+                ?>
                 <!-- Header: Concern Info & Invoice Identity -->
                 <div class="row pb-3 mb-3 border-bottom align-items-center">
                     <div class="col-8">
                         <div class="d-flex align-items-center gap-2 mb-1">
-                            <?php if (!empty($bill['concern_logo'])): ?>
-                                <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($bill['concern_logo'])) ?>" alt="<?= htmlspecialchars($bill['concern_name'] ?: 'Logo') ?>" style="max-height: 44px; max-width: 130px; object-fit: contain;">
+                            <?php if (!empty($displayConcernLogo)): ?>
+                                <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($displayConcernLogo)) ?>" alt="<?= htmlspecialchars($displayConcernName) ?>" style="max-height: 44px; max-width: 130px; object-fit: contain;">
                             <?php else: ?>
                                 <i class="bi bi-building fs-3 text-primary"></i>
                             <?php endif; ?>
-                            <h3 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($bill['concern_name'] ?: 'GRM Inventory') ?></h3>
+                            <h3 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($displayConcernName) ?></h3>
                         </div>
                         <div class="text-muted small">
-                            <strong>Concern Unit:</strong> <?= htmlspecialchars($bill['concern_code'] ?: 'GRM') ?>
+                            <?php if (!empty($displayConcernCode)): ?>
+                                <strong>Concern Unit:</strong> <?= htmlspecialchars($displayConcernCode) ?> &bull; 
+                            <?php endif; ?>
+                            <?php if (!empty($displayConcernGstin)): ?>
+                                <strong>GSTIN:</strong> <span class="font-monospace fw-semibold"><?= htmlspecialchars($displayConcernGstin) ?></span>
+                            <?php endif; ?>
+                            <?php if (!empty($displayConcernPhone)): ?>
+                                &bull; <strong>Phone:</strong> <?= htmlspecialchars($displayConcernPhone) ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="col-4 text-end">
@@ -547,8 +564,20 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                     </div>
                     <div class="col-6 ps-3">
                         <div class="fw-bold text-uppercase text-muted mb-1" style="font-size: 0.72rem; letter-spacing: 0.05em;">Billed & Delivered To (Consignee)</div>
-                        <div class="fw-bold text-dark fs-6"><?= htmlspecialchars($bill['concern_name'] ?: 'GRM Inventory') ?></div>
+                        <div class="fw-bold text-dark fs-6"><?= htmlspecialchars($displayConcernName) ?></div>
+                        <?php if (!empty($displayConcernCode)): ?>
+                            <div class="text-secondary fw-semibold small">Unit Code: <?= htmlspecialchars($displayConcernCode) ?></div>
+                        <?php endif; ?>
                         <div class="text-muted mt-1">
+                            <?php if (!empty($displayConcernAddress)): ?>
+                                Address: <?= htmlspecialchars($displayConcernAddress) ?><br>
+                            <?php endif; ?>
+                            <?php if (!empty($displayConcernPhone)): ?>
+                                Phone: <?= htmlspecialchars($displayConcernPhone) ?><br>
+                            <?php endif; ?>
+                            <?php if (!empty($displayConcernGstin)): ?>
+                                <span class="font-monospace fw-semibold text-dark">GSTIN: <?= htmlspecialchars($displayConcernGstin) ?></span><br>
+                            <?php endif; ?>
                             <strong>Payment Status:</strong> <span class="badge bg-light text-dark border text-uppercase"><?= htmlspecialchars($bill['payment_status']) ?></span> &bull; 
                             <strong>Method:</strong> <span class="text-capitalize fw-semibold text-dark"><?= htmlspecialchars(str_replace('_', ' ', $bill['payment_method'] ?? 'credit')) ?></span><br>
                             <strong>Paid Amount:</strong> ₹<?= number_format((float)($bill['paid_amount'] ?? 0), 2) ?><br>

@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\Auth;
+use App\Core\ModuleGuard;
 
 class ConcernDashboardController extends Controller {
     public function index(): void {
@@ -241,5 +242,217 @@ class ConcernDashboardController extends Controller {
         } else {
             \App\Services\ExportService::downloadCsv($filename, $headers, $exportData, $totalsRow);
         }
+    }
+
+    public function reports(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $period     = trim($_GET['period'] ?? 'month');
+        $singleDate = trim($_GET['single_date'] ?? '');
+        $fromDate   = trim($_GET['from_date'] ?? '');
+        $toDate     = trim($_GET['to_date'] ?? '');
+        $unitId     = !empty($_GET['unit_id']) ? (int)$_GET['unit_id'] : null;
+
+        $requestedIds = !empty($_GET['concern_id']) ? [(int)$_GET['concern_id']] : [];
+        $scope = \App\Services\ReportService::resolveScope($requestedIds, $period, $singleDate, $fromDate, $toDate);
+        $range = $scope['range'];
+        $selectedConcernIds = $scope['concern_ids'];
+
+        $reportData = \App\Services\ReportService::getOverviewPnlReport(
+            $range['start_date'] ?? null,
+            $range['end_date'] ?? null,
+            $selectedConcernIds,
+            $unitId
+        );
+
+        $this->render('reports/index', [
+            'pageTitle'          => 'Financial & P&L Reports',
+            'currentModule'      => 'reports',
+            'reportBaseUrl'      => '/m/reports',
+            'reportPrintUrl'     => '/m/reports/print',
+            'reportExportUrl'    => '/m/reports/export',
+            'reportData'         => $reportData,
+            'concernStats'       => $reportData['concern_rows'] ?? [],
+            'allConcerns'        => $scope['all_concerns'],
+            'units'              => $scope['units'],
+            'selectedConcernIds' => $selectedConcernIds,
+            'selectedConcernId'  => (count($selectedConcernIds) === 1 ? $selectedConcernIds[0] : null),
+            'selectedUnitId'     => $unitId,
+            'period'             => $period,
+            'singleDate'         => $singleDate,
+            'fromDate'           => $fromDate,
+            'toDate'             => $toDate,
+            'rangeLabel'         => $range['label'],
+            'startDate'          => $range['start_date'] ?? '',
+            'endDate'            => $range['end_date'] ?? '',
+            'isSuperAdmin'       => $scope['is_super_admin'],
+        ]);
+    }
+
+    public function reportsPrint(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $period     = trim($_GET['period'] ?? 'month');
+        $singleDate = trim($_GET['single_date'] ?? '');
+        $fromDate   = trim($_GET['from_date'] ?? '');
+        $toDate     = trim($_GET['to_date'] ?? '');
+        $unitId     = !empty($_GET['unit_id']) ? (int)$_GET['unit_id'] : null;
+
+        $requestedIds = !empty($_GET['concern_id']) ? [(int)$_GET['concern_id']] : [];
+        $scope = \App\Services\ReportService::resolveScope($requestedIds, $period, $singleDate, $fromDate, $toDate);
+        $range = $scope['range'];
+        $selectedConcernIds = $scope['concern_ids'];
+
+        $reportData = \App\Services\ReportService::getOverviewPnlReport(
+            $range['start_date'] ?? null,
+            $range['end_date'] ?? null,
+            $selectedConcernIds,
+            $unitId
+        );
+
+        $this->render('reports/print', [
+            'pageTitle'          => 'P&L Report Print',
+            'noLayout'           => true,
+            'reportData'         => $reportData,
+            'allConcerns'        => $scope['all_concerns'],
+            'selectedConcernIds' => $selectedConcernIds,
+            'rangeLabel'         => $range['label'],
+            'generatedAt'        => date('d M Y, h:i A'),
+        ]);
+    }
+
+    public function exportReports(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $format     = strtolower(trim($_GET['format'] ?? 'csv'));
+        $period     = trim($_GET['period'] ?? 'month');
+        $singleDate = trim($_GET['single_date'] ?? '');
+        $fromDate   = trim($_GET['from_date'] ?? '');
+        $toDate     = trim($_GET['to_date'] ?? '');
+
+        $requestedIds = !empty($_GET['concern_id']) ? [(int)$_GET['concern_id']] : [];
+        $scope = \App\Services\ReportService::resolveScope($requestedIds, $period, $singleDate, $fromDate, $toDate);
+        $range = $scope['range'];
+        $reportData = \App\Services\ReportService::getOverviewPnlReport(
+            $range['start_date'] ?? null,
+            $range['end_date'] ?? null,
+            $scope['concern_ids'],
+            null
+        );
+
+        $headers = ['Concern Code', 'Concern Name', 'Invoices', 'Net Sales (₹)', 'GST Collected (₹)', 'Discounts (₹)', 'Purchases (₹)', 'Expenses (₹)', 'Wastage Sales (₹)', 'Net P&L (₹)', 'Stock Valuation (₹)'];
+        $rows = [];
+        $totInv = 0; $totSales = 0; $totGst = 0; $totDisc = 0; $totPurch = 0; $totExp = 0; $totWast = 0; $totPnl = 0; $totVal = 0;
+        foreach ($reportData['concern_rows'] as $cr) {
+            $totInv += $cr['invoice_count'];
+            $totSales += $cr['sales_net'];
+            $totGst += $cr['gst_collected'];
+            $totDisc += $cr['discounts'];
+            $totPurch += $cr['purchases_net'];
+            $totExp += $cr['expenses'];
+            $totWast += $cr['wastage_sales'];
+            $totPnl += $cr['net_pnl'];
+            $totVal += $cr['stock_valuation'];
+            $rows[] = [
+                $cr['code'], $cr['name'], $cr['invoice_count'],
+                number_format($cr['sales_net'], 2, '.', ''),
+                number_format($cr['gst_collected'], 2, '.', ''),
+                number_format($cr['discounts'], 2, '.', ''),
+                number_format($cr['purchases_net'], 2, '.', ''),
+                number_format($cr['expenses'], 2, '.', ''),
+                number_format($cr['wastage_sales'], 2, '.', ''),
+                number_format($cr['net_pnl'], 2, '.', ''),
+                number_format($cr['stock_valuation'], 2, '.', ''),
+            ];
+        }
+        $totals = ['TOTAL', '', $totInv, number_format($totSales, 2, '.', ''), number_format($totGst, 2, '.', ''), number_format($totDisc, 2, '.', ''), number_format($totPurch, 2, '.', ''), number_format($totExp, 2, '.', ''), number_format($totWast, 2, '.', ''), number_format($totPnl, 2, '.', ''), number_format($totVal, 2, '.', '')];
+        $metadata = ['Report Title' => 'Overview & P&L Report', 'Period' => $range['label'], 'Generated At' => date('d M Y, h:i A')];
+        $filename = 'pnl_report_' . date('Ymd_His');
+
+        if ($format === 'pdf') {
+            \App\Services\ExportService::renderPdfView('Overview & P&L Report', $metadata, $headers, $rows, $totals);
+        } elseif ($format === 'excel') {
+            \App\Services\ExportService::downloadExcel($filename, 'Overview & P&L Report', $metadata, $headers, $rows, $totals);
+        } else {
+            \App\Services\ExportService::downloadCsv($filename, $headers, $rows, $totals);
+        }
+    }
+
+    public function exportCenter(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $periodMode = trim($_GET['period_mode'] ?? 'month');
+        $month = (int)($_GET['month'] ?? date('n'));
+        $year = (int)($_GET['year'] ?? date('Y'));
+        $fromDate = trim($_GET['from_date'] ?? date('Y-m-01'));
+        $toDate = trim($_GET['to_date'] ?? date('Y-m-d'));
+        $unitIds = array_values(array_unique(array_filter(array_map('intval', (array)($_GET['unit_ids'] ?? [])))));
+
+        $ctx = \App\Services\ExportCenterService::resolveContext([]);
+        $dateRange = \App\Services\ExportCenterService::resolveDatePeriod($periodMode, $month, $year, $fromDate, $toDate);
+        $categories = \App\Services\ExportCenterService::getModuleDefinitions($ctx['concern_ids']);
+        $counts = \App\Services\ExportCenterService::getModuleCounts(
+            $dateRange['start_date'],
+            $dateRange['end_date'],
+            $ctx['concern_ids'],
+            $unitIds
+        );
+
+        $this->render('export_center/index', [
+            'pageTitle'      => 'Data Export Center',
+            'currentModule'  => 'export_center',
+            'ctx'            => $ctx,
+            'dateRange'      => $dateRange,
+            'categories'     => $categories,
+            'counts'         => $counts,
+            'selectedUnits'  => $unitIds,
+            'basePath'       => '/m/export-center',
+        ]);
+    }
+
+    public function exportCenterCounts(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $periodMode = trim($_GET['period_mode'] ?? 'month');
+        $month = (int)($_GET['month'] ?? date('n'));
+        $year = (int)($_GET['year'] ?? date('Y'));
+        $fromDate = trim($_GET['from_date'] ?? date('Y-m-01'));
+        $toDate = trim($_GET['to_date'] ?? date('Y-m-d'));
+        $unitIds = array_values(array_unique(array_filter(array_map('intval', (array)($_GET['unit_ids'] ?? [])))));
+
+        $ctx = \App\Services\ExportCenterService::resolveContext([]);
+        $dateRange = \App\Services\ExportCenterService::resolveDatePeriod($periodMode, $month, $year, $fromDate, $toDate);
+        $counts = \App\Services\ExportCenterService::getModuleCounts(
+            $dateRange['start_date'],
+            $dateRange['end_date'],
+            $ctx['concern_ids'],
+            $unitIds
+        );
+
+        header('Content-Type: application/json');
+        echo json_encode(['counts' => $counts, 'date_range' => $dateRange, 'enabled_codes' => $ctx['enabled_codes']]);
+        exit;
+    }
+
+    public function downloadExportCenter(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $periodMode = trim($_POST['period_mode'] ?? 'month');
+        $month = (int)($_POST['month'] ?? date('n'));
+        $year = (int)($_POST['year'] ?? date('Y'));
+        $fromDate = trim($_POST['from_date'] ?? date('Y-m-01'));
+        $toDate = trim($_POST['to_date'] ?? date('Y-m-d'));
+        $unitIds = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['unit_ids'] ?? [])))));
+        $modules = array_values(array_filter(array_map('trim', (array)($_POST['modules'] ?? []))));
+        $format = strtolower(trim($_POST['format'] ?? 'csv'));
+
+        $ctx = \App\Services\ExportCenterService::resolveContext([]);
+        $dateRange = \App\Services\ExportCenterService::resolveDatePeriod($periodMode, $month, $year, $fromDate, $toDate);
+        if (empty($modules)) {
+            $modules = array_keys(\App\Services\ExportCenterService::getFlatModuleMap());
+        }
+
+        \App\Services\ExportCenterService::streamExport(
+            $modules,
+            $dateRange['start_date'],
+            $dateRange['end_date'],
+            $ctx['concern_ids'],
+            $unitIds,
+            $format
+        );
     }
 }

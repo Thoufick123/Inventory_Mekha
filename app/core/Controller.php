@@ -235,22 +235,49 @@ abstract class Controller {
             DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rejected_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
             DB::query("ALTER TABLE `qc_inspections` MODIFY COLUMN `rework_qty` DECIMAL(12,2) NOT NULL DEFAULT 0.00");
 
-            // Ensure qc_stocks module is enabled in concern_modules for all active concerns
-            $qcModId = DB::fetchValue("SELECT id FROM modules WHERE code = 'qc_stocks'");
-            if ($qcModId) {
+            // Ensure operational concern modules are provisioned in concern_modules for all active concerns
+            $allConcernMods = DB::fetchAll("SELECT id, code FROM modules WHERE is_super_admin_only = 0 AND code != 'dispatch'");
+            if (!empty($allConcernMods)) {
                 $concerns = DB::fetchAll("SELECT id FROM concerns WHERE status = 'active' OR status IS NULL OR status = ''");
                 foreach ($concerns as $cn) {
-                    $hasCm = DB::fetchValue("SELECT id FROM concern_modules WHERE concern_id = ? AND module_id = ?", [$cn['id'], $qcModId]);
-                    if (!$hasCm) {
-                        DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)", [$cn['id'], $qcModId]);
+                    foreach ($allConcernMods as $m) {
+                        $hasCm = DB::fetchValue("SELECT id FROM concern_modules WHERE concern_id = ? AND module_id = ?", [$cn['id'], $m['id']]);
+                        if (!$hasCm) {
+                            DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)", [$cn['id'], $m['id']]);
+                        }
                     }
                 }
-                // Also ensure Concern Administrator roles have permissions for qc_stocks
-                $adminRoles = DB::fetchAll("SELECT id FROM roles WHERE name LIKE '%Admin%' AND id > 1");
+                // Ensure concern_modules is enabled for any module where users or roles have active permissions
+                DB::query("
+                    UPDATE concern_modules cm
+                    JOIN modules m ON cm.module_id = m.id
+                    SET cm.enabled = 1
+                    WHERE cm.enabled = 0
+                      AND (
+                          EXISTS (
+                              SELECT 1 FROM user_permissions up
+                              JOIN users u ON up.user_id = u.id
+                              WHERE up.module_id = cm.module_id
+                                AND (up.concern_id = cm.concern_id OR (up.concern_id IS NULL AND u.concern_id = cm.concern_id))
+                                AND (up.can_view = 1 OR up.can_add = 1 OR up.can_edit = 1 OR up.can_delete = 1)
+                          )
+                          OR EXISTS (
+                              SELECT 1 FROM role_permissions rp
+                              JOIN roles r ON rp.role_id = r.id
+                              WHERE rp.module_id = cm.module_id
+                                AND (r.concern_id = cm.concern_id OR r.concern_id IS NULL)
+                                AND (rp.can_view = 1 OR rp.can_add = 1 OR rp.can_edit = 1 OR rp.can_delete = 1)
+                          )
+                      )
+                ");
+                // Ensure Concern Administrator roles have permissions for all concern modules
+                $adminRoles = DB::fetchAll("SELECT id FROM roles WHERE (name LIKE '%Administrator%' OR name LIKE '%Admin%') AND id > 1");
                 foreach ($adminRoles as $ar) {
-                    $hasRp = DB::fetchValue("SELECT id FROM role_permissions WHERE role_id = ? AND module_id = ?", [$ar['id'], $qcModId]);
-                    if (!$hasRp) {
-                        DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 1, 1, 1)", [$ar['id'], $qcModId]);
+                    foreach ($allConcernMods as $m) {
+                        $hasRp = DB::fetchValue("SELECT id FROM role_permissions WHERE role_id = ? AND module_id = ?", [$ar['id'], $m['id']]);
+                        if (!$hasRp) {
+                            DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 1, 1, 1)", [$ar['id'], $m['id']]);
+                        }
                     }
                 }
             }
@@ -332,9 +359,10 @@ abstract class Controller {
             } else {
                 $cid = Auth::concernId();
                 $databaseModules = DB::fetchAll(
-                    "SELECT m.* FROM concern_modules cm 
-                     JOIN modules m ON cm.module_id = m.id 
-                     WHERE cm.concern_id = ? AND cm.enabled = 1 
+                    "SELECT DISTINCT m.* FROM modules m
+                     LEFT JOIN concern_modules cm ON cm.module_id = m.id AND cm.concern_id = ?
+                     WHERE m.is_super_admin_only = 0 AND m.code != 'dispatch'
+                       AND (cm.enabled = 1 OR cm.enabled IS NULL)
                      ORDER BY m.sort_order ASC",
                     [$cid]
                 );

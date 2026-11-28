@@ -1,20 +1,4 @@
 <div class="container-fluid px-0">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-        <div>
-            <h4 class="fw-bold mb-1 text-dark"><i class="bi bi-exclamation-octagon text-danger me-2"></i>Concern Damage &amp; Rework</h4>
-            <p class="text-secondary small mb-0">Scan stock labels to quarantine damaged pieces, then track write-off, repair, salvage, or rework.</p>
-        </div>
-        <?php if ($canAddDamage): ?>
-            <div class="d-flex flex-wrap gap-2">
-            <a href="<?= \App\Core\Controller::url('/m/concern_damage/outward' . ($isSuperAdmin && $selectedCid ? '?concern_id=' . (int)$selectedCid : '')) ?>" class="btn btn-outline-danger shadow-sm fw-semibold">
-                <i class="bi bi-truck me-1"></i> Damage Outward
-            </a>
-            <a href="<?= \App\Core\Controller::url('/m/concern_damage/new' . ($isSuperAdmin && $selectedCid ? '?concern_id=' . (int)$selectedCid : '')) ?>" class="btn btn-danger shadow-sm fw-semibold">
-                <i class="bi bi-qr-code-scan me-1"></i> Scan &amp; Log Damage / Rework
-            </a>
-            </div>
-        <?php endif; ?>
-    </div>
 
     <?php
     $metricCards = [
@@ -64,7 +48,30 @@
         .damage-metric-dark .damage-metric-icon { background: #212529; }
         .damage-metric-success .damage-metric-icon { background: #198754; }
         .damage-filter-card { background: #fff; }
-        .damage-table { min-width: 1030px; }
+        .damage-table-format {
+            border-collapse: collapse;
+            font-size: 0.84rem;
+        }
+        .damage-table-format thead th {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 0.65rem 0.75rem;
+            border-bottom: 2px solid #cbd5e1 !important;
+            white-space: nowrap;
+        }
+        .damage-table-format tbody td {
+            padding: 0.5rem 0.65rem;
+            border-color: #e2e8f0 !important;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .damage-table-format tbody tr:hover {
+            background-color: #f8fafc;
+        }
     </style>
 
     <div class="card border-0 shadow-sm rounded-3 mb-3 damage-filter-card">
@@ -95,20 +102,32 @@
     </div>
 
     <div class="card border-0 shadow-sm rounded-3">
-        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-list-check text-danger me-2"></i>Damage &amp; Rework Cases</h6>
-            <span class="badge bg-light text-dark border"><?= count($damages) ?> Records</span>
+        <div class="card-header bg-white py-2.5 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-list-check text-danger me-2"></i>Damage &amp; Rework Cases</h6>
+                <span class="badge bg-light text-dark border"><?= count($damages) ?> Records</span>
+            </div>
+            <?php if ($canAddDamage): ?>
+            <div class="d-flex align-items-center gap-2 flex-nowrap">
+                <a href="<?= \App\Core\Controller::url('/m/concern_damage/outward' . ($isSuperAdmin && $selectedCid ? '?concern_id=' . (int)$selectedCid : '')) ?>" class="btn btn-sm btn-outline-danger shadow-xs fw-semibold text-nowrap">
+                    <i class="bi bi-truck me-1"></i> Damage Outward
+                </a>
+                <a href="<?= \App\Core\Controller::url('/m/concern_damage/new' . ($isSuperAdmin && $selectedCid ? '?concern_id=' . (int)$selectedCid : '')) ?>" class="btn btn-sm btn-danger shadow-xs fw-semibold text-nowrap">
+                    <i class="bi bi-qr-code-scan me-1"></i> Scan &amp; Log Damage / Rework
+                </a>
+            </div>
+            <?php endif; ?>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 table-custom damage-table">
+            <table class="table table-bordered table-striped table-hover align-middle mb-0 damage-table-format">
                 <thead>
                     <tr>
                         <th>Case</th>
                         <th>Product &amp; Variant</th>
                         <th>Source &amp; Origin Batch</th>
-                        <th>Quantity</th>
-                        <th>Loss / Valuation</th>
-                        <th>Status</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-end">Loss / Valuation</th>
+                        <th class="text-center">Status</th>
                         <th>Date</th>
                         <th class="text-end">Actions</th>
                     </tr>
@@ -129,31 +148,35 @@
                             $sourceLabel = str_starts_with($originModule, 'Purchase') ? 'PURCHASE STOCK' : (str_starts_with($originModule, 'Production') ? 'OWN PRODUCT' : 'INTERNAL STOCK');
                             $unitPrice = (float)($d['unit_price'] ?: $d['mrp']);
                             $lossValue = (float)($d['loss_amount'] ?? 0) > 0 ? (float)$d['loss_amount'] : (float)$d['qty'] * $unitPrice;
+                            $displayProductCode = \App\Services\QrService::formatBrandVariantCode((int)($d['variant_id'] ?? 0)) ?: (string)($d['product_code'] ?? '');
+                            $srcRef = !empty($d['origin_ref_id']) ? 'Batch / Ref #' . (int)$d['origin_ref_id'] : 'Concern stock';
+                            $reasonStr = (string)($d['reason'] ?: 'No damage reason recorded');
                         ?>
                             <tr>
                                 <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle font-monospace"><?= htmlspecialchars($d['damage_no']) ?></span></td>
                                 <td>
-                                    <?php $displayProductCode = \App\Services\QrService::formatBrandVariantCode((int)($d['variant_id'] ?? 0)) ?: (string)($d['product_code'] ?? ''); ?>
-                                    <div class="fw-bold text-dark"><?= htmlspecialchars($d['variant_name']) ?></div>
-                                    <small class="text-muted font-monospace"><?= htmlspecialchars($displayProductCode) ?> &bull; <?= htmlspecialchars($d['size'] ?: 'Standard') ?></small>
+                                    <div class="text-truncate" style="max-width: 195px;" title="<?= htmlspecialchars($d['variant_name'] . ' | ' . $displayProductCode . ' • ' . ($d['size'] ?: 'Standard')) ?>">
+                                        <span class="fw-semibold text-dark"><?= htmlspecialchars($d['variant_name']) ?></span>
+                                        <span class="text-muted small font-monospace ms-1">(<?= htmlspecialchars($displayProductCode) ?>)</span>
+                                    </div>
                                 </td>
                                 <td>
-                                    <span class="badge bg-secondary-subtle text-secondary"><?= htmlspecialchars($sourceLabel) ?></span>
-                                    <small class="d-block text-muted"><?= !empty($d['origin_ref_id']) ? 'Batch / Ref #' . (int)$d['origin_ref_id'] : 'Concern stock' ?></small>
-                                    <small class="d-block text-muted"><?= htmlspecialchars($d['reason'] ?: 'No damage reason recorded') ?></small>
+                                    <div class="text-truncate" style="max-width: 185px;" title="<?= htmlspecialchars($sourceLabel . ' | ' . $srcRef . ' | ' . $reasonStr) ?>">
+                                        <span class="badge bg-secondary-subtle text-secondary me-1"><?= htmlspecialchars($sourceLabel) ?></span>
+                                        <span class="text-muted small"><?= htmlspecialchars($reasonStr) ?></span>
+                                    </div>
                                 </td>
-                                <td><span class="badge bg-danger-subtle text-danger"><?= number_format((float)$d['qty'], 0) ?> pcs</span></td>
-                                <td>
-                                    <div class="fw-bold">₹<?= number_format($lossValue, 2) ?></div>
-                                    <small class="text-muted">@ ₹<?= number_format($unitPrice, 2) ?>/pc</small>
+                                <td class="text-center"><span class="badge bg-danger-subtle text-danger font-monospace"><?= number_format((float)$d['qty'], 0) ?> pcs</span></td>
+                                <td class="text-end font-monospace" title="@ ₹<?= number_format($unitPrice, 2) ?>/pc">
+                                    <span class="fw-bold text-dark">₹<?= number_format($lossValue, 2) ?></span>
                                 </td>
-                                <td><span class="badge rounded-pill <?= $statusClass ?>"><?= htmlspecialchars($rowStatus) ?></span></td>
-                                <td>
-                                    <small class="d-block fw-semibold"><?= date('d M Y', strtotime($d['created_at'])) ?></small>
-                                    <small class="text-muted"><?= htmlspecialchars($d['user_name'] ?? 'Staff') ?></small>
+                                <td class="text-center"><span class="badge rounded-pill <?= $statusClass ?>"><?= htmlspecialchars($rowStatus) ?></span></td>
+                                <td title="<?= htmlspecialchars($d['user_name'] ?? 'Staff') ?>">
+                                    <span class="small fw-semibold text-dark"><?= date('d M Y', strtotime($d['created_at'])) ?></span>
+                                    <span class="text-muted small ms-1">• <?= htmlspecialchars($d['user_name'] ?? 'Staff') ?></span>
                                 </td>
                                 <td class="text-end">
-                                    <div class="d-inline-flex gap-1">
+                                    <div class="d-inline-flex flex-nowrap gap-1">
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick='openViewConcernDamageModal(<?= json_encode($d, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' title="View case">
                                             <i class="bi bi-eye"></i>
                                         </button>
@@ -193,20 +216,24 @@
 <?php if ($canEditDamage): ?>
 <div class="modal fade" id="modalEditConcernDamage" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <form action="<?= \App\Core\Controller::url('/m/concern_damage/update') ?>" method="POST" class="modal-content">
+        <form action="<?= \App\Core\Controller::url('/m/concern_damage/update') ?>" method="POST" class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <input type="hidden" name="id" id="edit_cdamage_id">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold">Edit Damage Reason</h5>
+            <div class="modal-header bg-light border-bottom px-4 py-3">
+                <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                    <i class="bi bi-pencil-square text-primary"></i> Edit Damage Reason
+                </h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <label class="form-label small fw-semibold" for="edit_cdamage_reason">Damage reason *</label>
-                <textarea name="reason" id="edit_cdamage_reason" class="form-control" rows="3" maxlength="255" required></textarea>
+            <div class="modal-body p-4">
+                <label class="form-label small fw-semibold text-secondary mb-1.5" for="edit_cdamage_reason">Damage reason <span class="text-danger">*</span></label>
+                <textarea name="reason" id="edit_cdamage_reason" class="form-control" rows="3" maxlength="255" placeholder="Enter damage reason..." required></textarea>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Reason</button>
+            <div class="modal-footer bg-light border-top px-4 py-2.5 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary px-3 fw-semibold">
+                    <i class="bi bi-check2 me-1"></i> Save Reason
+                </button>
             </div>
         </form>
     </div>

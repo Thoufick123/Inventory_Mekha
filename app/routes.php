@@ -59,7 +59,11 @@ $router->post('/admin/assets/update', [AdminController::class, 'updateAsset'], '
 $router->post('/admin/assets/delete', [AdminController::class, 'deleteAsset'], 'admin_assets', 'delete');
 $router->post('/admin/assets/outward', [OutwardController::class, 'storeAssetTransfer'], 'outward', 'add');
 $router->get('/admin/reports', [AdminController::class, 'reports'], 'admin_reports', 'view');
+$router->get('/admin/reports/print', [AdminController::class, 'reportsPrint'], 'admin_reports', 'view');
 $router->get('/admin/reports/export', [AdminController::class, 'exportReports'], 'admin_reports', 'view');
+$router->get('/admin/export-center', [AdminController::class, 'exportCenter'], 'super_admin');
+$router->get('/admin/export-center/counts', [AdminController::class, 'exportCenterCounts'], 'super_admin');
+$router->post('/admin/export-center/download', [AdminController::class, 'downloadExportCenter'], 'super_admin');
 
 // ==========================================
 // CONCERN MODULES (Strictly Guarded by concern_modules)
@@ -101,11 +105,17 @@ $router->post('/m/product_adding/delete-hsn', [CatalogMappingController::class, 
 $router->get('/api/product-adding/subcategories', [ProductAddingController::class, 'subcategories'], 'product_adding', 'view');
 $router->get('/api/product-adding/sub-subcategories', [ProductAddingController::class, 'subSubcategories'], 'product_adding', 'view');
 
-// Dashboard
+// Dashboard & Concern Reports
 $router->get('/dashboard', [ConcernDashboardController::class, 'index']);
 $router->get('/dashboard/export', [ConcernDashboardController::class, 'exportDashboard'], 'concern_dashboard', 'export');
 $router->get('/m/concern_dashboard', [ConcernDashboardController::class, 'index']);
 $router->get('/m/concern_dashboard/export', [ConcernDashboardController::class, 'exportDashboard'], 'concern_dashboard', 'export');
+$router->get('/m/reports', [ConcernDashboardController::class, 'reports']);
+$router->get('/m/reports/print', [ConcernDashboardController::class, 'reportsPrint']);
+$router->get('/m/reports/export', [ConcernDashboardController::class, 'exportReports']);
+$router->get('/m/export-center', [ConcernDashboardController::class, 'exportCenter']);
+$router->get('/m/export-center/counts', [ConcernDashboardController::class, 'exportCenterCounts']);
+$router->post('/m/export-center/download', [ConcernDashboardController::class, 'downloadExportCenter']);
 
 // Variants Catalog
 $router->get('/m/variants', [VariantController::class, 'index'], 'stocks', 'view');
@@ -403,6 +413,10 @@ $router->post('/production/stitching/delete', [ProductionController::class, 'del
 // Stitching API Endpoints
 $router->get('/api/stitching/cutting-details', [ProductionController::class, 'apiCuttingDetailsForStitching'], 'stitching_wastage', 'add');
 $router->post('/api/stitching/quick-tailor', [ProductionController::class, 'apiQuickAddTailor'], 'stitching_wastage', 'add');
+$router->get('/m/stitching/brands', [ProductAddingController::class, 'brandsListAjax'], 'stitching_wastage', 'view');
+$router->post('/m/stitching/brands/store', [ProductAddingController::class, 'storeBrandAjax'], 'stitching_wastage', 'add');
+$router->post('/m/stitching/brands/update', [ProductAddingController::class, 'updateBrandAjax'], 'stitching_wastage', 'edit');
+$router->post('/m/stitching/brands/delete', [ProductAddingController::class, 'deleteBrandAjax'], 'stitching_wastage', 'delete');
 
 // Stitching Wastage Selling (Image 2)
 $router->get('/production/stitching/wastage', [ProductionController::class, 'stitchingWastageIndex'], 'stitching_wastage', 'view');

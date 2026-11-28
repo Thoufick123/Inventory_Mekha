@@ -247,12 +247,6 @@
                             <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
                             <input type="text" id="filterSalesInput" class="form-control border-start-0" placeholder="Search sale #, buyer, phone...">
                         </div>
-                        <?php if (\App\Core\Auth::can('stitching_wastage', 'add')): ?>
-                        <button class="btn btn-danger btn-sm shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold" 
-                                data-bs-toggle="modal" data-bs-target="#modalSellStitchingWastage">
-                            <i class="bi bi-recycle"></i> Record Scrap Sale
-                        </button>
-                        <?php endif; ?>
                     </div>
 
                     <div class="table-responsive">

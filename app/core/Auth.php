@@ -16,6 +16,68 @@ class Auth {
             // Link unlinked staff to user accounts by email or phone
             DB::query("UPDATE staff s JOIN users u ON (s.email = u.email AND s.email != '') OR (s.phone = u.phone AND s.phone != '') SET s.user_id = u.id WHERE s.user_id IS NULL");
 
+            // 1. Ensure all master modules from ModuleRegistry exist in modules table
+            foreach (ModuleRegistry::masterModules() as $mod) {
+                DB::query(
+                    "INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
+                     VALUES (?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE 
+                        name = VALUES(name),
+                        icon = VALUES(icon),
+                        sort_order = VALUES(sort_order),
+                        group_name = VALUES(group_name),
+                        is_super_admin_only = VALUES(is_super_admin_only)",
+                    [$mod['code'], $mod['name'], $mod['icon'], $mod['sort_order'], $mod['group_name'], $mod['is_super_admin_only']]
+                );
+            }
+
+            // 2. Ensure all active concerns have rows in concern_modules for all standard modules
+            $concerns = DB::fetchAll("SELECT id FROM concerns WHERE status = 'active' OR status IS NULL OR status = ''");
+            $allConcernMods = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'dispatch'");
+            foreach ($concerns as $cn) {
+                foreach ($allConcernMods as $m) {
+                    $has = DB::fetchValue("SELECT id FROM concern_modules WHERE concern_id = ? AND module_id = ?", [$cn['id'], $m['id']]);
+                    if (!$has) {
+                        DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)", [$cn['id'], $m['id']]);
+                    }
+                }
+            }
+
+            // 3. Auto-enable concern_modules where users or roles have active CRUD permissions
+            DB::query("
+                UPDATE concern_modules cm
+                JOIN modules m ON cm.module_id = m.id
+                SET cm.enabled = 1
+                WHERE cm.enabled = 0
+                  AND (
+                      EXISTS (
+                          SELECT 1 FROM user_permissions up
+                          JOIN users u ON up.user_id = u.id
+                          WHERE up.module_id = cm.module_id
+                            AND (up.concern_id = cm.concern_id OR (up.concern_id IS NULL AND u.concern_id = cm.concern_id))
+                            AND (up.can_view = 1 OR up.can_add = 1 OR up.can_edit = 1 OR up.can_delete = 1)
+                      )
+                      OR EXISTS (
+                          SELECT 1 FROM role_permissions rp
+                          JOIN roles r ON rp.role_id = r.id
+                          WHERE rp.module_id = cm.module_id
+                            AND (r.concern_id = cm.concern_id OR r.concern_id IS NULL)
+                            AND (rp.can_view = 1 OR rp.can_add = 1 OR rp.can_edit = 1 OR rp.can_delete = 1)
+                      )
+                  )
+            ");
+
+            // 4. Ensure Concern Administrator roles have full permissions for all concern modules
+            $adminRoles = DB::fetchAll("SELECT id FROM roles WHERE (name LIKE '%Administrator%' OR name LIKE '%Admin%') AND id > 1");
+            foreach ($adminRoles as $ar) {
+                foreach ($allConcernMods as $m) {
+                    $hasRp = DB::fetchValue("SELECT id FROM role_permissions WHERE role_id = ? AND module_id = ?", [$ar['id'], $m['id']]);
+                    if (!$hasRp) {
+                        DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 1, 1, 1)", [$ar['id'], $m['id']]);
+                    }
+                }
+            }
+
             self::$permissionsSchemaEnsured = true;
         } catch (\Throwable $e) {
             error_log('Auth ensurePermissionsSchema error: ' . $e->getMessage());
@@ -86,6 +148,9 @@ class Auth {
                         $_SESSION['user']['concern_id'] = (int)$_SESSION['concern']['id'];
                     }
                 }
+                self::loadPermissions($userId, (int)($_SESSION['user']['role_id'] ?? 0));
+                self::$permissionsRefreshed = true;
+
                 $activeCid = (int)($_SESSION['user']['concern_id'] ?? 0);
                 if ($activeCid > 0) {
                     $mods = DB::fetchAll(
@@ -95,12 +160,23 @@ class Auth {
                         [$activeCid]
                     );
                     $registeredModuleCount = (int)DB::fetchValue("SELECT COUNT(*) FROM modules");
-                    $_SESSION['enabled_modules'] = $registeredModuleCount < 5
+                    $enabledList = $registeredModuleCount < 5
                         ? array_values(array_unique(array_merge(array_column($mods, 'code'), ModuleRegistry::concernCodes())))
                         : array_column($mods, 'code');
+
+                    // Automatically include modules where active user or role has explicit CRUD rights
+                    foreach ($_SESSION['user_permissions'] ?? [] as $mCode => $p) {
+                        if (!empty($p['view']) || !empty($p['add']) || !empty($p['edit']) || !empty($p['delete'])) {
+                            $enabledList[] = $mCode;
+                        }
+                    }
+                    foreach ($_SESSION['role_permissions'] ?? [] as $mCode => $p) {
+                        if (!empty($p['view']) || !empty($p['add']) || !empty($p['edit']) || !empty($p['delete'])) {
+                            $enabledList[] = $mCode;
+                        }
+                    }
+                    $_SESSION['enabled_modules'] = array_values(array_unique($enabledList));
                 }
-                self::loadPermissions($userId, (int)($_SESSION['user']['role_id'] ?? 0));
-                self::$permissionsRefreshed = true;
             }
 
             // Ensure Super Admin has super_admin_concern_id initialized to 0 (ALL CONCERNS) if not set
@@ -269,6 +345,11 @@ class Auth {
             'logo' => $c['logo'],
         ];
 
+        // Cache role permissions and user-specific overrides
+        $userId = (int)($_SESSION['user']['id'] ?? 0);
+        $roleId = (int)($_SESSION['user']['role_id'] ?? 0);
+        self::loadPermissions($userId, $roleId);
+
         // Cache enabled modules for fast checking
         $mods = DB::fetchAll(
             "SELECT m.code, m.id FROM concern_modules cm 
@@ -277,14 +358,21 @@ class Auth {
             [(int)$c['id']]
         );
         $registeredModuleCount = (int)DB::fetchValue("SELECT COUNT(*) FROM modules");
-        $_SESSION['enabled_modules'] = $registeredModuleCount < 5
+        $enabledList = $registeredModuleCount < 5
             ? array_values(array_unique(array_merge(array_column($mods, 'code'), ModuleRegistry::concernCodes())))
             : array_column($mods, 'code');
 
-        // Cache role permissions and user-specific overrides
-        $userId = (int)($_SESSION['user']['id'] ?? 0);
-        $roleId = (int)($_SESSION['user']['role_id'] ?? 0);
-        self::loadPermissions($userId, $roleId);
+        foreach ($_SESSION['user_permissions'] ?? [] as $mCode => $p) {
+            if (!empty($p['view']) || !empty($p['add']) || !empty($p['edit']) || !empty($p['delete'])) {
+                $enabledList[] = $mCode;
+            }
+        }
+        foreach ($_SESSION['role_permissions'] ?? [] as $mCode => $p) {
+            if (!empty($p['view']) || !empty($p['add']) || !empty($p['edit']) || !empty($p['delete'])) {
+                $enabledList[] = $mCode;
+            }
+        }
+        $_SESSION['enabled_modules'] = array_values(array_unique($enabledList));
 
         return true;
     }
@@ -542,8 +630,62 @@ class Auth {
         if ($moduleCode === 'cash') {
             $moduleCode = 'cash_flow';
         }
+        if ($moduleCode === 'variants' || $moduleCode === 'stock_ledger') {
+            $moduleCode = 'stocks';
+        }
         $mods = $_SESSION['enabled_modules'] ?? [];
-        return in_array($moduleCode, $mods, true);
+        if (in_array($moduleCode, $mods, true)) {
+            return true;
+        }
+
+        // 1. Check if user or role has active permissions for this module
+        $userPerms = $_SESSION['user_permissions'] ?? [];
+        if (!empty($userPerms[$moduleCode]) && (!empty($userPerms[$moduleCode]['view']) || !empty($userPerms[$moduleCode]['add']) || !empty($userPerms[$moduleCode]['edit']) || !empty($userPerms[$moduleCode]['delete']))) {
+            self::healConcernModule($moduleCode);
+            $_SESSION['enabled_modules'][] = $moduleCode;
+            return true;
+        }
+
+        $rolePerms = $_SESSION['role_permissions'] ?? [];
+        if (!empty($rolePerms[$moduleCode]) && (!empty($rolePerms[$moduleCode]['view']) || !empty($rolePerms[$moduleCode]['add']) || !empty($rolePerms[$moduleCode]['edit']) || !empty($rolePerms[$moduleCode]['delete']))) {
+            self::healConcernModule($moduleCode);
+            $_SESSION['enabled_modules'][] = $moduleCode;
+            return true;
+        }
+
+        // 2. Check if registered concern module and not explicitly disabled (cm.enabled = 0)
+        $cid = self::concernId();
+        if ($cid > 0) {
+            $isExplicitlyDisabled = (int)DB::fetchValue(
+                "SELECT COUNT(*) FROM concern_modules cm
+                 JOIN modules m ON cm.module_id = m.id
+                 WHERE cm.concern_id = ? AND m.code = ? AND cm.enabled = 0",
+                [$cid, $moduleCode]
+            );
+            $isConcernModule = in_array($moduleCode, ModuleRegistry::concernCodes(), true);
+            if ($isConcernModule && !$isExplicitlyDisabled) {
+                self::healConcernModule($moduleCode);
+                $_SESSION['enabled_modules'][] = $moduleCode;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function healConcernModule(string $moduleCode): void {
+        try {
+            $cid = self::concernId();
+            if (!$cid) return;
+            $modId = DB::fetchValue("SELECT id FROM modules WHERE code = ?", [$moduleCode]);
+            if ($modId) {
+                DB::query(
+                    "INSERT INTO concern_modules (concern_id, module_id, enabled) VALUES (?, ?, 1)
+                     ON DUPLICATE KEY UPDATE enabled = 1",
+                    [$cid, $modId]
+                );
+            }
+        } catch (\Throwable $e) {}
     }
 
     public static function can(string $moduleCode, string $action = 'view'): bool {

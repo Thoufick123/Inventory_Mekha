@@ -575,21 +575,25 @@ if (!empty($multiLabels)) {
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displayCode) ?></span>
                             </div>
                         <?php elseif ($isProduction): ?>
-                            <!-- PRODUCTION: Show Size, Base Price, Discount Price, and GRMV Product Code -->
+                            <!-- PRODUCTION: Show Brand (if set), Size, Base Price, Discount Price, and GRMV Product Code -->
+                            <?php $prodBrand = trim((string)($lbl['brand_name'] ?? '')); ?>
+                            <?php if ($prodBrand !== ''): ?>
                             <div class="label-detail-row">
-                                <span class="detail-label">Size:</span>
+                                <span class="detail-val text-uppercase fw-bold"><?= htmlspecialchars($prodBrand) ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <div class="label-detail-row">
                                 <span class="detail-val text-uppercase fw-bold"><?= htmlspecialchars($vSize) ?></span>
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label">Base Price:</span>
-                                <span class="detail-val fw-semibold text-dark">₹<?= number_format($basePriceVal, 2) ?></span>
+                                <span class="detail-val fw-semibold text-muted text-decoration-line-through">₹<?= number_format($basePriceVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label">Discount Price:</span>
                                 <span class="detail-val fw-bold text-success">₹<?= number_format($discPriceVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
-                                <span class="detail-label">QR Code:</span>
                                 <span class="detail-val font-monospace text-primary fw-bold"><?= htmlspecialchars($displayCode) ?></span>
                             </div>
                         <?php else: ?>
