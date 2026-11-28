@@ -90,14 +90,11 @@ class StaffController extends Controller {
                 DB::query('ALTER TABLE `staff` ADD COLUMN `password_hash` VARCHAR(255) NULL AFTER `email`');
             }
 
-            // Ensure admin_assets and admin_reports definitions exist and are provisionable
-            DB::query("INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
-                       VALUES ('admin_assets', 'Asset Management', 'bi-building-gear', 3, 'Super Admin', 0)
-                       ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Asset Management', group_name = 'Super Admin'");
-            DB::query("INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
-                       VALUES ('admin_reports', 'Consolidated Reports', 'bi-bar-chart-line', 4, 'Super Admin', 0)
-                       ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Consolidated Reports', group_name = 'Super Admin'");
-            DB::query("UPDATE modules SET is_super_admin_only = 0, group_name = 'Super Admin' WHERE code IN ('admin_assets', 'admin_reports')");
+            // Ensure Super Admin modules are strictly super admin only and removed from concern modules
+            DB::query("UPDATE modules SET is_super_admin_only = 1, group_name = 'Super Admin' WHERE code IN ('admin_dashboard', 'admin_concerns', 'admin_assets', 'admin_reports')");
+            DB::query("DELETE cm FROM concern_modules cm JOIN modules m ON cm.module_id = m.id WHERE m.is_super_admin_only = 1");
+            DB::query("DELETE rp FROM role_permissions rp JOIN modules m ON rp.module_id = m.id WHERE m.is_super_admin_only = 1 AND rp.role_id > 1");
+            DB::query("DELETE up FROM user_permissions up JOIN modules m ON up.module_id = m.id WHERE m.is_super_admin_only = 1");
 
             // Purge obsolete modules
             $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
@@ -296,12 +293,13 @@ class StaffController extends Controller {
 
     private function buildStaffModuleMatrixContext(): array {
         $modules = DB::fetchAll(
-            "SELECT * FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC"
+            "SELECT * FROM modules WHERE is_super_admin_only = 0 AND group_name != 'Super Admin' AND code != 'cash' ORDER BY group_name ASC, sort_order ASC, id ASC"
         );
-        $groupOrder = ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+        $groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
         $groupedModules = [];
         foreach ($modules as $m) {
             if ($m['code'] === 'cash') continue;
+            if (($m['group_name'] ?? '') === 'Super Admin') continue;
             if ($m['code'] === 'concern_dashboard' || ($m['group_name'] ?? '') === 'Dashboard') continue;
             if ($m['code'] === 'variants' || ($m['group_name'] ?? '') === 'Masters') continue;
             if (in_array($m['code'], ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'], true)) continue;
@@ -1427,7 +1425,7 @@ class StaffController extends Controller {
             }
 
             // 3. Compute effective permissions
-            $modules = DB::fetchAll("SELECT id, name, code, group_name FROM modules WHERE is_super_admin_only = 0 AND code != 'cash' ORDER BY group_name, sort_order, id");
+            $modules = DB::fetchAll("SELECT id, name, code, group_name FROM modules WHERE is_super_admin_only = 0 AND group_name != 'Super Admin' AND code != 'cash' ORDER BY group_name, sort_order, id");
             $effective = [];
             foreach ($modules as $m) {
                 $mid = (int)$m['id'];
@@ -1449,6 +1447,14 @@ class StaffController extends Controller {
                         ];
                     }
                 }
+
+                // Enforce CRUD hierarchy: without view permission, add/edit/delete cannot be granted
+                if (empty($eff['view']['allowed'])) {
+                    $eff['add']['allowed'] = false;
+                    $eff['edit']['allowed'] = false;
+                    $eff['delete']['allowed'] = false;
+                }
+
                 $effective[$mid] = $eff;
             }
 
@@ -1719,7 +1725,7 @@ class StaffController extends Controller {
             );
             $newRoleId = (int)DB::lastInsertId();
 
-            $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'cash'");
+            $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND group_name != 'Super Admin' AND code != 'cash'");
             $stmt = DB::pdo()->prepare(
                 "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, ?, ?, ?, ?)"
             );
@@ -1730,6 +1736,11 @@ class StaffController extends Controller {
                 $canAdd = !empty($perms[$mid]['add']) ? 1 : 0;
                 $canEdit = !empty($perms[$mid]['edit']) ? 1 : 0;
                 $canDelete = !empty($perms[$mid]['delete']) ? 1 : 0;
+                if (!$canView) {
+                    $canAdd = 0;
+                    $canEdit = 0;
+                    $canDelete = 0;
+                }
                 $stmt->execute([$newRoleId, $mid, $canView, $canAdd, $canEdit, $canDelete]);
             }
 
@@ -1787,7 +1798,7 @@ class StaffController extends Controller {
             );
 
             // Update role permissions
-            $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'cash'");
+            $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND group_name != 'Super Admin' AND code != 'cash'");
             $stmt = DB::pdo()->prepare(
                 "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
                  VALUES (?, ?, ?, ?, ?, ?)
@@ -1800,6 +1811,11 @@ class StaffController extends Controller {
                 $canAdd = !empty($perms[$mid]['add']) ? 1 : 0;
                 $canEdit = !empty($perms[$mid]['edit']) ? 1 : 0;
                 $canDelete = !empty($perms[$mid]['delete']) ? 1 : 0;
+                if (!$canView) {
+                    $canAdd = 0;
+                    $canEdit = 0;
+                    $canDelete = 0;
+                }
                 $stmt->execute([$roleId, $mid, $canView, $canAdd, $canEdit, $canDelete]);
             }
 
@@ -1951,7 +1967,7 @@ class StaffController extends Controller {
              ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_add = VALUES(can_add), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)"
         );
 
-        $allMods = DB::fetchAll("SELECT id, code FROM modules WHERE is_super_admin_only = 0");
+        $allMods = DB::fetchAll("SELECT id, code, group_name FROM modules WHERE is_super_admin_only = 0 AND group_name != 'Super Admin'");
         $cashModId = null;
         $cashFlowModId = null;
         $dashModId = null;
@@ -2012,6 +2028,11 @@ class StaffController extends Controller {
                 $a = !empty($normalizedPerms[$mid]['add']) && $normalizedPerms[$mid]['add'] != '0' ? 1 : 0;
                 $e = !empty($normalizedPerms[$mid]['edit']) && $normalizedPerms[$mid]['edit'] != '0' ? 1 : 0;
                 $d = !empty($normalizedPerms[$mid]['delete']) && $normalizedPerms[$mid]['delete'] != '0' ? 1 : 0;
+                if (!$v) {
+                    $a = 0;
+                    $e = 0;
+                    $d = 0;
+                }
             }
             $stmtUp->execute([$userId, null, $mid, $v, $a, $e, $d]);
         }
@@ -2036,6 +2057,11 @@ class StaffController extends Controller {
                     $a = !empty($concernPerms[$mid]['add']) && $concernPerms[$mid]['add'] != '0' ? 1 : 0;
                     $e = !empty($concernPerms[$mid]['edit']) && $concernPerms[$mid]['edit'] != '0' ? 1 : 0;
                     $d = !empty($concernPerms[$mid]['delete']) && $concernPerms[$mid]['delete'] != '0' ? 1 : 0;
+                    if (!$v) {
+                        $a = 0;
+                        $e = 0;
+                        $d = 0;
+                    }
                 }
                 $stmtUp->execute([$userId, $authCid, $mid, $v, $a, $e, $d]);
             }

@@ -164,16 +164,15 @@ $defaultStaffCid = (int)($selectedCid ?? $concernFilter ?? 0);
                             </thead>
                             <tbody>
                                 <?php if (!empty($groupedModules)): 
-                                    $modalGroupOrder = $groupOrder ?? ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
-                                    if (!in_array('Super Admin', $modalGroupOrder, true)) {
-                                        array_unshift($modalGroupOrder, 'Super Admin');
-                                    }
+                                    $modalGroupOrder = $groupOrder ?? ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
                                     foreach (array_keys($groupedModules) as $grpKey) {
+                                        if ($grpKey === 'Super Admin') continue;
                                         if (!in_array($grpKey, $modalGroupOrder, true)) {
                                             $modalGroupOrder[] = $grpKey;
                                         }
                                     }
                                     foreach ($modalGroupOrder as $grpName):
+                                        if ($grpName === 'Super Admin') continue;
                                 ?>
                                         <?php if (empty($groupedModules[$grpName])) continue; ?>
                                         <tr class="table-secondary matrix-group-header" data-group="<?= htmlspecialchars($grpName) ?>">
@@ -361,6 +360,19 @@ function markEditPermsDirty() {
 
 function onEditPermCheckboxChange(mid, act, checked) {
     markEditPermsDirty();
+    const vCb = document.getElementById('edit_m_view_' + mid);
+    const aCb = document.getElementById('edit_m_add_' + mid);
+    const eCb = document.getElementById('edit_m_edit_' + mid);
+    const dCb = document.getElementById('edit_m_delete_' + mid);
+
+    if (act === 'view' && !checked) {
+        if (aCb) aCb.checked = false;
+        if (eCb) eCb.checked = false;
+        if (dCb) dCb.checked = false;
+    } else if (act !== 'view' && checked) {
+        if (vCb) vCb.checked = true;
+    }
+
     updateEditHeaderCheckboxesState();
 }
 
@@ -370,6 +382,18 @@ function toggleEditHeaderColumn(action, checked) {
         const row = cb.closest('tr');
         if (row && row.style.display === 'none') return;
         cb.checked = checked;
+        const mid = row.getAttribute('data-mid');
+        if (action === 'view' && !checked) {
+            const aCb = document.getElementById('edit_m_add_' + mid);
+            const eCb = document.getElementById('edit_m_edit_' + mid);
+            const dCb = document.getElementById('edit_m_delete_' + mid);
+            if (aCb) aCb.checked = false;
+            if (eCb) eCb.checked = false;
+            if (dCb) dCb.checked = false;
+        } else if (action !== 'view' && checked) {
+            const vCb = document.getElementById('edit_m_view_' + mid);
+            if (vCb) vCb.checked = true;
+        }
     });
     updateEditHeaderCheckboxesState();
 }
@@ -475,10 +499,11 @@ function openEditStaffModal(stf) {
                         const eCb = document.getElementById('edit_m_edit_' + mid);
                         const dCb = document.getElementById('edit_m_delete_' + mid);
 
-                        if (vCb) vCb.checked = !!(eff.view && eff.view.allowed);
-                        if (aCb) aCb.checked = !!(eff.add && eff.add.allowed);
-                        if (eCb) eCb.checked = !!(eff.edit && eff.edit.allowed);
-                        if (dCb) dCb.checked = !!(eff.delete && eff.delete.allowed);
+                        const isView = !!(eff.view && eff.view.allowed);
+                        if (vCb) vCb.checked = isView;
+                        if (aCb) aCb.checked = isView && !!(eff.add && eff.add.allowed);
+                        if (eCb) eCb.checked = isView && !!(eff.edit && eff.edit.allowed);
+                        if (dCb) dCb.checked = isView && !!(eff.delete && eff.delete.allowed);
                     });
                     updateEditHeaderCheckboxesState();
                     if (statusBadge) {

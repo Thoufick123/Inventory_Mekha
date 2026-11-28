@@ -407,8 +407,22 @@ function syncHeaderCheckboxes() {
 }
 
 function onPermChanged(mid) {
-    syncRowCheck(mid);
     const row = document.getElementById('row_all_' + mid)?.closest('tr');
+    if (row) {
+        const vCb = row.querySelector('.matrix-check-view');
+        const aCb = row.querySelector('.matrix-check-create');
+        const eCb = row.querySelector('.matrix-check-edit');
+        const dCb = row.querySelector('.matrix-check-delete');
+        
+        if (vCb && !vCb.checked) {
+            if (aCb) aCb.checked = false;
+            if (eCb) eCb.checked = false;
+            if (dCb) dCb.checked = false;
+        } else if ((aCb?.checked || eCb?.checked || dCb?.checked) && vCb) {
+            vCb.checked = true;
+        }
+    }
+    syncRowCheck(mid);
     const grpHash = row ? row.getAttribute('data-group-hash') : null;
     if (grpHash) syncGroupToggle(grpHash);
     syncHeaderCheckboxes();
@@ -461,6 +475,17 @@ function toggleColumnAll(type, check) {
         if (tr && tr.getAttribute('data-concern-allowed') !== '0' && tr.style.display !== 'none') {
             cb.checked = check;
             const mid = tr.getAttribute('data-mid');
+            const vCb = tr.querySelector('.matrix-check-view');
+            const aCb = tr.querySelector('.matrix-check-create');
+            const eCb = tr.querySelector('.matrix-check-edit');
+            const dCb = tr.querySelector('.matrix-check-delete');
+            if (type === 'view' && !check) {
+                if (aCb) aCb.checked = false;
+                if (eCb) eCb.checked = false;
+                if (dCb) dCb.checked = false;
+            } else if (type !== 'view' && check && vCb) {
+                vCb.checked = true;
+            }
             if (mid) syncRowCheck(mid);
         }
     });

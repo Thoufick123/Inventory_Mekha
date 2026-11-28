@@ -417,7 +417,7 @@ $activeTab = $activeTab ?? 'staff';
                                                     <div class="form-check d-flex justify-content-center m-0">
                                                         <input class="form-check-input perm-view perm-check-<?= $mid ?>" type="checkbox" 
                                                                name="perms[<?= $mid ?>][view]" value="1" <?= !empty($p['can_view']) ? 'checked' : '' ?>
-                                                               onchange="syncMatrixHeaderCheckboxes()"
+                                                               onchange="onRoleMatrixCheckboxChange(<?= $mid ?>, 'view', this.checked)"
                                                                style="width: 20px; height: 20px; cursor: pointer;">
                                                     </div>
                                                 </td>
@@ -425,8 +425,8 @@ $activeTab = $activeTab ?? 'staff';
                                                 <td class="text-center">
                                                     <div class="form-check d-flex justify-content-center m-0">
                                                         <input class="form-check-input perm-add perm-check-<?= $mid ?>" type="checkbox" 
-                                                               name="perms[<?= $mid ?>][add]" value="1" <?= !empty($p['can_add']) ? 'checked' : '' ?>
-                                                               onchange="syncMatrixHeaderCheckboxes()"
+                                                               name="perms[<?= $mid ?>][add]" value="1" <?= (!empty($p['can_view']) && !empty($p['can_add'])) ? 'checked' : '' ?>
+                                                               onchange="onRoleMatrixCheckboxChange(<?= $mid ?>, 'add', this.checked)"
                                                                style="width: 20px; height: 20px; cursor: pointer;">
                                                     </div>
                                                 </td>
@@ -434,8 +434,8 @@ $activeTab = $activeTab ?? 'staff';
                                                 <td class="text-center">
                                                     <div class="form-check d-flex justify-content-center m-0">
                                                         <input class="form-check-input perm-edit perm-check-<?= $mid ?>" type="checkbox" 
-                                                               name="perms[<?= $mid ?>][edit]" value="1" <?= !empty($p['can_edit']) ? 'checked' : '' ?>
-                                                               onchange="syncMatrixHeaderCheckboxes()"
+                                                               name="perms[<?= $mid ?>][edit]" value="1" <?= (!empty($p['can_view']) && !empty($p['can_edit'])) ? 'checked' : '' ?>
+                                                               onchange="onRoleMatrixCheckboxChange(<?= $mid ?>, 'edit', this.checked)"
                                                                style="width: 20px; height: 20px; cursor: pointer;">
                                                     </div>
                                                 </td>
@@ -443,8 +443,8 @@ $activeTab = $activeTab ?? 'staff';
                                                 <td class="text-center">
                                                     <div class="form-check d-flex justify-content-center m-0">
                                                         <input class="form-check-input perm-delete perm-check-<?= $mid ?>" type="checkbox" 
-                                                               name="perms[<?= $mid ?>][delete]" value="1" <?= !empty($p['can_delete']) ? 'checked' : '' ?>
-                                                               onchange="syncMatrixHeaderCheckboxes()"
+                                                               name="perms[<?= $mid ?>][delete]" value="1" <?= (!empty($p['can_view']) && !empty($p['can_delete'])) ? 'checked' : '' ?>
+                                                               onchange="onRoleMatrixCheckboxChange(<?= $mid ?>, 'delete', this.checked)"
                                                                style="width: 20px; height: 20px; cursor: pointer;">
                                                     </div>
                                                 </td>
@@ -610,8 +610,41 @@ document.addEventListener('DOMContentLoaded', () => {
     syncMatrixHeaderCheckboxes();
 });
 
+function onRoleMatrixCheckboxChange(mid, act, checked) {
+    const vCb = document.querySelector('#matrixTable .perm-view.perm-check-' + mid);
+    const aCb = document.querySelector('#matrixTable .perm-add.perm-check-' + mid);
+    const eCb = document.querySelector('#matrixTable .perm-edit.perm-check-' + mid);
+    const dCb = document.querySelector('#matrixTable .perm-delete.perm-check-' + mid);
+    if (act === 'view' && !checked) {
+        if (aCb) aCb.checked = false;
+        if (eCb) eCb.checked = false;
+        if (dCb) dCb.checked = false;
+    } else if (act !== 'view' && checked && vCb) {
+        vCb.checked = true;
+    }
+    syncMatrixHeaderCheckboxes();
+}
+
 function setColumnPerm(action, checked) {
-    document.querySelectorAll('#matrixTable tbody .perm-' + action).forEach(cb => cb.checked = checked);
+    document.querySelectorAll('#matrixTable tbody .perm-' + action).forEach(cb => {
+        cb.checked = checked;
+        const classes = Array.from(cb.classList);
+        const midClass = classes.find(c => c.startsWith('perm-check-'));
+        if (midClass) {
+            const mid = midClass.replace('perm-check-', '');
+            const vCb = document.querySelector('#matrixTable .perm-view.perm-check-' + mid);
+            const aCb = document.querySelector('#matrixTable .perm-add.perm-check-' + mid);
+            const eCb = document.querySelector('#matrixTable .perm-edit.perm-check-' + mid);
+            const dCb = document.querySelector('#matrixTable .perm-delete.perm-check-' + mid);
+            if (action === 'view' && !checked) {
+                if (aCb) aCb.checked = false;
+                if (eCb) eCb.checked = false;
+                if (dCb) dCb.checked = false;
+            } else if (action !== 'view' && checked && vCb) {
+                vCb.checked = true;
+            }
+        }
+    });
     syncMatrixHeaderCheckboxes();
 }
 
@@ -1035,11 +1068,40 @@ function setEditRoleAll(checked) {
     syncEditRoleHeaderCheckboxes();
 }
 
+function onEditRolePermCheckboxChange(mid, act, checked) {
+    const vCb = document.getElementById('edit_m_view_' + mid);
+    const aCb = document.getElementById('edit_m_add_' + mid);
+    const eCb = document.getElementById('edit_m_edit_' + mid);
+    const dCb = document.getElementById('edit_m_delete_' + mid);
+    if (act === 'view' && !checked) {
+        if (aCb) aCb.checked = false;
+        if (eCb) eCb.checked = false;
+        if (dCb) dCb.checked = false;
+    } else if (act !== 'view' && checked && vCb) {
+        vCb.checked = true;
+    }
+    syncEditRoleHeaderCheckboxes();
+}
+
 function setEditRoleColumn(action, checked) {
     document.querySelectorAll('.edit-matrix-perm-' + action).forEach(cb => {
         const tr = cb.closest('tr');
         if (tr && tr.style.display !== 'none') {
             cb.checked = checked;
+            const mid = tr.id ? tr.id.replace('edit_role_row_', '') : null;
+            if (mid) {
+                const vCb = document.getElementById('edit_m_view_' + mid);
+                const aCb = document.getElementById('edit_m_add_' + mid);
+                const eCb = document.getElementById('edit_m_edit_' + mid);
+                const dCb = document.getElementById('edit_m_delete_' + mid);
+                if (action === 'view' && !checked) {
+                    if (aCb) aCb.checked = false;
+                    if (eCb) eCb.checked = false;
+                    if (dCb) dCb.checked = false;
+                } else if (action !== 'view' && checked && vCb) {
+                    vCb.checked = true;
+                }
+            }
         }
     });
     syncEditRoleHeaderCheckboxes();
@@ -1308,16 +1370,16 @@ function filterViewRoleModules(val) {
                                             </div>
                                         </td>
                                         <td class="text-center py-1.5">
-                                            <input type="checkbox" name="perms[<?= $mid ?>][view]" value="1" id="edit_m_view_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-view" onchange="syncEditRoleHeaderCheckboxes()">
+                                            <input type="checkbox" name="perms[<?= $mid ?>][view]" value="1" id="edit_m_view_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-view" onchange="onEditRolePermCheckboxChange(<?= $mid ?>, 'view', this.checked)">
                                         </td>
                                         <td class="text-center py-1.5">
-                                            <input type="checkbox" name="perms[<?= $mid ?>][add]" value="1" id="edit_m_add_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-add" onchange="syncEditRoleHeaderCheckboxes()">
+                                            <input type="checkbox" name="perms[<?= $mid ?>][add]" value="1" id="edit_m_add_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-add" onchange="onEditRolePermCheckboxChange(<?= $mid ?>, 'add', this.checked)">
                                         </td>
                                         <td class="text-center py-1.5">
-                                            <input type="checkbox" name="perms[<?= $mid ?>][edit]" value="1" id="edit_m_edit_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-edit" onchange="syncEditRoleHeaderCheckboxes()">
+                                            <input type="checkbox" name="perms[<?= $mid ?>][edit]" value="1" id="edit_m_edit_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-edit" onchange="onEditRolePermCheckboxChange(<?= $mid ?>, 'edit', this.checked)">
                                         </td>
                                         <td class="text-center py-1.5">
-                                            <input type="checkbox" name="perms[<?= $mid ?>][delete]" value="1" id="edit_m_delete_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-delete" onchange="syncEditRoleHeaderCheckboxes()">
+                                            <input type="checkbox" name="perms[<?= $mid ?>][delete]" value="1" id="edit_m_delete_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-delete" onchange="onEditRolePermCheckboxChange(<?= $mid ?>, 'delete', this.checked)">
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
