@@ -3618,6 +3618,9 @@ class ProductionController extends Controller {
                        c.name AS catalog_name, c.style_code AS catalog_code,
                        COALESCE(cl.cutting_master_name, cm.name) AS master_name,
                        con.name AS concern_name,
+                       dcon.name AS destination_concern_name,
+                       dcon.code AS destination_concern_code,
+                       ow.outward_no AS outward_no,
                        (SELECT COUNT(*) FROM cutting_items WHERE cutting_id = cl.id) AS variant_count,
                        (SELECT COALESCE(SUM(cut_pieces), 0) FROM cutting_items WHERE cutting_id = cl.id) AS total_cut_pieces_sum,
                        (SELECT COUNT(DISTINCT program_roll_id) FROM cutting_items WHERE cutting_id = cl.id) AS rolls_used_count
@@ -3627,7 +3630,9 @@ class ProductionController extends Controller {
                     AND c.source_module = 'production_catalog'
                     AND (c.concern_id = pp.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                 LEFT JOIN cutting_masters cm ON cl.cutting_master_id = cm.id
-                LEFT JOIN concerns con ON cl.concern_id = con.id";
+                LEFT JOIN concerns con ON cl.concern_id = con.id
+                LEFT JOIN concerns dcon ON cl.destination_concern_id = dcon.id
+                LEFT JOIN outwards ow ON cl.outward_id = ow.id";
         $params = [];
         if ($cid) {
             $sql .= " WHERE cl.concern_id = ?";
@@ -3839,6 +3844,8 @@ class ProductionController extends Controller {
 
             DB::commit();
             $this->flash('success', "Cutting batch {$batchNo} outwarded ({$outwardNo}) to {$destConcern['name']}. It is now in their Inward module.");
+            $this->redirect('/production/cutting?tab=outward');
+            return;
         } catch (\Throwable $e) {
             if (DB::pdo()->inTransaction()) {
                 DB::rollBack();
