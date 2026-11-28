@@ -4466,9 +4466,12 @@ class ProductionController extends Controller {
         }
 
         $batch = DB::fetch(
-            "SELECT cl.*, pp.program_no, pp.program_name, cm.name AS master_name, con.name AS concern_name
+            "SELECT cl.*, pp.program_no, pp.program_name, pp.catalog_id AS program_catalog_id,
+                    pc.style_code AS program_catalog_code, pc.name AS program_catalog_name, pc.hierarchy_path AS program_catalog_hierarchy,
+                    cm.name AS master_name, con.name AS concern_name
              FROM cutting_logs cl
              LEFT JOIN production_programs pp ON cl.program_id = pp.id
+             LEFT JOIN catalogs pc ON pp.catalog_id = pc.id
              LEFT JOIN cutting_masters cm ON cl.cutting_master_id = cm.id
              LEFT JOIN concerns con ON cl.concern_id = con.id
              WHERE cl.id = ?" . ($cid ? " AND cl.concern_id = ?" : ""),
@@ -4481,13 +4484,39 @@ class ProductionController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT ci.*, pr.roll_piece_tag, pr.fabric_name, pr.color 
+            "SELECT ci.*, pr.roll_piece_tag, pr.fabric_name, pr.color,
+                    cat.id AS catalog_id, cat.style_code AS catalog_style_code, cat.name AS catalog_name,
+                    cat.hierarchy_path AS catalog_hierarchy
              FROM cutting_items ci
              LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
+             LEFT JOIN variants v ON ci.variant_id = v.id
+             LEFT JOIN catalogs cat ON cat.id = COALESCE(NULLIF(pr.catalog_id, 0), v.catalog_id)
              WHERE ci.cutting_id = ?
              ORDER BY ci.program_roll_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
             [$id]
         );
+
+        $batchCatalogs = [];
+        foreach ($items as $it) {
+            $catIdKey = (int)($it['catalog_id'] ?? 0);
+            if ($catIdKey > 0 && !isset($batchCatalogs[$catIdKey])) {
+                $batchCatalogs[$catIdKey] = [
+                    'id'         => $catIdKey,
+                    'style_code' => $it['catalog_style_code'] ?? '',
+                    'name'       => $it['catalog_name'] ?? '',
+                    'hierarchy'  => $it['catalog_hierarchy'] ?? '',
+                ];
+            }
+        }
+        if (empty($batchCatalogs) && !empty($batch['program_catalog_name'])) {
+            $batchCatalogs[] = [
+                'id'         => (int)($batch['program_catalog_id'] ?? 0),
+                'style_code' => $batch['program_catalog_code'] ?? '',
+                'name'       => $batch['program_catalog_name'] ?? '',
+                'hierarchy'  => $batch['program_catalog_hierarchy'] ?? '',
+            ];
+        }
+        $batchCatalogs = array_values($batchCatalogs);
 
         $sales = DB::fetchAll(
             "SELECT * FROM cutting_wastage_sales WHERE cutting_id = ? ORDER BY id DESC",
@@ -4498,6 +4527,7 @@ class ProductionController extends Controller {
             'pageTitle'     => 'Cutting Batch: ' . ($batch['batch_no'] ?: $batch['log_no']),
             'currentModule' => 'cutting_wastage',
             'batch'         => $batch,
+            'batchCatalogs' => $batchCatalogs,
             'items'         => $items,
             'sales'         => $sales,
             'selectedCid'   => $cid,
