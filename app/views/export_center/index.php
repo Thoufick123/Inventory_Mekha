@@ -156,6 +156,7 @@ $years = range($currentYear - 3, $currentYear + 1);
 
     <!-- Main Configure Export Dataset Form -->
     <form method="POST" action="<?= \App\Core\Controller::url($basePath . '/download') ?>" id="exportCenterForm">
+        <?= \App\Core\Csrf::field() ?>
         <input type="hidden" name="format" id="exportFormatInput" value="csv">
         <input type="hidden" name="period_mode" id="periodModeInput" value="<?= htmlspecialchars($dateRange['mode']) ?>">
 
