@@ -11,36 +11,33 @@ foreach ($batchItems as $qcBatchItem) {
     $qcReworkTotal += (int)($qcBatchItem['qc_rework_qty'] ?? 0);
 }
 ?>
-<div class="container-fluid px-3 py-2">
-    <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb small text-muted mb-0">
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="text-decoration-none text-muted">Home</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog') ?>" class="text-decoration-none text-muted">Production</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="text-decoration-none text-muted">QC Inspections</a></li>
-            <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page"><?= $savedQc ? 'QC Inspection Review' : 'New QC Inspection Batch' ?></li>
-        </ol>
-    </nav>
-
-    <!-- Page Title Bar -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-        <div>
-            <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
-                <span class="d-inline-flex align-items-center justify-content-center text-danger" style="width: 28px; height: 28px; border: 2px solid #ef4444; border-radius: 50%; font-size: 0.95rem;">
-                    <i class="bi bi-patch-check"></i>
-                </span>
-                <?= $savedQc ? 'QC Inspection Review' : 'Initialize QC Inspection Batch' ?>
-            </h4>
-            <?php if ($savedQc): ?>
-            <p class="text-secondary small mb-0">Review the scanner verdicts before adding passed pieces to stock</p>
-            <?php endif; ?>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary px-3 py-2 rounded-3 text-decoration-none">
-                <i class="bi bi-arrow-left me-1"></i> Back to QC List
-            </a>
-        </div>
-    </div>
+<style>
+.qc-create-table-format {
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.qc-create-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.qc-create-table-format tbody td {
+    padding: 0.55rem 0.75rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.qc-create-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
+<div class="container-fluid px-3 pt-1 pb-3">
 
     <form action="<?= \App\Core\Controller::url('/production/qc/store') ?>" method="POST" id="formQcCreate">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -119,13 +116,8 @@ foreach ($batchItems as $qcBatchItem) {
                                     <?= (int)($selectedBatch['total_pieces'] ?? 0) ?> Stitched Pcs
                                 </span>
                             </div>
-                            <div class="small fw-bold text-dark mb-1" id="lblProgramName">
+                            <div class="small fw-bold text-dark mb-0" id="lblProgramName">
                                 <?= htmlspecialchars(($selectedBatch['program_no'] ?? 'PRG') . ' — ' . ($selectedBatch['program_name'] ?? 'Production Program')) ?>
-                            </div>
-                            <div class="text-muted small">
-                                <?= $savedQc
-                                    ? 'QC ' . htmlspecialchars($savedQc['qc_no']) . ' is saved. Add approved pieces to stock only after reviewing the verdict totals.'
-                                    : 'Scan and mark every garment first. Passed pieces are added to stock only after inspection is saved.' ?>
                             </div>
                         </div>
 
@@ -138,27 +130,32 @@ foreach ($batchItems as $qcBatchItem) {
             <!-- ========================================== -->
             <div class="col-lg-7">
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center gap-2">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-grid-3x3-gap text-primary"></i>
                             <h6 class="mb-0 fw-bold text-dark"><?= $savedQc ? 'Saved Inspection Verdicts' : 'Items Ready for Inspection' ?></h6>
                         </div>
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="badgeCatalogCount">
-                            <?= count(array_unique(array_filter(array_column($batchItems, 'catalog_name')))) ?: 1 ?> Catalog(s)
-                        </span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="badgeCatalogCount">
+                                <?= count(array_unique(array_filter(array_column($batchItems, 'catalog_name')))) ?: 1 ?> Catalog(s)
+                            </span>
+                            <a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="btn btn-outline-secondary btn-sm text-decoration-none text-nowrap">
+                                <i class="bi bi-arrow-left me-1"></i> Back to QC List
+                            </a>
+                        </div>
                     </div>
 
                     <div class="card-body p-0">
                         <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0" id="tableQcItems">
-                                <thead class="table-light text-uppercase small text-secondary" style="font-size:0.75rem;">
+                            <table class="table table-bordered table-striped table-hover align-middle mb-0 qc-create-table-format" id="tableQcItems">
+                                <thead>
                                     <tr>
-                                        <th class="ps-3 py-2.5">Catalog & Variant Attribute</th>
-                                        <th class="text-center py-2.5" style="width: 100px;">Total Qty</th>
-                                        <th class="text-center py-2.5" style="width: 100px;">Passed (Pcs)</th>
-                                        <th class="text-center py-2.5" style="width: 100px;">Rejected</th>
-                                        <th class="text-center py-2.5" style="width: 100px;">Rework</th>
-                                        <th class="text-center pe-3 py-2.5" style="width: 130px;">Defect / Notes</th>
+                                        <th>Catalog &amp; Variant</th>
+                                        <th class="text-center">Total Qty</th>
+                                        <th class="text-center">Passed</th>
+                                        <th class="text-center">Rejected</th>
+                                        <th class="text-center">Rework</th>
+                                        <th class="text-center">Defect / Notes</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tbodyQcItems">
