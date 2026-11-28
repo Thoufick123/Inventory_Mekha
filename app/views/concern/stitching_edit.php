@@ -685,7 +685,7 @@ function openStitchingVariantModalFromRow(btn) {
     const defQty = parseInt(btn.getAttribute('data-default-qty'), 10) || 1;
     const qtyEl = row ? row.querySelector('.input-stitch-qty') : null;
     const q = Math.max(1, parseInt(qtyEl ? qtyEl.value : defQty, 10) || defQty || 1);
-    openStitchingVariantLabelModal(itemId, name, 'Product Code: ' + code + ' • stitched qty ' + q, q);
+    openStitchingVariantLabelModal(itemId, name, q + ' pcs', q);
 }
 
 function openStitchingBatchModalFromEditTable(batchId) {

@@ -168,7 +168,7 @@
                                     <td class="text-center">
                                         <button type="button" class="btn btn-sm btn-outline-dark text-nowrap"
                                                 title="Print Labels for this Variant"
-                                                onclick='openStitchingVariantLabelModal(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($varLabel), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode('Product Code: ' . ($it['product_code'] ?: '-') . ' • stitched qty ' . max(1, (int)$it['stitching_qty'])), ENT_QUOTES) ?>, <?= max(1, (int)$it['stitching_qty']) ?>)'>
+                                                onclick='openStitchingVariantLabelModal(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($varLabel), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode(max(1, (int)$it['stitching_qty']) . ' pcs'), ENT_QUOTES) ?>, <?= max(1, (int)$it['stitching_qty']) ?>)'>
                                             <i class="bi bi-printer me-1"></i>Print
                                         </button>
                                     </td>

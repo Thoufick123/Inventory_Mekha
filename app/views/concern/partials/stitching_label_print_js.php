@@ -13,7 +13,7 @@
                             <tr>
                                 <th class="text-center py-2" style="width: 45px;">#</th>
                                 <th class="py-2">Selected Line</th>
-                                <th class="py-2">Product Code &amp; Qty</th>
+                                <th class="text-center py-2" style="width: 120px;">Stitched Qty</th>
                                 <th class="text-center py-2" style="width: 120px;">Copies</th>
                             </tr>
                         </thead>
@@ -81,7 +81,7 @@
                 <tr>
                     <td class="text-center text-muted small fw-semibold">${idx + 1}</td>
                     <td class="fw-semibold text-dark text-nowrap">${escapeHtml(row.name)}</td>
-                    <td class="text-muted small text-nowrap font-monospace">${escapeHtml(row.subtitle)}</td>
+                    <td class="text-center text-dark small text-nowrap font-monospace">${escapeHtml(row.subtitle)}</td>
                     <td class="text-center">
                         <input type="number"
                                min="${config.mode === 'batch' ? 0 : 1}"
@@ -150,14 +150,15 @@
     window.openStitchingVariantLabelModal = function(itemId, name, subtitle, defaultQty) {
         const id = parseInt(itemId, 10) || 0;
         if (id <= 0) return;
+        const q = Math.max(1, parseInt(defaultQty, 10) || 1);
         openCountModal({
             mode: 'variant',
             itemId: id,
             rows: [{
                 itemId: id,
                 name: name || 'Variant',
-                subtitle: subtitle || ('print count / stitched qty ' + (parseInt(defaultQty, 10) || 1)),
-                qty: Math.max(1, parseInt(defaultQty, 10) || 1)
+                subtitle: q + ' pcs',
+                qty: q
             }]
         });
     };
@@ -170,7 +171,7 @@
             return {
                 itemId: it.id,
                 name: it.name || 'Variant',
-                subtitle: (it.product_code ? ('Product Code: ' + it.product_code + ' • ') : '') + 'stitched qty ' + q,
+                subtitle: q + ' pcs',
                 qty: q
             };
         });
