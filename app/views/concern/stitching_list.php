@@ -31,24 +31,10 @@
     background-color: #f8fafc;
 }
 </style>
-<div class="container-fluid px-4 py-3">
-
-    <!-- TOP ACTIONS BAR -->
-    <div class="d-flex justify-content-end align-items-center gap-2 mb-3">
-        <?php if (\App\Core\Auth::can('stitching_wastage', 'add')): ?>
-        <button class="btn btn-sm btn-outline-danger shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap py-1.5 px-3" 
-                data-bs-toggle="modal" data-bs-target="#modalSellStitchingWastage">
-            <i class="bi bi-recycle"></i> Record Scrap Sale
-        </button>
-        <a href="<?= \App\Core\Controller::url('/production/stitching/create') ?>" 
-           class="btn btn-sm btn-primary shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap py-1.5 px-3">
-            <i class="bi bi-plus-circle"></i> New Stitching Batch
-        </a>
-        <?php endif; ?>
-    </div>
+<div class="container-fluid px-3 pt-1 pb-3">
 
     <!-- SUMMARY METRICS CARDS -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-3">
         <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
                 <div class="text-muted small fw-semibold text-uppercase">Total Batches</div>
@@ -99,23 +85,35 @@
 
     <!-- TABS NAVIGATION -->
     <div class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-header bg-white border-bottom px-4 pt-3 pb-0">
-            <ul class="nav nav-tabs card-header-tabs" id="stitchingTabs" role="tablist">
+        <div class="card-header bg-white border-bottom px-4 pt-2 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <ul class="nav nav-tabs card-header-tabs mb-0" id="stitchingTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?= ($tab !== 'wastage') ? 'active fw-bold text-primary' : 'text-secondary' ?> py-3 px-3 d-flex align-items-center gap-2" 
+                    <button class="nav-link <?= ($tab !== 'wastage') ? 'active fw-bold text-primary' : 'text-secondary' ?> py-2.5 px-3 d-flex align-items-center gap-2" 
                             id="batches-tab" data-bs-toggle="tab" data-bs-target="#tab-batches" type="button" role="tab">
                         <i class="bi bi-stack"></i> Stitching Batches
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill"><?= count($batches) ?></span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?= ($tab === 'wastage') ? 'active fw-bold text-danger' : 'text-secondary' ?> py-3 px-3 d-flex align-items-center gap-2" 
+                    <button class="nav-link <?= ($tab === 'wastage') ? 'active fw-bold text-danger' : 'text-secondary' ?> py-2.5 px-3 d-flex align-items-center gap-2" 
                             id="wastage-tab" data-bs-toggle="tab" data-bs-target="#tab-wastage" type="button" role="tab">
                         <i class="bi bi-recycle"></i> Wastage Selling Register
                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill"><?= count($wastageSales) ?></span>
                     </button>
                 </li>
             </ul>
+            <?php if (\App\Core\Auth::can('stitching_wastage', 'add')): ?>
+            <div class="d-flex align-items-center gap-2 pb-2">
+                <button class="btn btn-sm btn-outline-danger shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap" 
+                        data-bs-toggle="modal" data-bs-target="#modalSellStitchingWastage">
+                    <i class="bi bi-recycle"></i> Record Scrap Sale
+                </button>
+                <a href="<?= \App\Core\Controller::url('/production/stitching/create') ?>" 
+                   class="btn btn-sm btn-primary shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap">
+                    <i class="bi bi-plus-circle"></i> New Stitching Batch
+                </a>
+            </div>
+            <?php endif; ?>
         </div>
 
         <div class="card-body p-4">
