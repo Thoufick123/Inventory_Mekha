@@ -45,45 +45,45 @@
     ?>
 
     <!-- TOP BAR: TABS & ACTIONS -->
-    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4 border-bottom pb-3">
-        <ul class="nav nav-pills gap-2 mb-0">
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3 border-bottom pb-2 flex-wrap flex-xxl-nowrap">
+        <ul class="nav nav-pills bg-light p-1 rounded-3 border gap-1 mb-0 flex-nowrap">
             <li class="nav-item">
-                <a class="nav-link <?= ($activeTab !== 'wastage' && $activeTab !== 'outward') ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
+                <a class="nav-link py-1.5 px-2.5 rounded-2 small text-nowrap <?= ($activeTab !== 'wastage' && $activeTab !== 'outward') ? 'active shadow-sm' : 'text-secondary' ?> fw-semibold d-inline-flex align-items-center gap-1.5" 
                    href="<?= \App\Core\Controller::url('/production/cutting?tab=batches') ?>">
                     <i class="bi bi-collection"></i> Cutting Batches
-                    <span class="badge bg-light text-dark border ms-1"><?= count($batches) ?></span>
+                    <span class="badge bg-white text-dark border ms-1"><?= count($batches) ?></span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <?= $activeTab === 'wastage' ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
+                <a class="nav-link py-1.5 px-2.5 rounded-2 small text-nowrap <?= $activeTab === 'wastage' ? 'active shadow-sm' : 'text-secondary' ?> fw-semibold d-inline-flex align-items-center gap-1.5" 
                    href="<?= \App\Core\Controller::url('/production/cutting?tab=wastage') ?>">
-                    <i class="bi bi-cash-stack"></i> Wastage Selling & Scrap Sales
-                    <span class="badge bg-light text-dark border ms-1"><?= count($scrapSales) ?></span>
+                    <i class="bi bi-cash-stack"></i> Wastage &amp; Scrap
+                    <span class="badge bg-white text-dark border ms-1"><?= count($scrapSales) ?></span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <?= $activeTab === 'outward' ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
+                <a class="nav-link py-1.5 px-2.5 rounded-2 small text-nowrap <?= $activeTab === 'outward' ? 'active shadow-sm' : 'text-secondary' ?> fw-semibold d-inline-flex align-items-center gap-1.5" 
                    href="<?= \App\Core\Controller::url('/production/cutting?tab=outward') ?>">
                     <i class="bi bi-send"></i> Cutting Outward
-                    <span class="badge bg-light text-dark border ms-1"><?= count($outwardedBatches) ?></span>
+                    <span class="badge bg-white text-dark border ms-1"><?= count($outwardedBatches) ?></span>
                 </a>
             </li>
         </ul>
 
-        <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="d-flex align-items-center gap-2 flex-nowrap">
             <?php if (\App\Core\Auth::can('cutting_wastage', 'edit') || \App\Core\Auth::can('cutting_wastage', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/production/cutting?tab=outward') ?>"
-               class="btn btn-success shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold">
+               class="btn btn-sm btn-success shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap py-1.5 px-2.5">
                 <i class="bi bi-send"></i> Cutting Outward
             </a>
             <?php endif; ?>
             <?php if (\App\Core\Auth::can('cutting_wastage', 'add')): ?>
-            <button class="btn btn-outline-danger shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold" 
+            <button class="btn btn-sm btn-outline-danger shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap py-1.5 px-2.5" 
                     data-bs-toggle="modal" data-bs-target="#modalSellWastage">
                 <i class="bi bi-recycle"></i> Record Scrap Sale
             </button>
             <a href="<?= \App\Core\Controller::url('/production/cutting/create') ?>" 
-               class="btn btn-primary shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold">
+               class="btn btn-sm btn-primary shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap py-1.5 px-2.5">
                 <i class="bi bi-plus-circle"></i> New Cutting Batch
             </a>
             <?php endif; ?>
