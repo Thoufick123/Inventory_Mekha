@@ -163,10 +163,6 @@ class ExportCenterService {
                 'description' => 'Stitching batches, tailor assignments, stitched pieces & variance.',
                 'table' => 'stitching_logs', 'date_col' => 'created_at', 'is_datetime' => true, 'unit_col' => null,
             ],
-            'label_generation' => [
-                'description' => 'QR & barcode label generation jobs across products & batches.',
-                'table' => 'label_jobs', 'date_col' => 'created_at', 'is_datetime' => true, 'unit_col' => null,
-            ],
             'qc_stocks' => [
                 'description' => 'QC inspections: inspected, passed, rework & rejected piece counts.',
                 'table' => 'qc_inspections', 'date_col' => 'created_at', 'is_datetime' => true, 'unit_col' => null,
@@ -187,10 +183,6 @@ class ExportCenterService {
                 'description' => 'Customer returns, exchanges, returned quantities & reasons.',
                 'table' => 'returns_exchanges', 'date_col' => 'return_date', 'is_datetime' => false, 'unit_col' => null,
             ],
-            'customers' => [
-                'description' => 'Registered retail & B2B customers with phone, email & GSTIN.',
-                'table' => 'customers', 'date_col' => 'created_at', 'is_datetime' => true, 'unit_col' => null,
-            ],
             'billing' => [
                 'description' => 'POS & B2B sales invoices, discounts, GST tax & net totals.',
                 'table' => 'sales_invoices', 'date_col' => 'invoice_date', 'is_datetime' => false, 'unit_col' => null,
@@ -198,6 +190,10 @@ class ExportCenterService {
             'request' => [
                 'description' => 'Stock transfer requests, requested/dispatched/received quantities.',
                 'table' => 'production_stock_requests', 'date_col' => 'created_at', 'is_datetime' => true, 'unit_col' => null,
+            ],
+            'coupons' => [
+                'description' => 'POS discount coupons, discount values, usage limits, expiry & status.',
+                'table' => 'pos_coupons', 'date_col' => 'created_at', 'is_datetime' => true, 'unit_col' => null,
             ],
             'outward' => [
                 'description' => 'Inter-concern & warehouse dispatches, boxes, vehicles & status.',
@@ -264,6 +260,20 @@ class ExportCenterService {
                 'is_datetime' => $spec['is_datetime'],
                 'unit_col'    => $spec['unit_col'],
             ];
+            if ($code === 'request') {
+                $cSpec = $specs['coupons'];
+                $grouped[$group][] = [
+                    'key'         => 'coupons',
+                    'title'       => 'Coupons',
+                    'description' => $cSpec['description'],
+                    'icon'        => 'bi-ticket-perforated',
+                    'module_code' => 'coupons',
+                    'table'       => $cSpec['table'],
+                    'date_col'    => $cSpec['date_col'],
+                    'is_datetime' => $cSpec['is_datetime'],
+                    'unit_col'    => $cSpec['unit_col'],
+                ];
+            }
         }
 
         return $grouped;
@@ -345,6 +355,10 @@ class ExportCenterService {
                         $p = $concernIds;
                     }
                     $counts[$key] = (int)DB::fetchValue("SELECT COUNT(*) FROM stocks $w", $p);
+                } elseif ($key === 'coupons') {
+                    CouponService::ensureSchema();
+                    [$w, $p] = self::buildWhere('concern_id', 'created_at', true, $startDate, $endDate, $concernIds);
+                    $counts[$key] = (int)DB::fetchValue("SELECT COUNT(*) FROM pos_coupons $w", $p);
                 } else {
                     [$w, $p] = self::buildWhere(
                         'concern_id',
@@ -449,15 +463,6 @@ class ExportCenterService {
                 );
                 return ['title' => $def['title'], 'headers' => ['Log No', 'Batch No', 'Stitching Name', 'Concern', 'Tailor', 'Cut Pcs', 'Stitched Pcs', 'Wastage Pcs', 'Status', 'Created At'], 'rows' => $rows];
 
-            case 'label_generation':
-                [$w, $p] = self::buildWhere('lj.concern_id', 'lj.created_at', true, $startDate, $endDate, $concernIds);
-                $rows = DB::fetchAll(
-                    "SELECT lj.id, c.name AS concern, lj.label_type, lj.source_module, lj.item_title, lj.item_code, lj.qty, lj.created_at
-                     FROM label_jobs lj LEFT JOIN concerns c ON lj.concern_id = c.id $w ORDER BY lj.id DESC",
-                    $p
-                );
-                return ['title' => $def['title'], 'headers' => ['Job ID', 'Concern', 'Label Type', 'Source', 'Item Title', 'Item Code', 'Qty', 'Created At'], 'rows' => $rows];
-
             case 'qc_stocks':
                 [$w, $p] = self::buildWhere('qc.concern_id', 'qc.created_at', true, $startDate, $endDate, $concernIds);
                 $rows = DB::fetchAll(
@@ -515,14 +520,15 @@ class ExportCenterService {
                 );
                 return ['title' => $def['title'], 'headers' => ['Return No', 'Date', 'Concern', 'Type', 'Returned Qty', 'Exchange Qty', 'Reason', 'Created At'], 'rows' => $rows];
 
-            case 'customers':
-                [$w, $p] = self::buildWhere('cu.concern_id', 'cu.created_at', true, $startDate, $endDate, $concernIds);
+            case 'coupons':
+                CouponService::ensureSchema();
+                [$w, $p] = self::buildWhere('pc.concern_id', 'pc.created_at', true, $startDate, $endDate, $concernIds);
                 $rows = DB::fetchAll(
-                    "SELECT cu.name, c.name AS concern, cu.phone, cu.email, cu.gstin, cu.address, cu.created_at
-                     FROM customers cu LEFT JOIN concerns c ON cu.concern_id = c.id $w ORDER BY cu.name ASC",
+                    "SELECT pc.code, pc.title, c.name AS concern, pc.discount_type, pc.discount_value, pc.min_redemption_amount, pc.max_uses, pc.used_count, pc.expires_at, pc.status, pc.created_at
+                     FROM pos_coupons pc LEFT JOIN concerns c ON pc.concern_id = c.id $w ORDER BY pc.id DESC",
                     $p
                 );
-                return ['title' => $def['title'], 'headers' => ['Customer Name', 'Concern', 'Phone', 'Email', 'GSTIN', 'Address', 'Created At'], 'rows' => $rows];
+                return ['title' => $def['title'], 'headers' => ['Coupon Code', 'Title', 'Concern', 'Discount Type', 'Discount Value', 'Min Redemption', 'Max Uses', 'Used Count', 'Expires At', 'Status', 'Created At'], 'rows' => $rows];
 
             case 'billing':
                 [$w, $p] = self::buildWhere('si.concern_id', 'si.invoice_date', false, $startDate, $endDate, $concernIds);
