@@ -67,7 +67,7 @@ class ExportCenterService {
                 "SELECT DISTINCT m.code
                  FROM concern_modules cm
                  JOIN modules m ON cm.module_id = m.id
-                 WHERE cm.is_enabled = 1 AND cm.concern_id IN ($ph)",
+                 WHERE cm.enabled = 1 AND cm.concern_id IN ($ph)",
                 $targetCids
             );
             $enabledCodes = array_column($rows, 'code');
