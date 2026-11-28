@@ -2,34 +2,33 @@
 // app/views/concern/qc_stocks.php
 // Quality Control (QC) Inspections Register (Matches Image 1: /production/qc)
 ?>
-<div class="container-fluid px-3 py-2">
-    <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb small text-muted mb-0">
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="text-decoration-none text-muted">Home</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog') ?>" class="text-decoration-none text-muted">Production</a></li>
-            <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page">QC Inspections</li>
-        </ol>
-    </nav>
-
-    <!-- Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-        <div>
-            <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
-                <span class="d-inline-flex align-items-center justify-content-center text-danger" style="width: 28px; height: 28px; border: 2px solid #ef4444; border-radius: 50%; font-size: 0.95rem;">
-                    <i class="bi bi-patch-check"></i>
-                </span>
-                Quality Control (QC) Inspections
-            </h4>
-            <p class="text-secondary small mb-0">Multi-checkpoint inspection (stitching, fabric, color, size, trims) & finished goods approval</p>
-        </div>
-        <?php if (\App\Core\Auth::can('qc_stocks', 'create')): ?>
-        <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>" class="btn btn-primary px-3 py-2 fw-semibold shadow-sm rounded-3" style="background:#4f46e5; border-color:#4f46e5;">
-            <i class="bi bi-plus-circle me-1"></i> New QC Batch
-        </a>
-        <?php endif; ?>
-    </div>
-
+<style>
+.qc-table-format {
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.qc-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.qc-table-format tbody td {
+    padding: 0.55rem 0.75rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.qc-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
+<div class="container-fluid px-3 pt-1 pb-3">
     <!-- Export Toolbar Card -->
     <?php
     $exportTitle = 'Export Quality Control (QC) Inspections (Excel, PDF, CSV)';
@@ -40,8 +39,8 @@
     include dirname(__DIR__) . '/partials/export_card.php';
     ?>
 
-    <!-- Filter Card -->
-    <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <!-- Filter & Action Bar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3">
         <div class="card-body p-3">
             <form method="GET" action="<?= \App\Core\Controller::url('/production/qc') ?>" class="row g-2 align-items-end">
                 <div class="col-md-3">
@@ -54,7 +53,7 @@
                         <option value="COMPLETED" <?= ($statusFilter === 'COMPLETED') ? 'selected' : '' ?>>COMPLETED</option>
                     </select>
                 </div>
-                <div class="col-md-7">
+                <div class="col-md-5">
                     <label class="form-label small fw-semibold text-secondary mb-1">Search</label>
                     <input type="text" name="search" class="form-control form-control-sm" placeholder="QC #, Program #, Product name, Inspector..." value="<?= htmlspecialchars($search ?? '') ?>">
                 </div>
@@ -63,6 +62,13 @@
                         <i class="bi bi-funnel me-1"></i> Filter
                     </button>
                 </div>
+                <?php if (\App\Core\Auth::can('qc_stocks', 'create')): ?>
+                <div class="col-md-2">
+                    <a href="<?= \App\Core\Controller::url('/production/qc/create') ?>" class="btn btn-primary btn-sm w-100 fw-semibold shadow-xs text-nowrap" style="background:#4f46e5; border-color:#4f46e5;">
+                        <i class="bi bi-plus-circle me-1"></i> New QC Batch
+                    </a>
+                </div>
+                <?php endif; ?>
             </form>
         </div>
     </div>
@@ -70,20 +76,20 @@
     <!-- Inspections Table Card -->
     <div class="card border-0 shadow-sm rounded-3">
         <div class="table-responsive">
-            <table class="table align-middle mb-0" style="font-size: 0.875rem;">
-                <thead class="table-light text-muted text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+            <table class="table table-bordered table-striped table-hover align-middle mb-0 qc-table-format">
+                <thead>
                     <tr>
-                        <th style="width: 14%;">QC BATCH ID</th>
-                        <th style="width: 15%;">PROGRAM</th>
-                        <th style="width: 18%;">PRODUCT</th>
-                        <th style="width: 14%;">INSPECTOR</th>
-                        <th style="width: 9%;">INSPECTED</th>
-                        <th style="width: 8%;">PASSED</th>
-                        <th style="width: 8%;">REJECTED</th>
-                        <th style="width: 7%;">REWORK</th>
-                        <th style="width: 11%;">STOCK</th>
-                        <th style="width: 8%;">STATUS</th>
-                        <th style="width: 11%;" class="text-center">ACTIONS</th>
+                        <th>QC Batch ID</th>
+                        <th>Program</th>
+                        <th>Product</th>
+                        <th>Inspector</th>
+                        <th class="text-end">Inspected</th>
+                        <th class="text-end">Passed</th>
+                        <th class="text-end">Rejected</th>
+                        <th class="text-end">Rework</th>
+                        <th>Stock</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -110,61 +116,61 @@
                             $rejectedQty = (float)($qc['live_rejected_qty'] ?? ($qc['rejected_qty'] ?? 0));
                             $passedQty = (float)($qc['live_passed_qty'] ?? ($qc['passed_qty'] ?? 0));
                             $inspectedQty = (float)($qc['live_inspected_qty'] ?? ($qc['inspected_qty'] ?? ($passedQty + $reworkQty + $rejectedQty)));
+                            $qcDateStr = !empty($qc['created_at']) ? date('d M Y', strtotime($qc['created_at'])) : date('d M Y');
+                            $prodName = $qc['product_name'] ?? ($qc['variant_name'] ?? 'Production Garment');
+                            $prodTitle = $prodName . (!empty($qc['variant_count']) && $qc['variant_count'] > 1 ? ' (' . (int)$qc['variant_count'] . ' variants)' : (!empty($qc['product_code']) ? ' (' . $qc['product_code'] . ')' : ''));
                             ?>
-                            <tr class="border-bottom">
-                                <td class="py-3">
-                                    <div class="fw-bold text-dark fs-6 font-monospace"><?= htmlspecialchars($qc['qc_no']) ?></div>
-                                    <small class="text-muted" style="font-size: 0.75rem;"><?= !empty($qc['created_at']) ? date('d M Y', strtotime($qc['created_at'])) : date('d M Y') ?></small>
+                            <tr>
+                                <td title="<?= htmlspecialchars($qcDateStr) ?>">
+                                    <span class="fw-bold text-dark font-monospace"><?= htmlspecialchars($qc['qc_no']) ?></span>
+                                    <span class="text-muted small ms-1">• <?= htmlspecialchars($qcDateStr) ?></span>
                                 </td>
-                                <td class="py-3">
+                                <td title="<?= htmlspecialchars($qc['stitching_batch_no'] ?? '') ?>">
                                     <span class="fw-semibold text-primary font-monospace"><?= htmlspecialchars($qc['program_no'] ?? '-') ?></span>
-                                    <?php if (!empty($qc['stitching_batch_no'])): ?>
-                                        <div class="small text-muted font-monospace" style="font-size:0.7rem;"><?= htmlspecialchars($qc['stitching_batch_no']) ?></div>
-                                    <?php endif; ?>
                                 </td>
-                                <td class="py-3">
-                                    <div class="fw-bold text-dark"><?= htmlspecialchars($qc['product_name'] ?? ($qc['variant_name'] ?? 'Production Garment')) ?></div>
-                                    <?php if (!empty($qc['variant_count']) && $qc['variant_count'] > 1): ?>
-                                        <span class="badge bg-light text-secondary border" style="font-size:0.7rem;"><?= (int)$qc['variant_count'] ?> variants in batch</span>
-                                    <?php elseif (!empty($qc['product_code'])): ?>
-                                        <small class="text-muted font-monospace" style="font-size: 0.72rem;"><?= htmlspecialchars($qc['product_code']) ?></small>
-                                    <?php endif; ?>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 220px;" title="<?= htmlspecialchars($prodTitle) ?>">
+                                        <span class="fw-semibold text-dark"><?= htmlspecialchars($prodName) ?></span>
+                                        <?php if (!empty($qc['variant_count']) && $qc['variant_count'] > 1): ?>
+                                            <span class="text-muted small ms-1">(<?= (int)$qc['variant_count'] ?>)</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
-                                <td class="py-3 text-secondary">
+                                <td class="text-secondary">
                                     <?= htmlspecialchars($qc['inspector_name'] ?? 'System Administrator') ?>
                                 </td>
-                                <td class="py-3">
-                                    <span class="fw-bold text-dark"><?= number_format($inspectedQty) ?> pcs</span>
+                                <td class="text-end fw-bold text-dark">
+                                    <?= number_format($inspectedQty) ?> pcs
                                 </td>
-                                <td class="py-3">
-                                    <span class="fw-bold text-success"><?= number_format($passedQty) ?> pcs</span>
+                                <td class="text-end fw-bold text-success">
+                                    <?= number_format($passedQty) ?> pcs
                                 </td>
-                                <td class="py-3">
-                                    <span class="fw-bold text-danger"><?= number_format($rejectedQty) ?> pcs</span>
+                                <td class="text-end fw-bold text-danger">
+                                    <?= number_format($rejectedQty) ?> pcs
                                 </td>
-                                <td class="py-3">
-                                    <span class="fw-bold" style="color: #f59e0b;"><?= number_format($reworkQty) ?> pcs</span>
+                                <td class="text-end fw-bold" style="color: #f59e0b;">
+                                    <?= number_format($reworkQty) ?> pcs
                                 </td>
-                                <td class="py-3">
+                                <td>
                                     <?php
                                     $qcStockedQty = (float)($qc['qc_stocked_qty'] ?? 0);
                                     $availStockQty = (float)($qc['available_stock_qty'] ?? 0);
                                     $isInStock = $availStockQty > 0 || $qcStockedQty > 0;
                                     ?>
-                                    <span class="badge <?= $isInStock ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border' ?>" style="font-size: 0.70rem;">
+                                    <span class="badge <?= $isInStock ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border' ?>" style="font-size: 0.72rem;">
                                         <?= $isInStock ? 'In Stock' : 'Not in Stock' ?>
                                     </span>
-                                    <div class="small text-muted mt-1 font-monospace" style="font-size: 0.72rem;">
-                                        Avail: <strong class="text-dark"><?= number_format($availStockQty) ?> pcs</strong>
-                                    </div>
+                                    <span class="text-muted small font-monospace ms-1">
+                                        (<?= number_format($availStockQty) ?>)
+                                    </span>
                                 </td>
-                                <td class="py-3">
+                                <td class="text-center">
                                     <span class="badge text-uppercase" style="background: <?= $statusBg ?>; color: <?= $statusColor ?>; font-weight: 700; border-radius: 4px; padding: 4px 8px; font-size: 0.72rem; letter-spacing: 0.04em;">
                                         <?= htmlspecialchars($st ?: 'PENDING') ?>
                                     </span>
                                 </td>
-                                <td class="py-3 text-center">
-                                    <div class="d-inline-flex align-items-center gap-1 justify-content-center">
+                                <td class="text-center">
+                                    <div class="d-inline-flex align-items-center gap-1 flex-nowrap justify-content-center">
                                         <!-- 1. View details link (cyan outline, opens /production/qc/details) -->
                                         <?php if (\App\Core\Auth::can('qc_stocks', 'view')): ?>
                                         <a href="<?= \App\Core\Controller::url('/production/qc/details?id=' . $qc['id']) ?>" class="btn btn-sm btn-outline-info rounded-2 p-1" style="width: 30px; height: 30px; border-color: #67e8f9; color: #0891b2; display:inline-flex; align-items:center; justify-content:center;" title="View Inspection Details (Record Details & Variant Table)">
