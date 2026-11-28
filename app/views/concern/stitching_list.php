@@ -5,39 +5,46 @@
  * Matches Image 2 (Stitching Wastage Selling Modal & Registry)
  */
 ?>
+<style>
+.stitching-table-format {
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.stitching-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.stitching-table-format tbody td {
+    padding: 0.55rem 0.75rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.stitching-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
 <div class="container-fluid px-4 py-3">
 
-    <!-- BREADCRUMBS -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb mb-0 small">
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="text-decoration-none text-muted">Home</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog') ?>" class="text-decoration-none text-muted">Production</a></li>
-            <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page">Stitching & Wastage</li>
-        </ol>
-    </nav>
-
-    <!-- HEADER & ACTIONS BAR -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
-                <i class="bi bi-stack text-primary"></i> Garment Stitching & Wastage Tracking
-            </h4>
-            <p class="text-secondary small mb-0">
-                Manage stitching production batches, tailor assignments, dynamic weights & pricing, and scrap liquidation.
-            </p>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <?php if (\App\Core\Auth::can('stitching_wastage', 'add')): ?>
-            <button class="btn btn-outline-danger shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold" 
-                    data-bs-toggle="modal" data-bs-target="#modalSellStitchingWastage">
-                <i class="bi bi-recycle"></i> Record Scrap Sale
-            </button>
-            <a href="<?= \App\Core\Controller::url('/production/stitching/create') ?>" 
-               class="btn btn-primary shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold">
-                <i class="bi bi-plus-circle"></i> New Stitching Batch
-            </a>
-            <?php endif; ?>
-        </div>
+    <!-- TOP ACTIONS BAR -->
+    <div class="d-flex justify-content-end align-items-center gap-2 mb-3">
+        <?php if (\App\Core\Auth::can('stitching_wastage', 'add')): ?>
+        <button class="btn btn-sm btn-outline-danger shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap py-1.5 px-3" 
+                data-bs-toggle="modal" data-bs-target="#modalSellStitchingWastage">
+            <i class="bi bi-recycle"></i> Record Scrap Sale
+        </button>
+        <a href="<?= \App\Core\Controller::url('/production/stitching/create') ?>" 
+           class="btn btn-sm btn-primary shadow-xs d-inline-flex align-items-center gap-1.5 fw-semibold text-nowrap py-1.5 px-3">
+            <i class="bi bi-plus-circle"></i> New Stitching Batch
+        </a>
+        <?php endif; ?>
     </div>
 
     <!-- SUMMARY METRICS CARDS -->
@@ -125,19 +132,19 @@
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" id="batchesTable">
-                            <thead class="table-light text-uppercase small text-secondary">
+                        <table class="table table-bordered table-striped table-hover align-middle mb-0 stitching-table-format" id="batchesTable">
+                            <thead>
                                 <tr>
-                                    <th class="ps-3 py-3">Batch Number</th>
-                                    <th class="py-3">Stitching Name</th>
-                                    <th class="py-3">Source Cutting Batch</th>
-                                    <th class="py-3">Tailor / Master</th>
-                                    <th class="text-center py-3">Cut Pcs</th>
-                                    <th class="text-center py-3">Stitched Pcs</th>
-                                    <th class="text-center py-3">Cut Wt</th>
-                                    <th class="text-center py-3">Stitch Wt</th>
-                                    <th class="text-center py-3">Created</th>
-                                    <th class="text-end pe-3 py-3">Actions</th>
+                                    <th>Batch Number</th>
+                                    <th>Stitching Name</th>
+                                    <th>Source Cutting Batch</th>
+                                    <th>Tailor / Master</th>
+                                    <th class="text-center">Cut Pcs</th>
+                                    <th class="text-center">Stitched Pcs</th>
+                                    <th class="text-end">Cut Wt</th>
+                                    <th class="text-end">Stitch Wt</th>
+                                    <th>Created</th>
+                                    <th class="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -149,55 +156,55 @@
                                         </td>
                                     </tr>
                                 <?php else: ?>
-                                    <?php foreach ($batches as $b): ?>
+                                    <?php foreach ($batches as $b):
+                                        $srcCutTitle = ($b['cutting_name'] ?: ($b['cutting_batch_no'] ?: 'Direct Entry')) . ($b['cutting_batch_no'] ? ' (' . $b['cutting_batch_no'] . ')' : '');
+                                    ?>
                                         <tr>
-                                            <td class="ps-3 py-3 fw-bold font-monospace text-dark">
+                                            <td class="fw-bold font-monospace">
                                                 <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" class="text-decoration-none text-primary" title="View Batch Details">
                                                     <?= htmlspecialchars($b['display_batch_no']) ?>
                                                 </a>
                                             </td>
-                                            <td class="py-3 fw-semibold text-dark text-uppercase">
+                                            <td class="fw-semibold text-dark text-uppercase">
                                                 <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" class="text-decoration-none text-dark" title="View Batch Details">
                                                     <?= htmlspecialchars($b['stitching_name'] ?: 'Stitching Batch') ?>
                                                 </a>
                                                 <?php if ($b['variant_count'] > 0): ?>
-                                                    <span class="badge bg-light text-muted border ms-1"><?= (int)$b['variant_count'] ?> variants</span>
+                                                    <span class="text-muted small fw-normal ms-1">(<?= (int)$b['variant_count'] ?>)</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td class="py-3">
-                                                <div class="fw-semibold text-dark small">
-                                                    <?= htmlspecialchars($b['cutting_name'] ?: ($b['cutting_batch_no'] ?: 'Direct Entry')) ?>
+                                            <td>
+                                                <div class="text-truncate" style="max-width: 200px;" title="<?= htmlspecialchars($srcCutTitle) ?>">
+                                                    <span class="fw-semibold text-dark"><?= htmlspecialchars($b['cutting_name'] ?: ($b['cutting_batch_no'] ?: 'Direct Entry')) ?></span>
+                                                    <?php if ($b['cutting_batch_no']): ?>
+                                                        <span class="text-muted font-monospace small ms-1">• <?= htmlspecialchars($b['cutting_batch_no']) ?></span>
+                                                    <?php endif; ?>
                                                 </div>
-                                                <?php if ($b['cutting_batch_no']): ?>
-                                                    <span class="badge bg-light text-secondary font-monospace border" style="font-size: 0.7rem;">
-                                                        <?= htmlspecialchars($b['cutting_batch_no']) ?>
-                                                    </span>
-                                                <?php endif; ?>
                                             </td>
-                                            <td class="py-3 small text-secondary">
+                                            <td class="text-secondary">
                                                 <?= htmlspecialchars($b['tailor_display_name'] ?: 'Not Assigned') ?>
                                             </td>
-                                            <td class="text-center py-3">
-                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 font-monospace">
+                                            <td class="text-center">
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
                                                     <?= (int)$b['cut_pieces'] ?>
                                                 </span>
                                             </td>
-                                            <td class="text-center py-3">
-                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 font-monospace">
+                                            <td class="text-center">
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace">
                                                     <?= (int)$b['stitched_pieces'] ?>
                                                 </span>
                                             </td>
-                                            <td class="text-center py-3 font-monospace small">
+                                            <td class="text-end font-monospace">
                                                 <?= number_format((float)$b['cut_weight'], 2) ?> kg
                                             </td>
-                                            <td class="text-center py-3 font-monospace small fw-bold text-dark">
+                                            <td class="text-end font-monospace fw-bold text-dark">
                                                 <?= number_format((float)$b['stitch_weight'], 2) ?> kg
                                             </td>
-                                            <td class="text-center py-3 small text-muted">
+                                            <td class="text-muted font-monospace small">
                                                 <?= date('d M Y', strtotime($b['created_at'])) ?>
                                             </td>
-                                            <td class="text-end pe-3 py-3">
-                                                <div class="btn-group btn-group-sm">
+                                            <td class="text-center">
+                                                <div class="btn-group btn-group-sm flex-nowrap">
                                                     <?php if (\App\Core\Auth::can('stitching_wastage', 'view')): ?>
                                                     <a href="<?= \App\Core\Controller::url('/production/stitching/view?id=' . $b['id']) ?>" 
                                                        class="btn btn-outline-secondary" title="View Batch Details">
@@ -251,20 +258,20 @@
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" id="salesTable">
-                            <thead class="table-light text-uppercase small text-secondary">
+                        <table class="table table-bordered table-striped table-hover align-middle mb-0 stitching-table-format" id="salesTable">
+                            <thead>
                                 <tr>
-                                    <th class="ps-3 py-3">Sale #</th>
-                                    <th class="py-3">Stitching Batch</th>
-                                    <th class="py-3">Buyer Details</th>
-                                    <th class="py-3">Wastage Category</th>
-                                    <th class="text-center py-3">Qty Sold</th>
-                                    <th class="text-center py-3">Rate</th>
-                                    <th class="text-center py-3">Total Value</th>
-                                    <th class="text-center py-3">Amount Received</th>
-                                    <th class="text-center py-3">Sale Date</th>
-                                    <th class="text-center py-3">Status</th>
-                                    <th class="text-center pe-3 py-3" style="width: 125px;">ACTIONS</th>
+                                    <th>Sale #</th>
+                                    <th>Stitching Batch</th>
+                                    <th>Buyer Details</th>
+                                    <th>Wastage Category</th>
+                                    <th class="text-end">Qty Sold</th>
+                                    <th class="text-end">Rate</th>
+                                    <th class="text-end">Total Value</th>
+                                    <th class="text-end">Received</th>
+                                    <th>Sale Date</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-center" style="width: 120px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -276,47 +283,48 @@
                                         </td>
                                     </tr>
                                 <?php else: ?>
-                                    <?php foreach ($wastageSales as $s): ?>
+                                    <?php foreach ($wastageSales as $s):
+                                        $batchTitle = ($s['stitching_name'] ?: $s['stitching_batch_no']) . ' (' . $s['stitching_batch_no'] . ')';
+                                        $buyerTitle = ($s['buyer_name'] ?? '') . (!empty($s['buyer_phone']) ? ' | ' . $s['buyer_phone'] : '') . (!empty($s['buyer_company']) ? ' • ' . $s['buyer_company'] : '');
+                                    ?>
                                         <tr>
-                                            <td class="ps-3 py-3 fw-bold font-monospace text-danger">
+                                            <td class="fw-bold font-monospace text-danger">
                                                 <?= htmlspecialchars($s['sale_no']) ?>
                                             </td>
-                                            <td class="py-3">
-                                                <div class="fw-semibold text-dark">
-                                                    <?= htmlspecialchars($s['stitching_name'] ?: $s['stitching_batch_no']) ?>
+                                            <td>
+                                                <div class="text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($batchTitle) ?>">
+                                                    <span class="fw-semibold text-dark"><?= htmlspecialchars($s['stitching_name'] ?: $s['stitching_batch_no']) ?></span>
                                                 </div>
-                                                <span class="badge bg-light text-secondary font-monospace border" style="font-size: 0.7rem;">
-                                                    <?= htmlspecialchars($s['stitching_batch_no']) ?>
-                                                </span>
                                             </td>
-                                            <td class="py-3">
-                                                <div class="fw-bold text-dark"><?= htmlspecialchars($s['buyer_name']) ?></div>
-                                                <div class="small text-muted font-monospace"><i class="bi bi-telephone me-1"></i><?= htmlspecialchars($s['buyer_phone']) ?></div>
-                                                <?php if ($s['buyer_company']): ?>
-                                                    <div class="small text-muted"><?= htmlspecialchars($s['buyer_company']) ?></div>
-                                                <?php endif; ?>
+                                            <td>
+                                                <div class="text-truncate" style="max-width: 170px;" title="<?= htmlspecialchars($buyerTitle) ?>">
+                                                    <span class="fw-semibold text-dark"><?= htmlspecialchars($s['buyer_name']) ?></span>
+                                                    <?php if (!empty($s['buyer_phone'])): ?>
+                                                        <span class="text-muted small ms-1">(<?= htmlspecialchars($s['buyer_phone']) ?>)</span>
+                                                    <?php endif; ?>
+                                                </div>
                                             </td>
-                                            <td class="py-3">
+                                            <td>
                                                 <span class="badge bg-light text-dark border">
                                                     <?= htmlspecialchars($s['wastage_category']) ?>
                                                 </span>
                                             </td>
-                                            <td class="text-center py-3 fw-bold font-monospace">
+                                            <td class="text-end fw-bold font-monospace">
                                                 <?= number_format((float)$s['quantity'], 2) ?> <?= htmlspecialchars($s['unit_type'] ?: 'KG') ?>
                                             </td>
-                                            <td class="text-center py-3 font-monospace small">
+                                            <td class="text-end font-monospace small">
                                                 ₹<?= number_format((float)$s['selling_rate'], 2) ?>/<?= htmlspecialchars($s['unit_type'] ?: 'kg') ?>
                                             </td>
-                                            <td class="text-center py-3 font-monospace fw-bold text-dark">
+                                            <td class="text-end font-monospace fw-bold text-dark">
                                                 ₹<?= number_format((float)$s['total_price'], 2) ?>
                                             </td>
-                                            <td class="text-center py-3 font-monospace fw-bold text-success">
+                                            <td class="text-end font-monospace fw-bold text-success">
                                                 ₹<?= number_format((float)$s['amount_received'], 2) ?>
                                             </td>
-                                            <td class="text-center py-3 small text-muted">
+                                            <td class="small text-muted font-monospace">
                                                 <?= date('d M Y', strtotime($s['sale_date'])) ?>
                                             </td>
-                                            <td class="text-center py-3">
+                                            <td class="text-center">
                                                 <?php if ($s['payment_status'] === 'paid'): ?>
                                                     <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Paid</span>
                                                 <?php elseif ($s['payment_status'] === 'partial'): ?>
@@ -325,10 +333,10 @@
                                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Pending</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td class="text-center pe-3 py-3">
-                                                <div class="d-inline-flex align-items-center gap-1">
+                                            <td class="text-center">
+                                                <div class="btn-group btn-group-sm flex-nowrap">
                                                     <?php if (\App\Core\Auth::can('stitching_wastage', 'view')): ?>
-                                                    <button type="button" class="btn btn-sm btn-outline-info p-1.5 rounded-3" title="View Details"
+                                                    <button type="button" class="btn btn-outline-info" title="View Details"
                                                             onclick="showStitchingScrapSaleDetails(<?= $s['id'] ?>)">
                                                         <i class="bi bi-eye"></i>
                                                     </button>

@@ -391,6 +391,55 @@
         <!-- ========================================== -->
         <!-- TAB 1: CUTTING BATCHES REGISTER -->
         <!-- ========================================== -->
+        <?php
+        $totalCutPiecesAll = 0;
+        $totalConsumedKg = 0.00;
+        $totalVariantsAll = 0;
+        foreach ($batches ?? [] as $bRow) {
+            $totalCutPiecesAll += (int)($bRow['cut_pieces'] ?? 0);
+            $totalConsumedKg += (float)($bRow['consumed_qty'] ?? 0);
+            $totalVariantsAll += (int)($bRow['variant_count'] ?? 0);
+        }
+        ?>
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+                    <small class="text-muted d-block small mb-1">Total Cutting Batches</small>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold fs-5 text-dark"><?= count($batches) ?> <span class="fs-6 fw-normal text-muted">Batches</span></span>
+                        <span class="badge bg-primary-subtle text-primary rounded-pill p-2"><i class="bi bi-collection fs-6"></i></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+                    <small class="text-muted d-block small mb-1">Total Cut Items</small>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold fs-5 text-success"><?= number_format($totalCutPiecesAll) ?> <span class="fs-6 fw-normal text-muted">pcs (<?= $totalVariantsAll ?> var)</span></span>
+                        <span class="badge bg-success-subtle text-success rounded-pill p-2"><i class="bi bi-scissors fs-6"></i></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+                    <small class="text-muted d-block small mb-1">Total Consumed Fabric</small>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold fs-5 text-info"><?= number_format($totalConsumedKg, 2) ?> <span class="fs-6 fw-normal text-muted">kg</span></span>
+                        <span class="badge bg-info-subtle text-info rounded-pill p-2"><i class="bi bi-layers fs-6"></i></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+                    <small class="text-muted d-block small mb-1">Total Wastage</small>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold fs-5 text-danger"><?= number_format($totalWastageGen, 2) ?> <span class="fs-6 fw-normal text-muted">kg</span></span>
+                        <span class="badge bg-danger-subtle text-danger rounded-pill p-2"><i class="bi bi-trash3 fs-6"></i></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card border-0 shadow-sm rounded-4">
             <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
