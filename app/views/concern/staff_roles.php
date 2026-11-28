@@ -201,7 +201,27 @@ $activeTab = $activeTab ?? 'staff';
                                         </td>
                                         <td class="text-end pe-4">
                                             <div class="d-inline-flex align-items-center gap-1.5 flex-wrap justify-content-end">
-                                                <!-- Delete Role (if not primary admin and 0 staff assigned) -->
+                                                <!-- 1. View Role Details & Access (Read) -->
+                                                <button type="button" class="btn btn-xs btn-outline-info" 
+                                                        onclick='openViewRoleModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' 
+                                                        title="View Role & Module Permissions">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+
+                                                <!-- 2. Edit Role & Permissions (Update) -->
+                                                <?php if (!$isPrimaryAdmin && \App\Core\Auth::can('staff', 'edit')): ?>
+                                                    <button type="button" class="btn btn-xs btn-outline-primary" 
+                                                            onclick='openEditRoleModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' 
+                                                            title="Edit Role & Permissions">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                <?php elseif ($isPrimaryAdmin): ?>
+                                                    <button type="button" class="btn btn-xs btn-outline-secondary opacity-50" disabled title="System Master role cannot be edited">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                <?php endif; ?>
+
+                                                <!-- 3. Delete Role (Delete) -->
                                                 <?php if (!$isPrimaryAdmin && \App\Core\Auth::can('staff', 'delete')): ?>
                                                     <?php if ($sc === 0 && $uc === 0): ?>
                                                         <form action="<?= \App\Core\Controller::url('/m/staff/roles/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete role <?= htmlspecialchars(addslashes($r['name'])) ?>?');">
@@ -217,7 +237,9 @@ $activeTab = $activeTab ?? 'staff';
                                                         </button>
                                                     <?php endif; ?>
                                                 <?php elseif ($isPrimaryAdmin): ?>
-                                                    <span class="text-muted small">&mdash;</span>
+                                                    <button type="button" class="btn btn-xs btn-outline-secondary opacity-50" disabled title="System Master role cannot be deleted">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
                                                 <?php endif; ?>
                                             </div>
                                         </td>
@@ -806,7 +828,520 @@ function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
+
+window.allRolePerms = <?= json_encode($allRolePerms ?? []) ?>;
+window.allConcerns = <?= json_encode($allConcerns ?? []) ?>;
+window.allModules = <?= json_encode($modules ?? []) ?>;
+window.groupedModules = <?= json_encode($groupedModules ?? []) ?>;
+window.groupOrder = <?= json_encode($groupOrder ?? []) ?>;
+window.currentViewingRole = null;
+
+function openViewRoleModal(role) {
+    if (!role) return;
+    window.currentViewingRole = role;
+
+    document.getElementById('view_role_title_name').textContent = role.name || 'Role Details';
+    document.getElementById('view_role_name').textContent = role.name || '-';
+    document.getElementById('view_role_id_badge').textContent = 'Role #' + role.id;
+    
+    // Concern badge
+    const cBadge = document.getElementById('view_role_concern_badge');
+    if (cBadge) {
+        if (role.concern_id) {
+            cBadge.innerHTML = `<span class="badge bg-primary font-monospace"><i class="bi bi-building me-1"></i>${escapeHtml(role.concern_code || 'CON')}</span> <span class="small text-muted ms-1">${escapeHtml(role.concern_name || '')}</span>`;
+        } else {
+            cBadge.innerHTML = `<span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25"><i class="bi bi-globe me-1"></i>Global (All Concerns)</span>`;
+        }
+    }
+
+    // Assigned staff
+    const sBadge = document.getElementById('view_role_staff_count');
+    const sNames = document.getElementById('view_role_staff_names');
+    const sc = parseInt(role.assigned_staff_count || 0);
+    const uc = parseInt(role.assigned_users_count || 0);
+    if (sBadge) {
+        if (sc > 0 || uc > 0) {
+            sBadge.innerHTML = `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25"><i class="bi bi-people-fill me-1"></i>${sc} Staff Assigned ${uc > sc ? '(' + uc + ' Users)' : ''}</span>`;
+        } else {
+            sBadge.innerHTML = `<span class="badge bg-light text-muted border"><i class="bi bi-dash-circle me-1"></i>0 Staff (Unassigned)</span>`;
+        }
+    }
+    if (sNames) {
+        sNames.textContent = role.assigned_staff_names ? 'Assigned: ' + role.assigned_staff_names : '';
+    }
+
+    // Description
+    const dEl = document.getElementById('view_role_description');
+    if (dEl) {
+        dEl.textContent = role.description || 'Standard operational permissions.';
+    }
+
+    // Edit button in View Modal footer
+    const editBtn = document.getElementById('view_modal_edit_btn');
+    if (editBtn) {
+        if (parseInt(role.id) === 1) {
+            editBtn.style.display = 'none';
+        } else {
+            editBtn.style.display = '';
+            editBtn.onclick = function() {
+                const viewModalEl = document.getElementById('modalViewRole');
+                if (viewModalEl) {
+                    bootstrap.Modal.getInstance(viewModalEl)?.hide();
+                }
+                setTimeout(() => openEditRoleModal(role), 200);
+            };
+        }
+    }
+
+    // Permissions list
+    const roleId = parseInt(role.id);
+    const perms = window.allRolePerms[roleId] || {};
+    const tbody = document.getElementById('view_role_permissions_tbody');
+    if (tbody) {
+        tbody.innerHTML = '';
+        (window.groupOrder || []).forEach(grp => {
+            const grpMods = window.groupedModules[grp] || [];
+            if (!grpMods.length) return;
+
+            const grpTr = document.createElement('tr');
+            grpTr.className = 'table-light view-role-group-header';
+            grpTr.setAttribute('data-group', grp.toLowerCase());
+            grpTr.innerHTML = `
+                <td colspan="2" class="fw-bold py-1.5 px-3 text-secondary text-uppercase small" style="font-size: 0.72rem; letter-spacing: 0.05em; background: #f8fafc;">
+                    <i class="bi bi-folder2-open me-1 text-primary"></i> ${escapeHtml(grp)}
+                </td>
+            `;
+            tbody.appendChild(grpTr);
+
+            grpMods.forEach(m => {
+                const mid = parseInt(m.id);
+                const p = perms[mid] || {};
+                const hasView = (p.view === 1);
+                const hasAdd = (p.add === 1);
+                const hasEdit = (p.edit === 1);
+                const hasDelete = (p.delete === 1);
+
+                const tr = document.createElement('tr');
+                tr.className = 'view-role-mod-row';
+                tr.setAttribute('data-name', (m.name || '').toLowerCase());
+                tr.setAttribute('data-code', (m.code || '').toLowerCase());
+                tr.setAttribute('data-group', grp.toLowerCase());
+
+                const badgesHtml = `
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap justify-content-end">
+                        <span class="badge ${hasView ? 'bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25' : 'bg-light text-muted border opacity-50'}" style="font-size: 0.72rem;">
+                            <i class="bi ${hasView ? 'bi-check-lg' : 'bi-x'} me-0.5"></i> View
+                        </span>
+                        <span class="badge ${hasAdd ? 'bg-success bg-opacity-10 text-success border border-success border-opacity-25' : 'bg-light text-muted border opacity-50'}" style="font-size: 0.72rem;">
+                            <i class="bi ${hasAdd ? 'bi-check-lg' : 'bi-x'} me-0.5"></i> Create
+                        </span>
+                        <span class="badge ${hasEdit ? 'bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25' : 'bg-light text-muted border opacity-50'}" style="font-size: 0.72rem;">
+                            <i class="bi ${hasEdit ? 'bi-check-lg' : 'bi-x'} me-0.5"></i> Edit
+                        </span>
+                        <span class="badge ${hasDelete ? 'bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25' : 'bg-light text-muted border opacity-50'}" style="font-size: 0.72rem;">
+                            <i class="bi ${hasDelete ? 'bi-check-lg' : 'bi-x'} me-0.5"></i> Delete
+                        </span>
+                    </div>
+                `;
+
+                tr.innerHTML = `
+                    <td class="ps-3 py-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi ${escapeHtml(m.icon || 'bi-app')} text-primary"></i>
+                            <span class="fw-semibold text-dark" style="font-size: 0.84rem;">${escapeHtml(m.name)}</span>
+                        </div>
+                    </td>
+                    <td class="text-end pe-3 py-2">
+                        ${badgesHtml}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        });
+    }
+
+    const modalEl = document.getElementById('modalViewRole');
+    if (modalEl) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+}
+
+function openEditRoleModal(role) {
+    if (!role) return;
+    const roleId = parseInt(role.id);
+    if (roleId === 1) {
+        alert('System Master role cannot be modified.');
+        return;
+    }
+
+    document.getElementById('edit_role_id').value = role.id;
+    document.getElementById('edit_role_title_name').textContent = role.name || '';
+    document.getElementById('edit_role_name').value = role.name || '';
+    document.getElementById('edit_role_description').value = role.description || '';
+    
+    const concernSelect = document.getElementById('edit_role_concern_id');
+    if (concernSelect) {
+        concernSelect.value = role.concern_id ? String(role.concern_id) : '';
+    }
+
+    // Populate checkboxes from window.allRolePerms
+    const perms = window.allRolePerms[roleId] || {};
+    (window.modules || []).forEach(m => {
+        const mid = parseInt(m.id);
+        const p = perms[mid] || {};
+        const v = document.getElementById('edit_m_view_' + mid);
+        const a = document.getElementById('edit_m_add_' + mid);
+        const e = document.getElementById('edit_m_edit_' + mid);
+        const d = document.getElementById('edit_m_delete_' + mid);
+        if (v) v.checked = (p.view === 1);
+        if (a) a.checked = (p.add === 1);
+        if (e) e.checked = (p.edit === 1);
+        if (d) d.checked = (p.delete === 1);
+    });
+
+    syncEditRoleHeaderCheckboxes();
+
+    const modalEl = document.getElementById('modalEditRole');
+    if (modalEl) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+}
+
+function syncEditRoleHeaderCheckboxes() {
+    ['view', 'add', 'edit', 'delete'].forEach(act => {
+        const cbs = Array.from(document.querySelectorAll('.edit-matrix-perm-' + act)).filter(cb => {
+            const tr = cb.closest('tr');
+            return tr && tr.style.display !== 'none';
+        });
+        const headerCb = document.getElementById('edit_header_check_' + act);
+        if (!cbs.length || !headerCb) return;
+
+        let checkedCount = 0;
+        cbs.forEach(cb => { if (cb.checked) checkedCount++; });
+        if (checkedCount === cbs.length && cbs.length > 0) {
+            headerCb.checked = true;
+            headerCb.indeterminate = false;
+        } else if (checkedCount > 0) {
+            headerCb.checked = false;
+            headerCb.indeterminate = true;
+        } else {
+            headerCb.checked = false;
+            headerCb.indeterminate = false;
+        }
+    });
+}
+
+function setEditRoleAll(checked) {
+    document.querySelectorAll('.edit-matrix-perm-check').forEach(cb => {
+        const tr = cb.closest('tr');
+        if (tr && tr.style.display !== 'none') {
+            cb.checked = checked;
+        }
+    });
+    syncEditRoleHeaderCheckboxes();
+}
+
+function setEditRoleColumn(action, checked) {
+    document.querySelectorAll('.edit-matrix-perm-' + action).forEach(cb => {
+        const tr = cb.closest('tr');
+        if (tr && tr.style.display !== 'none') {
+            cb.checked = checked;
+        }
+    });
+    syncEditRoleHeaderCheckboxes();
+}
+
+function filterEditRoleModules(val) {
+    const term = (val || '').trim().toLowerCase();
+    const groupCount = {};
+
+    document.querySelectorAll('.edit-matrix-mod-row').forEach(row => {
+        const name = (row.getAttribute('data-name') || '').toLowerCase();
+        const code = (row.getAttribute('data-code') || '').toLowerCase();
+        const grp = row.getAttribute('data-group') || '';
+        if (!term || name.includes(term) || code.includes(term) || grp.includes(term)) {
+            row.style.display = '';
+            groupCount[grp] = (groupCount[grp] || 0) + 1;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    document.querySelectorAll('.edit-matrix-group-header').forEach(header => {
+        const grp = header.getAttribute('data-group') || '';
+        header.style.display = (groupCount[grp] && groupCount[grp] > 0) ? '' : 'none';
+    });
+
+    syncEditRoleHeaderCheckboxes();
+}
+
+function filterViewRoleModules(val) {
+    const term = (val || '').trim().toLowerCase();
+    const groupCount = {};
+
+    document.querySelectorAll('.view-role-mod-row').forEach(row => {
+        const name = (row.getAttribute('data-name') || '').toLowerCase();
+        const code = (row.getAttribute('data-code') || '').toLowerCase();
+        const grp = row.getAttribute('data-group') || '';
+        if (!term || name.includes(term) || code.includes(term) || grp.includes(term)) {
+            row.style.display = '';
+            groupCount[grp] = (groupCount[grp] || 0) + 1;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    document.querySelectorAll('.view-role-group-header').forEach(header => {
+        const grp = header.getAttribute('data-group') || '';
+        header.style.display = (groupCount[grp] && groupCount[grp] > 0) ? '' : 'none';
+    });
+}
 </script>
+
+<!-- ======================================================== -->
+<!-- MODAL: VIEW ROLE DETAILS & PERMISSIONS (CRUD: READ)      -->
+<!-- ======================================================== -->
+<div class="modal fade" id="modalViewRole" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header border-bottom px-4 py-3 bg-light">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold shadow-xs" 
+                         style="width: 36px; height: 36px; background: #eff6ff; color: #2563eb; font-size: 1.1rem;">
+                        <i class="bi bi-shield-check"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold text-dark mb-0" id="view_role_title_name">Role Details</h6>
+                        <small class="text-secondary">View configured access scope and operational permissions</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Summary Card -->
+                <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-sm-6">
+                            <span class="text-muted small d-block">Role Name & Identifier</span>
+                            <div class="d-flex align-items-center gap-1.5 mt-0.5">
+                                <span class="fw-bold text-dark fs-6" id="view_role_name">-</span>
+                                <span class="badge bg-white text-secondary border font-monospace" id="view_role_id_badge">Role #</span>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 text-sm-end">
+                            <span class="text-muted small d-block">Access Scope</span>
+                            <div class="mt-0.5" id="view_role_concern_badge">-</div>
+                        </div>
+                        <div class="col-12"><hr class="my-1.5 opacity-25"></div>
+                        <div class="col-sm-6">
+                            <span class="text-muted small d-block">Staff Assignment</span>
+                            <div class="mt-0.5" id="view_role_staff_count">-</div>
+                            <div id="view_role_staff_names" class="text-muted font-monospace mt-1" style="font-size: 0.72rem;"></div>
+                        </div>
+                        <div class="col-sm-6 text-sm-end">
+                            <span class="text-muted small d-block">Description</span>
+                            <div class="mt-0.5" id="view_role_description">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Module CRUD Permissions Header & Filter -->
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <span class="small fw-bold text-dark text-uppercase d-flex align-items-center gap-1" style="font-size: 0.74rem;">
+                        <i class="bi bi-shield-lock-fill text-primary"></i> Module CRUD Permissions Summary
+                    </span>
+                    <div class="input-group input-group-sm" style="max-width: 220px;">
+                        <span class="input-group-text bg-white border-end-0 py-0.5 px-2 text-secondary" style="border-radius: 6px 0 0 6px;">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" class="form-control form-control-sm border-start-0 py-0.5 px-2" placeholder="Search modules..." oninput="filterViewRoleModules(this.value)" autocomplete="off">
+                    </div>
+                </div>
+
+                <!-- Module Permissions Table -->
+                <div class="table-responsive rounded-3 border" style="max-height: 380px; overflow-y: auto;">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="bg-light text-secondary text-uppercase sticky-top" style="font-size: 0.7rem;">
+                            <tr>
+                                <th class="ps-3 py-2" style="width: 50%;">Module / Feature</th>
+                                <th class="text-end pe-3 py-2" style="width: 50%;">Configured Operations</th>
+                            </tr>
+                        </thead>
+                        <tbody id="view_role_permissions_tbody">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-top px-4 py-2.5 bg-light d-flex justify-content-between">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-primary fw-semibold" id="view_modal_edit_btn">
+                    <i class="bi bi-pencil me-1"></i> Edit Role & Permissions
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL: EDIT ROLE & PERMISSIONS (CRUD: UPDATE)            -->
+<!-- ======================================================== -->
+<div class="modal fade" id="modalEditRole" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <form action="<?= \App\Core\Controller::url('/m/staff/roles/update') ?>" method="POST" class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+            <input type="hidden" name="id" id="edit_role_id" value="">
+
+            <div class="modal-header border-bottom px-4 py-3 bg-primary text-white">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold shadow-xs" 
+                         style="width: 36px; height: 36px; background: rgba(255,255,255,0.2); color: #fff; font-size: 1.1rem;">
+                        <i class="bi bi-pencil-square"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-white mb-0">Edit Role: <span id="edit_role_title_name">-</span></h5>
+                        <small class="text-white text-opacity-75">Modify role scope, description, and module CRUD access</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <!-- ROW 1: Role Information -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-5">
+                        <label class="form-label small fw-bold text-secondary mb-1">
+                            Role Name <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0 text-muted" style="border-radius: 8px 0 0 8px;">
+                                <i class="bi bi-tag"></i>
+                            </span>
+                            <input type="text" name="name" id="edit_role_name" class="form-control border-start-0" required style="border-radius: 0 8px 8px 0;">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-secondary mb-1">
+                            Scope / Concern <span class="text-danger">*</span>
+                        </label>
+                        <select name="concern_id" id="edit_role_concern_id" class="form-select" style="border-radius: 8px;">
+                            <option value="">Global (All Concerns)</option>
+                            <?php foreach ($allConcerns as $c): ?>
+                                <option value="<?= (int)$c['id'] ?>">
+                                    <?= htmlspecialchars($c['name']) ?> (<?= htmlspecialchars($c['code']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-secondary mb-1">
+                            Description
+                        </label>
+                        <input type="text" name="description" id="edit_role_description" class="form-control" placeholder="e.g. Standard operational permissions" style="border-radius: 8px;">
+                    </div>
+                </div>
+
+                <hr class="my-3 opacity-25">
+
+                <!-- ROW 2: Permissions Matrix -->
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <span class="small fw-bold text-dark text-uppercase d-flex align-items-center gap-1.5" style="font-size: 0.76rem;">
+                        <i class="bi bi-shield-lock-fill text-primary"></i> Module CRUD Permissions Matrix
+                    </span>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="input-group input-group-sm" style="max-width: 220px;">
+                            <span class="input-group-text bg-white border-end-0 py-0.5 px-2 text-secondary" style="border-radius: 6px 0 0 6px;">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" class="form-control form-control-sm border-start-0 py-0.5 px-2" placeholder="Search modules..." oninput="filterEditRoleModules(this.value)" autocomplete="off">
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-xs btn-outline-primary" onclick="setEditRoleAll(true)">Select All</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary" onclick="setEditRoleColumn('view', true)">View Only</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary" onclick="setEditRoleAll(false)">Clear All</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Matrix Table -->
+                <div class="table-responsive rounded-3 border" style="max-height: 420px; overflow-y: auto;">
+                    <table class="table table-bordered table-sm align-middle mb-0" style="font-size: 0.82rem;">
+                        <thead class="bg-light text-secondary text-uppercase sticky-top" style="font-size: 0.72rem; z-index: 2;">
+                            <tr>
+                                <th style="width: 40%; vertical-align: middle;" class="ps-3">
+                                    <span class="fw-bold">Module / Feature</span>
+                                </th>
+                                <th style="width: 15%;" class="text-center text-primary bg-primary bg-opacity-10 py-2">
+                                    <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                        <div class="fw-bold"><i class="bi bi-eye-fill me-1"></i> View</div>
+                                        <input type="checkbox" id="edit_header_check_view" class="form-check-input m-0" style="width: 17px; height: 17px; cursor: pointer;" onchange="setEditRoleColumn('view', this.checked)">
+                                    </div>
+                                </th>
+                                <th style="width: 15%;" class="text-center text-success bg-success bg-opacity-10 py-2">
+                                    <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                        <div class="fw-bold"><i class="bi bi-plus-circle-fill me-1"></i> Create</div>
+                                        <input type="checkbox" id="edit_header_check_add" class="form-check-input m-0" style="width: 17px; height: 17px; cursor: pointer;" onchange="setEditRoleColumn('add', this.checked)">
+                                    </div>
+                                </th>
+                                <th style="width: 15%;" class="text-center text-warning bg-warning bg-opacity-10 text-dark py-2">
+                                    <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                        <div class="fw-bold"><i class="bi bi-pencil-fill me-1"></i> Edit</div>
+                                        <input type="checkbox" id="edit_header_check_edit" class="form-check-input m-0" style="width: 17px; height: 17px; cursor: pointer;" onchange="setEditRoleColumn('edit', this.checked)">
+                                    </div>
+                                </th>
+                                <th style="width: 15%;" class="text-center text-danger bg-danger bg-opacity-10 py-2">
+                                    <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                                        <div class="fw-bold"><i class="bi bi-trash-fill me-1"></i> Delete</div>
+                                        <input type="checkbox" id="edit_header_check_delete" class="form-check-input m-0" style="width: 17px; height: 17px; cursor: pointer;" onchange="setEditRoleColumn('delete', this.checked)">
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($groupOrder as $grpName): ?>
+                                <?php if (empty($groupedModules[$grpName])) continue; ?>
+                                <tr class="table-secondary edit-matrix-group-header" data-group="<?= htmlspecialchars(strtolower($grpName)) ?>">
+                                    <td colspan="5" class="fw-bold text-dark py-1 px-3 text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em; background: #e2e8f0;">
+                                        <i class="bi bi-folder2-open me-1 text-primary"></i> <?= htmlspecialchars($grpName) ?>
+                                    </td>
+                                </tr>
+                                <?php foreach ($groupedModules[$grpName] as $m): $mid = (int)$m['id']; ?>
+                                    <tr class="edit-matrix-mod-row" data-mid="<?= $mid ?>" data-name="<?= htmlspecialchars(strtolower($m['name'])) ?>" data-code="<?= htmlspecialchars(strtolower($m['code'])) ?>" data-group="<?= htmlspecialchars(strtolower($grpName)) ?>">
+                                        <td class="ps-3 py-1.5">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi <?= htmlspecialchars($m['icon'] ?: 'bi-app') ?> text-primary"></i>
+                                                <span class="fw-semibold text-dark"><?= htmlspecialchars($m['name']) ?></span>
+                                            </div>
+                                        </td>
+                                        <td class="text-center py-1.5">
+                                            <input type="checkbox" name="perms[<?= $mid ?>][view]" value="1" id="edit_m_view_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-view" onchange="syncEditRoleHeaderCheckboxes()">
+                                        </td>
+                                        <td class="text-center py-1.5">
+                                            <input type="checkbox" name="perms[<?= $mid ?>][add]" value="1" id="edit_m_add_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-add" onchange="syncEditRoleHeaderCheckboxes()">
+                                        </td>
+                                        <td class="text-center py-1.5">
+                                            <input type="checkbox" name="perms[<?= $mid ?>][edit]" value="1" id="edit_m_edit_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-edit" onchange="syncEditRoleHeaderCheckboxes()">
+                                        </td>
+                                        <td class="text-center py-1.5">
+                                            <input type="checkbox" name="perms[<?= $mid ?>][delete]" value="1" id="edit_m_delete_<?= $mid ?>" class="form-check-input edit-matrix-perm-check edit-matrix-perm-delete" onchange="syncEditRoleHeaderCheckboxes()">
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer border-top px-4 py-3 bg-light d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm" style="background: #4f46e5; border-color: #4f46e5;">
+                    <i class="bi bi-check-circle-fill me-1"></i> Save Role Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <?php
 $staffReturnTo = 'roles';

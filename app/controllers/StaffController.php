@@ -1198,12 +1198,25 @@ class StaffController extends Controller {
             }
         }
 
+        // All roles permissions map for instant view and modal editing
+        $allRolePerms = [];
+        $rpAllRows = DB::fetchAll("SELECT role_id, module_id, can_view, can_add, can_edit, can_delete FROM role_permissions");
+        foreach ($rpAllRows as $rp) {
+            $allRolePerms[(int)$rp['role_id']][(int)$rp['module_id']] = [
+                'view'   => (int)$rp['can_view'],
+                'add'    => (int)$rp['can_add'],
+                'edit'   => (int)$rp['can_edit'],
+                'delete' => (int)$rp['can_delete'],
+            ];
+        }
+
         $this->render('concern/staff_roles', [
             'pageTitle'            => 'Staff Role & Access Assignment',
             'currentModule'        => 'staff',
             'currentSubModule'     => 'roles',
             'allConcerns'          => $allConcerns,
             'allRoles'             => $allRoles,
+            'allRolePerms'         => $allRolePerms,
             'assignedRolesCount'   => $assignedRolesCount,
             'unassignedRolesCount' => $unassignedRolesCount,
             'staffWithRolesCount'  => $staffWithRolesCount,
@@ -1754,6 +1767,80 @@ class StaffController extends Controller {
             $this->flash('error', 'Failed to create role: ' . $e->getMessage());
             $this->redirect('/m/staff/roles/create');
         }
+    }
+
+    public function updateRole(): void {
+        ModuleGuard::enforce('staff', 'edit');
+        $this->validateCsrf();
+
+        $roleId = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $concernId = isset($_POST['concern_id']) && $_POST['concern_id'] !== '' ? (int)$_POST['concern_id'] : null;
+        if ($concernId === 0) {
+            $concernId = null;
+        }
+        $perms = (array)($_POST['perms'] ?? []);
+
+        if ($roleId <= 1) {
+            $this->flash('error', 'The primary Master Super Admin role cannot be modified.');
+            $this->redirect('/m/staff/roles');
+        }
+
+        if (!$name) {
+            $this->flash('error', 'Role name cannot be empty.');
+            $this->redirect('/m/staff/roles');
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::query(
+                "UPDATE roles SET name = ?, description = ?, concern_id = ? WHERE id = ?",
+                [$name, $description, $concernId, $roleId]
+            );
+
+            // Update role permissions
+            $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'cash'");
+            $stmt = DB::pdo()->prepare(
+                "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_add = VALUES(can_add), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)"
+            );
+
+            foreach ($modules as $m) {
+                $mid = (int)$m['id'];
+                $canView = !empty($perms[$mid]['view']) ? 1 : 0;
+                $canAdd = !empty($perms[$mid]['add']) ? 1 : 0;
+                $canEdit = !empty($perms[$mid]['edit']) ? 1 : 0;
+                $canDelete = !empty($perms[$mid]['delete']) ? 1 : 0;
+                $stmt->execute([$roleId, $mid, $canView, $canAdd, $canEdit, $canDelete]);
+            }
+
+            AuditLog::record(
+                $concernId,
+                'roles',
+                $roleId,
+                'ROLE_UPDATE',
+                null,
+                ['name' => $name, 'concern_id' => $concernId],
+                "Updated role {$name} (ID: {$roleId})"
+            );
+
+            DB::commit();
+
+            // If the current logged-in user has this role, refresh session permissions
+            if ((int)($_SESSION['user']['role_id'] ?? 0) === $roleId) {
+                Auth::loadPermissions((int)Auth::id(), $roleId);
+            }
+
+            $this->flash('success', "Role '{$name}' updated successfully.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            error_log('StaffController updateRole error: ' . $e->getMessage());
+            $this->flash('error', 'Failed to update role: ' . $e->getMessage());
+        }
+
+        $this->redirect('/m/staff/roles');
     }
 
     public function deleteRole(): void {
