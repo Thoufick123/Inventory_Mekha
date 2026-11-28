@@ -399,6 +399,10 @@ $router->post('/production/stitching/delete', [ProductionController::class, 'del
 // Stitching API Endpoints
 $router->get('/api/stitching/cutting-details', [ProductionController::class, 'apiCuttingDetailsForStitching'], 'stitching_wastage', 'add');
 $router->post('/api/stitching/quick-tailor', [ProductionController::class, 'apiQuickAddTailor'], 'stitching_wastage', 'add');
+$router->get('/m/stitching/brands', [ProductAddingController::class, 'brandsListAjax'], 'stitching_wastage', 'view');
+$router->post('/m/stitching/brands/store', [ProductAddingController::class, 'storeBrandAjax'], 'stitching_wastage', 'add');
+$router->post('/m/stitching/brands/update', [ProductAddingController::class, 'updateBrandAjax'], 'stitching_wastage', 'edit');
+$router->post('/m/stitching/brands/delete', [ProductAddingController::class, 'deleteBrandAjax'], 'stitching_wastage', 'delete');
 
 // Stitching Wastage Selling (Image 2)
 $router->get('/production/stitching/wastage', [ProductionController::class, 'stitchingWastageIndex'], 'stitching_wastage', 'view');
