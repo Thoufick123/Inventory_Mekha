@@ -297,6 +297,7 @@
                                                 <?php if ($displayAttributes): ?>&bull; <?= htmlspecialchars(implode(' / ', $displayAttributes)) ?><?php endif; ?>
                                                 <?php if ((float)$s['weight'] > 0): ?>&bull; Unit weight: <?= number_format((float)$s['weight'], 3) ?> <?= htmlspecialchars($s['weight_unit']) ?><?php endif; ?>
                                             </small>
+                                            <small class="d-block text-muted stock-location">Location: <?= htmlspecialchars((string)($s['location'] ?: 'Main Store'), ENT_QUOTES, 'UTF-8') ?></small>
                                             <?php if (!empty($s['is_complementary'])): ?>
                                                 <span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;"><i class="bi bi-gift me-1"></i>Complementary</span>
                                             <?php endif; ?>

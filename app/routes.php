@@ -22,6 +22,7 @@ use App\Controllers\ProductionReturnController;
 use App\Controllers\ProductionStockRequestController;
 use App\Controllers\OutwardController;
 use App\Controllers\ProductAddingController;
+use App\Controllers\CouponController;
 
 /** @var Router $router */
 
@@ -249,6 +250,16 @@ $router->post('/m/billing/channels/delete', [SalesController::class, 'deleteCust
 $router->get('/api/pos/variant-lookup', [SalesController::class, 'variantLookup'], 'billing', 'view');
 $router->get('/api/pos/customer-lookup', [SalesController::class, 'customerLookup'], 'billing', 'view');
 $router->get('/api/pos/production-batches', [SalesController::class, 'productionBatchLookup'], 'billing', 'view');
+$router->get('/api/pos/coupons', [CouponController::class, 'apiActive'], 'billing', 'view');
+$router->get('/m/billing/coupon-print', [CouponController::class, 'printCoupon'], 'billing', 'view');
+
+// POS Coupons
+$router->get('/m/coupons', [CouponController::class, 'index'], 'coupons', 'view');
+$router->post('/m/coupons/store', [CouponController::class, 'store'], 'coupons', 'add');
+$router->post('/m/coupons/update', [CouponController::class, 'update'], 'coupons', 'edit');
+$router->post('/m/coupons/toggle-status', [CouponController::class, 'toggleStatus'], 'coupons', 'edit');
+$router->post('/m/coupons/delete', [CouponController::class, 'delete'], 'coupons', 'delete');
+$router->get('/m/coupons/print', [CouponController::class, 'printCoupon'], 'coupons', 'view');
 // Production Outward & Dispatch (Image 1)
 $router->get('/m/outward', [OutwardController::class, 'index'], 'outward', 'view');
 $router->get('/production/outward', [OutwardController::class, 'index'], 'outward', 'view');

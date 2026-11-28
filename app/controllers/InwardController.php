@@ -198,14 +198,10 @@ class InwardController extends Controller {
                    cl_src.cutting_name AS cutting_name,
                    (SELECT cl_dst.id FROM cutting_logs cl_dst WHERE cl_dst.inward_source_outward_id = o.id LIMIT 1) AS received_cutting_id,
                    COALESCE(o.damage_transfer, 0) AS damage_transfer,
-                   coalesce(b.id, pob.batch_id, 0) AS batch_id,
-                   coalesce(cl_src.batch_no, b.batch_no, concat('BAT-', date_format(o.created_at, '%Y%m%d'), '-', lpad(o.id, 4, '0'))) AS batch_no,
                    coalesce(pob.cartons_count, b.total_boxes, 1) AS total_boxes,
-                   coalesce(pp.program_no, cl_src.log_no, 'PRG-20261113-0001') AS program_no,
-                   coalesce(cl_src.cutting_name, pp.program_name, (SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1), 'Garments') AS program_name,
-                   (SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1) AS product_name,
-                   coalesce(pu.name, src_con.name, 'Kadampadi') AS source_unit_name,
-                   coalesce(pu.code, src_con.code, 'PU-01') AS source_unit_code,
+                   coalesce((SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1), cl_src.cutting_name, 'Garments') AS product_name,
+                   coalesce(src_con.name, '—') AS source_concern_name,
+                   coalesce(src_con.code, '') AS source_concern_code,
                    coalesce(dest_con.name, o.warehouse_name, 'Warehouse') AS dest_warehouse_name,
                    coalesce(dest_con.code, 'WH-01') AS dest_warehouse_code,
                    coalesce(NULLIF((SELECT sum(oi.qty) FROM outward_items oi WHERE oi.outward_id = o.id), 0), pob.pieces_count, b.batch_qty, cl_src.cut_pieces, 0) AS total_qty,
@@ -501,7 +497,7 @@ class InwardController extends Controller {
         $verificationMatch = $totalDispatched > 0 ? round(($receivedQtyForMatch / $totalDispatched) * 100) : 0;
 
         $this->render('concern/inward_scan', [
-            'pageTitle'          => "Cross-Check Batch #{$outward['batch_no']}",
+            'pageTitle'          => "Cross-Check Outward #{$outward['outward_no']}",
             'currentModule'      => 'inward',
             'outward'            => $outward,
             'items'              => $items,

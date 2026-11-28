@@ -27,6 +27,7 @@ class ModuleRegistry
             ['code' => 'return_exchange', 'name' => 'Return & Exchange', 'icon' => 'bi-arrow-left-right', 'sort_order' => 45, 'group_name' => 'Stock', 'is_super_admin_only' => 0],
             ['code' => 'customers', 'name' => 'Customer Details', 'icon' => 'bi-people', 'sort_order' => 50, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
             ['code' => 'billing', 'name' => 'POS Billing', 'icon' => 'bi-calculator', 'sort_order' => 51, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
+            ['code' => 'coupons', 'name' => 'Coupons', 'icon' => 'bi-ticket-perforated', 'sort_order' => 52, 'group_name' => 'Shop', 'is_super_admin_only' => 0],
             ['code' => 'request', 'name' => 'Request', 'icon' => 'bi-file-earmark-text', 'sort_order' => 52, 'group_name' => 'Sales', 'is_super_admin_only' => 0],
             ['code' => 'outward', 'name' => 'Outward', 'icon' => 'bi-box-arrow-up-right', 'sort_order' => 54, 'group_name' => 'Sales', 'is_super_admin_only' => 0],
             ['code' => 'expense', 'name' => 'Expense', 'icon' => 'bi-wallet2', 'sort_order' => 60, 'group_name' => 'Finance', 'is_super_admin_only' => 0],

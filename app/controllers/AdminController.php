@@ -729,12 +729,19 @@ class AdminController extends Controller {
                     $upsertCm->execute([$id, $m['id'], $enabled]);
                 }
 
-                $role = DB::fetch("SELECT id FROM roles WHERE concern_id = ? ORDER BY id ASC LIMIT 1", [$id]);
-                if ($role) {
-                    $roleId = (int)$role['id'];
-                    $insertRp = DB::pdo()->prepare("INSERT IGNORE INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 1, 1, 1)");
+                $adminRoles = DB::fetchAll(
+                    "SELECT id FROM roles
+                     WHERE concern_id = ? AND (name LIKE '%Administrator%' OR name LIKE '%Admin%')",
+                    [$id]
+                );
+                $upsertRolePermission = DB::pdo()->prepare(
+                    "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
+                     VALUES (?, ?, 1, 1, 1, 1)
+                     ON DUPLICATE KEY UPDATE can_view = 1, can_add = 1, can_edit = 1, can_delete = 1"
+                );
+                foreach ($adminRoles as $adminRole) {
                     foreach ($pickedModuleIds as $modId) {
-                        $insertRp->execute([$roleId, $modId]);
+                        $upsertRolePermission->execute([(int)$adminRole['id'], $modId]);
                     }
                 }
             }

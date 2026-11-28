@@ -25,6 +25,24 @@ $stocks = [
         'variant_id' => 11,
     ],
     [
+        'stock_source' => 'own',
+        'product_code' => 'OWN-S',
+        'variant_name' => 'Shirt - Red - S',
+        'variant_attributes' => json_encode(['color' => 'red', 'custom_attributes' => ['memory' => '4GB']]),
+        'size' => 'S',
+        'weight' => 0.2,
+        'weight_unit' => 'kg',
+        'category_name' => 'Womens',
+        'subcategory_name' => 'Feedfin',
+        'location' => 'Shop Floor',
+        'qty' => 19,
+        'cost_price' => 250,
+        'price' => 350,
+        'mrp' => 400,
+        'concern_id' => 1,
+        'variant_id' => 11,
+    ],
+    [
         'stock_source' => 'purchase',
         'product_code' => 'BUY-M',
         'variant_name' => 'Shirt - Blue - M',
@@ -62,11 +80,11 @@ $stocks = [
         'variant_id' => 13,
     ],
 ];
-$totalUnits = 7;
-$totalValuation = 1520;
+$totalUnits = 26;
+$totalValuation = 6270;
 $uniqueVariantCount = 3;
 $stockSourceMetrics = [
-    'own' => ['units' => 4, 'valuation' => 1000, 'variant_count' => 1],
+    'own' => ['units' => 23, 'valuation' => 5750, 'variant_count' => 1],
     'purchase' => ['units' => 2, 'valuation' => 520, 'variant_count' => 1],
     'other' => ['units' => 1, 'valuation' => 0, 'variant_count' => 1],
 ];
@@ -100,6 +118,9 @@ $checks = [
         && strpos($html, 'data-stock-source="other"') !== false
         && strpos($html, 'RET-L') !== false,
     'Storage Location column is removed' => strpos($html, '<th>Storage Location</th>') === false,
+    'Same variant stock lines show their separate locations' =>
+        strpos($html, 'class="d-block text-muted stock-location">Location: Main Store</small>') !== false
+        && strpos($html, 'class="d-block text-muted stock-location">Location: Shop Floor</small>') !== false,
     'Quantity and net value use the requested column labels' =>
         strpos($html, '<th>Qty</th>') !== false
         && strpos($html, '<th>Net Value</th>') !== false
@@ -122,13 +143,13 @@ $checks = [
         && strpos($html, 'Cost Price &lt; Selling Price &lt; MRP') !== false,
     'Stock valuation uses cost price' =>
         strpos($html, 'Total Cost Valuation') !== false
-        && strpos($html, '₹1,520.00') !== false,
+        && strpos($html, '₹6,270.00') !== false,
     'Inventory analysis cards show unique variants and units by stock source' =>
         strpos($html, 'Unique In-Stock Variants') !== false
         && strpos($html, 'Own Product Units') !== false
         && strpos($html, 'Purchase Product Units') !== false
         && strpos($html, 'Other Source Units') !== false
-        && strpos($html, '₹1,000.00') !== false
+        && strpos($html, '₹5,750.00') !== false
         && strpos($html, '₹520.00') !== false,
     'SKU column is removed while QR actions remain available' =>
         strpos($html, '<th>SKU Code</th>') === false
