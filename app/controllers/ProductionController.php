@@ -3804,8 +3804,22 @@ class ProductionController extends Controller {
 
         DB::beginTransaction();
         try {
-            $outwardNo = 'OUT-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
-            $gatePassNo = 'GP-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            $maxSeq = (int)DB::fetchValue(
+                "SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(outward_no, '-', -1) AS UNSIGNED)), 0)
+                 FROM outwards
+                 WHERE concern_id = ? AND outward_no REGEXP '^OUT-CUT-[0-9]{1,5}$'",
+                [$sourceCid]
+            );
+            $nextSeq = $maxSeq + 1;
+            do {
+                $seqStr = str_pad((string)$nextSeq, 3, '0', STR_PAD_LEFT);
+                $outwardNo = 'OUT-CUT-' . $seqStr;
+                $gatePassNo = 'GP-CUT-' . $seqStr;
+                $existsOut = DB::fetch("SELECT id FROM outwards WHERE outward_no = ? LIMIT 1", [$outwardNo]);
+                if ($existsOut) {
+                    $nextSeq++;
+                }
+            } while ($existsOut);
             $batchNo = $cutting['batch_no'] ?: $cutting['log_no'];
 
             DB::query(

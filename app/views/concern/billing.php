@@ -631,6 +631,9 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
             <!-- Printable Receipt Area -->
             <div class="p-3 border rounded-3 bg-light font-monospace small" id="thermal_receipt_print_area">
                 <div class="text-center pb-2 border-bottom">
+                    <?php if (!empty($printInvoice['concern_logo'])): ?>
+                        <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($printInvoice['concern_logo'])) ?>" alt="<?= htmlspecialchars($printInvoice['concern_name']) ?>" style="max-height: 48px; max-width: 140px; object-fit: contain; margin-bottom: 6px;">
+                    <?php endif; ?>
                     <h5 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($printInvoice['concern_name']) ?></h5>
                     <div style="font-size: 0.72rem;"><?= htmlspecialchars($printInvoice['concern_address'] ?: 'Retail Store Outlet') ?></div>
                     <div style="font-size: 0.72rem;">GSTIN: <?= htmlspecialchars($printInvoice['concern_gstin'] ?: '33AAACG1234F1Z8') ?></div>

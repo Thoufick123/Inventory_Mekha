@@ -191,7 +191,8 @@ if ($isEdit && !empty($existingItems)) {
     background: #f8fafc;
     border-top: 1px solid #e2e8f0;
 }
-.fg-quick-fill-panel .form-control {
+.fg-quick-fill-panel .form-control,
+.fg-quick-fill-panel .form-select {
     min-width: 0;
 }
 .fg-quick-fill-grid {
@@ -1829,7 +1830,7 @@ if ($isEdit && !empty($existingItems)) {
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold">Category</label>
-                        <input type="text" id="newHsnCategory" class="form-control" placeholder="e.g. Apparel, Fabric, Packaging" maxlength="100">
+                        <input type="text" id="newHsnCategory" list="fgHsnCategoriesList" class="form-control" placeholder="e.g. Apparel, Fabric, Packaging" maxlength="100">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold">GST Rate (%)</label>
@@ -1851,6 +1852,128 @@ if ($isEdit && !empty($existingItems)) {
                 </button>
             </div>
         </div>
+    </div>
+</div>
+
+<?php
+$fgHsnCats = array_values(array_unique(array_filter(array_map(
+    static fn($h) => trim((string) ($h['category'] ?? '')),
+    $hsnList ?? []
+))));
+sort($fgHsnCats);
+?>
+<datalist id="fgHsnCategoriesList">
+    <?php foreach ($fgHsnCats as $fgHsnCat): ?>
+        <option value="<?= htmlspecialchars($fgHsnCat) ?>">
+    <?php endforeach; ?>
+</datalist>
+
+<!-- MODAL: ADD TIER-1 CATEGORY (Matched with Catalog Hierarchy) -->
+<div class="modal fade" id="modalFgAddCategory" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form id="formFgAddCategory" class="modal-content border-0 shadow fg-hierarchy-modal-form" data-tier="category">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-folder-plus text-primary me-1.5"></i> Add Tier-1 Main Category</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="hierarchy-form-feedback alert py-2 px-3 mb-3 small d-none" role="alert" aria-live="polite"></div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Category Name <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control" placeholder="e.g. Menswear, Kids, Maternity" maxlength="100" required>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Short Code</label>
+                        <input type="text" name="code" class="form-control font-monospace" placeholder="e.g. M, K, W" maxlength="10">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Default HSN</label>
+                        <input type="text" name="default_hsn" id="fgModalCategoryDefaultHsn" class="form-control font-monospace" placeholder="Search HSN" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#fgModalCategoryDefaultGstRate" autocomplete="off">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">GST Rate (%)</label>
+                        <input type="number" step="0.01" min="0" max="100" name="default_gst_rate" id="fgModalCategoryDefaultGstRate" class="form-control font-monospace" placeholder="Optional">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm px-3"><i class="bi bi-check-circle me-1"></i> Save Category</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: ADD TIER-2 SUBCATEGORY (Matched with Catalog Hierarchy) -->
+<div class="modal fade" id="modalFgAddSubcategory" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form id="formFgAddSubcategory" class="modal-content border-0 shadow fg-hierarchy-modal-form" data-tier="subcategory">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-diagram-2 text-info me-1.5"></i> Add Tier-2 Subcategory</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="hierarchy-form-feedback alert py-2 px-3 mb-3 small d-none" role="alert" aria-live="polite"></div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Parent Main Category <span class="text-danger">*</span></label>
+                    <select name="category_id" id="fgModalSubcatParentCat" class="form-select" required>
+                        <option value="">-- Select Parent Category --</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Subcategory Name <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control" placeholder="e.g. Shirts, Baby Dress, T-Shirts" maxlength="100" required>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Short Code</label>
+                    <input type="text" name="code" class="form-control font-monospace" placeholder="e.g. SH, BD, TS" maxlength="10">
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-info text-white btn-sm px-3"><i class="bi bi-check-circle me-1"></i> Save Subcategory</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: ADD TIER-3 SUB-SUBCATEGORY (Matched with Catalog Hierarchy) -->
+<div class="modal fade" id="modalFgAddSubSubcategory" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form id="formFgAddSubSubcategory" class="modal-content border-0 shadow fg-hierarchy-modal-form" data-tier="subsubcategory">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-diagram-3 text-success me-1.5"></i> Add Tier-3 Sub-Subcategory</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="hierarchy-form-feedback alert py-2 px-3 mb-3 small d-none" role="alert" aria-live="polite"></div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Parent Main Category <span class="text-danger">*</span></label>
+                    <select name="category_id" id="fgModalTier3CatSelect" class="form-select" required onchange="populateFgTier3SubcatSelect(this.value)">
+                        <option value="">-- Select Parent Category --</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Parent Subcategory <span class="text-danger">*</span></label>
+                    <select name="subcategory_id" id="fgModalTier3SubcatSelect" class="form-select" required>
+                        <option value="">-- Select Subcategory First --</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Sub-Subcategory Name <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control" placeholder="e.g. Formal, Sleeveless, Printed Frock" maxlength="100" required>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Short Code</label>
+                    <input type="text" name="code" class="form-control font-monospace" placeholder="e.g. F, SL, PF" maxlength="10">
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success btn-sm px-3"><i class="bi bi-check-circle me-1"></i> Save Tier-3</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -2290,8 +2413,8 @@ function promptAddHsn(targetId, targetType = 'rolls') {
     modal.show();
 }
 
-function promptAddVariantHsn(cardId, rowIndex) {
-    currentHsnTarget = { type: 'variant', id: cardId, rowIndex };
+function promptAddQuickFillHsn(fgId) {
+    currentHsnTarget = { type: 'quick_fill', id: fgId };
     clearInlineHsnError();
     document.getElementById('newHsnCode').value = '';
     document.getElementById('newHsnDesc').value = '';
@@ -2320,23 +2443,28 @@ function saveAndSelectHsn() {
     const desc = document.getElementById('newHsnDesc').value.trim();
     const rateInput = document.getElementById('newHsnGstRate').value.trim();
     const rate = rateInput !== '' ? parseFloat(rateInput) : null;
-    const category = document.getElementById('newHsnCategory')?.value.trim() || 'Garment and textile goods';
+    const category = document.getElementById('newHsnCategory')?.value.trim() || '';
 
     if (!/^[0-9]{4}$|^[0-9]{6}$|^[0-9]{8}$/.test(code)) {
         showInlineHsnError('Enter a valid numeric HSN code with 4, 6, or 8 digits.');
         document.getElementById('newHsnCode').focus();
         return;
     }
-    if (rateInput !== '' && (!Number.isFinite(rate) || rate < 0 || rate > 100)) {
-        showInlineHsnError('Enter a GST percentage between 0.00 and 100.00.');
+    if (rateInput === '') {
+        showInlineHsnError('GST percentage is required and must be between 0.00 and 100.00.');
+        document.getElementById('newHsnGstRate').focus();
+        return;
+    }
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+        showInlineHsnError('GST percentage must be between 0.00 and 100.00.');
         document.getElementById('newHsnGstRate').focus();
         return;
     }
 
     const existing = createdHsnList.find(item => item.hsn_code === code && item.code_type === 'HSN');
     if (existing) {
-        clearInlineHsnError();
-        applyCreatedHsn(existing);
+        showInlineHsnError(`Duplicate Error: HSN code '${code}' already exists.`);
+        document.getElementById('newHsnCode').focus();
         return;
     }
 
@@ -2364,7 +2492,7 @@ function saveAndSelectHsn() {
         applyCreatedHsn(data);
     })
     .catch(err => {
-        alert(err.message || 'Unable to save HSN code. Please try again.');
+        showInlineHsnError(err.message || 'Unable to save HSN code. Please try again.');
     });
 }
 
@@ -2394,11 +2522,17 @@ function applyCreatedHsn(hsn) {
         if (activeInput) setHsnInputValue(activeInput, selectedHsn);
         onFinishedHsnChange(currentHsnTarget.id);
         syncFinishedTable();
-    } else if (currentHsnTarget.type === 'variant') {
-        const row = document.querySelector(`#finishedCard_${currentHsnTarget.id} #fgVariantRow_${currentHsnTarget.id}_${currentHsnTarget.rowIndex}`);
-        const activeInput = row?.querySelector('.fg-variant-hsn');
-        if (activeInput) setHsnInputValue(activeInput, selectedHsn);
-        onFinishedVariantHsnChange(currentHsnTarget.id, currentHsnTarget.rowIndex);
+    } else if (currentHsnTarget.type === 'quick_fill') {
+        const activeInput = document.getElementById(`fgQuickHsn_${currentHsnTarget.id}`);
+        if (activeInput) {
+            setHsnInputValue(activeInput, selectedHsn);
+            activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            activeInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        const gstInput = document.getElementById(`fgQuickGst_${currentHsnTarget.id}`);
+        if (gstInput) {
+            gstInput.value = rate !== undefined && rate !== null && rate !== '' ? rate : '';
+        }
     } else if (currentHsnTarget.type === 'simple') {
         const activeInput = document.querySelector(`#simpleCard_${currentHsnTarget.id} .simple-input-hsn`);
         if (activeInput) setHsnInputValue(activeInput, selectedHsn);
@@ -2894,7 +3028,7 @@ function getProductAddingScopedRows(rows) {
     const concernId = getProductAddingConcernId();
     return (Array.isArray(rows) ? rows : []).filter(row => {
         const rowConcernId = parseInt(row.concern_id, 10) || 0;
-        return !concernId || !rowConcernId || rowConcernId === 1 || rowConcernId === concernId;
+        return !concernId || !rowConcernId || rowConcernId === concernId;
     });
 }
 
@@ -2924,7 +3058,14 @@ function getProductAddingAttributeValues(type, categoryId = '', subcategoryId = 
 
 function buildProductAddingCategoryOptions() {
     let html = '<option value="">-- Select category --</option>';
+    const activeConcernId = getProductAddingConcernId();
+    const seenNames = new Set();
     getProductAddingScopedRows(productAddingCategories).forEach(category => {
+        if (!activeConcernId) {
+            const key = String(category.name || '').trim().toLowerCase();
+            if (seenNames.has(key)) return;
+            seenNames.add(key);
+        }
         html += `<option value="${escapeHtml(category.id)}" data-concern-id="${escapeHtml(category.concern_id || '')}">${escapeHtml(category.name)}</option>`;
     });
     return html;
@@ -3247,28 +3388,16 @@ function buildProductAddingVariantRow(cardId, rowIndex) {
     return `
         <tr id="fgVariantRow_${cardId}_${rowIndex}" class="fg-variant-row">
             <td><input type="text" name="${prefix}[variant_name]" class="form-control form-control-sm fg-variant-name" required oninput="this.dataset.userEdited='1'; syncFinishedTable()"></td>
-            <td><div class="fg-variant-hierarchy-control">
-                <select name="${prefix}[category_id]" class="form-select form-select-sm fg-variant-category" required onchange="onFinishedVariantCategoryChange(${cardId}, ${rowIndex})">${buildProductAddingCategoryOptions()}</select>
-                <button type="button" class="btn btn-outline-primary btn-sm" title="Add category" aria-label="Add category" onclick="quickAddFinishedHierarchy('category', ${cardId}, ${rowIndex})"><i class="bi bi-plus-lg"></i></button>
-            </div></td>
-            <td><div class="fg-variant-hierarchy-control">
-                <select name="${prefix}[subcategory_id]" class="form-select form-select-sm fg-variant-subcategory" onchange="onFinishedVariantSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select>
-                <button type="button" class="btn btn-outline-primary btn-sm fg-add-subcategory" title="Add subcategory" aria-label="Add subcategory" onclick="quickAddFinishedHierarchy('subcategory', ${cardId}, ${rowIndex})" disabled><i class="bi bi-plus-lg"></i></button>
-            </div></td>
-            <td><div class="fg-variant-hierarchy-control">
-                <select name="${prefix}[sub_sub_category_id]" class="form-select form-select-sm fg-variant-sub-subcategory" onchange="onFinishedVariantSubSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select>
-                <button type="button" class="btn btn-outline-primary btn-sm fg-add-sub-subcategory" title="Add sub-subcategory" aria-label="Add sub-subcategory" onclick="quickAddFinishedHierarchy('subsubcategory', ${cardId}, ${rowIndex})" disabled><i class="bi bi-plus-lg"></i></button>
-            </div></td>
+            <td><select name="${prefix}[category_id]" class="form-select form-select-sm fg-variant-category" required onchange="onFinishedVariantCategoryChange(${cardId}, ${rowIndex})">${buildProductAddingCategoryOptions()}</select></td>
+            <td><select name="${prefix}[subcategory_id]" class="form-select form-select-sm fg-variant-subcategory" onchange="onFinishedVariantSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select></td>
+            <td><select name="${prefix}[sub_sub_category_id]" class="form-select form-select-sm fg-variant-sub-subcategory" onchange="onFinishedVariantSubSubcategoryChange(${cardId}, ${rowIndex})" disabled><option value="">-- Optional --</option></select></td>
             ${dynamicAttributeCells}
             <td>
                 <input type="hidden" name="${prefix}[weight]" class="fg-variant-weight" value="0">
                 <input type="number" step="1" min="1" name="${prefix}[quantity]" class="form-control form-control-sm text-center fg-variant-qty" required oninput="syncFinishedTable()">
             </td>
             <td>
-                <div class="input-group input-group-sm">
-                    <input type="text" name="${prefix}[hsn]" class="form-control font-monospace fg-variant-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} required autocomplete="off" oninput="onFinishedVariantHsnChange(${cardId}, ${rowIndex})" onchange="onFinishedVariantHsnChange(${cardId}, ${rowIndex})">
-                    <button type="button" class="btn btn-outline-primary" title="Add HSN" onclick="promptAddVariantHsn(${cardId}, ${rowIndex})"><i class="bi bi-plus-lg"></i></button>
-                </div>
+                <input type="text" name="${prefix}[hsn]" class="form-control form-control-sm font-monospace fg-variant-hsn" data-hsn-autocomplete data-hsn-type="HSN" ${getHsnInputAttributes()} required autocomplete="off" oninput="onFinishedVariantHsnChange(${cardId}, ${rowIndex})" onchange="onFinishedVariantHsnChange(${cardId}, ${rowIndex})">
             </td>
             <td><div class="input-group input-group-sm">
                 <input type="number" step="0.01" min="0" max="100" name="${prefix}[catalog_gst_rate]" class="form-control fg-variant-gst-rate" value="" placeholder="—" readonly aria-label="GST rate from HSN code">
@@ -3525,21 +3654,30 @@ function buildProductAddingFields(id) {
                     </div>
                     <div>
                         <label class="fg-quick-fill-label" for="fgQuickCategory_${id}">Category</label>
-                        <select id="fgQuickCategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="category" onchange="updateProductAddingQuickFillHierarchy(${id}, 'category')">
-                            ${buildProductAddingCategoryOptions()}
-                        </select>
+                        <div class="input-group input-group-sm">
+                            <select id="fgQuickCategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="category" onchange="updateProductAddingQuickFillHierarchy(${id}, 'category')">
+                                ${buildProductAddingCategoryOptions()}
+                            </select>
+                            <button type="button" class="btn btn-outline-primary" title="Add category" aria-label="Add category" onclick="quickAddFinishedHierarchy('category', ${id})"><i class="bi bi-plus-lg"></i></button>
+                        </div>
                     </div>
                     <div>
                         <label class="fg-quick-fill-label" for="fgQuickSubcategory_${id}">Subcategory</label>
-                        <select id="fgQuickSubcategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="subcategory" onchange="updateProductAddingQuickFillHierarchy(${id}, 'subcategory')" disabled>
-                            <option value="">-- Optional --</option>
-                        </select>
+                        <div class="input-group input-group-sm">
+                            <select id="fgQuickSubcategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="subcategory" onchange="updateProductAddingQuickFillHierarchy(${id}, 'subcategory')" disabled>
+                                <option value="">-- Optional --</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-primary fg-quick-add-subcategory" title="Add subcategory" aria-label="Add subcategory" onclick="quickAddFinishedHierarchy('subcategory', ${id})" disabled><i class="bi bi-plus-lg"></i></button>
+                        </div>
                     </div>
                     <div>
                         <label class="fg-quick-fill-label" for="fgQuickSubSubcategory_${id}">Sub-subcategory</label>
-                        <select id="fgQuickSubSubcategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="sub-subcategory" disabled>
-                            <option value="">-- Optional --</option>
-                        </select>
+                        <div class="input-group input-group-sm">
+                            <select id="fgQuickSubSubcategory_${id}" class="form-select form-select-sm" data-quick-fill-hierarchy="sub-subcategory" disabled>
+                                <option value="">-- Optional --</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-primary fg-quick-add-sub-subcategory" title="Add sub-subcategory" aria-label="Add sub-subcategory" onclick="quickAddFinishedHierarchy('subsubcategory', ${id})" disabled><i class="bi bi-plus-lg"></i></button>
+                        </div>
                     </div>
                     <div>
                         <label class="fg-quick-fill-label" for="fgQuickQty_${id}">Qty</label>
@@ -3555,7 +3693,10 @@ function buildProductAddingFields(id) {
                     </div>
                     <div>
                         <label class="fg-quick-fill-label" for="fgQuickHsn_${id}">HSN Code</label>
-                        <input id="fgQuickHsn_${id}" type="text" class="form-control form-control-sm font-monospace" data-quick-fill-field="hsn" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#fgQuickGst_${id}" ${getHsnInputAttributes()} autocomplete="off" placeholder="HSN...">
+                        <div class="input-group input-group-sm">
+                            <input id="fgQuickHsn_${id}" type="text" class="form-control form-control-sm font-monospace" data-quick-fill-field="hsn" data-hsn-autocomplete data-hsn-type="HSN" data-hsn-gst-target="#fgQuickGst_${id}" ${getHsnInputAttributes()} autocomplete="off" placeholder="HSN...">
+                            <button type="button" class="btn btn-outline-primary" title="Add HSN" aria-label="Add HSN" onclick="promptAddQuickFillHsn(${id})"><i class="bi bi-plus-lg"></i></button>
+                        </div>
                     </div>
                     <div>
                         <label class="fg-quick-fill-label" for="fgQuickGst_${id}">GST %</label>
@@ -3628,6 +3769,14 @@ function initializeProductAddingFinishedRow(fgId) {
 function refreshProductAddingConcernOptions() {
     if (!isProductAddingForm) return;
     document.querySelectorAll('#finishedGoodsContainer .finished-card').forEach(card => {
+        const fgId = parseInt(card.id.replace('finishedCard_', ''), 10);
+        const quickCategory = document.getElementById(`fgQuickCategory_${fgId}`);
+        if (quickCategory) {
+            const currentQuickCategory = quickCategory.value || '';
+            quickCategory.innerHTML = buildProductAddingCategoryOptions();
+            quickCategory.value = currentQuickCategory;
+            updateProductAddingQuickFillHierarchy(fgId, 'category');
+        }
         const categorySelects = card.querySelectorAll('.fg-variant-category');
         if (categorySelects.length) {
             const rows = [...card.querySelectorAll('.fg-variant-row')];
@@ -3637,7 +3786,7 @@ function refreshProductAddingConcernOptions() {
                 select.value = currentCategory;
             });
             if (rows[0]) {
-                onFinishedVariantCategoryChange(parseInt(card.id.replace('finishedCard_', ''), 10), parseInt(rows[0].dataset.rowIndex, 10));
+                onFinishedVariantCategoryChange(fgId, parseInt(rows[0].dataset.rowIndex, 10));
             }
         }
     });
@@ -3759,6 +3908,8 @@ function updateProductAddingQuickFillHierarchy(fgId, changedTier) {
     const category = panel.querySelector('[data-quick-fill-hierarchy="category"]');
     const subcategory = panel.querySelector('[data-quick-fill-hierarchy="subcategory"]');
     const subSubcategory = panel.querySelector('[data-quick-fill-hierarchy="sub-subcategory"]');
+    const addSubBtn = panel.querySelector('.fg-quick-add-subcategory');
+    const addSubSubBtn = panel.querySelector('.fg-quick-add-sub-subcategory');
     if (!category || !subcategory || !subSubcategory) return;
 
     if (changedTier === 'category') {
@@ -3768,8 +3919,10 @@ function updateProductAddingQuickFillHierarchy(fgId, changedTier) {
             .filter(item => String(item.category_id) === categoryId)
             .forEach(item => subcategory.add(new Option(item.name, item.id)));
         subcategory.disabled = !categoryId;
+        if (addSubBtn) addSubBtn.disabled = !categoryId;
         subSubcategory.innerHTML = '<option value="">-- Optional --</option>';
         subSubcategory.disabled = true;
+        if (addSubSubBtn) addSubSubBtn.disabled = true;
         return;
     }
 
@@ -3779,6 +3932,7 @@ function updateProductAddingQuickFillHierarchy(fgId, changedTier) {
         .filter(item => String(item.subcategory_id) === subcategoryId)
         .forEach(item => subSubcategory.add(new Option(item.name, item.id)));
     subSubcategory.disabled = !subcategoryId;
+    if (addSubSubBtn) addSubSubBtn.disabled = !subcategoryId;
 }
 
 function applyProductAddingQuickFill(fgId) {
@@ -4008,11 +4162,34 @@ function onFinishedVariantSubSubcategoryChange(fgId, rowIndex) {
     updateProductAddingVariantRow(fgId, rowIndex);
 }
 
-async function quickAddFinishedHierarchy(tier, fgId, rowIndex) {
-    const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);
-    if (!row) return;
-    const categoryId = row.querySelector('.fg-variant-category')?.value || '';
-    const subcategoryId = row.querySelector('.fg-variant-subcategory')?.value || '';
+let fgHierarchyModalTargetFgId = null;
+
+function populateFgTier3SubcatSelect(catId, selectedSubcatId = '') {
+    const subSelect = document.getElementById('fgModalTier3SubcatSelect');
+    if (!subSelect) return;
+    subSelect.innerHTML = '<option value="">-- Select Subcategory --</option>';
+    if (!catId) {
+        subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
+        return;
+    }
+    const items = getProductAddingScopedRows(productAddingSubcategories)
+        .filter(item => String(item.category_id) === String(catId));
+    if (items.length === 0) {
+        subSelect.innerHTML = '<option value="">-- No Subcategories Available --</option>';
+    } else {
+        items.forEach(item => subSelect.add(new Option(item.name, item.id)));
+        subSelect.value = selectedSubcatId ? String(selectedSubcatId) : '';
+    }
+}
+
+function quickAddFinishedHierarchy(tier, fgId) {
+    const panel = document.querySelector(`#finishedCard_${fgId} .fg-quick-fill-panel`);
+    if (!panel) return;
+    const quickCategory = panel.querySelector('[data-quick-fill-hierarchy="category"]');
+    const quickSubcategory = panel.querySelector('[data-quick-fill-hierarchy="subcategory"]');
+    const categoryId = quickCategory?.value || '';
+    const subcategoryId = quickSubcategory?.value || '';
+
     if (tier !== 'category' && !categoryId) {
         alert('Select a category first.');
         return;
@@ -4022,78 +4199,255 @@ async function quickAddFinishedHierarchy(tier, fgId, rowIndex) {
         return;
     }
 
-    const labels = {
-        category: 'category',
-        subcategory: 'subcategory',
-        subsubcategory: 'sub-subcategory'
+    fgHierarchyModalTargetFgId = fgId;
+    const modalMap = {
+        category: 'modalFgAddCategory',
+        subcategory: 'modalFgAddSubcategory',
+        subsubcategory: 'modalFgAddSubSubcategory'
     };
-    const name = window.prompt(`New ${labels[tier]} name:`);
-    if (name === null) return;
-    if (!name.trim()) {
-        alert('Enter a name before adding this category.');
-        return;
+    const modalEl = document.getElementById(modalMap[tier]);
+    if (!modalEl) return;
+
+    const form = modalEl.querySelector('form');
+    if (form) {
+        form.reset();
+        const feedback = form.querySelector('.hierarchy-form-feedback');
+        if (feedback) {
+            feedback.classList.add('d-none');
+            feedback.textContent = '';
+        }
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = false;
     }
 
-    const formData = new FormData();
-    formData.append('csrf_token', document.querySelector('#formPurchaseBill input[name="csrf_token"]')?.value || '');
-    formData.append('concern_id', String(getProductAddingConcernId()));
-    formData.append('tier', tier);
-    formData.append('name', name.trim());
-    if (categoryId) formData.append('category_id', categoryId);
-    if (subcategoryId) formData.append('subcategory_id', subcategoryId);
-
-    try {
-        const response = await fetch(quickCategorySaveUrl, {
-            method: 'POST',
-            body: formData,
-            headers: { Accept: 'application/json' }
-        });
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-            throw new Error(result.message || `Unable to add ${labels[tier]}.`);
+    const categories = getProductAddingScopedRows(productAddingCategories);
+    if (tier === 'subcategory') {
+        const parentCat = document.getElementById('fgModalSubcatParentCat');
+        if (parentCat) {
+            parentCat.innerHTML = '<option value="">-- Select Parent Category --</option>';
+            categories.forEach(c => {
+                parentCat.add(new Option(`${c.name} (${c.code || 'CAT'})`, c.id));
+            });
+            parentCat.value = String(categoryId);
         }
-
-        const card = document.getElementById('finishedCard_' + fgId);
-        const rows = [...(card?.querySelectorAll('.fg-variant-row') || [])];
-        if (tier === 'category') {
-            productAddingCategories.push({
-                id: result.id,
-                concern_id: result.concern_id,
-                name: result.name
+    } else if (tier === 'subsubcategory') {
+        const parentCat = document.getElementById('fgModalTier3CatSelect');
+        if (parentCat) {
+            parentCat.innerHTML = '<option value="">-- Select Parent Category --</option>';
+            categories.forEach(c => {
+                parentCat.add(new Option(c.name, c.id));
             });
-            rows.forEach(variantRow => {
-                const select = variantRow.querySelector('.fg-variant-category');
-                select.innerHTML = buildProductAddingCategoryOptions();
-                select.value = String(result.id);
-            });
-            onFinishedVariantCategoryChange(fgId, rowIndex);
-        } else if (tier === 'subcategory') {
-            productAddingSubcategories.push({
-                id: result.id,
-                concern_id: result.concern_id,
-                category_id: result.category_id,
-                name: result.name
-            });
-            rows.forEach(variantRow => {
-                fillFinishedVariantSubcategories(variantRow, categoryId, String(result.id));
-            });
-            onFinishedVariantSubcategoryChange(fgId, rowIndex);
-        } else {
-            productAddingSubSubcategories.push({
-                id: result.id,
-                concern_id: result.concern_id,
-                subcategory_id: result.parent_id,
-                name: result.name
-            });
-            rows.forEach(variantRow => {
-                fillFinishedVariantSubSubcategories(variantRow, subcategoryId, String(result.id));
-            });
-            onFinishedVariantSubSubcategoryChange(fgId, rowIndex);
+            parentCat.value = String(categoryId);
         }
-    } catch (error) {
-        alert(error.message || `Unable to add ${labels[tier]}.`);
+        populateFgTier3SubcatSelect(categoryId, subcategoryId);
     }
+
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.fg-hierarchy-modal-form').forEach(function(form) {
+        const feedback = form.querySelector('.hierarchy-form-feedback');
+        const submitButton = form.querySelector('button[type="submit"]');
+        const tier = form.dataset.tier;
+
+        const showModalFeedback = function(message, isSuccess = false) {
+            if (!feedback) return;
+            feedback.classList.remove('d-none', 'alert-danger', 'alert-success');
+            feedback.classList.add(isSuccess ? 'alert-success' : 'alert-danger');
+            feedback.textContent = message;
+        };
+
+        form.querySelectorAll('input, select, textarea').forEach(function(field) {
+            field.addEventListener('input', function() {
+                feedback?.classList.add('d-none');
+            });
+            field.addEventListener('change', function() {
+                feedback?.classList.add('d-none');
+            });
+        });
+
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            if (!submitButton || submitButton.disabled) return;
+            const fgId = fgHierarchyModalTargetFgId;
+            if (fgId === null) return;
+
+            const name = (form.querySelector('[name="name"]')?.value || '').trim();
+            const code = (form.querySelector('[name="code"]')?.value || '').trim().toUpperCase();
+            if (!name) {
+                showModalFeedback('Name is required.');
+                return;
+            }
+            if (code.length > 10) {
+                showModalFeedback('Short code must be 10 characters or fewer.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('csrf_token', document.querySelector('#formPurchaseBill input[name="csrf_token"]')?.value || '');
+            formData.append('concern_id', String(getProductAddingConcernId()));
+            formData.append('tier', tier);
+            formData.append('name', name);
+            if (code) formData.append('code', code);
+
+            let selectedCategoryId = '';
+            let selectedSubcategoryId = '';
+
+            if (tier === 'category') {
+                const defaultHsn = (form.querySelector('[name="default_hsn"]')?.value || '').trim();
+                const defaultGst = (form.querySelector('[name="default_gst_rate"]')?.value || '').trim();
+                if (defaultHsn !== '' && !/^\d{4}(?:\d{2}){0,2}$/.test(defaultHsn)) {
+                    showModalFeedback('Enter a valid 4-, 6-, or 8-digit HSN code, or leave Default HSN blank.');
+                    return;
+                }
+                if (defaultGst !== '' && (!Number.isFinite(Number(defaultGst)) || Number(defaultGst) < 0 || Number(defaultGst) > 100)) {
+                    showModalFeedback('GST rate must be between 0.00 and 100.00.');
+                    return;
+                }
+                if (defaultHsn !== '') formData.append('default_hsn', defaultHsn);
+                if (defaultGst !== '') formData.append('default_gst_rate', defaultGst);
+            } else if (tier === 'subcategory') {
+                selectedCategoryId = form.querySelector('[name="category_id"]')?.value || '';
+                if (!selectedCategoryId) {
+                    showModalFeedback('Parent Main Category is required.');
+                    return;
+                }
+                formData.append('category_id', selectedCategoryId);
+            } else {
+                selectedCategoryId = form.querySelector('[name="category_id"]')?.value || '';
+                selectedSubcategoryId = form.querySelector('[name="subcategory_id"]')?.value || '';
+                if (!selectedCategoryId) {
+                    showModalFeedback('Parent Main Category is required.');
+                    return;
+                }
+                if (!selectedSubcategoryId) {
+                    showModalFeedback('Parent Subcategory is required for Tier-3 category.');
+                    return;
+                }
+                formData.append('category_id', selectedCategoryId);
+                formData.append('subcategory_id', selectedSubcategoryId);
+            }
+
+            feedback?.classList.add('d-none');
+            submitButton.disabled = true;
+
+            try {
+                const response = await fetch(quickCategorySaveUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { Accept: 'application/json' }
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Unable to save this catalog entry.');
+                }
+
+                const panel = document.querySelector(`#finishedCard_${fgId} .fg-quick-fill-panel`);
+                const quickCategory = panel?.querySelector('[data-quick-fill-hierarchy="category"]');
+                const quickSubcategory = panel?.querySelector('[data-quick-fill-hierarchy="subcategory"]');
+                const quickSubSubcategory = panel?.querySelector('[data-quick-fill-hierarchy="sub-subcategory"]');
+                const card = document.getElementById('finishedCard_' + fgId);
+                const rows = [...(card?.querySelectorAll('.fg-variant-row') || [])];
+
+                if (tier === 'category') {
+                    productAddingCategories.push({
+                        id: result.id,
+                        concern_id: result.concern_id,
+                        name: result.name,
+                        code: result.code || '',
+                        default_hsn: result.default_hsn ?? null,
+                        default_gst_rate: result.default_gst_rate ?? null
+                    });
+                    if (quickCategory) {
+                        quickCategory.innerHTML = buildProductAddingCategoryOptions();
+                        quickCategory.value = String(result.id);
+                        updateProductAddingQuickFillHierarchy(fgId, 'category');
+                    }
+                    const quickHsn = document.getElementById(`fgQuickHsn_${fgId}`);
+                    const quickGst = document.getElementById(`fgQuickGst_${fgId}`);
+                    if (result.default_hsn && quickHsn && !quickHsn.value.trim()) {
+                        const matchedHsn = findHsnMasterRow(result.default_hsn);
+                        if (matchedHsn) {
+                            setHsnInputValue(quickHsn, matchedHsn);
+                        } else {
+                            quickHsn.value = result.default_hsn;
+                            quickHsn.dataset.hsnGstRate = result.default_gst_rate ?? '';
+                        }
+                        if (quickGst && result.default_gst_rate !== null && result.default_gst_rate !== undefined && result.default_gst_rate !== '') {
+                            quickGst.value = result.default_gst_rate;
+                        }
+                    }
+                    rows.forEach(variantRow => {
+                        const select = variantRow.querySelector('.fg-variant-category');
+                        if (!select) return;
+                        const prev = select.value;
+                        select.innerHTML = buildProductAddingCategoryOptions();
+                        select.value = prev;
+                    });
+                } else if (tier === 'subcategory') {
+                    productAddingSubcategories.push({
+                        id: result.id,
+                        concern_id: result.concern_id,
+                        category_id: result.category_id,
+                        name: result.name,
+                        code: result.code || ''
+                    });
+                    if (quickCategory && String(quickCategory.value) !== String(selectedCategoryId)) {
+                        quickCategory.value = String(selectedCategoryId);
+                    }
+                    updateProductAddingQuickFillHierarchy(fgId, 'category');
+                    if (quickSubcategory) {
+                        quickSubcategory.value = String(result.id);
+                        updateProductAddingQuickFillHierarchy(fgId, 'subcategory');
+                    }
+                    rows.forEach(variantRow => {
+                        const rowCatId = variantRow.querySelector('.fg-variant-category')?.value || '';
+                        if (rowCatId === String(selectedCategoryId)) {
+                            const prevSub = variantRow.querySelector('.fg-variant-subcategory')?.value || '';
+                            fillFinishedVariantSubcategories(variantRow, rowCatId, prevSub);
+                        }
+                    });
+                } else {
+                    productAddingSubSubcategories.push({
+                        id: result.id,
+                        concern_id: result.concern_id,
+                        subcategory_id: result.parent_id,
+                        name: result.name,
+                        code: result.code || ''
+                    });
+                    if (quickCategory && String(quickCategory.value) !== String(selectedCategoryId)) {
+                        quickCategory.value = String(selectedCategoryId);
+                        updateProductAddingQuickFillHierarchy(fgId, 'category');
+                    }
+                    if (quickSubcategory && String(quickSubcategory.value) !== String(selectedSubcategoryId)) {
+                        quickSubcategory.value = String(selectedSubcategoryId);
+                    }
+                    updateProductAddingQuickFillHierarchy(fgId, 'subcategory');
+                    if (quickSubSubcategory) {
+                        quickSubSubcategory.value = String(result.id);
+                    }
+                    rows.forEach(variantRow => {
+                        const rowSubId = variantRow.querySelector('.fg-variant-subcategory')?.value || '';
+                        if (rowSubId === String(selectedSubcategoryId)) {
+                            const prevSubSub = variantRow.querySelector('.fg-variant-sub-subcategory')?.value || '';
+                            fillFinishedVariantSubSubcategories(variantRow, rowSubId, prevSubSub);
+                        }
+                    });
+                }
+
+                const modalEl = form.closest('.modal');
+                if (modalEl) {
+                    bootstrap.Modal.getInstance(modalEl)?.hide();
+                }
+            } catch (error) {
+                showModalFeedback(error instanceof Error ? error.message : 'Unable to save this catalog entry.');
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+    });
+});
 
 function onFinishedVariantHsnChange(fgId, rowIndex) {
     const row = document.getElementById(`fgVariantRow_${fgId}_${rowIndex}`);

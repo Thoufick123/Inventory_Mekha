@@ -512,7 +512,11 @@ if (empty($billAttachments) && !empty($bill['attachment_path'])) {
                 <div class="row pb-3 mb-3 border-bottom align-items-center">
                     <div class="col-8">
                         <div class="d-flex align-items-center gap-2 mb-1">
-                            <i class="bi bi-building fs-3 text-primary"></i>
+                            <?php if (!empty($bill['concern_logo'])): ?>
+                                <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($bill['concern_logo'])) ?>" alt="<?= htmlspecialchars($bill['concern_name'] ?: 'Logo') ?>" style="max-height: 44px; max-width: 130px; object-fit: contain;">
+                            <?php else: ?>
+                                <i class="bi bi-building fs-3 text-primary"></i>
+                            <?php endif; ?>
                             <h3 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($bill['concern_name'] ?: 'GRM Inventory') ?></h3>
                         </div>
                         <div class="text-muted small">

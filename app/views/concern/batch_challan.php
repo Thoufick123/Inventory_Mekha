@@ -164,12 +164,17 @@ $dispatchDate = date('d M Y, h:i A', strtotime($outward['dispatched_at'] ?? ($ba
     <div class="invoice-card">
         <!-- Document Header -->
         <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
-            <div>
-                <h3 class="header-title mb-1"><?= $srcName ?></h3>
-                <div class="text-secondary small mb-1"><?= $srcAddress ?></div>
-                <div class="small fw-semibold text-dark">
-                    <span>GSTIN: <?= $srcGstin ?></span> &bull; 
-                    <span>Phone: <?= $srcPhone ?></span>
+            <div class="d-flex align-items-start gap-3">
+                <?php if (!empty($concern['logo'])): ?>
+                    <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($concern['logo'])) ?>" alt="<?= $srcName ?>" style="max-height: 54px; max-width: 140px; object-fit: contain;">
+                <?php endif; ?>
+                <div>
+                    <h3 class="header-title mb-1"><?= $srcName ?></h3>
+                    <div class="text-secondary small mb-1"><?= $srcAddress ?></div>
+                    <div class="small fw-semibold text-dark">
+                        <span>GSTIN: <?= $srcGstin ?></span> &bull; 
+                        <span>Phone: <?= $srcPhone ?></span>
+                    </div>
                 </div>
             </div>
             <div class="text-end">

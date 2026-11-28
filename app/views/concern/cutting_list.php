@@ -307,11 +307,11 @@
                 <?php endif; ?>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light small">
+                <table class="table table-bordered table-striped table-hover align-middle mb-0 cutting-table-format">
+                    <thead>
                         <tr>
-                            <th class="ps-3">Sale No</th>
-                            <th>Cutting Batch & Program</th>
+                            <th>Sale No</th>
+                            <th>Cutting Batch &amp; Program</th>
                             <th>Buyer Details</th>
                             <th>Wastage Category</th>
                             <th class="text-end">Sold Weight</th>
@@ -319,10 +319,10 @@
                             <th class="text-end">Total Price</th>
                             <th class="text-end">Received</th>
                             <th>Date</th>
-                            <th class="text-center pe-3" style="width: 125px;">ACTIONS</th>
+                            <th class="text-center" style="width: 120px;">ACTIONS</th>
                         </tr>
                     </thead>
-                    <tbody class="small">
+                    <tbody>
                         <?php if (empty($scrapSales)): ?>
                             <tr>
                                 <td colspan="10" class="text-center py-5 text-muted">
@@ -331,21 +331,32 @@
                                 </td>
                             </tr>
                         <?php else: ?>
-                            <?php foreach ($scrapSales as $s): ?>
+                            <?php foreach ($scrapSales as $s):
+                                $batchTitle = ($s['batch_no'] ?? '') . ' — ' . ($s['cutting_name'] ?? '') . ' (' . ($s['program_no'] ?? '-') . ')';
+                                $buyerTitle = ($s['buyer_name'] ?? '') . (!empty($s['buyer_phone']) ? ' | ' . $s['buyer_phone'] : '') . (!empty($s['buyer_company']) ? ' • ' . $s['buyer_company'] : '');
+                            ?>
                                 <tr>
-                                    <td class="ps-3">
-                                        <span class="badge bg-dark font-monospace"><?= htmlspecialchars($s['sale_no']) ?></span>
+                                    <td class="font-monospace fw-bold text-dark">
+                                        <?= htmlspecialchars($s['sale_no']) ?>
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-dark"><?= htmlspecialchars($s['batch_no']) ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($s['cutting_name']) ?> (<?= htmlspecialchars($s['program_no'] ?? '-') ?>)</small>
+                                        <div class="text-truncate" style="max-width: 210px;" title="<?= htmlspecialchars($batchTitle) ?>">
+                                            <span class="fw-semibold text-dark"><?= htmlspecialchars($s['batch_no']) ?></span>
+                                            <span class="text-muted small ms-1">• <?= htmlspecialchars($s['cutting_name']) ?></span>
+                                        </div>
                                     </td>
                                     <td>
-                                        <div class="fw-semibold text-dark"><?= htmlspecialchars($s['buyer_name']) ?></div>
-                                        <small class="text-muted"><i class="bi bi-telephone me-1"></i><?= htmlspecialchars($s['buyer_phone']) ?><?= $s['buyer_company'] ? ' • ' . htmlspecialchars($s['buyer_company']) : '' ?></small>
+                                        <div class="text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($buyerTitle) ?>">
+                                            <span class="fw-semibold text-dark"><?= htmlspecialchars($s['buyer_name']) ?></span>
+                                            <?php if (!empty($s['buyer_phone'])): ?>
+                                                <span class="text-muted small ms-1">(<?= htmlspecialchars($s['buyer_phone']) ?>)</span>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                     <td>
-                                        <span class="badge bg-light text-secondary border"><?= htmlspecialchars($s['wastage_category']) ?></span>
+                                        <div class="text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($s['wastage_category']) ?>">
+                                            <span class="badge bg-light text-secondary border"><?= htmlspecialchars($s['wastage_category']) ?></span>
+                                        </div>
                                     </td>
                                     <td class="text-end fw-bold text-danger">
                                         <?= number_format($s['wastage_weight'], 2) ?> kg
@@ -361,25 +372,25 @@
                                             ₹<?= number_format($s['amount_received'], 2) ?>
                                         </span>
                                     </td>
-                                    <td class="text-muted font-monospace">
+                                    <td class="text-muted font-monospace small">
                                         <?= date('d M Y', strtotime($s['sale_date'])) ?>
                                     </td>
-                                    <td class="text-center pe-3">
-                                        <div class="d-inline-flex align-items-center gap-1">
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm flex-nowrap">
                                             <?php if (\App\Core\Auth::can('cutting_wastage', 'view')): ?>
-                                            <button type="button" class="btn btn-sm btn-outline-info p-1.5 rounded-3" title="View Details"
+                                            <button type="button" class="btn btn-outline-info" title="View Details"
                                                     onclick="showScrapSaleDetails(<?= $s['id'] ?>)">
                                                 <i class="bi bi-eye"></i>
                                             </button>
                                             <?php endif; ?>
                                             <?php if (\App\Core\Auth::can('cutting_wastage', 'edit')): ?>
-                                            <button type="button" class="btn btn-sm btn-outline-primary p-1.5 rounded-3" title="Edit Scrap Sale"
+                                            <button type="button" class="btn btn-outline-primary" title="Edit Scrap Sale"
                                                     onclick='openEditScrapSaleModal(<?= json_encode($s, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             <?php endif; ?>
                                             <?php if (\App\Core\Auth::can('cutting_wastage', 'delete')): ?>
-                                            <button type="button" class="btn btn-sm btn-outline-danger p-1.5 rounded-3" title="Delete Scrap Sale"
+                                            <button type="button" class="btn btn-outline-danger" title="Delete Scrap Sale"
                                                     onclick="confirmDeleteScrapSale(<?= $s['id'] ?>, '<?= htmlspecialchars(addslashes($s['sale_no'])) ?>', '<?= number_format($s['total_price'], 2) ?>')">
                                                 <i class="bi bi-trash"></i>
                                             </button>

@@ -157,14 +157,45 @@ class CatalogMappingController extends Controller
 
         // Load 3-Tier Hierarchy, Attributes & HSN Master
         if ($cid) {
-            $categories = DB::fetchAll('SELECT * FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY name ASC', [$cid]);
-            $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id WHERE (s.concern_id = ? OR s.concern_id = 1 OR s.concern_id IS NULL) ORDER BY s.name ASC', [$cid]);
-            $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id WHERE (ss.concern_id = ? OR ss.concern_id = 1 OR ss.concern_id IS NULL) ORDER BY ss.name ASC', [$cid]);
+            $categories = DB::fetchAll('SELECT * FROM categories WHERE concern_id = ? ORDER BY name ASC', [$cid]);
+            $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id WHERE s.concern_id = ? ORDER BY s.name ASC', [$cid]);
+            $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id WHERE ss.concern_id = ? ORDER BY ss.name ASC', [$cid]);
             $attributes = DB::fetchAll('SELECT * FROM product_attributes WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY attribute_type ASC, sort_order ASC', [$cid]);
         } else {
-            $categories = DB::fetchAll('SELECT * FROM categories ORDER BY name ASC');
-            $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id ORDER BY s.name ASC');
-            $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id ORDER BY ss.name ASC');
+            $rawCategories = DB::fetchAll('SELECT c.*, con.name AS concern_name, con.code AS concern_code FROM categories c LEFT JOIN concerns con ON con.id = c.concern_id ORDER BY c.name ASC, con.id ASC');
+            $rawSubcategories = DB::fetchAll('SELECT s.*, c.name AS category_name, con.name AS concern_name, con.code AS concern_code FROM subcategories s JOIN categories c ON s.category_id = c.id LEFT JOIN concerns con ON con.id = s.concern_id ORDER BY s.name ASC, con.id ASC');
+            $rawSubSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name, con.name AS concern_name, con.code AS concern_code FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id LEFT JOIN concerns con ON con.id = ss.concern_id ORDER BY ss.name ASC, con.id ASC');
+
+            $categories = [];
+            $seenCat = [];
+            foreach ($rawCategories as $row) {
+                $key = strtolower(trim((string) ($row['name'] ?? '')));
+                if (!isset($seenCat[$key])) {
+                    $seenCat[$key] = true;
+                    $categories[] = $row;
+                }
+            }
+
+            $subcategories = [];
+            $seenSub = [];
+            foreach ($rawSubcategories as $row) {
+                $key = strtolower(trim((string) ($row['category_name'] ?? ''))) . '|' . strtolower(trim((string) ($row['name'] ?? '')));
+                if (!isset($seenSub[$key])) {
+                    $seenSub[$key] = true;
+                    $subcategories[] = $row;
+                }
+            }
+
+            $subSubcategories = [];
+            $seenSubSub = [];
+            foreach ($rawSubSubcategories as $row) {
+                $key = strtolower(trim((string) ($row['category_name'] ?? ''))) . '|' . strtolower(trim((string) ($row['subcategory_name'] ?? ''))) . '|' . strtolower(trim((string) ($row['name'] ?? '')));
+                if (!isset($seenSubSub[$key])) {
+                    $seenSubSub[$key] = true;
+                    $subSubcategories[] = $row;
+                }
+            }
+
             $attributes = DB::fetchAll('SELECT * FROM product_attributes ORDER BY attribute_type ASC, sort_order ASC');
         }
 
@@ -319,9 +350,9 @@ class CatalogMappingController extends Controller
         $suggestedStyleCode = sprintf('%s-STY-%04d', $conCode, $styleCount);
 
         // Fetch Categories & Attributes
-        $categories = $cid ? DB::fetchAll("SELECT * FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]) : DB::fetchAll("SELECT * FROM categories WHERE status = 'active' ORDER BY name ASC");
-        $subcategories = $cid ? DB::fetchAll("SELECT * FROM subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active' ORDER BY name ASC", [$cid]) : DB::fetchAll("SELECT * FROM subcategories WHERE status = 'active' ORDER BY name ASC");
-        $subSubcategories = $cid ? DB::fetchAll('SELECT * FROM sub_subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY name ASC', [$cid]) : DB::fetchAll('SELECT * FROM sub_subcategories ORDER BY name ASC');
+        $categories = $cid ? DB::fetchAll("SELECT * FROM categories WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]) : DB::fetchAll("SELECT * FROM categories WHERE status = 'active' ORDER BY name ASC");
+        $subcategories = $cid ? DB::fetchAll("SELECT * FROM subcategories WHERE concern_id = ? AND status = 'active' ORDER BY name ASC", [$cid]) : DB::fetchAll("SELECT * FROM subcategories WHERE status = 'active' ORDER BY name ASC");
+        $subSubcategories = $cid ? DB::fetchAll('SELECT * FROM sub_subcategories WHERE concern_id = ? ORDER BY name ASC', [$cid]) : DB::fetchAll('SELECT * FROM sub_subcategories ORDER BY name ASC');
         $attributes = $cid ? DB::fetchAll('SELECT * FROM product_attributes WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) ORDER BY attribute_type ASC, sort_order ASC', [$cid]) : DB::fetchAll('SELECT * FROM product_attributes ORDER BY attribute_type ASC, sort_order ASC');
         $allSizes = [];
         foreach ($attributes as $attribute) {
@@ -1002,7 +1033,7 @@ class CatalogMappingController extends Controller
 
                 // Strict duplicate validation: name and code
                 $dupCat = DB::fetch(
-                    "SELECT id, name FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+                    "SELECT id, name FROM categories WHERE concern_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
                     [$cid, $name]
                 );
                 if ($dupCat) {
@@ -1010,7 +1041,7 @@ class CatalogMappingController extends Controller
                 }
                 if (!empty($code)) {
                     $dupCode = DB::fetch(
-                        "SELECT id, code FROM categories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND code = ? AND status != 'deleted'",
+                        "SELECT id, code FROM categories WHERE concern_id = ? AND code = ? AND status != 'deleted'",
                         [$cid, $code]
                     );
                     if ($dupCode) {
@@ -1034,8 +1065,8 @@ class CatalogMappingController extends Controller
                     throw new Exception('Selected parent category was not found or is inactive.');
                 }
                 $parentCid = (int) $parentCategory['concern_id'];
-                if (($userCid !== null && $parentCid !== $userCid && $parentCid !== 1) ||
-                    ($itemCid !== null && $parentCid !== $itemCid && $parentCid !== 1)) {
+                if (($userCid !== null && $parentCid !== $userCid) ||
+                    ($itemCid !== null && $parentCid !== $itemCid)) {
                     throw new Exception('Selected parent category belongs to a different concern.');
                 }
                 if (!DB::fetch('SELECT id FROM concerns WHERE id = ?', [$parentCid])) {
@@ -1047,7 +1078,7 @@ class CatalogMappingController extends Controller
 
                 // Strict duplicate validation: name under parent category and short code
                 $dupSub = DB::fetch(
-                    "SELECT id FROM subcategories WHERE category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+                    "SELECT id FROM subcategories WHERE category_id = ? AND concern_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
                     [$catId, $cid, $name]
                 );
                 if ($dupSub) {
@@ -1055,7 +1086,7 @@ class CatalogMappingController extends Controller
                 }
                 if (!empty($code)) {
                     $dupSubCode = DB::fetch(
-                        "SELECT id, code FROM subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'",
+                        "SELECT id, code FROM subcategories WHERE concern_id = ? AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'",
                         [$cid, $code]
                     );
                     if ($dupSubCode) {
@@ -1086,8 +1117,8 @@ class CatalogMappingController extends Controller
                 if (!$catId || $catId !== (int) $parentSubcategory['category_id']) {
                     throw new Exception('Selected subcategory does not belong to the selected main category.');
                 }
-                if (($userCid !== null && $parentCid !== $userCid && $parentCid !== 1) ||
-                    ($itemCid !== null && $parentCid !== $itemCid && $parentCid !== 1)) {
+                if (($userCid !== null && $parentCid !== $userCid) ||
+                    ($itemCid !== null && $parentCid !== $itemCid)) {
                     throw new Exception('Selected parent subcategory belongs to a different concern.');
                 }
                 if (!DB::fetch('SELECT id FROM concerns WHERE id = ?', [$parentCid])) {
@@ -1099,7 +1130,7 @@ class CatalogMappingController extends Controller
 
                 // Strict duplicate validation: name under parent subcategory and short code
                 $dupSubSub = DB::fetch(
-                    "SELECT id FROM sub_subcategories WHERE subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
+                    "SELECT id FROM sub_subcategories WHERE subcategory_id = ? AND concern_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'",
                     [$subcatId, $cid, $name]
                 );
                 if ($dupSubSub) {
@@ -1107,7 +1138,7 @@ class CatalogMappingController extends Controller
                 }
                 if (!empty($code)) {
                     $dupSubSubCode = DB::fetch(
-                        "SELECT id, code FROM sub_subcategories WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'",
+                        "SELECT id, code FROM sub_subcategories WHERE concern_id = ? AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'",
                         [$cid, $code]
                     );
                     if ($dupSubSubCode) {

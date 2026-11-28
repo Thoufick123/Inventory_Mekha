@@ -1112,7 +1112,7 @@ class ProductionStockRequestController extends Controller {
         $cid = Auth::concernId();
 
         $request = DB::fetch(
-            "SELECT psr.*, con.name AS concern_name, con.code AS concern_code, con.gstin, con.phone AS concern_phone,
+            "SELECT psr.*, con.name AS concern_name, con.code AS concern_code, con.gstin, con.phone AS concern_phone, con.logo AS concern_logo,
                     du.name AS dispatcher_name
              FROM production_stock_requests psr
              LEFT JOIN concerns con ON psr.concern_id = con.id
