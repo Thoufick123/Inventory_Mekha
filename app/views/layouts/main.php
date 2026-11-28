@@ -392,9 +392,10 @@
             <?php endforeach; ?>
 
             <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'view')): 
-                $isStaffActive = (isset($currentModule) && $currentModule === 'staff') || str_contains($activeRoute, '/m/staff');
+                $isConcernsActive = (str_contains($activeRoute, 'admin/concerns') || (isset($currentModule) && $currentModule === 'admin_concerns'));
+                $isStaffActive = (isset($currentModule) && $currentModule === 'staff') || str_contains($activeRoute, '/m/staff') || $isConcernsActive;
                 $isAddStaffActive = (isset($currentModule) && $currentModule === 'staff' && isset($currentSubModule) && $currentSubModule === 'create') || str_contains($activeRoute, '/m/staff/create');
-                $isTotalStaffActive = (isset($currentModule) && $currentModule === 'staff' && (empty($currentSubModule) || $currentSubModule === 'all')) && !str_contains($activeRoute, '/m/staff/create') && !str_contains($activeRoute, '/m/staff/roles');
+                $isTotalStaffActive = (isset($currentModule) && $currentModule === 'staff' && (empty($currentSubModule) || $currentSubModule === 'all')) && !str_contains($activeRoute, '/m/staff/create') && !str_contains($activeRoute, '/m/staff/roles') && !$isConcernsActive;
                 $isRolesActive = (isset($currentModule) && $currentModule === 'staff' && isset($currentSubModule) && $currentSubModule === 'roles') || str_contains($activeRoute, '/m/staff/roles');
             ?>
             <div class="nav-group-title">Staff</div>
@@ -404,26 +405,25 @@
                 <i class="bi bi-chevron-down arrow-icon"></i>
             </button>
             <div class="collapse <?= $isStaffActive ? 'show' : '' ?>" id="submenuStaff">
+                <?php if ($isSuperAdmin): ?>
+                <a href="<?= \App\Core\Controller::url('/admin/concerns') ?>" class="nav-sublink <?= $isConcernsActive ? 'active' : '' ?>">
+                    <span>Concern Management</span>
+                </a>
+                <?php endif; ?>
+                <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'view')): ?>
+                <a href="<?= \App\Core\Controller::url('/m/staff/roles') ?>" class="nav-sublink <?= $isRolesActive ? 'active' : '' ?>">
+                    <span>Role Creation</span>
+                </a>
+                <?php endif; ?>
                 <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'add')): ?>
                 <a href="<?= \App\Core\Controller::url('/m/staff/create') ?>" class="nav-sublink <?= $isAddStaffActive ? 'active' : '' ?>">
-                    <span>Add Staff</span>
+                    <span>Add New Staff</span>
                 </a>
                 <?php endif; ?>
                 <a href="<?= \App\Core\Controller::url('/m/staff') ?>" class="nav-sublink <?= $isTotalStaffActive ? 'active' : '' ?>">
-                    <span>Total Staffs</span>
+                    <span>Total Staff</span>
                 </a>
-                <?php if ($isSuperAdmin || \App\Core\Auth::can('staff', 'view')): ?>
-                <a href="<?= \App\Core\Controller::url('/m/staff/roles') ?>" class="nav-sublink <?= $isRolesActive ? 'active' : '' ?>">
-                    <span>Role Assign / Permissions</span>
-                </a>
-                <?php endif; ?>
             </div>
-            <?php endif; ?>
-            <?php if ($isSuperAdmin): ?>
-            <a href="<?= \App\Core\Controller::url('/admin/concerns') ?>" class="nav-link <?= (str_contains($activeRoute, 'admin/concerns') || (isset($currentModule) && $currentModule === 'admin_concerns')) ? 'active' : '' ?>">
-                <i class="bi bi-buildings"></i>
-                <span>Concern Management</span>
-            </a>
             <?php endif; ?>
         </div>
     </nav>
