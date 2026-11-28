@@ -2,41 +2,48 @@
 // app/views/concern/catalog_program.php - Production Catalog & Programs Register
 $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GET['tab']) && $_GET['tab'] === 'programs');
 ?>
+<style>
+.catalog-table-format {
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+.catalog-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.7rem 0.85rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.catalog-table-format tbody td {
+    padding: 0.65rem 0.85rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+}
+.catalog-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
 <div class="container-fluid px-0">
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-2">
-        <ol class="breadcrumb small mb-1">
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/') ?>" class="text-decoration-none text-muted">Home</a></li>
-            <li class="breadcrumb-item text-muted">Production</li>
-            <li class="breadcrumb-item active fw-semibold text-dark" aria-current="page">Catalog</li>
-        </ol>
-    </nav>
+    <!-- Top Controls Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <ul class="nav nav-pills bg-light p-1 rounded-3 border" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= !$isProgramsTab ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-catalog-btn" data-bs-toggle="pill" data-bs-target="#tab-catalog" type="button" role="tab">
+                    <i class="bi bi-tags me-1.5"></i> Garment Styles
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= $isProgramsTab ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-programs-btn" data-bs-toggle="pill" data-bs-target="#tab-programs" type="button" role="tab">
+                    <i class="bi bi-calendar-check me-1.5"></i> Production Programs (<?= count($programs) ?>)
+                </button>
+            </li>
+        </ul>
 
-    <!-- Header Section -->
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-3">
-            <div class="p-2.5 rounded-3 bg-primary-subtle text-primary border border-primary-subtle shadow-xs">
-                <i class="bi bi-journal-bookmark fs-4"></i>
-            </div>
-            <div>
-                <h4 class="fw-bold mb-0 text-dark">Production Catalog</h4>
-                <p class="text-secondary small mb-0">Master catalog of manufactured garment styles, category hierarchies, and production programs.</p>
-            </div>
-        </div>
         <div class="d-flex align-items-center gap-2">
-            <ul class="nav nav-pills bg-light p-1 rounded-3 border me-2" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= !$isProgramsTab ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-catalog-btn" data-bs-toggle="pill" data-bs-target="#tab-catalog" type="button" role="tab">
-                        <i class="bi bi-tags me-1.5"></i> Garment Styles
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= $isProgramsTab ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-programs-btn" data-bs-toggle="pill" data-bs-target="#tab-programs" type="button" role="tab">
-                        <i class="bi bi-calendar-check me-1.5"></i> Production Programs (<?= count($programs) ?>)
-                    </button>
-                </li>
-            </ul>
-
             <?php if (\App\Core\Auth::can('catalog_program', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/production/catalog/create') ?>" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm rounded-3 py-2 px-3 fw-semibold">
                 <i class="bi bi-plus-circle"></i> Add Product Style
@@ -116,23 +123,24 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 table-custom">
+                    <table class="table table-bordered table-striped table-hover align-middle mb-0 catalog-table-format">
                         <thead>
                             <tr>
-                                <th style="width: 45px;">#</th>
-                                <th style="min-width: 150px;">STYLE CODE</th>
-                                <th style="min-width: 200px;">PRODUCT STYLE NAME</th>
+                                <th class="text-center" style="width: 48px;">#</th>
+                                <th style="min-width: 140px;">STYLE CODE</th>
+                                <th style="min-width: 210px;">PRODUCT STYLE NAME</th>
                                 <th style="min-width: 220px;">CATEGORY HIERARCHY</th>
-                                <th style="min-width: 160px;">HSN & GST</th>
-                                <th style="min-width: 110px;">VARIANTS</th>
-                                <th style="min-width: 100px;">STATUS</th>
-                                <th style="min-width: 110px; text-align: center;">ACTIONS</th>
+                                <th style="min-width: 140px;">HSN CODE</th>
+                                <th class="text-end" style="min-width: 90px;">GST %</th>
+                                <th class="text-center" style="min-width: 100px;">VARIANTS</th>
+                                <th class="text-center" style="min-width: 100px;">STATUS</th>
+                                <th class="text-center" style="min-width: 120px;">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($styles)): ?>
                                 <tr>
-                                    <td colspan="8" class="text-center py-5">
+                                    <td colspan="9" class="text-center py-5">
                                         <div class="text-muted mb-3"><i class="bi bi-folder-x fs-1 text-secondary opacity-50"></i></div>
                                         <h6 class="fw-bold text-dark">No Product Styles Found</h6>
                                         <p class="text-secondary small mb-3">Get started by creating your first manufactured garment style.</p>
@@ -146,61 +154,39 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                             <?php else: ?>
                                 <?php $idx = 1; foreach ($styles as $s): ?>
                                     <tr>
-                                        <td class="text-muted small fw-semibold"><?= $idx++ ?></td>
-                                        <td>
-                                            <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                                <span class="badge bg-dark font-monospace text-white px-2 py-1 shadow-xs">
-                                                    <?= htmlspecialchars($s['style_code'] ?: $s['code']) ?>
-                                                </span>
-                                                <?php if (!empty($s['short_code'])): ?>
-                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-1.5 py-0.5">
-                                                        <?= htmlspecialchars($s['short_code']) ?>
-                                                    </span>
-                                                <?php endif; ?>
-                                            </div>
+                                        <td class="text-center text-muted small fw-semibold"><?= $idx++ ?></td>
+                                        <td class="font-monospace">
+                                            <span class="fw-bold text-dark"><?= htmlspecialchars($s['style_code'] ?: $s['code']) ?></span>
+                                            <?php if (!empty($s['short_code'])): ?>
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1"><?= htmlspecialchars($s['short_code']) ?></span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
-                                            <div class="fw-bold text-dark text-uppercase"><?= htmlspecialchars($s['name']) ?></div>
+                                            <div class="fw-semibold text-dark text-uppercase"><?= htmlspecialchars($s['name']) ?></div>
                                             <?php if (!empty($s['description'])): ?>
                                                 <small class="text-muted text-truncate d-block" style="max-width: 240px;"><?= htmlspecialchars($s['description']) ?></small>
                                             <?php endif; ?>
                                         </td>
-                                        <td>
+                                        <td class="text-secondary small">
                                             <?php 
                                             $path = $s['hierarchy_path'];
                                             if (empty($path)) {
                                                 $parts = array_filter([$s['category_name'], $s['subcategory_name'], $s['subsub_name']]);
                                                 $path = implode(' > ', $parts);
                                             }
-                                            $tags = explode('>', $path);
+                                            echo htmlspecialchars($path ?: '-');
                                             ?>
-                                            <div class="d-flex align-items-center gap-1 flex-wrap">
-                                                <?php foreach ($tags as $tIndex => $t): $t = trim($t); if (empty($t)) continue; ?>
-                                                    <?php if ($tIndex > 0): ?>
-                                                        <i class="bi bi-chevron-right text-muted opacity-50" style="font-size: 0.65rem;"></i>
-                                                    <?php endif; ?>
-                                                    <span class="badge bg-light text-secondary border px-2 py-0.5 small fw-normal">
-                                                        <?= htmlspecialchars($t) ?>
-                                                    </span>
-                                                <?php endforeach; ?>
-                                            </div>
                                         </td>
-                                        <td>
-                                            <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace">
-                                                    HSN <?= htmlspecialchars($s['hsn_code'] ?: 'Not set') ?>
-                                                </span>
-                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
-                                                    <?= $s['gst_rate'] === null ? 'Verify rate' : number_format((float)$s['gst_rate'], 2) . '% GST' ?>
-                                                </span>
-                                            </div>
+                                        <td class="font-monospace small text-dark">
+                                            <?= htmlspecialchars($s['hsn_code'] ?: '-') ?>
                                         </td>
-                                        <td>
-                                            <span class="badge bg-light text-dark border px-2 py-1 shadow-xs">
-                                                <i class="bi bi-layers text-secondary me-1"></i><?= (int)($s['active_variants_count'] ?? 0) ?> active
-                                            </span>
+                                        <td class="text-end font-monospace small text-dark">
+                                            <?= $s['gst_rate'] === null ? '-' : number_format((float)$s['gst_rate'], 2) . '%' ?>
                                         </td>
-                                        <td>
+                                        <td class="text-center">
+                                            <span class="fw-semibold text-dark"><?= (int)($s['active_variants_count'] ?? 0) ?></span> <span class="text-muted small">active</span>
+                                        </td>
+                                        <td class="text-center">
                                             <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
                                                 <?= ($s['status'] === 'in_house' || empty($s['status'])) ? 'In-House' : ucfirst($s['status']) ?>
                                             </span>
@@ -267,7 +253,7 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                     <?php endif; ?>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 table-custom">
+                    <table class="table table-bordered table-striped table-hover align-middle mb-0 catalog-table-format">
                         <thead>
                             <tr>
                                 <th>Program Code & Name</th>
