@@ -29,6 +29,66 @@
 }
 </style>
 <div class="container-fluid px-3 pt-1 pb-3">
+    <?php
+    $sumInspected = 0;
+    $sumPassed = 0;
+    $sumRejected = 0;
+    $sumRework = 0;
+    foreach ($inspections ?? [] as $qcRow) {
+        $rw = (float)($qcRow['live_rework_qty'] ?? ($qcRow['rework_qty'] ?? 0));
+        $rj = (float)($qcRow['live_rejected_qty'] ?? ($qcRow['rejected_qty'] ?? 0));
+        $ps = (float)($qcRow['live_passed_qty'] ?? ($qcRow['passed_qty'] ?? 0));
+        $ins = (float)($qcRow['live_inspected_qty'] ?? ($qcRow['inspected_qty'] ?? ($ps + $rw + $rj)));
+        $sumInspected += $ins;
+        $sumPassed += $ps;
+        $sumRejected += $rj;
+        $sumRework += $rw;
+    }
+    ?>
+    <!-- SUMMARY KPI CARDS -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+                <small class="text-muted d-block small mb-1">Total QC Batches</small>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold fs-5 text-dark"><?= number_format($totalCount ?? count($inspections ?? [])) ?> <span class="fs-6 fw-normal text-muted">Batches</span></span>
+                    <span class="badge bg-primary-subtle text-primary rounded-pill p-2"><i class="bi bi-clipboard-check fs-6"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+                <small class="text-muted d-block small mb-1">Total Inspected Items</small>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold fs-5 text-primary"><?= number_format($sumInspected) ?> <span class="fs-6 fw-normal text-muted">pcs</span></span>
+                    <span class="badge bg-info-subtle text-info rounded-pill p-2"><i class="bi bi-search fs-6"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+                <small class="text-muted d-block small mb-1">QC Completed (Passed)</small>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold fs-5 text-success"><?= number_format($sumPassed) ?> <span class="fs-6 fw-normal text-muted">pcs</span></span>
+                    <span class="badge bg-success-subtle text-success rounded-pill p-2"><i class="bi bi-check-circle fs-6"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+                <small class="text-muted d-block small mb-1">Rework / Rejected</small>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold fs-6">
+                        <span class="text-warning"><?= number_format($sumRework) ?></span> <span class="small fw-normal text-muted">rework</span>
+                        <span class="text-muted mx-1">•</span>
+                        <span class="text-danger"><?= number_format($sumRejected) ?></span> <span class="small fw-normal text-muted">rej</span>
+                    </span>
+                    <span class="badge bg-warning-subtle text-warning rounded-pill p-2"><i class="bi bi-exclamation-triangle fs-6"></i></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Export Toolbar Card -->
     <?php
     $exportTitle = 'Export Quality Control (QC) Inspections (Excel, PDF, CSV)';
