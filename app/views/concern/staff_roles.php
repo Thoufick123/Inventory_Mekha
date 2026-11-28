@@ -126,11 +126,11 @@ $activeTab = $activeTab ?? 'staff';
                     <table class="table table-hover align-middle mb-0">
                         <thead class="bg-light text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">
                             <tr>
-                                <th class="ps-4 py-3" style="width: 25%;">Role Name</th>
-                                <th class="py-3" style="width: 20%;">Scope / Concern</th>
+                                <th class="ps-4 py-3" style="width: 24%;">Role Name</th>
+                                <th class="py-3" style="width: 18%;">Scope / Concern</th>
                                 <th class="py-3" style="width: 22%;">Assigned Staff (Count)</th>
-                                <th class="py-3" style="width: 20%;">Description</th>
-                                <th class="text-end pe-4 py-3" style="width: 13%;">Action</th>
+                                <th class="py-3">Description</th>
+                                <th class="text-end pe-4 py-3 text-nowrap" style="width: 140px; min-width: 140px; white-space: nowrap;">Action</th>
                             </tr>
                         </thead>
                         <tbody class="border-top-0">
@@ -199,8 +199,8 @@ $activeTab = $activeTab ?? 'staff';
                                                 <?= htmlspecialchars($r['description'] ?: 'Standard operational permissions.') ?>
                                             </span>
                                         </td>
-                                        <td class="text-end pe-4">
-                                            <div class="d-inline-flex align-items-center gap-1.5 flex-wrap justify-content-end">
+                                        <td class="text-end pe-4 text-nowrap" style="width: 140px; min-width: 140px; white-space: nowrap;">
+                                            <div class="d-inline-flex align-items-center gap-1.5 flex-nowrap justify-content-end" style="white-space: nowrap;">
                                                 <!-- 1. View Role Details & Access (Read) -->
                                                 <button type="button" class="btn btn-xs btn-outline-info" 
                                                         onclick='openViewRoleModal(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)' 
@@ -223,19 +223,13 @@ $activeTab = $activeTab ?? 'staff';
 
                                                 <!-- 3. Delete Role (Delete) -->
                                                 <?php if (!$isPrimaryAdmin && \App\Core\Auth::can('staff', 'delete')): ?>
-                                                    <?php if ($sc === 0 && $uc === 0): ?>
-                                                        <form action="<?= \App\Core\Controller::url('/m/staff/roles/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete role <?= htmlspecialchars(addslashes($r['name'])) ?>?');">
-                                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                                                            <input type="hidden" name="id" value="<?= $r['id'] ?>">
-                                                            <button type="submit" class="btn btn-xs btn-outline-danger" title="Delete Unassigned Role">
-                                                                <i class="bi bi-trash"></i>
-                                                            </button>
-                                                        </form>
-                                                    <?php else: ?>
-                                                        <button type="button" class="btn btn-xs btn-outline-secondary opacity-50" disabled title="Cannot delete: <?= $sc ?> staff member(s) assigned. Reassign them first.">
+                                                    <form action="<?= \App\Core\Controller::url('/m/staff/roles/delete') ?>" method="POST" class="d-inline m-0 p-0" onsubmit="return confirm('Delete role <?= htmlspecialchars(addslashes($r['name'])) ?>?<?= ($sc > 0 || $uc > 0) ? " Note: " . ($sc ?: $uc) . " assigned staff will be reassigned." : "" ?>');">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                                        <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                                                        <button type="submit" class="btn btn-xs btn-outline-danger" title="Delete Role">
                                                             <i class="bi bi-trash"></i>
                                                         </button>
-                                                    <?php endif; ?>
+                                                    </form>
                                                 <?php elseif ($isPrimaryAdmin): ?>
                                                     <button type="button" class="btn btn-xs btn-outline-secondary opacity-50" disabled title="System Master role cannot be deleted">
                                                         <i class="bi bi-trash"></i>

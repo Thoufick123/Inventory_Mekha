@@ -1859,15 +1859,23 @@ class StaffController extends Controller {
             $this->redirect('/m/staff/roles');
         }
 
-        // Check if any user or staff has this role
-        $assignedUsers = (int)DB::fetchValue("SELECT COUNT(*) FROM users WHERE role_id = ?", [$roleId]);
-        if ($assignedUsers > 0) {
-            $this->flash('error', "Cannot delete role '{$role['name']}' because it is assigned to {$assignedUsers} user(s). Reassign them first.");
-            $this->redirect('/m/staff/roles');
-        }
-
         DB::beginTransaction();
         try {
+            // If users are assigned to this role, reassign them to an available fallback role to satisfy foreign keys
+            $assignedUsers = (int)DB::fetchValue("SELECT COUNT(*) FROM users WHERE role_id = ?", [$roleId]);
+            if ($assignedUsers > 0) {
+                $fallbackRoleId = (int)DB::fetchValue(
+                    "SELECT id FROM roles WHERE id != ? AND (concern_id = ? OR concern_id IS NULL) AND id != 1 ORDER BY id ASC LIMIT 1",
+                    [$roleId, $role['concern_id']]
+                );
+                if (!$fallbackRoleId) {
+                    $fallbackRoleId = (int)DB::fetchValue("SELECT id FROM roles WHERE id != ? AND id != 1 ORDER BY id ASC LIMIT 1", [$roleId]);
+                }
+                if ($fallbackRoleId) {
+                    DB::query("UPDATE users SET role_id = ? WHERE role_id = ?", [$fallbackRoleId, $roleId]);
+                }
+            }
+
             DB::query("DELETE FROM role_permissions WHERE role_id = ?", [$roleId]);
             DB::query("DELETE FROM roles WHERE id = ?", [$roleId]);
             DB::commit();
