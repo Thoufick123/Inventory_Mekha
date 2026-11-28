@@ -753,7 +753,8 @@ class PurchaseController extends Controller
 
         $sql = 'SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company, s.phone AS supplier_phone,
                        s.gstin AS supplier_gstin, s.district AS supplier_district, s.state AS supplier_state,
-                       con.name AS concern_name, con.code AS concern_code, con.logo AS concern_logo
+                       con.name AS concern_name, con.code AS concern_code, con.address AS concern_address,
+                       con.gstin AS concern_gstin, con.phone AS concern_phone, con.email AS concern_email, con.logo AS concern_logo
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
                 LEFT JOIN concerns con ON pb.concern_id = con.id
@@ -771,8 +772,18 @@ class PurchaseController extends Controller
             return;
         }
 
-        $items = DB::fetchAll(
-            'SELECT pbi.*,
+        $activeConcern = Auth::concern();
+        if (empty($bill['concern_name']) && !empty($activeConcern['name'])) {
+            $bill['concern_name'] = $activeConcern['name'];
+            $bill['concern_code'] = $activeConcern['code'] ?? '';
+            $bill['concern_address'] = $activeConcern['address'] ?? '';
+            $bill['concern_gstin'] = $activeConcern['gstin'] ?? '';
+            $bill['concern_phone'] = $activeConcern['phone'] ?? '';
+            $bill['concern_email'] = $activeConcern['email'] ?? '';
+            $bill['concern_logo'] = $bill['concern_logo'] ?: ($activeConcern['logo'] ?? '');
+        }
+
+        $itemSql = 'SELECT pbi.*,
                     v.product_code AS variant_product_code,
                     v.size AS variant_size,
                     v.attributes AS variant_attributes,
@@ -785,10 +796,15 @@ class PurchaseController extends Controller
              FROM purchase_bill_items pbi
              LEFT JOIN variants v ON pbi.variant_id = v.id
              LEFT JOIN catalogs c ON COALESCE(pbi.catalog_id, v.catalog_id) = c.id
-             WHERE pbi.purchase_bill_id = ?
-             ORDER BY pbi.id ASC',
-            [$id]
-        );
+             WHERE pbi.purchase_bill_id = ?';
+        $itemParams = [$id];
+        if (!empty($bill['concern_id'])) {
+            $itemSql .= ' AND (pbi.concern_id = ? OR pbi.concern_id IS NULL OR pbi.concern_id = 0)';
+            $itemParams[] = (int) $bill['concern_id'];
+        }
+        $itemSql .= ' ORDER BY pbi.id ASC';
+
+        $items = DB::fetchAll($itemSql, $itemParams);
 
         $isProductAddingBill = ($bill['source_module'] ?? 'purchase_billing') === 'product_adding';
         $this->render('concern/purchase_billing_view', [
@@ -806,7 +822,8 @@ class PurchaseController extends Controller
 
         $sql = 'SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company, s.phone AS supplier_phone,
                        s.gstin AS supplier_gstin, s.district AS supplier_district, s.state AS supplier_state,
-                       con.name AS concern_name, con.code AS concern_code, con.logo AS concern_logo
+                       con.name AS concern_name, con.code AS concern_code, con.address AS concern_address,
+                       con.gstin AS concern_gstin, con.phone AS concern_phone, con.email AS concern_email, con.logo AS concern_logo
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
                 LEFT JOIN concerns con ON pb.concern_id = con.id
@@ -824,8 +841,15 @@ class PurchaseController extends Controller
             return;
         }
 
-        $items = DB::fetchAll(
-            'SELECT pbi.*,
+        $activeConcern = Auth::concern();
+        $concernName = !empty($bill['concern_name']) ? $bill['concern_name'] : ($activeConcern['name'] ?? 'GRM INVENTORY');
+        $concernCode = !empty($bill['concern_code']) ? $bill['concern_code'] : ($activeConcern['code'] ?? '');
+        $concernAddress = !empty($bill['concern_address']) ? $bill['concern_address'] : ($activeConcern['address'] ?? '');
+        $concernGstin = !empty($bill['concern_gstin']) ? $bill['concern_gstin'] : ($activeConcern['gstin'] ?? '');
+        $concernPhone = !empty($bill['concern_phone']) ? $bill['concern_phone'] : ($activeConcern['phone'] ?? '');
+        $concernEmail = !empty($bill['concern_email']) ? $bill['concern_email'] : ($activeConcern['email'] ?? '');
+
+        $itemSql = 'SELECT pbi.*,
                     v.product_code AS variant_product_code,
                     v.size AS variant_size,
                     v.attributes AS variant_attributes,
@@ -838,13 +862,19 @@ class PurchaseController extends Controller
              FROM purchase_bill_items pbi
              LEFT JOIN variants v ON pbi.variant_id = v.id
              LEFT JOIN catalogs c ON COALESCE(pbi.catalog_id, v.catalog_id) = c.id
-             WHERE pbi.purchase_bill_id = ?
-             ORDER BY pbi.id ASC',
-            [$id]
-        );
+             WHERE pbi.purchase_bill_id = ?';
+        $itemParams = [$id];
+        if (!empty($bill['concern_id'])) {
+            $itemSql .= ' AND (pbi.concern_id = ? OR pbi.concern_id IS NULL OR pbi.concern_id = 0)';
+            $itemParams[] = (int) $bill['concern_id'];
+        }
+        $itemSql .= ' ORDER BY pbi.id ASC';
+
+        $items = DB::fetchAll($itemSql, $itemParams);
 
         $cleanBillNo = preg_replace('/[^A-Za-z0-9_\-]/', '_', $bill['bill_no']);
-        $filename = "Purchase_Items_{$cleanBillNo}_" . date('Ymd_His') . '.csv';
+        $cleanConcern = preg_replace('/[^A-Za-z0-9_\-]/', '_', $concernName);
+        $filename = "Purchase_Items_{$cleanConcern}_{$cleanBillNo}_" . date('Ymd_His') . '.csv';
 
         // Send headers for CSV download
         header('Content-Type: text/csv; charset=UTF-8');
@@ -856,12 +886,17 @@ class PurchaseController extends Controller
         // Add UTF-8 BOM so Excel opens it with proper encoding
         fwrite($out, "\u{FEFF}");
 
-        // Bill Header Information
-        fputcsv($out, ['GRM INVENTORY - PURCHASE BILL ITEMS']);
+        // Bill Header Information with current concern and bill details
+        fputcsv($out, [strtoupper($concernName) . ' - PURCHASE BILL ITEMS']);
+        fputcsv($out, ['Concern / Unit', $concernName, 'Concern Code', $concernCode ?: '-']);
+        if (!empty($concernAddress) || !empty($concernGstin) || !empty($concernPhone)) {
+            fputcsv($out, ['Concern Address', $concernAddress ?: '-', 'Concern GSTIN', $concernGstin ?: '-']);
+            fputcsv($out, ['Concern Phone', $concernPhone ?: '-', 'Concern Email', $concernEmail ?: '-']);
+        }
         fputcsv($out, ['Bill No', $bill['bill_no'], 'Purchase Date', date('d-m-Y', strtotime($bill['bill_date']))]);
         fputcsv($out, ['Supplier Name', $bill['supplier_name'], 'Company', $bill['supplier_company'] ?: '-']);
-        fputcsv($out, ['Supplier Invoice No', $bill['supplier_invoice_no'] ?: '-', 'GSTIN', $bill['supplier_gstin'] ?: '-']);
-        fputcsv($out, ['Payment Status', ucfirst($bill['payment_status']), 'Payment Method', ucfirst($bill['payment_method'] ?? 'credit')]);
+        fputcsv($out, ['Supplier Invoice No', $bill['supplier_invoice_no'] ?: '-', 'Supplier GSTIN', $bill['supplier_gstin'] ?: '-']);
+        fputcsv($out, ['Payment Status', ucfirst($bill['payment_status']), 'Payment Method', ucfirst(str_replace('_', ' ', $bill['payment_method'] ?? 'credit'))]);
         fputcsv($out, ['Inward Status', ucfirst($bill['inward_status']), 'Total Net Value (INR)', number_format($bill['net_amount'], 2, '.', '')]);
         fputcsv($out, []);  // Blank separator line
 

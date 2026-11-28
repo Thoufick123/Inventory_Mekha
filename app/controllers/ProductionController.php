@@ -8518,12 +8518,12 @@ class ProductionController extends Controller {
                        con.name AS concern_name, con.code AS concern_code
                 FROM production_programs pp
                 LEFT JOIN catalogs c ON pp.catalog_id = c.id
-                JOIN variants v ON pp.target_variant_id = v.id
+                LEFT JOIN variants v ON pp.target_variant_id = v.id
                 LEFT JOIN concerns con ON pp.concern_id = con.id";
         $params = [];
         $where = [];
         if ($cid) {
-            $where[] = "pp.concern_id = ?";
+            $where[] = "(pp.concern_id = ? OR pp.concern_id IS NULL)";
             $params[] = $cid;
         }
         if ($dateScope['start_date'] && $dateScope['end_date']) {
@@ -8553,11 +8553,13 @@ class ProductionController extends Controller {
             $totWaste += $waste;
 
             $endDate = $p['end_date'] ?? $p['target_date'] ?? null;
+            $targetProduct = $p['target_variant_name'] ?: ($p['program_name'] ?: ($p['catalog_name'] ?: 'Custom Production'));
+            $prodCode = $p['product_code'] ?: ($p['program_no'] ?: '-');
             $rows[] = [
                 $p['program_no'],
                 $p['catalog_name'] ?: 'Custom Production',
-                $p['product_code'],
-                $p['target_variant_name'],
+                $prodCode,
+                $targetProduct,
                 $planned,
                 $produced,
                 $waste,
@@ -8598,16 +8600,21 @@ class ProductionController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT cl.*, pp.program_no, v.name AS raw_variant_name, v.product_code,
-                       con.name AS concern_name, con.code AS concern_code
+        $sql = "SELECT cl.*, pp.program_no, pp.program_name, c.name AS catalog_name,
+                       v.name AS raw_variant_name, v.product_code,
+                       COALESCE(cl.cutting_master_name, cm.name) AS master_name,
+                       con.name AS concern_name, con.code AS concern_code,
+                       (SELECT COALESCE(SUM(cut_pieces), 0) FROM cutting_items WHERE cutting_id = cl.id) AS items_cut_pieces
                 FROM cutting_logs cl
                 LEFT JOIN production_programs pp ON cl.program_id = pp.id
-                JOIN variants v ON cl.raw_variant_id = v.id
+                LEFT JOIN catalogs c ON pp.catalog_id = c.id
+                LEFT JOIN cutting_masters cm ON cl.cutting_master_id = cm.id
+                LEFT JOIN variants v ON cl.raw_variant_id = v.id
                 LEFT JOIN concerns con ON cl.concern_id = con.id";
         $params = [];
         $where = [];
         if ($cid) {
-            $where[] = "cl.concern_id = ?";
+            $where[] = "(cl.concern_id = ? OR cl.concern_id IS NULL)";
             $params[] = $cid;
         }
         if ($dateScope['start_date'] && $dateScope['end_date']) {
@@ -8629,19 +8636,22 @@ class ProductionController extends Controller {
         $rows = [];
         $totInput = 0; $totCut = 0; $totWaste = 0;
         foreach ($logs as $l) {
-            $inp = (float)$l['input_fabric_qty'];
-            $cut = (int)$l['cut_pieces'];
-            $wst = (float)$l['wastage_fabric_qty'];
+            $inp = (float)($l['input_fabric_qty'] ?? 0);
+            $cut = (int)(!empty($l['items_cut_pieces']) && (int)$l['items_cut_pieces'] > 0 ? $l['items_cut_pieces'] : ($l['cut_pieces'] ?? 0));
+            $wst = (float)($l['wastage_fabric_qty'] ?? 0);
             $pct = $inp > 0 ? round(($wst / $inp) * 100, 1) . '%' : '0%';
 
             $totInput += $inp; $totCut += $cut; $totWaste += $wst;
 
+            $fabricName = $l['raw_variant_name'] ?: ($l['cutting_name'] ?: ($l['catalog_name'] ?: ($l['program_name'] ?: 'Cutting Batch')));
+            $prodCode = $l['product_code'] ?: ($l['program_no'] ?: ($l['batch_no'] ?: '-'));
+
             $rows[] = [
-                $l['log_no'],
+                $l['log_no'] ?: ($l['batch_no'] ?: '-'),
                 date('d M Y, h:i A', strtotime($l['created_at'])),
                 $l['program_no'] ?: 'Direct',
-                $l['raw_variant_name'],
-                $l['product_code'],
+                $fabricName,
+                $prodCode,
                 $inp,
                 $cut,
                 $wst,
@@ -8682,16 +8692,21 @@ class ProductionController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT sl.*, pp.program_no, v.name AS produced_variant_name, v.product_code,
-                       con.name AS concern_name, con.code AS concern_code
+        $sql = "SELECT sl.*, pp.program_no, pp.program_name,
+                       v.name AS produced_variant_name, v.product_code,
+                       COALESCE(sl.tailor_name, sm.name) AS tailor_display_name,
+                       con.name AS concern_name, con.code AS concern_code,
+                       (SELECT COALESCE(SUM(stitching_qty), 0) FROM stitching_items WHERE stitching_id = sl.id) AS items_stitched_qty
                 FROM stitching_logs sl
+                LEFT JOIN cutting_logs cl ON sl.cutting_id = cl.id
                 LEFT JOIN production_programs pp ON sl.program_id = pp.id
-                JOIN variants v ON sl.produced_variant_id = v.id
+                LEFT JOIN stitching_masters sm ON sl.tailor_id = sm.id
+                LEFT JOIN variants v ON sl.produced_variant_id = v.id
                 LEFT JOIN concerns con ON sl.concern_id = con.id";
         $params = [];
         $where = [];
         if ($cid) {
-            $where[] = "sl.concern_id = ?";
+            $where[] = "(sl.concern_id = ? OR sl.concern_id IS NULL)";
             $params[] = $cid;
         }
         if ($dateScope['start_date'] && $dateScope['end_date']) {
@@ -8713,19 +8728,22 @@ class ProductionController extends Controller {
         $rows = [];
         $totIn = 0; $totStitch = 0; $totWaste = 0;
         foreach ($logs as $l) {
-            $in = (int)$l['input_pieces'];
-            $st = (int)$l['stitched_pieces'];
-            $ws = (int)$l['wastage_pieces'];
+            $in = (int)($l['input_pieces'] ?? 0);
+            $st = (int)(!empty($l['items_stitched_qty']) && (int)$l['items_stitched_qty'] > 0 ? $l['items_stitched_qty'] : ($l['stitched_pieces'] ?? 0));
+            $ws = (int)($l['wastage_pieces'] ?? 0);
             $pct = $in > 0 ? round(($ws / $in) * 100, 1) . '%' : '0%';
 
             $totIn += $in; $totStitch += $st; $totWaste += $ws;
 
+            $variantName = $l['produced_variant_name'] ?: ($l['stitching_name'] ?: ($l['program_name'] ?: 'Stitching Batch'));
+            $prodCode = $l['product_code'] ?: ($l['program_no'] ?: ($l['batch_no'] ?: '-'));
+
             $rows[] = [
-                $l['log_no'],
+                $l['log_no'] ?: ($l['batch_no'] ?: '-'),
                 date('d M Y, h:i A', strtotime($l['created_at'])),
                 $l['program_no'] ?: 'Direct',
-                $l['produced_variant_name'],
-                $l['product_code'],
+                $variantName,
+                $prodCode,
                 $in,
                 $st,
                 $ws,
@@ -8765,16 +8783,29 @@ class ProductionController extends Controller {
 
         $dateScope = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
 
-        $sql = "SELECT qc.*, v.name AS variant_name, v.product_code, v.size, u.name AS inspector_name,
-                       con.name AS concern_name, con.code AS concern_code
+        $sql = "SELECT qc.*, 
+                       v.name AS variant_name, v.product_code, v.size,
+                       sl.batch_no AS stitching_batch_no, sl.stitching_name,
+                       COALESCE(p.program_no, sl.batch_no, qc.batch_no, 'PRG') AS program_no,
+                       COALESCE(cat.name, p.program_name, sl.stitching_name, v.name, 'Garment Product') AS product_name,
+                       COALESCE(u.name, 'System Administrator') AS inspector_name,
+                       con.name AS concern_name, con.code AS concern_code,
+                       (SELECT COUNT(*) FROM qc_inspection_items WHERE qc_id = qc.id) AS variant_count,
+                       (SELECT SUM(CASE WHEN qp.verdict = 'PASSED' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qc.id) AS piece_passed_qty,
+                       (SELECT SUM(CASE WHEN qp.verdict = 'REJECTED' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qc.id) AS piece_rejected_qty,
+                       (SELECT SUM(CASE WHEN qp.verdict = 'REWORK' THEN 1 ELSE 0 END) FROM qc_piece_items qp WHERE qp.qc_id = qc.id) AS piece_rework_qty,
+                       (SELECT COUNT(*) FROM qc_piece_items qp WHERE qp.qc_id = qc.id) AS piece_total_qty
                 FROM qc_inspections qc
-                JOIN variants v ON qc.variant_id = v.id
-                LEFT JOIN concerns con ON qc.concern_id = con.id
-                LEFT JOIN users u ON qc.inspector_id = u.id";
+                LEFT JOIN variants v ON qc.variant_id = v.id
+                LEFT JOIN stitching_logs sl ON qc.stitching_batch_id = sl.id
+                LEFT JOIN production_programs p ON (qc.program_id = p.id OR sl.program_id = p.id OR p.target_variant_id = v.id)
+                LEFT JOIN catalogs cat ON p.catalog_id = cat.id
+                LEFT JOIN users u ON qc.inspector_id = u.id
+                LEFT JOIN concerns con ON qc.concern_id = con.id";
         $params = [];
         $where = [];
         if ($cid) {
-            $where[] = "qc.concern_id = ?";
+            $where[] = "(qc.concern_id = ? OR qc.concern_id IS NULL)";
             $params[] = $cid;
         }
         if ($dateScope['start_date'] && $dateScope['end_date']) {
@@ -8789,44 +8820,59 @@ class ProductionController extends Controller {
         $inspections = DB::fetchAll($sql, $params);
 
         $headers = [
-            'QC No', 'Date', 'Product Code', 'Variant Name', 'Size', 
-            'Inspected Qty', 'Passed Qty', 'Rejected Qty', 'Pass Rate %', 'Location', 'Inspector', 'Concern'
+            'QC No', 'Date', 'Product / Program', 'Product Code', 'Size', 
+            'Inspected Qty', 'Passed Qty', 'Rejected Qty', 'Rework Qty', 'Pass Rate %', 'Status', 'Inspector', 'Concern'
         ];
 
         $rows = [];
-        $totInsp = 0; $totPass = 0; $totRej = 0;
+        $totInsp = 0; $totPass = 0; $totRej = 0; $totRew = 0;
         foreach ($inspections as $q) {
-            $ins = (float)$q['inspected_qty'];
-            $pas = (float)$q['passed_qty'];
-            $rej = (float)$q['rejected_qty'];
+            if ($q['piece_total_qty'] !== null && (int)$q['piece_total_qty'] > 0) {
+                $ins = (float)$q['piece_total_qty'];
+                $pas = (float)$q['piece_passed_qty'];
+                $rej = (float)$q['piece_rejected_qty'];
+                $rew = (float)$q['piece_rework_qty'];
+            } else {
+                $pas = (float)($q['passed_qty'] ?? 0);
+                $rej = (float)($q['rejected_qty'] ?? 0);
+                $rew = (float)($q['rework_qty'] ?? 0);
+                $ins = (float)($q['inspected_qty'] ?? ($pas + $rej + $rew));
+            }
             $rate = $ins > 0 ? round(($pas / $ins) * 100, 1) . '%' : '100%';
 
-            $totInsp += $ins; $totPass += $pas; $totRej += $rej;
+            $totInsp += $ins; $totPass += $pas; $totRej += $rej; $totRew += $rew;
+
+            $prodName = $q['product_name'] ?? ($q['variant_name'] ?? 'Production Garment');
+            $prodTitle = $prodName . (!empty($q['variant_count']) && (int)$q['variant_count'] > 1 ? ' (' . (int)$q['variant_count'] . ' variants)' : '');
+            $prodCode = $q['product_code'] ?: ($q['program_no'] ?: ($q['batch_no'] ?: '-'));
 
             $rows[] = [
                 $q['qc_no'],
-                date('d M Y, h:i A', strtotime($q['created_at'])),
-                $q['product_code'],
-                $q['variant_name'],
+                !empty($q['created_at']) ? date('d M Y, h:i A', strtotime($q['created_at'])) : '-',
+                $prodTitle,
+                $prodCode,
                 $q['size'] ?? '-',
                 $ins,
                 $pas,
                 $rej,
+                $rew,
                 $rate,
-                $q['location'] ?? 'QC Department',
+                strtoupper($q['status'] ?? 'COMPLETED'),
                 $q['inspector_name'] ?? 'QC Officer',
                 $q['concern_name'] ?? 'Consolidated'
             ];
         }
 
-        $totals = ['Total Inspections: ' . count($inspections), '', '', '', '', $totInsp, $totPass, $totRej, '', '', '', ''];
+        $totals = ['Total Inspections: ' . count($inspections), '', '', '', '', $totInsp, $totPass, $totRej, $totRew, '', '', '', ''];
         $metadata = [
             'Report Title' => 'Quality Control (QC) & Stock Approval Audit',
             'Scope / Period' => $dateScope['label'],
             'Generated At' => date('d M Y, h:i A'),
             'Total Inspections' => count($inspections),
-            'Total Passed Units' => number_format($totPass, 2),
-            'Total Rejected Units' => number_format($totRej, 2)
+            'Total Inspected Units' => number_format($totInsp, 0),
+            'Total Passed Units' => number_format($totPass, 0),
+            'Total Rejected Units' => number_format($totRej, 0),
+            'Total Rework Units' => number_format($totRew, 0)
         ];
 
         $filename = 'qc_inspections_' . date('Ymd_His');
