@@ -33,7 +33,6 @@
                         <th>Concern Information</th>
                         <th>Contact / GSTIN</th>
                         <th>Active Modules</th>
-                        <th>Catalog Items</th>
                         <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
@@ -62,11 +61,6 @@
                             <td>
                                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
                                     <i class="bi bi-check2-circle me-1"></i> <?= (int)$c['active_modules_count'] ?> Active
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge bg-light text-secondary border">
-                                    <?= (int)$c['variants_count'] ?> Variants
                                 </span>
                             </td>
                             <td>
