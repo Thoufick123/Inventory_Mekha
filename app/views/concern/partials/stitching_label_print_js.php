@@ -26,6 +26,9 @@
                     <table class="table table-bordered table-striped table-hover table-sm align-middle mb-0" style="font-size: 0.84rem;">
                         <thead class="text-uppercase small text-secondary" style="background-color: #f1f5f9; font-size: 0.72rem;">
                             <tr>
+                                <th class="text-center py-2" style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" id="stitchingLabelSelectAll" title="Select / Deselect All" checked>
+                                </th>
                                 <th class="text-center py-2" style="width: 45px;">#</th>
                                 <th class="py-2">Selected Line</th>
                                 <th class="text-center py-2" style="width: 120px;">Stitched Qty</th>
@@ -99,6 +102,9 @@
             const qtyVal = Math.max(1, parseInt(row.qty, 10) || 1);
             return `
                 <tr>
+                    <td class="text-center">
+                        <input type="checkbox" class="form-check-input stitching-label-row-check" checked>
+                    </td>
                     <td class="text-center text-muted small fw-semibold">${idx + 1}</td>
                     <td class="fw-semibold text-dark text-nowrap">${escapeHtml(row.name)}</td>
                     <td class="text-center text-dark small text-nowrap font-monospace">${escapeHtml(row.subtitle)}</td>
@@ -115,6 +121,31 @@
                 </tr>
             `;
         }).join('');
+
+        const selectAllEl = document.getElementById('stitchingLabelSelectAll');
+        if (selectAllEl) {
+            selectAllEl.checked = true;
+            selectAllEl.indeterminate = false;
+            selectAllEl.disabled = config.mode !== 'batch';
+        }
+        tbody.querySelectorAll('.stitching-label-row-check').forEach(function(cb) {
+            if (config.mode !== 'batch') {
+                cb.disabled = true;
+            }
+            cb.addEventListener('change', function() {
+                const tr = cb.closest('tr');
+                const inp = tr ? tr.querySelector('.stitching-label-copy-input') : null;
+                if (inp) {
+                    inp.disabled = !cb.checked;
+                }
+                if (selectAllEl) {
+                    const allCbs = Array.from(tbody.querySelectorAll('.stitching-label-row-check'));
+                    const checkedCount = allCbs.filter(function(c) { return c.checked; }).length;
+                    selectAllEl.checked = checkedCount === allCbs.length;
+                    selectAllEl.indeterminate = checkedCount > 0 && checkedCount < allCbs.length;
+                }
+            });
+        });
 
         const brandInput = document.getElementById('stitchingBrandInput');
         if (brandInput) {
@@ -312,6 +343,20 @@
             });
         }
 
+        const selectAllEl = document.getElementById('stitchingLabelSelectAll');
+        if (selectAllEl) {
+            selectAllEl.addEventListener('change', function() {
+                const checked = selectAllEl.checked;
+                document.querySelectorAll('#stitchingLabelCountsBody .stitching-label-row-check').forEach(function(cb) {
+                    cb.checked = checked;
+                    const tr = cb.closest('tr');
+                    const inp = tr ? tr.querySelector('.stitching-label-copy-input') : null;
+                    if (inp) inp.disabled = !checked;
+                });
+                selectAllEl.indeterminate = false;
+            });
+        }
+
         const btn = document.getElementById('btnConfirmStitchingLabels');
         if (!btn) return;
         btn.addEventListener('click', function() {
@@ -340,8 +385,11 @@
                 };
                 let total = 0;
                 inputs.forEach(function(inp) {
+                    const tr = inp.closest('tr');
+                    const cb = tr ? tr.querySelector('.stitching-label-row-check') : null;
+                    const isChecked = !cb || cb.checked;
                     const itemId = parseInt(inp.getAttribute('data-item-id'), 10) || 0;
-                    const count = Math.max(0, parseInt(inp.value, 10) || 0);
+                    const count = isChecked ? Math.max(0, parseInt(inp.value, 10) || 0) : 0;
                     total += count;
                     if (itemId > 0) {
                         fields['label_counts[' + itemId + ']'] = count;
