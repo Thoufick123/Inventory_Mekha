@@ -684,11 +684,14 @@ class PurchaseController extends Controller
                     'rate_note' => $rateNote,
                 ];
             } else {
-                echo json_encode([
-                    'success' => false,
-                    'message' => "Duplicate Error: HSN code '{$code}' already exists for this scope."
-                ]);
-                exit;
+                $saved = [
+                    'code_type' => $existing['code_type'],
+                    'hsn_code' => $existing['hsn_code'],
+                    'description' => $existing['description'],
+                    'category' => $existing['category'],
+                    'gst_rate' => $existing['gst_rate'],
+                    'rate_note' => $existing['rate_note'],
+                ];
             }
 
             echo json_encode([

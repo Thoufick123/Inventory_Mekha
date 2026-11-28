@@ -2463,8 +2463,7 @@ function saveAndSelectHsn() {
 
     const existing = createdHsnList.find(item => item.hsn_code === code && item.code_type === 'HSN');
     if (existing) {
-        showInlineHsnError(`Duplicate Error: HSN code '${code}' already exists.`);
-        document.getElementById('newHsnCode').focus();
+        applyCreatedHsn(existing);
         return;
     }
 
