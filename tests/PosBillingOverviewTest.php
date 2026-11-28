@@ -8,6 +8,18 @@ $salesController = file_get_contents(__DIR__ . '/../app/controllers/SalesControl
 $completeSaleStart = strpos($salesController, 'public function completePosSale(): void {');
 $completeSaleEnd = strpos($salesController, 'public function storeInvoice(): void {', $completeSaleStart);
 $completeSaleMethod = substr($salesController, $completeSaleStart, $completeSaleEnd - $completeSaleStart);
+$scannerCardStart = strpos($terminalView, 'id="pos_scanner_card"');
+$scannerCardEnd = strpos($terminalView, '<!-- Billing Cart Table', $scannerCardStart);
+$inlineErrorPosition = strpos($terminalView, 'id="pos_inline_error"');
+$customerColumnStart = strpos($terminalView, '<div class="col-lg-5">');
+$rightColumnStart = strpos($terminalView, '<div class="col-lg-7">', $customerColumnStart);
+$customerCardPosition = strpos($terminalView, 'Customer & Billed By', $customerColumnStart);
+$couponsPanelPosition = strpos($terminalView, 'id="pos_coupons_panel"', $customerColumnStart);
+$paymentMethodPosition = strpos($terminalView, '<!-- Payment Method Section -->', $customerColumnStart);
+$scannerPositionInRightColumn = strpos($terminalView, 'id="pos_scanner_card"', $rightColumnStart);
+$cartTableSectionStart = strpos($terminalView, '<!-- Billing Cart Table');
+$cartTableSectionEnd = strpos($terminalView, '<!-- Two Summary Cards', $cartTableSectionStart);
+$cartTableSection = substr($terminalView, $cartTableSectionStart, $cartTableSectionEnd - $cartTableSectionStart);
 
 $checks = [
     'POS Billing module route opens the bill overview' =>
@@ -78,6 +90,32 @@ $checks = [
         && strpos($completeSaleMethod, "WHERE id = ? AND status = 'active'") !== false
         && strpos($completeSaleMethod, "No active concern is available for POS billing") !== false
         && strpos($terminalView, 'name="concern_id"') === false,
+    'POS prevents combining products from different concerns' =>
+        strpos($salesController, "'concern_id'    => (int)\$variant['concern_id']") !== false
+        && strpos($terminalView, 'Number(cart[0].concern_id) !== Number(v.concern_id)') !== false
+        && strpos($completeSaleMethod, 'Products from different concerns cannot be combined in one POS invoice.') !== false,
+    'POS scanner errors render inside the scanner card' =>
+        $scannerCardStart !== false
+        && $scannerCardEnd !== false
+        && $inlineErrorPosition > $scannerCardStart
+        && $inlineErrorPosition < $scannerCardEnd,
+    'POS customer details and coupons are on the left of scanner and sale details' =>
+        $customerColumnStart !== false
+        && $rightColumnStart !== false
+        && $customerCardPosition > $customerColumnStart
+        && $couponsPanelPosition > $customerCardPosition
+        && $paymentMethodPosition > $couponsPanelPosition
+        && $rightColumnStart > $paymentMethodPosition
+        && $scannerPositionInRightColumn > $rightColumnStart,
+    'POS cart table fits the panel without horizontal scrolling' =>
+        $cartTableSectionStart !== false
+        && $cartTableSectionEnd !== false
+        && strpos($cartTableSection, 'class="table-responsive"') === false
+        && strpos($cartTableSection, 'table-layout: fixed') !== false
+        && strpos($cartTableSection, '@media (max-width: 575.98px)') !== false,
+    'Billed price keeps the currency symbol and input on one line' =>
+        strpos($terminalView, 'style="width: 100%; min-width: 0; flex-wrap: nowrap;"') !== false
+        && strpos($terminalView, 'style="width: 1%; flex: 1 1 0; min-width: 0;') !== false,
     'POS deducts each variant billed quantity across all eligible stock locations' =>
         strpos($completeSaleMethod, '$requestedQtyByVariant as $variantId => $requestedQty') !== false
         && strpos($completeSaleMethod, 'SELECT location, qty') !== false

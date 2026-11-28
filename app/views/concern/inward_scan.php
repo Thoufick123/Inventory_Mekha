@@ -11,19 +11,14 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                     <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/') ?>" class="text-decoration-none text-muted">Home</a></li>
                     <li class="breadcrumb-item"><span class="text-muted">Warehouse</span></li>
                     <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/m/inward') ?>" class="text-decoration-none text-muted">Inward / GRN</a></li>
-                    <li class="breadcrumb-item active text-dark fw-medium" aria-current="page"><?= $isDamageTransfer ? 'Damage Outward' : 'Cross-Check Batch' ?> #<?= htmlspecialchars($isDamageTransfer ? $outward['outward_no'] : $outward['batch_no']) ?></li>
+                    <li class="breadcrumb-item active text-dark fw-medium" aria-current="page"><?= $isDamageTransfer ? 'Damage Outward' : 'Cross-Check Outward' ?> #<?= htmlspecialchars($outward['outward_no'] ?? '') ?></li>
                 </ol>
             </nav>
             <h4 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
-                <i class="bi bi-box-arrow-in-down text-primary"></i> <?= $isDamageTransfer ? 'Receive Damage Outward' : 'Complete Inward Shipment' ?> <span class="text-muted fs-6 font-monospace">#<?= htmlspecialchars($isDamageTransfer ? $outward['outward_no'] : $outward['batch_no']) ?></span>
+                <i class="bi bi-box-arrow-in-down text-primary"></i> <?= $isDamageTransfer ? 'Receive Damage Outward' : 'Complete Inward Shipment' ?> <span class="text-muted fs-6 font-monospace">#<?= htmlspecialchars($outward['outward_no'] ?? '') ?></span>
             </h4>
         </div>
         <div class="d-flex gap-2">
-            <?php if (!empty($outward['batch_id'])): ?>
-            <a href="<?= \App\Core\Controller::url('/production/batches/label/' . (int)$outward['batch_id']) ?>" target="_blank" class="btn btn-outline-info btn-sm px-3 shadow-sm d-flex align-items-center gap-1">
-                <i class="bi bi-printer"></i> Print Batch Labels
-            </a>
-            <?php endif; ?>
             <a href="<?= \App\Core\Controller::url('/m/inward') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Back to Ledger
             </a>
@@ -170,19 +165,17 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                     <p class="small text-muted mb-0 mt-0.5"><?= $isDamageTransfer ? 'Scan the transferred damaged items; all received quantities remain quarantined.' : 'Outward cross-check and scanned received/damaged counts' ?></p>
                 </div>
 
-                <div class="table-responsive">
-                    <table class="table table-bordered align-middle mb-0" id="tableReconcile">
-                        <thead class="table-light small text-uppercase fw-semibold" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                <div>
+                    <table class="table table-sm table-bordered align-middle mb-0 small" id="tableReconcile">
+                        <thead class="table-light text-uppercase fw-semibold" style="font-size: 0.68rem; letter-spacing: 0.04em;">
                             <tr>
-                                <th style="width: 40px;" class="text-center">NO</th>
-                                <th>PRODUCT & SKU</th>
-                                <th>OUTWARD QR / CODE</th>
-                                <th>SIZE & COLOR</th>
-                                <th>OUTWARD EXP</th>
-                                <th style="width: 170px;"><?= $isDamageTransfer ? 'DAMAGED RECEIVED' : 'VERIFIED & DAMAGED' ?></th>
-                                <th>DIFFERENCE</th>
+                                <th style="width: 34px;" class="text-center">#</th>
+                                <th>PRODUCT</th>
+                                <th>SIZE &amp; COLOR</th>
+                                <th>OUTWARD</th>
+                                <th style="width: 138px;"><?= $isDamageTransfer ? 'DAMAGED' : 'VERIFIED / DMG' ?></th>
                                 <th>STATUS</th>
-                                <th class="text-center" style="width: 70px;">ACTION</th>
+                                <th class="text-center" style="width: 56px;">VIEW</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -204,55 +197,50 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                                 data-remaining-qty="<?= (int)$it['remaining_qty'] ?>">
                                 <td class="text-center fw-bold text-muted"><?= $idx + 1 ?></td>
                                 <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="rounded-2 p-2 bg-light border text-primary">
-                                            <i class="bi bi-box fs-5"></i>
-                                        </div>
-                                        <div>
-                                            <div class="fw-bold text-dark"><?= htmlspecialchars($it['variant_name']) ?></div>
-                                            <div class="font-monospace small text-muted"><?= htmlspecialchars(\App\Services\QrService::formatBrandVariantCode((int)$it['variant_id']) ?: (string)$it['variant_id']) ?></div>
-                                            <span class="badge bg-light text-muted border" style="font-size: 0.68rem;"><?= htmlspecialchars($it['category_name'] ?: '—') ?></span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="font-monospace small text-dark fw-semibold"><?= htmlspecialchars((string)$it['tag_code']) ?: 'QR unavailable' ?></div>
+                                    <div class="fw-bold text-dark lh-sm"><?= htmlspecialchars($it['variant_name']) ?></div>
+                                    <div class="font-monospace text-muted" style="font-size: 0.74rem;"><?= htmlspecialchars((string)$it['tag_code'] ?: (\App\Services\QrService::formatBrandVariantCode((int)$it['variant_id']) ?: (string)$it['variant_id'])) ?></div>
+                                    <span class="badge bg-light text-muted border mt-1" style="font-size: 0.65rem;"><?= htmlspecialchars($it['category_name'] ?: '—') ?></span>
                                 </td>
                                 <td>
                                     <div><span class="badge bg-light text-dark border"><?= htmlspecialchars((string)($it['size'] ?? '') ?: '—') ?></span></div>
                                     <div class="mt-1"><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25"><?= htmlspecialchars((string)($it['color'] ?? '') ?: '—') ?></span></div>
-                                    <?php if (!empty($it['extra_attributes']) && is_array($it['extra_attributes'])): ?>
+                                    <?php
+                                        $displayAttrs = array_filter(
+                                            is_array($it['extra_attributes'] ?? null) ? $it['extra_attributes'] : [],
+                                            static fn($k) => !in_array(strtolower(trim((string)$k)), ['hsn', 'weight'], true),
+                                            ARRAY_FILTER_USE_KEY
+                                        );
+                                    ?>
+                                    <?php if (!empty($displayAttrs)): ?>
                                         <div class="mt-1 d-flex flex-wrap gap-1">
-                                            <?php foreach ($it['extra_attributes'] as $ak => $av): ?>
-                                                <span class="badge bg-light text-secondary border" style="font-size: 0.68rem;"><?= htmlspecialchars((string)$ak) ?>: <?= htmlspecialchars((string)$av) ?></span>
+                                            <?php foreach ($displayAttrs as $ak => $av): ?>
+                                                <span class="badge bg-light text-secondary border" style="font-size: 0.65rem;"><?= htmlspecialchars((string)$ak) ?>: <?= htmlspecialchars((string)$av) ?></span>
                                             <?php endforeach; ?>
                                         </div>
                                     <?php endif; ?>
                                 </td>
-                                <td>
-                                    <div class="fw-bold text-dark fs-6"><?= number_format($it['dispatched_qty']) ?> pcs</div>
-                                    <div class="small text-success fw-semibold"><?= number_format($it['credited_qty']) ?> Credited</div>
-                                    <div class="small text-muted font-monospace"><?= number_format($it['remaining_qty']) ?> Remaining</div>
+                                <td class="text-nowrap">
+                                    <div class="fw-bold text-dark"><?= number_format($it['dispatched_qty']) ?> pcs</div>
+                                    <div class="text-success fw-semibold" style="font-size: 0.74rem;"><?= number_format($it['credited_qty']) ?> Credited</div>
+                                    <div class="text-muted font-monospace" style="font-size: 0.72rem;"><?= number_format($it['remaining_qty']) ?> Left</div>
                                 </td>
                                 <td>
                                     <div class="d-flex gap-1 mb-1 align-items-center <?= $isDamageTransfer ? 'd-none' : '' ?>">
-                                        <span class="small fw-bold text-success text-uppercase" style="width: 55px; font-size: 0.68rem;">VERIFIED</span>
-                                        <input type="number" min="0" max="<?= (int)$it['remaining_qty'] ?>" class="form-control form-control-sm text-center fw-bold border-success input-verified" style="background: #f0fdf4;" value="0" onchange="recalculateTotals()" onkeyup="recalculateTotals()">
+                                        <span class="fw-bold text-success text-uppercase" style="width: 44px; font-size: 0.65rem;">VER</span>
+                                        <input type="number" min="0" max="<?= (int)$it['remaining_qty'] ?>" class="form-control form-control-sm text-center fw-bold border-success input-verified px-1" style="background: #f0fdf4; width: 68px;" value="0" onchange="recalculateTotals()" onkeyup="recalculateTotals()">
                                     </div>
                                     <div class="d-flex gap-1 align-items-center">
-                                        <span class="small fw-bold text-danger text-uppercase" style="width: 55px; font-size: 0.68rem;">DAMAGED</span>
-                                        <input type="number" min="0" max="<?= (int)$it['remaining_qty'] ?>" class="form-control form-control-sm text-center fw-bold border-danger input-damaged" style="background: #fef2f2;" value="0" onchange="recalculateTotals()" onkeyup="recalculateTotals()">
+                                        <span class="fw-bold text-danger text-uppercase" style="width: 44px; font-size: 0.65rem;">DMG</span>
+                                        <input type="number" min="0" max="<?= (int)$it['remaining_qty'] ?>" class="form-control form-control-sm text-center fw-bold border-danger input-damaged px-1" style="background: #fef2f2; width: 68px;" value="0" onchange="recalculateTotals()" onkeyup="recalculateTotals()">
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="badge bg-danger text-white px-2 py-1.5 font-monospace diff-badge">-<?= (int)$it['remaining_qty'] ?> pcs</span>
-                                </td>
-                                <td>
-                                    <span class="badge border border-danger text-danger bg-white px-2 py-1.5 fw-semibold status-badge">SHORT (<?= (int)$it['remaining_qty'] ?>)</span>
+                                    <div class="mb-1"><span class="badge bg-danger text-white px-2 py-1 font-monospace diff-badge" style="font-size: 0.68rem;">-<?= (int)$it['remaining_qty'] ?> pcs</span></div>
+                                    <div><span class="badge border border-danger text-danger bg-white px-2 py-1 fw-semibold status-badge" style="font-size: 0.68rem;">SHORT (<?= (int)$it['remaining_qty'] ?>)</span></div>
                                 </td>
                                 <td class="text-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1 mx-auto" onclick="openPieceModal(<?= (int)$outward['id'] ?>, <?= (int)$it['variant_id'] ?>)" title="View Individual Piece QR Codes">
-                                        <i class="bi bi-eye"></i> View
+                                    <button type="button" class="btn btn-sm btn-outline-primary px-2 py-1" onclick="openPieceModal(<?= (int)$outward['id'] ?>, <?= (int)$it['variant_id'] ?>)" title="View Individual Piece QR Codes">
+                                        <i class="bi bi-eye"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -267,7 +255,7 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                 <div class="small fw-medium text-dark d-flex align-items-center gap-2">
                     <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
                     <div>
-                        <strong><?= $isDamageTransfer ? 'Partial Damage Outward:' : 'Partial Inward Batch:' ?></strong> <span id="bannerCreditedText"><?= $isDamageTransfer ? (int)($totalCredited + $totalDamaged) : (int)$totalCredited ?></span> pcs have already been received. Scan or enter remaining <span id="bannerPendingText"><?= (int)$pendingMissing ?></span> pcs below<?= $isDamageTransfer ? ' to quarantine them at this concern.' : ' to credit incremental stock to warehouse.' ?>
+                        <strong><?= $isDamageTransfer ? 'Partial Damage Outward:' : 'Partial Inward Shipment:' ?></strong> <span id="bannerCreditedText"><?= $isDamageTransfer ? (int)($totalCredited + $totalDamaged) : (int)$totalCredited ?></span> pcs have already been received. Scan or enter remaining <span id="bannerPendingText"><?= (int)$pendingMissing ?></span> pcs below<?= $isDamageTransfer ? ' to quarantine them at this concern.' : ' to credit incremental stock to warehouse.' ?>
                     </div>
                 </div>
                 <span class="badge bg-danger text-white px-2.5 py-1.5 font-monospace fs-7 text-nowrap ms-2" id="bannerPendingBadge">
@@ -458,7 +446,7 @@ $isDamageTransfer = (int)($outward['damage_transfer'] ?? 0) === 1;
                         <span id="confirmInwardModalTitle">Confirm Warehouse Inward</span>
                     </h5>
                     <div class="small opacity-75 mt-0.5 font-monospace">
-                        Batch <?= htmlspecialchars($isDamageTransfer ? ($outward['outward_no'] ?? '') : ($outward['batch_no'] ?? '')) ?>
+                        Outward <?= htmlspecialchars($outward['outward_no'] ?? '') ?>
                     </div>
                 </div>
                 <button type="button" class="btn-close btn-close-white align-self-start" data-bs-dismiss="modal" aria-label="Close"></button>

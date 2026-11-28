@@ -1,16 +1,30 @@
+<style>
+.stocks-table-format {
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.stocks-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.stocks-table-format tbody td {
+    padding: 0.5rem 0.75rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.stocks-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
 <div class="container-fluid px-0">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="fw-bold mb-1 text-dark">Live Inventory Stocks</h4>
-            <p class="text-secondary small mb-0">Consolidated live inventory balance, backed by append-only ledger audit trail.</p>
-        </div>
-        <div class="d-flex gap-2">
-            <a href="<?= \App\Core\Controller::url('/m/stock_ledger') ?>" class="btn btn-outline-secondary">
-                <i class="bi bi-clock-history me-1"></i> Stock Ledger
-            </a>
-        </div>
-    </div>
-
     <!-- Export Intelligence Toolbar -->
     <?php
     $exportTitle = 'Export Live Inventory Stocks (Excel & PDF)';
@@ -121,9 +135,14 @@
     $activeStockSource = !empty($stockGroups['own']['items']) ? 'own' : 'purchase';
     ?>
     <div class="card border-0 shadow-sm rounded-3">
-        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+        <div class="card-header bg-white py-2.5 border-bottom d-flex justify-content-between align-items-center">
             <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-box-seam me-2 text-primary"></i> Current Stock</h6>
-            <span class="badge bg-light text-dark border" id="stockLinesCountBadge"><?= $visibleStocksCount ?> Stock Lines</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-light text-dark border" id="stockLinesCountBadge"><?= $visibleStocksCount ?> Stock Lines</span>
+                <a href="<?= \App\Core\Controller::url('/m/stock_ledger') ?>" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-clock-history me-1"></i> Stock Ledger
+                </a>
+            </div>
         </div>
         <div class="px-3 pt-3 pb-2 border-bottom">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -172,10 +191,10 @@
             </div>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 table-custom">
+            <table class="table table-bordered table-striped table-hover align-middle mb-0 stocks-table-format">
                 <thead>
                     <tr>
-                        <th style="width:40px;">
+                        <th class="text-center" style="width:40px;">
                             <input type="checkbox" class="form-check-input" id="stockSelectAll" title="Select All">
                         </th>
                         <?php if ($showConcernColumn): ?>
@@ -183,9 +202,9 @@
                         <?php endif; ?>
                         <th>Variant Description</th>
                         <th>Category / Specs</th>
-                        <th>Qty</th>
-                        <th>Selling Price</th>
-                        <th>Net Value</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-end">Selling Price</th>
+                        <th class="text-end">Net Value</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -291,34 +310,46 @@
                                             </td>
                                         <?php endif; ?>
                                         <td>
-                                            <div class="fw-bold text-dark"><?= htmlspecialchars($s['variant_name']) ?></div>
-                                            <small class="text-muted">
-                                                Size: <?= htmlspecialchars($s['size'] ?: 'Free') ?>
-                                                <?php if ($displayAttributes): ?>&bull; <?= htmlspecialchars(implode(' / ', $displayAttributes)) ?><?php endif; ?>
-                                                <?php if ((float)$s['weight'] > 0): ?>&bull; Unit weight: <?= number_format((float)$s['weight'], 3) ?> <?= htmlspecialchars($s['weight_unit']) ?><?php endif; ?>
-                                            </small>
-                                            <?php if (!empty($s['is_complementary'])): ?>
-                                                <span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;"><i class="bi bi-gift me-1"></i>Complementary</span>
-                                            <?php endif; ?>
+                                            <?php
+                                            $locLabel = (string)($s['location'] ?: 'Main Store');
+                                            $descMeta = 'Size: ' . ($s['size'] ?: 'Free');
+                                            if ($displayAttributes) {
+                                                $descMeta .= ' • ' . implode(' / ', $displayAttributes);
+                                            }
+                                            if ((float)$s['weight'] > 0) {
+                                                $descMeta .= ' • Unit weight: ' . number_format((float)$s['weight'], 3) . ' ' . $s['weight_unit'];
+                                            }
+                                            $descMeta .= ' • Location: ' . $locLabel;
+                                            ?>
+                                            <div class="text-truncate" style="max-width: 310px;" title="<?= htmlspecialchars($s['variant_name'] . ' | ' . $descMeta) ?>">
+                                                <span class="fw-semibold text-dark"><?= htmlspecialchars($s['variant_name']) ?></span>
+                                                <span class="text-muted small ms-1">(<?= htmlspecialchars($s['size'] ?: 'Free') ?><?= $color !== '' ? ' • ' . htmlspecialchars($color) : '' ?>)</span>
+                                                <span class="text-muted small ms-1 stock-location d-none"><?= htmlspecialchars($locLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                                                <?php if (!empty($s['is_complementary'])): ?>
+                                                    <span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;">Complementary</span>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                         <td>
-                                            <div class="small fw-semibold"><?= htmlspecialchars($s['category_name'] ?? 'General') ?></div>
-                                            <small class="text-muted"><?= htmlspecialchars($subcatDisplay) ?></small>
+                                            <div class="text-truncate small" style="max-width: 190px;" title="<?= htmlspecialchars(($s['category_name'] ?? 'General') . ' / ' . $subcatDisplay) ?>">
+                                                <span class="fw-semibold text-dark"><?= htmlspecialchars($s['category_name'] ?? 'General') ?></span>
+                                                <span class="text-muted ms-1">/ <?= htmlspecialchars($subcatDisplay) ?></span>
+                                            </div>
                                         </td>
-                                        <td>
-                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6 px-2 py-1">
+                                        <td class="text-center">
+                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 font-monospace">
                                                 <?= number_format((float)$s['qty'], 0) ?> <?= htmlspecialchars($stockUnit) ?>
                                             </span>
                                         </td>
-                                        <td>
-                                            <span class="d-block fw-bold text-success">₹<?= number_format((float)$s['price'], 2) ?></span>
+                                        <td class="text-end" title="<?= (float)$s['mrp'] > 0 ? 'MRP ₹' . number_format((float)$s['mrp'], 2) : '' ?>">
+                                            <span class="fw-bold text-success font-monospace">₹<?= number_format((float)$s['price'], 2) ?></span>
                                             <?php if ((float)$s['mrp'] > 0): ?>
-                                                <small class="d-block text-muted">MRP ₹<?= number_format((float)$s['mrp'], 2) ?></small>
+                                                <span class="text-muted small ms-1">(MRP ₹<?= number_format((float)$s['mrp'], 0) ?>)</span>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="fw-bold text-dark">₹<?= number_format($s['qty'] * $s['price'], 2) ?></td>
+                                        <td class="text-end fw-bold text-dark font-monospace">₹<?= number_format($s['qty'] * $s['price'], 2) ?></td>
                                         <td class="text-end">
-                                            <div class="d-inline-flex flex-wrap justify-content-end gap-1">
+                                            <div class="d-inline-flex flex-nowrap justify-content-end gap-1">
                                                 <button type="button"
                                                         class="btn btn-sm btn-outline-info"
                                                         data-stock-view

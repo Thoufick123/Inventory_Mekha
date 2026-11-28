@@ -1,4 +1,4 @@
-﻿-- GRM Inventory (Invento ERP) - Updated Complete Schema (2026-11-27)
+-- GRM Inventory (Invento ERP) - Updated Complete Schema (2026-11-27)
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -275,6 +275,7 @@ CREATE TABLE IF NOT EXISTS `categories` (
   `default_gst_rate` decimal(5,2) DEFAULT NULL,
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `is_complementary` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_cat_concern` (`concern_id`),
   CONSTRAINT `fk_cat_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns` (`id`) ON DELETE CASCADE
@@ -345,7 +346,7 @@ CREATE TABLE IF NOT EXISTS `concerns` (
   `gstin` varchar(30) DEFAULT NULL,
   `phone` varchar(30) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
-  `logo` varchar(255) DEFAULT NULL,
+  `logo` varchar(500) DEFAULT NULL,
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -451,6 +452,7 @@ CREATE TABLE IF NOT EXISTS `cutting_logs` (
   `created_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `inward_source_outward_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_cut_concern` (`concern_id`),
   KEY `fk_cut_prog` (`program_id`),
@@ -801,6 +803,7 @@ CREATE TABLE IF NOT EXISTS `outwards` (
   `customer_id` int(11) DEFAULT NULL,
   `transfer_type` enum('customer','concern') NOT NULL DEFAULT 'customer',
   `destination_concern_id` int(11) DEFAULT NULL,
+  `cutting_id` int(11) DEFAULT NULL,
   `damage_transfer` tinyint(1) NOT NULL DEFAULT 0,
   `outward_date` date NOT NULL,
   `location` varchar(50) NOT NULL DEFAULT 'Main Store',
@@ -827,6 +830,30 @@ CREATE TABLE IF NOT EXISTS `outwards` (
   CONSTRAINT `fk_outw_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_outw_cust` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`),
   CONSTRAINT `fk_outw_si` FOREIGN KEY (`sales_invoice_id`) REFERENCES `sales_invoices` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `pos_coupons` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `concern_id` int(11) NOT NULL,
+  `code` varchar(50) NOT NULL,
+  `title` varchar(150) NOT NULL,
+  `discount_type` enum('FIXED','PERCENT') NOT NULL DEFAULT 'FIXED',
+  `discount_value` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `min_redemption_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `max_uses` int(11) NOT NULL DEFAULT 1,
+  `used_count` int(11) NOT NULL DEFAULT 0,
+  `expires_at` date DEFAULT NULL,
+  `status` enum('ACTIVE','INACTIVE','REDEEMED','EXPIRED','CANCELLED') NOT NULL DEFAULT 'ACTIVE',
+  `issued_bill_id` int(11) DEFAULT NULL,
+  `redeemed_bill_id` int(11) DEFAULT NULL,
+  `redeemed_at` datetime DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_coupon_concern_code` (`concern_id`, `code`),
+  KEY `idx_coupon_concern` (`concern_id`),
+  KEY `idx_coupon_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -920,6 +947,7 @@ CREATE TABLE IF NOT EXISTS `production_return_exchange_items` (
   `return_id` int(11) NOT NULL,
   `direction` enum('IN','OUT') NOT NULL,
   `variant_id` int(11) NOT NULL,
+  `sales_invoice_item_id` int(11) DEFAULT NULL,
   `tag_code` varchar(50) DEFAULT NULL,
   `scanned_codes` text DEFAULT NULL,
   `qty` decimal(12,2) NOT NULL,
@@ -1526,6 +1554,10 @@ CREATE TABLE IF NOT EXISTS `sales_invoices` (
   `total_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
   `tax_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
   `discount_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `applied_coupon_id` int(11) DEFAULT NULL,
+  `applied_coupon_code` varchar(50) DEFAULT NULL,
+  `coupon_discount_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `coupon_mode` varchar(20) DEFAULT NULL,
   `net_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
   `shipping_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
   `payment_method` enum('cash','bank_transfer','upi','credit') NOT NULL DEFAULT 'cash',
@@ -1785,6 +1817,7 @@ CREATE TABLE IF NOT EXISTS `sub_subcategories` (
   `code` varchar(20) DEFAULT NULL,
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `is_complementary` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_subsubcat_concern` (`concern_id`),
   KEY `idx_subsubcat_subcat` (`subcategory_id`),
@@ -1804,6 +1837,7 @@ CREATE TABLE IF NOT EXISTS `subcategories` (
   `code` varchar(20) DEFAULT NULL,
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `is_complementary` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_subcat_concern` (`concern_id`),
   KEY `fk_subcat_category` (`category_id`),

@@ -836,6 +836,13 @@ class SalesController extends Controller {
         if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
             $cid = null;
         }
+        $cartItemsRawForCid = json_decode((string)($_POST['cart_items_json'] ?? '[]'), true);
+        if (!$cid && Auth::isSuperAdmin() && is_array($cartItemsRawForCid) && !empty($cartItemsRawForCid[0]['id'])) {
+            $firstVariantCid = (int)DB::fetchValue("SELECT concern_id FROM variants WHERE id = ?", [(int)$cartItemsRawForCid[0]['id']]);
+            if ($firstVariantCid > 0) {
+                $cid = $firstVariantCid;
+            }
+        }
         if (!$cid && Auth::isSuperAdmin()) {
             $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: null;
         }
@@ -933,7 +940,8 @@ class SalesController extends Controller {
         }
 
         $customerChannels = $this->ensurePosCustomerChannels((int)($cid ?: 1));
-
+        \App\Services\CouponService::ensureSchema();
+        $activeCoupons = $cid ? \App\Services\CouponService::getActiveCouponsForPos((int)$cid) : [];
         $this->render('concern/billing', [
             'pageTitle'        => 'POS Billing Terminal',
             'currentModule'    => 'billing',
@@ -945,6 +953,7 @@ class SalesController extends Controller {
             'printInvoice'     => $printInvoice,
             'printItems'       => $printItems,
             'customerChannels' => $customerChannels,
+            'activeCoupons'    => $activeCoupons,
         ]);
     }
 
@@ -1193,19 +1202,24 @@ class SalesController extends Controller {
         }
 
         $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
-        if (!$cid && Auth::isSuperAdmin()) {
-            $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: 1;
-        }
+        $isAllConcernsAdmin = !$cid && Auth::isSuperAdmin();
 
         $variantId = null;
         $finishedGoodsCode = QrService::parseFinishedGoodsCode($query);
         if ($finishedGoodsCode) {
-            $lookedUpVariant = $cid ? QrService::lookupVariant($query, (int)$cid) : null;
+            $lookupCid = $cid;
+            if (!$lookupCid && $isAllConcernsAdmin && !empty($finishedGoodsCode['variant_id'])) {
+                $lookupCid = (int)DB::fetchValue("SELECT concern_id FROM variants WHERE id = ?", [(int)$finishedGoodsCode['variant_id']]);
+            }
+            $lookedUpVariant = $lookupCid ? QrService::lookupVariant($query, (int)$lookupCid) : null;
             if (!$lookedUpVariant) {
                 $this->renderJson(['success' => false, 'message' => "Item '{$query}' not found."], 404);
                 return;
             }
             $variantId = (int)$lookedUpVariant['id'];
+            if (!$cid && $isAllConcernsAdmin) {
+                $cid = (int)$lookedUpVariant['concern_id'];
+            }
         }
 
         // Check if QR format like C1-S1-V5
@@ -1214,7 +1228,7 @@ class SalesController extends Controller {
         }
 
         \App\Controllers\CatalogMappingController::ensureComplementarySchema();
-        $sql = "SELECT v.id, v.product_code, v.name, v.price, v.mrp, v.size, v.attributes,
+        $sql = "SELECT v.id, v.concern_id, v.product_code, v.name, v.price, v.mrp, v.size, v.attributes,
                        (CASE WHEN COALESCE(v.is_complementary, 0) = 1
                              OR COALESCE(cat.is_complementary, 0) = 1
                              OR COALESCE(sub.is_complementary, 0) = 1
@@ -1227,13 +1241,17 @@ class SalesController extends Controller {
                     FROM stocks
                     WHERE (location = 'Main Store' OR location = 'Main Store (WH-01)')
                     GROUP BY variant_id, concern_id
-                ) s ON v.id = s.variant_id AND s.concern_id = ?
+                ) s ON v.id = s.variant_id AND s.concern_id = v.concern_id
                 LEFT JOIN catalogs c ON c.id = v.catalog_id AND c.concern_id = v.concern_id
                 LEFT JOIN categories cat ON cat.id = COALESCE(v.category_id, c.category_id)
                 LEFT JOIN subcategories sub ON sub.id = COALESCE(v.subcategory_id, c.subcategory_id)
                 LEFT JOIN sub_subcategories ssc ON ssc.id = COALESCE(v.sub_sub_category_id, c.sub_sub_category_id)
-                WHERE v.concern_id = ? AND v.status = 'active'";
-        $params = [$cid, $cid];
+                WHERE v.status = 'active'";
+        $params = [];
+        if ($cid) {
+            $sql .= " AND v.concern_id = ?";
+            $params[] = $cid;
+        }
 
         if ($variantId) {
             $sql .= " AND v.id = ?";
@@ -1271,6 +1289,7 @@ class SalesController extends Controller {
             'success' => true,
             'variant' => [
                 'id'            => (int)$variant['id'],
+                'concern_id'    => (int)$variant['concern_id'],
                 'product_code'      => $variant['product_code'],
                 'name'          => $variant['name'],
                 'size'          => $variant['size'] ?: '-',
@@ -1413,6 +1432,13 @@ class SalesController extends Controller {
         $cid = Auth::concernId();
         if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
             $cid = null;
+        }
+        $cartItemsRawForCid = json_decode((string)($_POST['cart_items_json'] ?? '[]'), true);
+        if (!$cid && Auth::isSuperAdmin() && is_array($cartItemsRawForCid) && !empty($cartItemsRawForCid[0]['id'])) {
+            $firstVariantCid = (int)DB::fetchValue("SELECT concern_id FROM variants WHERE id = ?", [(int)$cartItemsRawForCid[0]['id']]);
+            if ($firstVariantCid > 0) {
+                $cid = $firstVariantCid;
+            }
         }
         if (!$cid && Auth::isSuperAdmin()) {
             $cid = (int)DB::fetchValue("SELECT id FROM concerns WHERE status = 'active' ORDER BY id ASC LIMIT 1") ?: null;
@@ -1585,6 +1611,7 @@ class SalesController extends Controller {
             $this->redirect('/m/billing/create');
         }
 
+        \App\Services\CouponService::ensureSchema();
         DB::beginTransaction();
         try {
             // 1. Resolve or create the invoice customer.
@@ -1644,6 +1671,8 @@ class SalesController extends Controller {
             $taxableSubtotal = 0.00;
             $taxTotal = 0.00;
             $discountTotal = 0.00;
+            $extraProductsTotal = 0.00;
+            $couponProductCount = 0;
             $calculatedItems = [];
             $requestedQtyByVariant = [];
             $requestedQtyByBatch = [];
@@ -1697,6 +1726,15 @@ class SalesController extends Controller {
                     [$variantId, $cid]
                 );
                 if (!$variant) {
+                    if (Auth::isSuperAdmin() && Auth::superAdminSelectedConcernId() === null) {
+                        $otherConcernVariant = DB::fetch(
+                            "SELECT concern_id FROM variants WHERE id = ? AND status = 'active' LIMIT 1",
+                            [$variantId]
+                        );
+                        if ($otherConcernVariant && (int)$otherConcernVariant['concern_id'] !== $cid) {
+                            throw new \RuntimeException('Products from different concerns cannot be combined in one POS invoice. Complete a separate bill for each concern.');
+                        }
+                    }
                     throw new \RuntimeException('A selected product is no longer available in this concern.');
                 }
                 $isComplementary = (int)$variant['is_complementary'] === 1;
@@ -1734,6 +1772,10 @@ class SalesController extends Controller {
                 $taxableSubtotal += $line['taxable_amount'];
                 $taxTotal += $line['gst_amount'];
                 $discountTotal += $line['discount_amount'];
+                if (!empty($item['use_coupon'])) {
+                    $couponProductCount++;
+                    $extraProductsTotal += $line['billed_amount'];
+                }
                 $calculatedItems[] = [
                     'variant_id' => $variantId,
                     'production_batch_id' => $productionBatchId ?: null,
@@ -1787,8 +1829,36 @@ class SalesController extends Controller {
                 }
             }
 
+            $grossItemsTotal = round($taxableSubtotal + $taxTotal, 2);
+            $appliedCouponId = (int)($_POST['applied_coupon_id'] ?? 0);
+            $appliedCouponCode = null;
+            $couponDiscount = 0.00;
+            $couponMode = null;
+
+            if ($appliedCouponId > 0) {
+                $couponRow = DB::fetch(
+                    "SELECT * FROM pos_coupons WHERE id = ? AND concern_id = ? LIMIT 1 FOR UPDATE",
+                    [$appliedCouponId, $cid]
+                );
+                if (!$couponRow) {
+                    throw new \RuntimeException('Selected coupon was not found for this concern.');
+                }
+                $requestedMode = strtoupper(trim((string)($_POST['applied_coupon_mode'] ?? 'DIRECT')));
+                $couponCalc = \App\Services\CouponService::validateAndCalculate(
+                    $couponRow,
+                    $requestedMode,
+                    $grossItemsTotal,
+                    round($extraProductsTotal, 2),
+                    $couponProductCount
+                );
+                $couponDiscount = $couponCalc['discount_amount'];
+                $couponMode = $couponCalc['mode'];
+                $appliedCouponCode = (string)$couponRow['code'];
+                $discountTotal = round($discountTotal + $couponDiscount, 2);
+            }
+
             $paymentTotals = PosBillingCalculator::calculateCheckoutPayment(
-                $taxableSubtotal + $taxTotal,
+                round(max(0.0, $grossItemsTotal - $couponDiscount), 2),
                 $shippingAmount,
                 $paymentStatus,
                 $advancePaid
@@ -1803,10 +1873,15 @@ class SalesController extends Controller {
             $notes = "POS Terminal Sale. Billing For: {$billingPartyType}. Channel: {$customerChannelName}. GST Type: {$gstType}. GST Price Mode: {$gstPriceMode}. Payment Status: {$paymentStatus}" . ($isOnline ? " [Online Channel]" : "");
 
             DB::query(
-                "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, net_amount, shipping_amount, paid_amount, payment_method, payment_status, customer_channel, is_direct_bill, billing_company_name, billing_company_address, billing_company_phone, billing_company_email, billing_company_gstin, notes, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, applied_coupon_id, applied_coupon_code, coupon_discount_amount, coupon_mode, net_amount, shipping_amount, paid_amount, payment_method, payment_status, customer_channel, is_direct_bill, billing_company_name, billing_company_address, billing_company_phone, billing_company_email, billing_company_gstin, notes, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
                 [
-                    $cid, $invoiceNo, $customerId, $invDate, $taxableSubtotal, $taxTotal, $discountTotal, $netPayable,
+                    $cid, $invoiceNo, $customerId, $invDate, $taxableSubtotal, $taxTotal, $discountTotal,
+                    $appliedCouponId > 0 ? $appliedCouponId : null,
+                    $appliedCouponCode,
+                    $couponDiscount,
+                    $couponMode,
+                    $netPayable,
                     $shippingAmount, $paidAmount, $payMethod, $paymentStatus, $customerChannelName, $isDirectBill ? 1 : 0,
                     $billingPartyType === 'company' ? $companyName : null,
                     $billingPartyType === 'company' ? $companyAddress : null,
@@ -1817,6 +1892,10 @@ class SalesController extends Controller {
                 ]
             );
             $invoiceId = (int)DB::lastInsertId();
+
+            if ($appliedCouponId > 0) {
+                \App\Services\CouponService::redeemCoupon($appliedCouponId, $invoiceId);
+            }
 
             // 4. Record invoice lines before deducting the grouped variant quantities.
             foreach ($calculatedItems as $item) {
