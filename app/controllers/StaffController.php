@@ -1110,7 +1110,7 @@ class StaffController extends Controller {
                     LEFT JOIN concerns c ON r.concern_id = c.id
                     LEFT JOIN users u ON u.role_id = r.id
                     LEFT JOIN staff s ON s.user_id = u.id
-                    WHERE 1=1";
+                    WHERE r.name NOT IN ('Super Admin', 'Concern Administrator')";
         $roleParams = [];
         if ($concernFilter) {
             $roleSql .= " AND (r.concern_id = ? OR r.concern_id IS NULL)";
