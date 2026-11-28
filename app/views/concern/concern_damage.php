@@ -64,7 +64,7 @@
             white-space: nowrap;
         }
         .damage-table-format tbody td {
-            padding: 0.55rem 0.75rem;
+            padding: 0.5rem 0.65rem;
             border-color: #e2e8f0 !important;
             vertical-align: middle;
             white-space: nowrap;
@@ -155,13 +155,13 @@
                             <tr>
                                 <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle font-monospace"><?= htmlspecialchars($d['damage_no']) ?></span></td>
                                 <td>
-                                    <div class="text-truncate" style="max-width: 240px;" title="<?= htmlspecialchars($d['variant_name'] . ' | ' . $displayProductCode . ' • ' . ($d['size'] ?: 'Standard')) ?>">
+                                    <div class="text-truncate" style="max-width: 195px;" title="<?= htmlspecialchars($d['variant_name'] . ' | ' . $displayProductCode . ' • ' . ($d['size'] ?: 'Standard')) ?>">
                                         <span class="fw-semibold text-dark"><?= htmlspecialchars($d['variant_name']) ?></span>
                                         <span class="text-muted small font-monospace ms-1">(<?= htmlspecialchars($displayProductCode) ?>)</span>
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="text-truncate" style="max-width: 230px;" title="<?= htmlspecialchars($sourceLabel . ' | ' . $srcRef . ' | ' . $reasonStr) ?>">
+                                    <div class="text-truncate" style="max-width: 185px;" title="<?= htmlspecialchars($sourceLabel . ' | ' . $srcRef . ' | ' . $reasonStr) ?>">
                                         <span class="badge bg-secondary-subtle text-secondary me-1"><?= htmlspecialchars($sourceLabel) ?></span>
                                         <span class="text-muted small"><?= htmlspecialchars($reasonStr) ?></span>
                                     </div>
@@ -216,20 +216,24 @@
 <?php if ($canEditDamage): ?>
 <div class="modal fade" id="modalEditConcernDamage" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <form action="<?= \App\Core\Controller::url('/m/concern_damage/update') ?>" method="POST" class="modal-content">
+        <form action="<?= \App\Core\Controller::url('/m/concern_damage/update') ?>" method="POST" class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <input type="hidden" name="id" id="edit_cdamage_id">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold">Edit Damage Reason</h5>
+            <div class="modal-header bg-light border-bottom px-4 py-3">
+                <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                    <i class="bi bi-pencil-square text-primary"></i> Edit Damage Reason
+                </h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <label class="form-label small fw-semibold" for="edit_cdamage_reason">Damage reason *</label>
-                <textarea name="reason" id="edit_cdamage_reason" class="form-control" rows="3" maxlength="255" required></textarea>
+            <div class="modal-body p-4">
+                <label class="form-label small fw-semibold text-secondary mb-1.5" for="edit_cdamage_reason">Damage reason <span class="text-danger">*</span></label>
+                <textarea name="reason" id="edit_cdamage_reason" class="form-control" rows="3" maxlength="255" placeholder="Enter damage reason..." required></textarea>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Reason</button>
+            <div class="modal-footer bg-light border-top px-4 py-2.5 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary px-3 fw-semibold">
+                    <i class="bi bi-check2 me-1"></i> Save Reason
+                </button>
             </div>
         </form>
     </div>
