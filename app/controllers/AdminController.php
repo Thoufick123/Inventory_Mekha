@@ -1055,7 +1055,7 @@ class AdminController extends Controller {
             $unitIds
         );
 
-        $this->view('export_center/index', [
+        $this->render('export_center/index', [
             'pageTitle'      => 'Data Export Center',
             'currentModule'  => 'export_center',
             'ctx'            => $ctx,
