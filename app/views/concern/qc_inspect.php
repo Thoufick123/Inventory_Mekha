@@ -2,16 +2,33 @@
 // app/views/concern/qc_inspect.php
 // 2D QR Garment Scanner Inspection View (Matches Screenshot 4)
 ?>
-<div class="container-fluid px-3 py-2">
-    <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb small text-muted mb-0">
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="text-decoration-none text-muted">Home</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog') ?>" class="text-decoration-none text-muted">Production</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/qc') ?>" class="text-decoration-none text-muted">QC Inspections</a></li>
-            <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page">Inspect Batch <?= htmlspecialchars($qc['qc_no']) ?></li>
-        </ol>
-    </nav>
+<style>
+.qc-inspect-table-format {
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.qc-inspect-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.qc-inspect-table-format tbody td {
+    padding: 0.5rem 0.75rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.qc-inspect-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
+<div class="container-fluid px-3 pt-1 pb-3">
 
     <!-- Top Info Bar -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
@@ -100,68 +117,58 @@
         <!-- Pieces Table -->
         <div class="card-body p-0">
             <div class="table-responsive" style="max-height: 540px; overflow-y: auto;">
-                <table class="table table-hover align-middle mb-0" id="tablePieces">
-                    <thead class="table-light text-uppercase small text-secondary sticky-top" style="font-size:0.75rem; z-index: 5;">
+                <table class="table table-bordered table-striped table-hover table-sm align-middle mb-0 qc-inspect-table-format" id="tablePieces">
+                    <thead class="sticky-top" style="z-index: 5;">
                         <tr>
-                            <th class="ps-3 text-center py-2.5" style="width: 50px;">#</th>
-                            <th class="ps-3 py-2.5">Garment Tag Code &amp; Variant</th>
-                            <th class="text-center py-2.5" style="width: 140px;">QC Verdict</th>
-                            <th class="py-2.5" style="width: 320px;">Defect / Rework Reason &amp; Notes</th>
-                            <th class="text-center pe-4 py-2.5" style="width: 240px;">Piece QC Actions</th>
+                            <th class="text-center" style="width: 48px;">#</th>
+                            <th>Tag Code</th>
+                            <th>Catalog &amp; Variant</th>
+                            <th class="text-center" style="width: 115px;">QC Verdict</th>
+                            <th style="min-width: 240px;">Defect / Rework Reason &amp; Notes</th>
+                            <th class="text-center" style="width: 230px;">Piece QC Actions</th>
                         </tr>
                     </thead>
                     <tbody id="tbodyPieces">
-                        <?php foreach ($pieces as $idx => $p): ?>
+                        <?php foreach ($pieces as $idx => $p):
+                            $catName = $p['catalog_name'] ?: 'Garment Product';
+                            $varMeta = ($p['size'] ?: 'Free') . ' / ' . ($p['color'] ?: 'STD') . ' • #' . (int)$p['piece_number'] . '/' . (int)$p['total_variant_pieces'];
+                        ?>
                             <tr id="row_piece_<?= $p['id'] ?>" data-tag="<?= htmlspecialchars($p['tag_code']) ?>" data-verdict="<?= htmlspecialchars($p['verdict']) ?>">
-                                <td class="ps-3 text-center align-middle">
-                                    <span class="badge bg-light text-dark border font-monospace fw-bold px-2 py-1" style="font-size:0.80rem;">
-                                        <?= (int)$p['piece_number'] ?>
-                                    </span>
+                                <td class="text-center font-monospace fw-bold text-muted">
+                                    <?= (int)$p['piece_number'] ?>
                                 </td>
-                                <td class="ps-3 py-2.5">
-                                    <div class="d-flex flex-column gap-1">
-                                        <span class="badge bg-light text-primary border align-self-start font-monospace text-truncate" style="max-width: 300px; font-size:0.75rem;">
-                                            <i class="bi bi-tag text-primary me-1"></i> <?= htmlspecialchars($p['catalog_name'] ?: 'Garment Product') ?>
-                                        </span>
-                                        <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                            <span class="badge bg-dark font-monospace px-2 py-0.5" style="font-size:0.8rem;">
-                                                <?= htmlspecialchars($p['tag_code']) ?>
-                                            </span>
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5" style="font-size:0.72rem;">
-                                                <?= htmlspecialchars($p['size'] ?: 'Free') ?>
-                                            </span>
-                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-1.5 py-0.5" style="font-size:0.72rem;">
-                                                <?= htmlspecialchars($p['color'] ?: 'STD') ?>
-                                            </span>
-                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle font-monospace px-2 py-0.5" style="font-size:0.72rem;">
-                                                Garment #<?= (int)$p['piece_number'] ?> of <?= (int)$p['total_variant_pieces'] ?>
-                                            </span>
-                                        </div>
+                                <td class="font-monospace fw-bold text-dark">
+                                    <?= htmlspecialchars($p['tag_code']) ?>
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 280px;" title="<?= htmlspecialchars($catName . ' (' . $varMeta . ')') ?>">
+                                        <span class="fw-semibold text-primary"><?= htmlspecialchars($catName) ?></span>
+                                        <span class="text-muted small ms-1">(<?= htmlspecialchars($p['size'] ?: 'Free') ?> / <?= htmlspecialchars($p['color'] ?: 'STD') ?> • #<?= (int)$p['piece_number'] ?>/<?= (int)$p['total_variant_pieces'] ?>)</span>
                                     </div>
                                 </td>
-                                <td class="text-center py-2.5">
+                                <td class="text-center">
                                     <?php
                                     $vClass = 'bg-secondary';
                                     if ($p['verdict'] === 'PASSED') $vClass = 'bg-success';
                                     elseif ($p['verdict'] === 'REJECTED') $vClass = 'bg-danger';
                                     elseif ($p['verdict'] === 'REWORK') $vClass = 'bg-warning text-dark';
                                     ?>
-                                    <span class="badge <?= $vClass ?> px-3 py-1.5 font-monospace fw-bold verdict-badge" id="badge_v_<?= $p['id'] ?>">
+                                    <span class="badge <?= $vClass ?> px-2.5 py-1 font-monospace fw-bold verdict-badge" id="badge_v_<?= $p['id'] ?>">
                                         <?= htmlspecialchars($p['verdict']) ?>
                                     </span>
                                 </td>
-                                <td class="py-2.5">
+                                <td>
                                     <input type="text" class="form-control form-control-sm input-defect-note" 
                                            id="note_<?= $p['id'] ?>"
                                            value="<?= htmlspecialchars($p['defect_reason'] ?? '') ?>" 
                                            placeholder="Specific defect / rework notes...">
                                 </td>
-                                <td class="text-center pe-4 py-2.5">
-                                    <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                        <button type="button" class="btn btn-outline-success fw-semibold px-2.5 py-1" onclick="setPieceVerdict(<?= $p['id'] ?>, 'PASSED')" title="Pass Garment">
-                                            <i class="bi bi-check-lg"></i> Pass
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm flex-nowrap" role="group">
+                                        <button type="button" class="btn btn-outline-success fw-semibold text-nowrap px-2.5" onclick="setPieceVerdict(<?= $p['id'] ?>, 'PASSED')" title="Pass Garment">
+                                            <i class="bi bi-check-lg me-1"></i>Pass
                                         </button>
-                                        <button type="button" class="btn btn-outline-danger fw-semibold px-2.5 py-1" 
+                                        <button type="button" class="btn btn-outline-danger fw-semibold text-nowrap px-2.5" 
                                                 onclick="openRejectModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['tag_code'], ENT_QUOTES) ?>', '<?= htmlspecialchars(($p['size'] ?: 'STD') . ' / ' . ($p['color'] ?: 'STD'), ENT_QUOTES) ?>')" 
                                                 title="Reject / Damage">
                                             <i class="bi bi-x-lg"></i> Reject
