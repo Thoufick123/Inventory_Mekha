@@ -950,88 +950,90 @@ class AdminController extends Controller {
     }
 
     public function reports(): void {
-        $period     = trim($_GET['period'] ?? 'all');
+        $period     = trim($_GET['period'] ?? 'month');
         $singleDate = trim($_GET['single_date'] ?? '');
         $fromDate   = trim($_GET['from_date'] ?? '');
         $toDate     = trim($_GET['to_date'] ?? '');
+        $unitId     = !empty($_GET['unit_id']) ? (int)$_GET['unit_id'] : null;
 
-        // Resolve concern IDs (supports single ID, array of IDs, or comma-separated string)
-        $selectedConcernIds = [];
-        if (!empty($_GET['concern_ids']) && is_array($_GET['concern_ids'])) {
-            $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($_GET['concern_ids']))));
-        } elseif (!empty($_GET['concern_id'])) {
-            if (is_array($_GET['concern_id'])) {
-                $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($_GET['concern_id']))));
-            } else {
-                $parts = explode(',', (string)$_GET['concern_id']);
-                $selectedConcernIds = array_values(array_unique(array_map('intval', array_filter($parts))));
-            }
-        }
+        $requestedConcernIds = $this->parseRequestedConcernIds();
+        $scope = \App\Services\ReportService::resolveScope($requestedConcernIds, $period, $singleDate, $fromDate, $toDate);
+        $range = $scope['range'];
+        $selectedConcernIds = $scope['concern_ids'];
 
-        if (!Auth::isSuperAdmin()) {
-            $userCid = Auth::concernId();
-            if ($userCid) {
-                $selectedConcernIds = [$userCid];
-            }
-        }
-
-        $range = \App\Services\ExportService::resolveDateRange($period, $singleDate, $fromDate, $toDate);
-
-        $salesDateFilter = "";
-        $purchaseDateFilter = "";
-
-        if (!empty($range['start_date']) && !empty($range['end_date'])) {
-            $startDateEsc = addslashes($range['start_date']);
-            $endDateEsc = addslashes($range['end_date']);
-            $salesDateFilter = " AND si.invoice_date >= '{$startDateEsc}' AND si.invoice_date <= '{$endDateEsc}'";
-            $purchaseDateFilter = " AND pb.bill_date >= '{$startDateEsc}' AND pb.bill_date <= '{$endDateEsc}'";
-        }
-
-        if (!Auth::isSuperAdmin()) {
-            $userCid = Auth::concernId();
-            if ($userCid) {
-                $selectedConcernIds = [$userCid];
-            }
-        }
-
-        $allConcerns = !Auth::isSuperAdmin() && Auth::concernId()
-            ? DB::fetchAll("SELECT id, name, code, status FROM concerns WHERE id = ?", [Auth::concernId()])
-            : DB::fetchAll("SELECT id, name, code, status FROM concerns ORDER BY name ASC");
-
-        $concernWhere = "";
-        $params = [];
-        if (!empty($selectedConcernIds)) {
-            $placeholders = implode(',', array_fill(0, count($selectedConcernIds), '?'));
-            $concernWhere = " WHERE c.id IN ({$placeholders}) ";
-            $params = $selectedConcernIds;
-        }
-
-        $concernStats = DB::fetchAll(
-            "SELECT c.id, c.code, c.name,
-                    (SELECT COUNT(*) FROM variants v WHERE v.concern_id = c.id) AS total_variants,
-                    (SELECT COALESCE(SUM(s.qty), 0) FROM stocks s WHERE s.concern_id = c.id) AS total_stock_qty,
-                    (SELECT COALESCE(SUM(s.qty * v.price), 0) FROM stocks s JOIN variants v ON s.variant_id = v.id WHERE s.concern_id = c.id) AS stock_valuation,
-                    (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id {$salesDateFilter}) AS total_sales,
-                    (SELECT COALESCE(SUM(net_amount), 0) FROM purchase_bills pb WHERE pb.concern_id = c.id {$purchaseDateFilter}) AS total_purchases
-             FROM concerns c
-             {$concernWhere}
-             ORDER BY c.id ASC",
-            $params
+        $reportData = \App\Services\ReportService::getOverviewPnlReport(
+            $range['start_date'] ?? null,
+            $range['end_date'] ?? null,
+            $selectedConcernIds,
+            $unitId
         );
 
-        $this->render('admin/reports', [
-            'pageTitle'          => 'Consolidated Multi-Concern Reports',
+        $this->render('reports/index', [
+            'pageTitle'          => 'Enterprise Financial & P&L Reports',
             'currentModule'      => 'admin_reports',
-            'concernStats'       => $concernStats,
-            'allConcerns'        => $allConcerns,
+            'reportBaseUrl'      => '/admin/reports',
+            'reportPrintUrl'     => '/admin/reports/print',
+            'reportExportUrl'    => '/admin/reports/export',
+            'reportData'         => $reportData,
+            'concernStats'       => $reportData['concern_rows'] ?? [],
+            'allConcerns'        => $scope['all_concerns'],
+            'units'              => $scope['units'],
             'selectedConcernIds' => $selectedConcernIds,
             'selectedConcernId'  => (count($selectedConcernIds) === 1 ? $selectedConcernIds[0] : null),
+            'selectedUnitId'     => $unitId,
             'period'             => $period,
             'singleDate'         => $singleDate,
             'fromDate'           => $fromDate,
             'toDate'             => $toDate,
             'rangeLabel'         => $range['label'],
+            'startDate'          => $range['start_date'] ?? '',
+            'endDate'            => $range['end_date'] ?? '',
+            'isSuperAdmin'       => $scope['is_super_admin'],
         ]);
+    }
+
+    public function reportsPrint(): void {
+        $period     = trim($_GET['period'] ?? 'month');
+        $singleDate = trim($_GET['single_date'] ?? '');
+        $fromDate   = trim($_GET['from_date'] ?? '');
+        $toDate     = trim($_GET['to_date'] ?? '');
+        $unitId     = !empty($_GET['unit_id']) ? (int)$_GET['unit_id'] : null;
+
+        $requestedConcernIds = $this->parseRequestedConcernIds();
+        $scope = \App\Services\ReportService::resolveScope($requestedConcernIds, $period, $singleDate, $fromDate, $toDate);
+        $range = $scope['range'];
+        $selectedConcernIds = $scope['concern_ids'];
+
+        $reportData = \App\Services\ReportService::getOverviewPnlReport(
+            $range['start_date'] ?? null,
+            $range['end_date'] ?? null,
+            $selectedConcernIds,
+            $unitId
+        );
+
+        $this->render('reports/print', [
+            'pageTitle'          => 'P&L Report Print',
+            'noLayout'           => true,
+            'reportData'         => $reportData,
+            'allConcerns'        => $scope['all_concerns'],
+            'selectedConcernIds' => $selectedConcernIds,
+            'rangeLabel'         => $range['label'],
+            'generatedAt'        => date('d M Y, h:i A'),
+        ]);
+    }
+
+    private function parseRequestedConcernIds(): array {
+        if (!empty($_GET['concern_ids']) && is_array($_GET['concern_ids'])) {
+            return array_values(array_unique(array_map('intval', array_filter($_GET['concern_ids']))));
+        }
+        if (!empty($_GET['concern_id'])) {
+            if (is_array($_GET['concern_id'])) {
+                return array_values(array_unique(array_map('intval', array_filter($_GET['concern_id']))));
+            }
+            $parts = explode(',', (string)$_GET['concern_id']);
+            return array_values(array_unique(array_map('intval', array_filter($parts))));
+        }
+        return [];
     }
 
     public function exportReports(): void {

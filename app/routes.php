@@ -58,6 +58,7 @@ $router->post('/admin/assets/store', [AdminController::class, 'storeAsset'], 'ad
 $router->post('/admin/assets/update', [AdminController::class, 'updateAsset'], 'admin_assets', 'edit');
 $router->post('/admin/assets/delete', [AdminController::class, 'deleteAsset'], 'admin_assets', 'delete');
 $router->get('/admin/reports', [AdminController::class, 'reports'], 'admin_reports', 'view');
+$router->get('/admin/reports/print', [AdminController::class, 'reportsPrint'], 'admin_reports', 'view');
 $router->get('/admin/reports/export', [AdminController::class, 'exportReports'], 'admin_reports', 'view');
 
 // ==========================================
@@ -100,11 +101,14 @@ $router->post('/m/product_adding/delete-hsn', [CatalogMappingController::class, 
 $router->get('/api/product-adding/subcategories', [ProductAddingController::class, 'subcategories'], 'product_adding', 'view');
 $router->get('/api/product-adding/sub-subcategories', [ProductAddingController::class, 'subSubcategories'], 'product_adding', 'view');
 
-// Dashboard
+// Dashboard & Concern Reports
 $router->get('/dashboard', [ConcernDashboardController::class, 'index']);
 $router->get('/dashboard/export', [ConcernDashboardController::class, 'exportDashboard'], 'concern_dashboard', 'export');
 $router->get('/m/concern_dashboard', [ConcernDashboardController::class, 'index']);
 $router->get('/m/concern_dashboard/export', [ConcernDashboardController::class, 'exportDashboard'], 'concern_dashboard', 'export');
+$router->get('/m/reports', [ConcernDashboardController::class, 'reports']);
+$router->get('/m/reports/print', [ConcernDashboardController::class, 'reportsPrint']);
+$router->get('/m/reports/export', [ConcernDashboardController::class, 'exportReports']);
 
 // Variants Catalog
 $router->get('/m/variants', [VariantController::class, 'index'], 'stocks', 'view');
