@@ -1,9 +1,10 @@
 <?php
 // Group operational modules to match concern provisioning hierarchy
-$groupOrder = ['Super Admin', 'Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
+$groupOrder = ['Purchase', 'Production', 'Stock', 'Sales', 'Shop', 'Finance', 'Staff'];
 $groupedModules = [];
 foreach ($modules as $m) {
     if ($m['code'] === 'cash') continue; // Unified under 'Cash & Cash Flow' (cash_flow)
+    if ($m['group_name'] === 'Super Admin') continue;
     if ($m['code'] === 'concern_dashboard' || $m['group_name'] === 'Dashboard') continue;
     if ($m['code'] === 'variants' || $m['group_name'] === 'Masters') continue;
     if (in_array($m['code'], ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'], true)) continue;
@@ -11,6 +12,7 @@ foreach ($modules as $m) {
     $groupedModules[$grp][] = $m;
 }
 foreach (array_keys($groupedModules) as $grpKey) {
+    if ($grpKey === 'Super Admin') continue;
     if (!in_array($grpKey, $groupOrder, true)) {
         $groupOrder[] = $grpKey;
     }
@@ -598,6 +600,24 @@ function onPermCheckboxChange(mid, act, checked) {
     if (!window.concernPerms[window.activeConcernId][mid]) {
         window.concernPerms[window.activeConcernId][mid] = {};
     }
+
+    const vCb = document.getElementById('m_view_' + mid);
+    const aCb = document.getElementById('m_add_' + mid);
+    const eCb = document.getElementById('m_edit_' + mid);
+    const dCb = document.getElementById('m_delete_' + mid);
+
+    if (act === 'view' && !checked) {
+        if (aCb) aCb.checked = false;
+        if (eCb) eCb.checked = false;
+        if (dCb) dCb.checked = false;
+        window.concernPerms[window.activeConcernId][mid]['add'] = 0;
+        window.concernPerms[window.activeConcernId][mid]['edit'] = 0;
+        window.concernPerms[window.activeConcernId][mid]['delete'] = 0;
+    } else if (act !== 'view' && checked) {
+        if (vCb) vCb.checked = true;
+        window.concernPerms[window.activeConcernId][mid]['view'] = 1;
+    }
+
     window.concernPerms[window.activeConcernId][mid][act] = checked ? 1 : 0;
     updateHeaderCheckboxesState();
 }
@@ -667,6 +687,22 @@ function toggleHeaderColumn(action, checked) {
                 if (!window.concernPerms[window.activeConcernId]) window.concernPerms[window.activeConcernId] = {};
                 if (!window.concernPerms[window.activeConcernId][mid]) window.concernPerms[window.activeConcernId][mid] = {};
                 window.concernPerms[window.activeConcernId][mid][action] = checked ? 1 : 0;
+
+                if (action === 'view' && !checked) {
+                    const aCb = document.getElementById('m_add_' + mid);
+                    const eCb = document.getElementById('m_edit_' + mid);
+                    const dCb = document.getElementById('m_delete_' + mid);
+                    if (aCb) aCb.checked = false;
+                    if (eCb) eCb.checked = false;
+                    if (dCb) dCb.checked = false;
+                    window.concernPerms[window.activeConcernId][mid]['add'] = 0;
+                    window.concernPerms[window.activeConcernId][mid]['edit'] = 0;
+                    window.concernPerms[window.activeConcernId][mid]['delete'] = 0;
+                } else if (action !== 'view' && checked) {
+                    const vCb = document.getElementById('m_view_' + mid);
+                    if (vCb) vCb.checked = true;
+                    window.concernPerms[window.activeConcernId][mid]['view'] = 1;
+                }
             }
         }
     });

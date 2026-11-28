@@ -5728,6 +5728,7 @@ class ProductionController extends Controller {
                    FROM cutting_logs cl
                    LEFT JOIN production_programs pp ON cl.program_id = pp.id
                    WHERE (cl.status IS NULL OR cl.status != 'cancelled')
+                     AND (cl.outward_id IS NULL OR cl.outward_id = 0)
                      AND cl.id NOT IN (
                          SELECT DISTINCT cutting_id 
                          FROM stitching_logs 
@@ -5790,7 +5791,7 @@ class ProductionController extends Controller {
             "SELECT cl.*, pp.id AS program_id, pp.program_no, pp.program_name, pp.catalog_id AS prog_catalog_id
              FROM cutting_logs cl
              LEFT JOIN production_programs pp ON cl.program_id = pp.id
-             WHERE cl.id = ? AND (cl.status IS NULL OR cl.status != 'cancelled')" . ($cid ? " AND cl.concern_id = ?" : ""),
+             WHERE cl.id = ? AND (cl.status IS NULL OR cl.status != 'cancelled') AND (cl.outward_id IS NULL OR cl.outward_id = 0)" . ($cid ? " AND cl.concern_id = ?" : ""),
             $cid ? [$cuttingId, $cid] : [$cuttingId]
         );
 
@@ -6103,6 +6104,10 @@ class ProductionController extends Controller {
 
         if (!$cutting) {
             $this->flash('error', 'Selected Cutting Batch not found or access denied.');
+            $this->redirect('/production/stitching/create');
+        }
+        if (!empty($cutting['outward_id'])) {
+            $this->flash('error', 'This cutting batch has been outwarded to another concern and cannot be stitched here.');
             $this->redirect('/production/stitching/create');
         }
 

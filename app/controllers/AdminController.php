@@ -140,8 +140,11 @@ class AdminController extends Controller {
                            SELECT id, ?, 1, 1, 1, 1 FROM roles", [$dashModId]);
             }
 
-            // Ensure admin_assets and admin_reports can be provisioned if selected
-            DB::query("UPDATE modules SET is_super_admin_only = 0 WHERE code IN ('admin_assets', 'admin_reports')");
+            // Ensure Super Admin modules are strictly super admin only and removed from concern modules
+            DB::query("UPDATE modules SET is_super_admin_only = 1, group_name = 'Super Admin' WHERE code IN ('admin_dashboard', 'admin_concerns', 'admin_assets', 'admin_reports')");
+            DB::query("DELETE cm FROM concern_modules cm JOIN modules m ON cm.module_id = m.id WHERE m.is_super_admin_only = 1");
+            DB::query("DELETE rp FROM role_permissions rp JOIN modules m ON rp.module_id = m.id WHERE m.is_super_admin_only = 1 AND rp.role_id > 1");
+            DB::query("DELETE up FROM user_permissions up JOIN modules m ON up.module_id = m.id WHERE m.is_super_admin_only = 1");
 
             // Purge obsolete modules
             $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];

@@ -7,37 +7,6 @@
                 Manage employees, workforce rosters, and user access permissions isolated by business concern.
             </p>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-outline-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalSelectConcern">
-                <i class="bi bi-building me-1"></i>
-                <?= $activeConcern ? 'Concern: ' . htmlspecialchars($activeConcern['name']) : 'Concern: All Concerns (Consolidated)' ?>
-                <i class="bi bi-chevron-down ms-1 small"></i>
-            </button>
-        </div>
-    </div>
-
-    <!-- Active Concern Status Banner -->
-    <div class="alert alert-light border shadow-xs rounded-3 d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-4" style="background: #f8fafc;">
-        <div class="d-flex align-items-center gap-2">
-            <?php if ($activeConcern): ?>
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1.5 font-monospace">
-                    <?= htmlspecialchars($activeConcern['code']) ?>
-                </span>
-                <span class="fw-bold text-dark"><?= htmlspecialchars($activeConcern['name']) ?></span>
-                <span class="text-muted small">&bull; Showing <?= count($staffMembers) ?> Staff Member(s)</span>
-            <?php else: ?>
-                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2.5 py-1.5">
-                    <i class="bi bi-buildings me-1"></i> ALL CONCERNS
-                </span>
-                <span class="fw-bold text-dark">Consolidated Staff Register</span>
-                <span class="text-muted small">&bull; Showing <?= count($staffMembers) ?> Staff Member(s) across all business units</span>
-            <?php endif; ?>
-        </div>
-        <?php if ($activeConcern): ?>
-            <a href="<?= \App\Core\Controller::url('/m/staff?concern_id=all') ?>" class="btn btn-xs btn-outline-secondary">
-                <i class="bi bi-buildings me-1"></i> View All Concerns
-            </a>
-        <?php endif; ?>
     </div>
 
     <!-- Export Toolbar Card -->
