@@ -587,7 +587,7 @@ if (!empty($multiLabels)) {
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label">Base Price:</span>
-                                <span class="detail-val fw-semibold text-dark">₹<?= number_format($basePriceVal, 2) ?></span>
+                                <span class="detail-val fw-semibold text-muted text-decoration-line-through">₹<?= number_format($basePriceVal, 2) ?></span>
                             </div>
                             <div class="label-detail-row">
                                 <span class="detail-label">Discount Price:</span>
