@@ -1047,7 +1047,7 @@ class AdminController extends Controller {
 
         $ctx = \App\Services\ExportCenterService::resolveContext($requestedCids);
         $dateRange = \App\Services\ExportCenterService::resolveDatePeriod($periodMode, $month, $year, $fromDate, $toDate);
-        $categories = \App\Services\ExportCenterService::getModuleDefinitions();
+        $categories = \App\Services\ExportCenterService::getModuleDefinitions($ctx['concern_ids']);
         $counts = \App\Services\ExportCenterService::getModuleCounts(
             $dateRange['start_date'],
             $dateRange['end_date'],

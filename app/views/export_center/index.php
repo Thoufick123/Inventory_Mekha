@@ -483,6 +483,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('activePeriodLabel').textContent = data.date_range.label;
                 }
                 if (data.counts) {
+                    const activeKeys = Object.keys(data.counts);
+                    document.querySelectorAll('.ec-mod-card').forEach(card => {
+                        const key = card.dataset.key;
+                        const isVisible = activeKeys.includes(key);
+                        card.style.display = isVisible ? '' : 'none';
+                        if (!isVisible) {
+                            card.querySelector('.ec-mod-cb').checked = false;
+                        }
+                    });
+                    document.querySelectorAll('.ec-mod-grid').forEach(grid => {
+                        const anyVisible = Array.from(grid.querySelectorAll('.ec-mod-card')).some(c => c.style.display !== 'none');
+                        grid.style.display = anyVisible ? '' : 'none';
+                        if (grid.previousElementSibling && grid.previousElementSibling.classList.contains('ec-cat-title')) {
+                            grid.previousElementSibling.style.display = anyVisible ? '' : 'none';
+                        }
+                    });
                     Object.entries(data.counts).forEach(([key, val]) => {
                         const card = document.querySelector(`.ec-mod-card[data-key="${key}"]`);
                         const pill = document.getElementById('pill-' + key);
