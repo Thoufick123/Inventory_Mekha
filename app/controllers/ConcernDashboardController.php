@@ -374,4 +374,85 @@ class ConcernDashboardController extends Controller {
             \App\Services\ExportService::downloadCsv($filename, $headers, $rows, $totals);
         }
     }
+
+    public function exportCenter(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $periodMode = trim($_GET['period_mode'] ?? 'month');
+        $month = (int)($_GET['month'] ?? date('n'));
+        $year = (int)($_GET['year'] ?? date('Y'));
+        $fromDate = trim($_GET['from_date'] ?? date('Y-m-01'));
+        $toDate = trim($_GET['to_date'] ?? date('Y-m-d'));
+        $unitIds = array_values(array_unique(array_filter(array_map('intval', (array)($_GET['unit_ids'] ?? [])))));
+
+        $ctx = \App\Services\ExportCenterService::resolveContext([]);
+        $dateRange = \App\Services\ExportCenterService::resolveDatePeriod($periodMode, $month, $year, $fromDate, $toDate);
+        $categories = \App\Services\ExportCenterService::getModuleDefinitions();
+        $counts = \App\Services\ExportCenterService::getModuleCounts(
+            $dateRange['start_date'],
+            $dateRange['end_date'],
+            $ctx['concern_ids'],
+            $unitIds
+        );
+
+        $this->view('export_center/index', [
+            'pageTitle'      => 'Data Export Center',
+            'currentModule'  => 'export_center',
+            'ctx'            => $ctx,
+            'dateRange'      => $dateRange,
+            'categories'     => $categories,
+            'counts'         => $counts,
+            'selectedUnits'  => $unitIds,
+            'basePath'       => '/m/export-center',
+        ]);
+    }
+
+    public function exportCenterCounts(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $periodMode = trim($_GET['period_mode'] ?? 'month');
+        $month = (int)($_GET['month'] ?? date('n'));
+        $year = (int)($_GET['year'] ?? date('Y'));
+        $fromDate = trim($_GET['from_date'] ?? date('Y-m-01'));
+        $toDate = trim($_GET['to_date'] ?? date('Y-m-d'));
+        $unitIds = array_values(array_unique(array_filter(array_map('intval', (array)($_GET['unit_ids'] ?? [])))));
+
+        $ctx = \App\Services\ExportCenterService::resolveContext([]);
+        $dateRange = \App\Services\ExportCenterService::resolveDatePeriod($periodMode, $month, $year, $fromDate, $toDate);
+        $counts = \App\Services\ExportCenterService::getModuleCounts(
+            $dateRange['start_date'],
+            $dateRange['end_date'],
+            $ctx['concern_ids'],
+            $unitIds
+        );
+
+        header('Content-Type: application/json');
+        echo json_encode(['counts' => $counts, 'date_range' => $dateRange, 'enabled_codes' => $ctx['enabled_codes']]);
+        exit;
+    }
+
+    public function downloadExportCenter(): void {
+        ModuleGuard::enforce('concern_dashboard', 'view');
+        $periodMode = trim($_POST['period_mode'] ?? 'month');
+        $month = (int)($_POST['month'] ?? date('n'));
+        $year = (int)($_POST['year'] ?? date('Y'));
+        $fromDate = trim($_POST['from_date'] ?? date('Y-m-01'));
+        $toDate = trim($_POST['to_date'] ?? date('Y-m-d'));
+        $unitIds = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['unit_ids'] ?? [])))));
+        $modules = array_values(array_filter(array_map('trim', (array)($_POST['modules'] ?? []))));
+        $format = strtolower(trim($_POST['format'] ?? 'csv'));
+
+        $ctx = \App\Services\ExportCenterService::resolveContext([]);
+        $dateRange = \App\Services\ExportCenterService::resolveDatePeriod($periodMode, $month, $year, $fromDate, $toDate);
+        if (empty($modules)) {
+            $modules = array_keys(\App\Services\ExportCenterService::getFlatModuleMap());
+        }
+
+        \App\Services\ExportCenterService::streamExport(
+            $modules,
+            $dateRange['start_date'],
+            $dateRange['end_date'],
+            $ctx['concern_ids'],
+            $unitIds,
+            $format
+        );
+    }
 }

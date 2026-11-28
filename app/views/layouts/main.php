@@ -369,6 +369,10 @@
                             <i class="bi bi-bar-chart-line"></i>
                             <span>Reports</span>
                         </a>
+                        <a href="<?= \App\Core\Controller::url('/m/export-center') ?>" class="nav-link <?= (isset($currentModule) && $currentModule === 'export_center') ? 'active' : '' ?>">
+                            <i class="bi bi-cloud-download"></i>
+                            <span>Data Export Center</span>
+                        </a>
                     <?php elseif ($m['code'] === 'cash_flow' && $hasFinanceCashFlow && $financeExpenseModule !== null):
                         $isCashFlowGroupActive = (isset($currentModule) && in_array($currentModule, ['cash_flow', 'cash', 'expense'], true))
                             || str_contains($activeRoute, 'cash')
@@ -396,6 +400,12 @@
                             <i class="bi <?= htmlspecialchars($m['icon']) ?>"></i>
                             <span><?= htmlspecialchars($m['name']) ?></span>
                         </a>
+                        <?php if ($m['code'] === 'admin_reports'): ?>
+                        <a href="<?= \App\Core\Controller::url('/admin/export-center') ?>" class="nav-link <?= (isset($currentModule) && $currentModule === 'export_center') ? 'active' : '' ?>">
+                            <i class="bi bi-cloud-download"></i>
+                            <span>Data Export Center</span>
+                        </a>
+                        <?php endif; ?>
                     <?php endif; ?>
                 <?php endforeach; ?>
             <?php endforeach; ?>

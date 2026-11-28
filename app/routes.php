@@ -60,6 +60,9 @@ $router->post('/admin/assets/delete', [AdminController::class, 'deleteAsset'], '
 $router->get('/admin/reports', [AdminController::class, 'reports'], 'admin_reports', 'view');
 $router->get('/admin/reports/print', [AdminController::class, 'reportsPrint'], 'admin_reports', 'view');
 $router->get('/admin/reports/export', [AdminController::class, 'exportReports'], 'admin_reports', 'view');
+$router->get('/admin/export-center', [AdminController::class, 'exportCenter'], 'super_admin');
+$router->get('/admin/export-center/counts', [AdminController::class, 'exportCenterCounts'], 'super_admin');
+$router->post('/admin/export-center/download', [AdminController::class, 'downloadExportCenter'], 'super_admin');
 
 // ==========================================
 // CONCERN MODULES (Strictly Guarded by concern_modules)
@@ -109,6 +112,9 @@ $router->get('/m/concern_dashboard/export', [ConcernDashboardController::class, 
 $router->get('/m/reports', [ConcernDashboardController::class, 'reports']);
 $router->get('/m/reports/print', [ConcernDashboardController::class, 'reportsPrint']);
 $router->get('/m/reports/export', [ConcernDashboardController::class, 'exportReports']);
+$router->get('/m/export-center', [ConcernDashboardController::class, 'exportCenter']);
+$router->get('/m/export-center/counts', [ConcernDashboardController::class, 'exportCenterCounts']);
+$router->post('/m/export-center/download', [ConcernDashboardController::class, 'downloadExportCenter']);
 
 // Variants Catalog
 $router->get('/m/variants', [VariantController::class, 'index'], 'stocks', 'view');
