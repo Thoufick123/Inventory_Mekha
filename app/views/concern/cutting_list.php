@@ -5,6 +5,32 @@
  * Matches Image 3 (Cutting Wastage Selling Modal & Registry)
  */
 ?>
+<style>
+.cutting-table-format {
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.cutting-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.cutting-table-format tbody td {
+    padding: 0.55rem 0.75rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.cutting-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
 <div class="container-fluid px-4 py-3">
 
     <!-- BREADCRUMBS -->
@@ -171,8 +197,8 @@
                 <span class="badge bg-light text-dark border"><?= count($outwardedBatches) ?> Outwarded</span>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light text-muted small text-uppercase">
+                <table class="table table-bordered table-striped table-hover align-middle mb-0 cutting-table-format">
+                    <thead>
                         <tr>
                             <th class="ps-4">Outward No</th>
                             <th>Cutting Batch</th>
@@ -380,21 +406,21 @@
                 <span class="badge bg-light text-dark border"><?= count($batches) ?> Batches</span>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light small">
+                <table class="table table-bordered table-striped table-hover align-middle mb-0 cutting-table-format">
+                    <thead>
                         <tr>
-                            <th class="ps-3">Batch No</th>
-                            <th>Cutting Name & Program</th>
+                            <th>Batch No</th>
+                            <th>Cutting Name &amp; Program</th>
                             <th>Master / Operator</th>
                             <th class="text-end">Consumed Fabric</th>
                             <th class="text-end">Cut Output</th>
                             <th class="text-end">Wastage (kg / %)</th>
                             <th class="text-end">Fabric Cost / Pc</th>
                             <th>Created Date</th>
-                            <th class="text-end pe-3">Actions</th>
+                            <th class="text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="small">
+                    <tbody>
                         <?php if (empty($batches)): ?>
                             <tr>
                                 <td colspan="9" class="text-center py-5 text-muted">
@@ -406,60 +432,51 @@
                             <?php foreach ($batches as $b): 
                                 $bNo = $b['batch_no'] ?: $b['log_no'];
                                 $availScrap = max(0.00, (float)$b['wastage_qty'] - (float)$b['sold_wastage_qty']);
+                                $catLabels = [];
+                                if (!empty($b['catalogs'])) {
+                                    foreach ($b['catalogs'] as $catItem) {
+                                        $catLabels[] = (!empty($catItem['style_code']) ? '[' . $catItem['style_code'] . '] ' : '') . $catItem['name'];
+                                    }
+                                } elseif (!empty($b['catalog_name'])) {
+                                    $catLabels[] = ($b['catalog_code'] ? '[' . $b['catalog_code'] . '] ' : '') . $b['catalog_name'];
+                                }
+                                $progLabel = trim(($b['program_no'] ?? 'Unscheduled') . (!empty($b['program_name']) ? ' • ' . $b['program_name'] : ''));
+                                $fullDescTitle = ($b['cutting_name'] ?: 'Lot #' . $b['id']) . ' | ' . $progLabel . (!empty($catLabels) ? ' | ' . implode(', ', $catLabels) : '');
                             ?>
                                 <tr>
-                                    <td class="ps-3">
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-2 py-1">
-                                            <?= htmlspecialchars($bNo) ?>
-                                        </span>
+                                    <td class="font-monospace fw-bold text-primary">
+                                        <?= htmlspecialchars($bNo) ?>
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-dark"><?= htmlspecialchars($b['cutting_name'] ?: 'Lot #' . $b['id']) ?></div>
-                                        <div class="small text-muted d-flex align-items-center gap-1 flex-wrap">
-                                            <span><?= htmlspecialchars($b['program_no'] ?? 'Unscheduled') ?> • <?= htmlspecialchars($b['program_name'] ?? '') ?></span>
-                                            <?php if (!empty($b['catalogs'])): ?>
-                                                <?php foreach ($b['catalogs'] as $catItem): ?>
-                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-0.5 px-1.5 font-monospace" style="font-size: 0.70rem;">
-                                                        <i class="bi bi-tag-fill me-0.5"></i><?= htmlspecialchars((!empty($catItem['style_code']) ? '[' . $catItem['style_code'] . '] ' : '') . $catItem['name']) ?>
-                                                    </span>
-                                                <?php endforeach; ?>
-                                            <?php elseif (!empty($b['catalog_name'])): ?>
-                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-0.5 px-1.5 font-monospace" style="font-size: 0.70rem;">
-                                                    <i class="bi bi-tag-fill me-0.5"></i><?= htmlspecialchars(($b['catalog_code'] ? '[' . $b['catalog_code'] . '] ' : '') . $b['catalog_name']) ?>
-                                                </span>
-                                            <?php endif; ?>
+                                        <div class="text-truncate" style="max-width: 240px;" title="<?= htmlspecialchars($fullDescTitle) ?>">
+                                            <span class="fw-semibold text-dark"><?= htmlspecialchars($b['cutting_name'] ?: 'Lot #' . $b['id']) ?></span>
+                                            <span class="text-muted small ms-1">• <?= htmlspecialchars($b['program_no'] ?? 'Unscheduled') ?></span>
                                         </div>
                                     </td>
                                     <td>
                                         <span class="text-secondary"><?= htmlspecialchars($b['master_name'] ?: 'Not Assigned') ?></span>
                                     </td>
-                                    <td class="text-end">
-                                        <span class="fw-bold text-dark"><?= number_format($b['consumed_qty'], 2) ?> kg</span>
-                                        <small class="text-muted d-block font-monospace">Val: ₹<?= number_format($b['total_roll_price'], 2) ?></small>
+                                    <td class="text-end" title="Val: ₹<?= number_format($b['total_roll_price'], 2) ?>">
+                                        <span class="fw-semibold text-dark"><?= number_format($b['consumed_qty'], 2) ?> kg</span>
                                     </td>
                                     <td class="text-end">
-                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold fs-7">
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold">
                                             <?= number_format($b['cut_pieces']) ?> pcs
                                         </span>
-                                        <small class="text-muted d-block"><?= $b['variant_count'] ?> Size Variant<?= $b['variant_count'] > 1 ? 's' : '' ?></small>
+                                        <span class="text-muted small ms-1">(<?= (int)$b['variant_count'] ?>)</span>
                                     </td>
-                                    <td class="text-end">
-                                        <span class="fw-bold text-danger"><?= number_format($b['wastage_qty'], 2) ?> kg</span>
-                                        <small class="text-muted d-block">
-                                            (<?= number_format($b['wastage_percent'], 1) ?>%) 
-                                            <?php if ($availScrap > 0.01): ?>
-                                                <span class="text-success fw-semibold">• <?= number_format($availScrap, 2) ?> kg avail</span>
-                                            <?php endif; ?>
-                                        </small>
+                                    <td class="text-end" title="<?= $availScrap > 0.01 ? number_format($availScrap, 2) . ' kg avail' : '' ?>">
+                                        <span class="fw-semibold text-danger"><?= number_format($b['wastage_qty'], 2) ?> kg</span>
+                                        <span class="text-muted small">(<?= number_format($b['wastage_percent'], 1) ?>%)</span>
                                     </td>
                                     <td class="text-end fw-bold font-monospace text-primary">
                                         ₹<?= number_format($b['fabric_cost_per_piece'], 2) ?>
                                     </td>
-                                    <td class="text-muted font-monospace">
+                                    <td class="text-muted font-monospace small">
                                         <?= date('d M Y', strtotime($b['created_at'])) ?>
                                     </td>
-                                    <td class="text-end pe-3">
-                                        <div class="btn-group btn-group-sm">
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm flex-nowrap">
                                             <?php if (\App\Core\Auth::can('cutting_wastage', 'view')): ?>
                                             <a href="<?= \App\Core\Controller::url('/production/cutting/view?id=' . $b['id']) ?>" 
                                                class="btn btn-outline-secondary" title="View Details">
@@ -473,12 +490,12 @@
                                             </a>
                                             <?php endif; ?>
                                             <?php if (empty($b['outward_id']) && empty($b['inward_source_outward_id']) && \App\Core\Auth::can('cutting_wastage', 'edit')): ?>
-                                                <button type="button" class="btn btn-outline-success" title="Cutting Outward to Concern"
+                                                <button type="button" class="btn btn-outline-success text-nowrap" title="Cutting Outward to Concern"
                                                         onclick="openCuttingOutwardModal(<?= (int)$b['id'] ?>, '<?= htmlspecialchars(addslashes($bNo)) ?>', '<?= htmlspecialchars(addslashes($b['cutting_name'] ?: ('Lot #' . $b['id']))) ?>', <?= (int)($b['cut_pieces'] ?? 0) ?>)">
-                                                    <i class="bi bi-send"></i> Cutting Outward
+                                                    <i class="bi bi-send"></i> Outward
                                                 </button>
                                             <?php elseif (!empty($b['outward_id'])): ?>
-                                                <span class="btn btn-sm btn-success disabled" title="Already Outwarded"><i class="bi bi-check2"></i> Outwarded</span>
+                                                <span class="btn btn-sm btn-success disabled text-nowrap" title="Already Outwarded"><i class="bi bi-check2"></i> Outwarded</span>
                                             <?php endif; ?>
                                             <?php if ($availScrap > 0.01 && \App\Core\Auth::can('cutting_wastage', 'add')): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sell-scrap" 
