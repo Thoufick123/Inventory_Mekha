@@ -27,7 +27,7 @@
                         <thead class="text-uppercase small text-secondary" style="background-color: #f1f5f9; font-size: 0.72rem;">
                             <tr>
                                 <th class="text-center py-2" style="width: 40px;">
-                                    <input type="checkbox" class="form-check-input" id="stitchingLabelSelectAll" title="Select / Deselect All" checked>
+                                    <input type="checkbox" class="form-check-input" id="stitchingLabelSelectAll" title="Select / Deselect All" style="cursor: pointer; margin: 0; position: static;" checked>
                                 </th>
                                 <th class="text-center py-2" style="width: 45px;">#</th>
                                 <th class="py-2">Selected Line</th>
@@ -103,7 +103,7 @@
             return `
                 <tr>
                     <td class="text-center">
-                        <input type="checkbox" class="form-check-input stitching-label-row-check" checked>
+                        <input type="checkbox" class="form-check-input stitching-label-row-check" style="cursor: pointer; margin: 0; position: static;" checked>
                     </td>
                     <td class="text-center text-muted small fw-semibold">${idx + 1}</td>
                     <td class="fw-semibold text-dark text-nowrap">${escapeHtml(row.name)}</td>
@@ -126,12 +126,9 @@
         if (selectAllEl) {
             selectAllEl.checked = true;
             selectAllEl.indeterminate = false;
-            selectAllEl.disabled = config.mode !== 'batch';
+            selectAllEl.disabled = false;
         }
         tbody.querySelectorAll('.stitching-label-row-check').forEach(function(cb) {
-            if (config.mode !== 'batch') {
-                cb.disabled = true;
-            }
             cb.addEventListener('change', function() {
                 const tr = cb.closest('tr');
                 const inp = tr ? tr.querySelector('.stitching-label-copy-input') : null;
@@ -367,6 +364,12 @@
 
             if (activeLabelConfig.mode === 'variant') {
                 const inp = inputs[0];
+                const tr = inp ? inp.closest('tr') : null;
+                const cb = tr ? tr.querySelector('.stitching-label-row-check') : null;
+                if (cb && !cb.checked) {
+                    alert('Please select at least 1 row to generate labels.');
+                    return;
+                }
                 const qty = Math.max(1, parseInt(inp ? inp.value : 1, 10) || 1);
                 if (modalEl && typeof bootstrap !== 'undefined') {
                     bootstrap.Modal.getOrCreateInstance(modalEl).hide();
