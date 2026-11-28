@@ -378,24 +378,15 @@ class StaffController extends Controller {
             $activeConcern = DB::fetch("SELECT id, name, code FROM concerns WHERE id = ?", [$selectedCid]);
         }
 
-        if ($selectedCid) {
-            $roles = DB::fetchAll(
-                "SELECT MIN(id) AS id, MAX(name) AS name, MAX(description) AS description
-                 FROM roles
-                 WHERE concern_id = ? AND name NOT IN ('Super Admin', 'Concern Administrator')
-                 GROUP BY LOWER(TRIM(name))
-                 ORDER BY MIN(id) ASC",
-                [$selectedCid]
-            );
-        } else {
-            $roles = DB::fetchAll(
-                "SELECT MIN(id) AS id, MAX(name) AS name, MAX(description) AS description
-                 FROM roles
-                 WHERE name NOT IN ('Super Admin', 'Concern Administrator')
-                 GROUP BY LOWER(TRIM(name))
-                 ORDER BY MIN(id) ASC"
-            );
-        }
+        // Fetch all configured system roles available for staff assignment across concerns
+        $roles = DB::fetchAll(
+            "SELECT r.id, r.name, r.description, r.concern_id,
+                    c.name AS concern_name, c.code AS concern_code
+             FROM roles r
+             LEFT JOIN concerns c ON r.concern_id = c.id
+             WHERE r.name NOT IN ('Super Admin', 'Concern Administrator')
+             ORDER BY r.name ASC, r.id ASC"
+        );
 
         // Operational modules matching sidebar (Images 1 & 2)
         $modules = DB::fetchAll(

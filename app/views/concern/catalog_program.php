@@ -2,41 +2,57 @@
 // app/views/concern/catalog_program.php - Production Catalog & Programs Register
 $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GET['tab']) && $_GET['tab'] === 'programs');
 ?>
+<style>
+.catalog-nav-pills .nav-link {
+    color: #475569;
+}
+.catalog-nav-pills .nav-link.active,
+.catalog-nav-pills .nav-link.active.text-secondary {
+    color: #ffffff !important;
+    background-color: #2563eb !important;
+}
+.catalog-table-format {
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.catalog-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.8rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.catalog-table-format tbody td {
+    padding: 0.55rem 0.8rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.catalog-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
 <div class="container-fluid px-0">
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-2">
-        <ol class="breadcrumb small mb-1">
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/') ?>" class="text-decoration-none text-muted">Home</a></li>
-            <li class="breadcrumb-item text-muted">Production</li>
-            <li class="breadcrumb-item active fw-semibold text-dark" aria-current="page">Catalog</li>
-        </ol>
-    </nav>
+    <!-- Top Controls Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <ul class="nav nav-pills catalog-nav-pills bg-light p-1 rounded-3 border" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= !$isProgramsTab ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-catalog-btn" data-bs-toggle="pill" data-bs-target="#tab-catalog" type="button" role="tab">
+                    <i class="bi bi-tags me-1.5"></i> Garment Styles
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= $isProgramsTab ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-programs-btn" data-bs-toggle="pill" data-bs-target="#tab-programs" type="button" role="tab">
+                    <i class="bi bi-calendar-check me-1.5"></i> Production Programs (<?= count($programs) ?>)
+                </button>
+            </li>
+        </ul>
 
-    <!-- Header Section -->
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-3">
-            <div class="p-2.5 rounded-3 bg-primary-subtle text-primary border border-primary-subtle shadow-xs">
-                <i class="bi bi-journal-bookmark fs-4"></i>
-            </div>
-            <div>
-                <h4 class="fw-bold mb-0 text-dark">Production Catalog</h4>
-                <p class="text-secondary small mb-0">Master catalog of manufactured garment styles, category hierarchies, and production programs.</p>
-            </div>
-        </div>
         <div class="d-flex align-items-center gap-2">
-            <ul class="nav nav-pills bg-light p-1 rounded-3 border me-2" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= !$isProgramsTab ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-catalog-btn" data-bs-toggle="pill" data-bs-target="#tab-catalog" type="button" role="tab">
-                        <i class="bi bi-tags me-1.5"></i> Garment Styles
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1.5 px-3 rounded-2 fw-semibold small <?= $isProgramsTab ? 'active shadow-sm' : 'text-secondary' ?>" id="tab-programs-btn" data-bs-toggle="pill" data-bs-target="#tab-programs" type="button" role="tab">
-                        <i class="bi bi-calendar-check me-1.5"></i> Production Programs (<?= count($programs) ?>)
-                    </button>
-                </li>
-            </ul>
-
             <?php if (\App\Core\Auth::can('catalog_program', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/production/catalog/create') ?>" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm rounded-3 py-2 px-3 fw-semibold">
                 <i class="bi bi-plus-circle"></i> Add Product Style
@@ -116,23 +132,24 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 table-custom">
+                    <table class="table table-bordered table-striped table-hover align-middle mb-0 catalog-table-format">
                         <thead>
                             <tr>
-                                <th style="width: 45px;">#</th>
-                                <th style="min-width: 150px;">STYLE CODE</th>
-                                <th style="min-width: 200px;">PRODUCT STYLE NAME</th>
+                                <th class="text-center" style="width: 48px;">#</th>
+                                <th style="min-width: 140px;">STYLE CODE</th>
+                                <th style="min-width: 210px;">PRODUCT STYLE NAME</th>
                                 <th style="min-width: 220px;">CATEGORY HIERARCHY</th>
-                                <th style="min-width: 160px;">HSN & GST</th>
-                                <th style="min-width: 110px;">VARIANTS</th>
-                                <th style="min-width: 100px;">STATUS</th>
-                                <th style="min-width: 110px; text-align: center;">ACTIONS</th>
+                                <th style="min-width: 140px;">HSN CODE</th>
+                                <th class="text-end" style="min-width: 90px;">GST %</th>
+                                <th class="text-center" style="min-width: 100px;">VARIANTS</th>
+                                <th class="text-center" style="min-width: 100px;">STATUS</th>
+                                <th class="text-center" style="min-width: 120px;">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($styles)): ?>
                                 <tr>
-                                    <td colspan="8" class="text-center py-5">
+                                    <td colspan="9" class="text-center py-5">
                                         <div class="text-muted mb-3"><i class="bi bi-folder-x fs-1 text-secondary opacity-50"></i></div>
                                         <h6 class="fw-bold text-dark">No Product Styles Found</h6>
                                         <p class="text-secondary small mb-3">Get started by creating your first manufactured garment style.</p>
@@ -146,61 +163,36 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                             <?php else: ?>
                                 <?php $idx = 1; foreach ($styles as $s): ?>
                                     <tr>
-                                        <td class="text-muted small fw-semibold"><?= $idx++ ?></td>
-                                        <td>
-                                            <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                                <span class="badge bg-dark font-monospace text-white px-2 py-1 shadow-xs">
-                                                    <?= htmlspecialchars($s['style_code'] ?: $s['code']) ?>
-                                                </span>
-                                                <?php if (!empty($s['short_code'])): ?>
-                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-1.5 py-0.5">
-                                                        <?= htmlspecialchars($s['short_code']) ?>
-                                                    </span>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="fw-bold text-dark text-uppercase"><?= htmlspecialchars($s['name']) ?></div>
-                                            <?php if (!empty($s['description'])): ?>
-                                                <small class="text-muted text-truncate d-block" style="max-width: 240px;"><?= htmlspecialchars($s['description']) ?></small>
+                                        <td class="text-center text-muted small fw-semibold"><?= $idx++ ?></td>
+                                        <td class="font-monospace">
+                                            <span class="fw-bold text-dark"><?= htmlspecialchars($s['style_code'] ?: $s['code']) ?></span>
+                                            <?php if (!empty($s['short_code'])): ?>
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1"><?= htmlspecialchars($s['short_code']) ?></span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
+                                            <span class="fw-semibold text-dark text-uppercase"><?= htmlspecialchars($s['name']) ?></span>
+                                        </td>
+                                        <td class="text-secondary small">
                                             <?php 
                                             $path = $s['hierarchy_path'];
                                             if (empty($path)) {
                                                 $parts = array_filter([$s['category_name'], $s['subcategory_name'], $s['subsub_name']]);
                                                 $path = implode(' > ', $parts);
                                             }
-                                            $tags = explode('>', $path);
+                                            echo htmlspecialchars($path ?: '-');
                                             ?>
-                                            <div class="d-flex align-items-center gap-1 flex-wrap">
-                                                <?php foreach ($tags as $tIndex => $t): $t = trim($t); if (empty($t)) continue; ?>
-                                                    <?php if ($tIndex > 0): ?>
-                                                        <i class="bi bi-chevron-right text-muted opacity-50" style="font-size: 0.65rem;"></i>
-                                                    <?php endif; ?>
-                                                    <span class="badge bg-light text-secondary border px-2 py-0.5 small fw-normal">
-                                                        <?= htmlspecialchars($t) ?>
-                                                    </span>
-                                                <?php endforeach; ?>
-                                            </div>
                                         </td>
-                                        <td>
-                                            <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace">
-                                                    HSN <?= htmlspecialchars($s['hsn_code'] ?: 'Not set') ?>
-                                                </span>
-                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
-                                                    <?= $s['gst_rate'] === null ? 'Verify rate' : number_format((float)$s['gst_rate'], 2) . '% GST' ?>
-                                                </span>
-                                            </div>
+                                        <td class="font-monospace small text-dark">
+                                            <?= htmlspecialchars($s['hsn_code'] ?: '-') ?>
                                         </td>
-                                        <td>
-                                            <span class="badge bg-light text-dark border px-2 py-1 shadow-xs">
-                                                <i class="bi bi-layers text-secondary me-1"></i><?= (int)($s['active_variants_count'] ?? 0) ?> active
-                                            </span>
+                                        <td class="text-end font-monospace small text-dark">
+                                            <?= $s['gst_rate'] === null ? '-' : number_format((float)$s['gst_rate'], 2) . '%' ?>
                                         </td>
-                                        <td>
+                                        <td class="text-center">
+                                            <span class="fw-semibold text-dark"><?= (int)($s['active_variants_count'] ?? 0) ?></span> <span class="text-muted small">active</span>
+                                        </td>
+                                        <td class="text-center">
                                             <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
                                                 <?= ($s['status'] === 'in_house' || empty($s['status'])) ? 'In-House' : ucfirst($s['status']) ?>
                                             </span>
@@ -267,7 +259,7 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                     <?php endif; ?>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 table-custom">
+                    <table class="table table-bordered table-striped table-hover align-middle mb-0 catalog-table-format">
                         <thead>
                             <tr>
                                 <th>Program Code & Name</th>
@@ -287,81 +279,51 @@ $isProgramsTab = (isset($activeTab) && $activeTab === 'programs') || (isset($_GE
                                 <?php foreach ($programs as $p): ?>
                                     <tr>
                                         <td>
-                                            <div class="d-flex flex-column">
-                                                <span class="badge bg-dark font-monospace mb-1 align-self-start"><?= htmlspecialchars($p['program_no']) ?></span>
-                                                <span class="fw-semibold text-dark small"><?= htmlspecialchars($p['program_name'] ?? 'Production Run') ?></span>
-                                            </div>
+                                            <span class="badge bg-dark font-monospace me-1"><?= htmlspecialchars($p['program_no']) ?></span>
+                                            <span class="fw-semibold text-dark small"><?= htmlspecialchars($p['program_name'] ?? 'Production Run') ?></span>
                                         </td>
                                         <td>
-                                            <div class="small text-muted"><i class="bi bi-person me-1"></i><?= htmlspecialchars($p['planner_name'] ?? 'Planner') ?></div>
+                                            <span class="small text-muted"><i class="bi bi-person me-1"></i><?= htmlspecialchars($p['planner_name'] ?? 'Planner') ?></span>
                                         </td>
                                         <td>
-                                            <div class="d-flex flex-column gap-1.5" style="min-width: 200px;">
-                                                <?php if (!empty($p['rolls'])): ?>
-                                                    <?php foreach ($p['rolls'] as $rIdx => $r): ?>
-                                                        <div class="p-1.5 rounded-2 bg-light border border-light-subtle d-flex flex-column gap-1" style="font-size: 0.78rem;">
-                                                            <div class="d-flex align-items-center justify-content-between gap-1">
-                                                                <span class="badge bg-dark-subtle text-dark font-monospace fw-bold" style="font-size: 0.72rem;">
-                                                                    <?= htmlspecialchars($r['roll_piece_tag'] ?: ($r['original_piece_tag'] ?: 'Roll #' . ($rIdx + 1))) ?>
-                                                                </span>
-                                                                <span class="badge bg-primary-subtle text-primary fw-bold" style="font-size: 0.72rem;">
-                                                                    <?= (int)floor((float)$r['allocated_qty']) ?> <?= htmlspecialchars($r['unit'] ?? 'pcs') ?>
-                                                                </span>
-                                                            </div>
-                                                            <div class="text-secondary text-truncate" title="<?= htmlspecialchars(($r['fabric_name'] ?: ($r['roll_material'] ?? 'Fabric Roll')) . (!empty($r['color']) ? ' - ' . $r['color'] : '')) ?>">
-                                                                <?= htmlspecialchars($r['fabric_name'] ?: ($r['roll_material'] ?? 'Fabric Roll')) ?>
-                                                                <?php if (!empty($r['color'])): ?>
-                                                                    <span class="text-muted">(<?= htmlspecialchars($r['color']) ?>)</span>
-                                                                <?php endif; ?>
-                                                            </div>
-                                                            <?php if ((float)($r['roll_weight'] ?? 0) > 0 || (float)($r['roll_price'] ?? 0) > 0): ?>
-                                                                <div class="text-muted small" style="font-size: 0.70rem;">
-                                                                    <?php if ((float)($r['roll_weight'] ?? 0) > 0): ?>
-                                                                        <span><i class="bi bi-speedometer2"></i> <?= number_format((float)$r['roll_weight'], 2) ?> kg</span>
-                                                                    <?php endif; ?>
-                                                                    <?php if ((float)($r['roll_price'] ?? 0) > 0): ?>
-                                                                        <span class="ms-1.5"><i class="bi bi-currency-rupee"></i><?= number_format((float)$r['roll_price'], 2) ?></span>
-                                                                    <?php endif; ?>
-                                                                </div>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                <?php else: ?>
-                                                    <span class="badge bg-light text-muted border">0 Rolls</span>
-                                                <?php endif; ?>
-                                            </div>
+                                            <?php if (!empty($p['rolls'])):
+                                                $rollSummaries = [];
+                                                foreach ($p['rolls'] as $rIdx => $r) {
+                                                    $tag = $r['roll_piece_tag'] ?: ($r['original_piece_tag'] ?: 'Roll #' . ($rIdx + 1));
+                                                    $qty = (int)floor((float)$r['allocated_qty']) . ' ' . ($r['unit'] ?? 'pcs');
+                                                    $fab = $r['fabric_name'] ?: ($r['roll_material'] ?? 'Fabric Roll');
+                                                    $col = !empty($r['color']) ? ' (' . $r['color'] . ')' : '';
+                                                    $rollSummaries[] = "{$tag} [{$qty}] {$fab}{$col}";
+                                                }
+                                                $rollsTitle = implode("\n", $rollSummaries);
+                                            ?>
+                                                <div class="text-truncate small" style="max-width: 240px;" title="<?= htmlspecialchars($rollsTitle) ?>">
+                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1"><?= count($p['rolls']) ?> Rolls</span>
+                                                    <span class="text-dark"><?= htmlspecialchars(implode(', ', $rollSummaries)) ?></span>
+                                                </div>
+                                            <?php else: ?>
+                                                <span class="badge bg-light text-muted border">0 Rolls</span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
-                                            <div class="d-flex flex-column gap-1.5" style="min-width: 220px;">
-                                                <?php if (!empty($p['rolls'])): ?>
-                                                    <?php foreach ($p['rolls'] as $rIdx => $r): ?>
-                                                        <?php 
-                                                            $hier = array_filter([$r['category_name'] ?? '', $r['subcategory_name'] ?? '', $r['subsub_name'] ?? '']);
-                                                            $style = $r['catalog_style_name'] ?? '';
-                                                            $code = $r['catalog_style_code'] ?? '';
-                                                        ?>
-                                                        <div class="p-1.5 rounded-2 bg-light border border-light-subtle d-flex flex-column gap-0.5" style="font-size: 0.78rem;">
-                                                            <?php if (!empty($style)): ?>
-                                                                <div class="fw-semibold text-dark text-truncate" title="<?= htmlspecialchars($style) ?>">
-                                                                    <i class="bi bi-tag-fill text-primary me-1"></i><?= !empty($code) ? '[' . htmlspecialchars($code) . '] ' : '' ?><?= htmlspecialchars($style) ?>
-                                                                </div>
-                                                            <?php else: ?>
-                                                                <div class="text-muted"><i class="bi bi-tag me-1"></i>General / Unmapped</div>
-                                                            <?php endif; ?>
-                                                            <?php if (!empty($hier)): ?>
-                                                                <div class="text-secondary small text-truncate" style="font-size: 0.70rem;" title="<?= htmlspecialchars(implode(' > ', $hier)) ?>">
-                                                                    <?= htmlspecialchars(implode(' > ', $hier)) ?>
-                                                                </div>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                <?php else: ?>
-                                                    <span class="badge bg-light text-dark border"><?= htmlspecialchars($p['catalog_name'] ?? 'General / Per-Roll') ?></span>
-                                                    <?php if (!empty($p['roll_catalog_names']) && $p['roll_catalog_names'] !== ($p['catalog_name'] ?? '')): ?>
-                                                        <div class="small text-muted mt-0.5">Roll styles: <?= htmlspecialchars($p['roll_catalog_names']) ?></div>
-                                                    <?php endif; ?>
-                                                <?php endif; ?>
-                                            </div>
+                                            <?php if (!empty($p['rolls'])):
+                                                $styleSummaries = [];
+                                                foreach ($p['rolls'] as $r) {
+                                                    $style = $r['catalog_style_name'] ?? '';
+                                                    $code = $r['catalog_style_code'] ?? '';
+                                                    if ($style !== '') {
+                                                        $styleSummaries[] = (!empty($code) ? "[{$code}] " : '') . $style;
+                                                    }
+                                                }
+                                                $styleSummaries = array_values(array_unique($styleSummaries));
+                                                $styleDisplay = !empty($styleSummaries) ? implode(', ', $styleSummaries) : ($p['catalog_name'] ?? 'General / Unmapped');
+                                            ?>
+                                                <div class="text-truncate small fw-semibold text-dark" style="max-width: 240px;" title="<?= htmlspecialchars($styleDisplay) ?>">
+                                                    <i class="bi bi-tag-fill text-primary me-1"></i><?= htmlspecialchars($styleDisplay) ?>
+                                                </div>
+                                            <?php else: ?>
+                                                <span class="small text-dark"><?= htmlspecialchars($p['catalog_name'] ?? 'General / Per-Roll') ?></span>
+                                            <?php endif; ?>
                                         </td>
                                         <td><span class="fw-bold text-primary"><?= number_format((float)($p['planned_qty'] ?? 0), 2) ?></span> <span class="small text-muted">Units</span></td>
                                         <td><?= date('d M Y', strtotime($p['start_date'])) ?></td>

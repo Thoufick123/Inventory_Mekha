@@ -28,6 +28,16 @@
             <p class="text-secondary small mb-0">
                 Program: <strong><?= htmlspecialchars($batch['program_no'] ?? '-') ?></strong> &bull; <?= htmlspecialchars($batch['program_name'] ?? '') ?>
             </p>
+            <?php if (!empty($batchCatalogs)): ?>
+                <div class="d-flex align-items-center gap-1.5 flex-wrap mt-1.5">
+                    <span class="small text-muted fw-semibold">Catalog:</span>
+                    <?php foreach ($batchCatalogs as $bc): ?>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
+                            <i class="bi bi-tag-fill me-1"></i><?= !empty($bc['style_code']) ? '[' . htmlspecialchars($bc['style_code']) . '] ' : '' ?><?= htmlspecialchars($bc['name']) ?>
+                        </span>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="d-flex align-items-center gap-2">
             <a href="<?= \App\Core\Controller::url('/production/cutting') ?>" class="btn btn-light border shadow-sm fw-semibold">
@@ -106,6 +116,27 @@
                             <td class="fw-semibold text-dark small"><?= htmlspecialchars($batch['master_name'] ?: 'Not Assigned') ?></td>
                         </tr>
                         <tr>
+                            <td class="text-muted small">Catalog:</td>
+                            <td class="small">
+                                <?php if (!empty($batchCatalogs)): ?>
+                                    <div class="d-flex flex-column gap-1">
+                                        <?php foreach ($batchCatalogs as $bc): ?>
+                                            <div>
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
+                                                    <?= !empty($bc['style_code']) ? '[' . htmlspecialchars($bc['style_code']) . '] ' : '' ?><?= htmlspecialchars($bc['name']) ?>
+                                                </span>
+                                                <?php if (!empty($bc['hierarchy'])): ?>
+                                                    <small class="text-muted d-block"><?= htmlspecialchars($bc['hierarchy']) ?></small>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <tr>
                             <td class="text-muted small">Total Roll Weight:</td>
                             <td class="fw-bold text-dark small"><?= number_format($batch['total_roll_weight'], 2) ?> kg</td>
                         </tr>
@@ -182,6 +213,7 @@
                             <tr>
                                 <th class="ps-3">#</th>
                                 <th>Roll Tag / Material</th>
+                                <th>Catalog</th>
                                 <th>Variant / Size</th>
                                 <th>Product Code</th>
                                 <th class="text-end pe-3">Cut Output (pcs)</th>
@@ -189,7 +221,7 @@
                         </thead>
                         <tbody class="small">
                             <?php if (empty($items)): ?>
-                                <tr><td colspan="5" class="text-center py-4 text-muted">No variant breakdowns recorded.</td></tr>
+                                <tr><td colspan="6" class="text-center py-4 text-muted">No variant breakdowns recorded.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($items as $idx => $it): ?>
                                     <tr>
@@ -199,6 +231,15 @@
                                                 <?= htmlspecialchars($it['roll_piece_tag'] ?: 'Roll') ?>
                                             </span>
                                             <small class="text-muted ms-1"><?= htmlspecialchars($it['fabric_name'] ?? '') ?></small>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($it['catalog_name'])): ?>
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
+                                                    <?= !empty($it['catalog_style_code']) ? '[' . htmlspecialchars($it['catalog_style_code']) . '] ' : '' ?><?= htmlspecialchars($it['catalog_name']) ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <strong class="text-dark"><?= htmlspecialchars($it['size'] ?: '-') ?></strong>
@@ -218,7 +259,7 @@
                         </tbody>
                         <tfoot class="table-light fw-bold small">
                             <tr>
-                                <td colspan="4" class="text-end ps-3">Total Batch Output:</td>
+                                <td colspan="5" class="text-end ps-3">Total Batch Output:</td>
                                 <td class="text-end pe-3 text-success fs-6 font-monospace">
                                     <?= number_format($batch['cut_pieces']) ?> pcs
                                 </td>

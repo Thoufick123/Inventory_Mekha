@@ -76,10 +76,10 @@ class StockController extends Controller {
             }
         }
 
-        if (preg_match('/\(([^)]+)\)/', $variant['name'], $m)) {
+        if (preg_match('/\(([^)]+)\)/', (string)($variant['name'] ?? ''), $m)) {
             return trim($m[1]);
         }
-        if (preg_match('/\(([^)]+)\)/', $variantName, $m)) {
+        if (preg_match('/\(([^)]+)\)/', (string)$variantName, $m)) {
             return trim($m[1]);
         }
 

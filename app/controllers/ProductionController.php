@@ -3618,6 +3618,9 @@ class ProductionController extends Controller {
                        c.name AS catalog_name, c.style_code AS catalog_code,
                        COALESCE(cl.cutting_master_name, cm.name) AS master_name,
                        con.name AS concern_name,
+                       dcon.name AS destination_concern_name,
+                       dcon.code AS destination_concern_code,
+                       ow.outward_no AS outward_no,
                        (SELECT COUNT(*) FROM cutting_items WHERE cutting_id = cl.id) AS variant_count,
                        (SELECT COALESCE(SUM(cut_pieces), 0) FROM cutting_items WHERE cutting_id = cl.id) AS total_cut_pieces_sum,
                        (SELECT COUNT(DISTINCT program_roll_id) FROM cutting_items WHERE cutting_id = cl.id) AS rolls_used_count
@@ -3627,7 +3630,9 @@ class ProductionController extends Controller {
                     AND c.source_module = 'production_catalog'
                     AND (c.concern_id = pp.concern_id OR c.concern_id = 1 OR c.concern_id IS NULL)
                 LEFT JOIN cutting_masters cm ON cl.cutting_master_id = cm.id
-                LEFT JOIN concerns con ON cl.concern_id = con.id";
+                LEFT JOIN concerns con ON cl.concern_id = con.id
+                LEFT JOIN concerns dcon ON cl.destination_concern_id = dcon.id
+                LEFT JOIN outwards ow ON cl.outward_id = ow.id";
         $params = [];
         if ($cid) {
             $sql .= " WHERE cl.concern_id = ?";
@@ -3799,8 +3804,22 @@ class ProductionController extends Controller {
 
         DB::beginTransaction();
         try {
-            $outwardNo = 'OUT-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
-            $gatePassNo = 'GP-CUT-' . date('Ymd') . '-' . str_pad((string)random_int(100, 9999), 4, '0', STR_PAD_LEFT);
+            $maxSeq = (int)DB::fetchValue(
+                "SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(outward_no, '-', -1) AS UNSIGNED)), 0)
+                 FROM outwards
+                 WHERE concern_id = ? AND outward_no REGEXP '^OUT-CUT-[0-9]{1,5}$'",
+                [$sourceCid]
+            );
+            $nextSeq = $maxSeq + 1;
+            do {
+                $seqStr = str_pad((string)$nextSeq, 3, '0', STR_PAD_LEFT);
+                $outwardNo = 'OUT-CUT-' . $seqStr;
+                $gatePassNo = 'GP-CUT-' . $seqStr;
+                $existsOut = DB::fetch("SELECT id FROM outwards WHERE outward_no = ? LIMIT 1", [$outwardNo]);
+                if ($existsOut) {
+                    $nextSeq++;
+                }
+            } while ($existsOut);
             $batchNo = $cutting['batch_no'] ?: $cutting['log_no'];
 
             DB::query(
@@ -3839,6 +3858,8 @@ class ProductionController extends Controller {
 
             DB::commit();
             $this->flash('success', "Cutting batch {$batchNo} outwarded ({$outwardNo}) to {$destConcern['name']}. It is now in their Inward module.");
+            $this->redirect('/production/cutting?tab=outward');
+            return;
         } catch (\Throwable $e) {
             if (DB::pdo()->inTransaction()) {
                 DB::rollBack();
@@ -4459,9 +4480,12 @@ class ProductionController extends Controller {
         }
 
         $batch = DB::fetch(
-            "SELECT cl.*, pp.program_no, pp.program_name, cm.name AS master_name, con.name AS concern_name
+            "SELECT cl.*, pp.program_no, pp.program_name, pp.catalog_id AS program_catalog_id,
+                    pc.style_code AS program_catalog_code, pc.name AS program_catalog_name, pc.hierarchy_path AS program_catalog_hierarchy,
+                    cm.name AS master_name, con.name AS concern_name
              FROM cutting_logs cl
              LEFT JOIN production_programs pp ON cl.program_id = pp.id
+             LEFT JOIN catalogs pc ON pp.catalog_id = pc.id
              LEFT JOIN cutting_masters cm ON cl.cutting_master_id = cm.id
              LEFT JOIN concerns con ON cl.concern_id = con.id
              WHERE cl.id = ?" . ($cid ? " AND cl.concern_id = ?" : ""),
@@ -4474,13 +4498,39 @@ class ProductionController extends Controller {
         }
 
         $items = DB::fetchAll(
-            "SELECT ci.*, pr.roll_piece_tag, pr.fabric_name, pr.color 
+            "SELECT ci.*, pr.roll_piece_tag, pr.fabric_name, pr.color,
+                    cat.id AS catalog_id, cat.style_code AS catalog_style_code, cat.name AS catalog_name,
+                    cat.hierarchy_path AS catalog_hierarchy
              FROM cutting_items ci
              LEFT JOIN program_rolls pr ON ci.program_roll_id = pr.id
+             LEFT JOIN variants v ON ci.variant_id = v.id
+             LEFT JOIN catalogs cat ON cat.id = COALESCE(NULLIF(pr.catalog_id, 0), v.catalog_id)
              WHERE ci.cutting_id = ?
              ORDER BY ci.program_roll_id ASC, " . self::sizeOrderSql('ci.size') . ", ci.id ASC",
             [$id]
         );
+
+        $batchCatalogs = [];
+        foreach ($items as $it) {
+            $catIdKey = (int)($it['catalog_id'] ?? 0);
+            if ($catIdKey > 0 && !isset($batchCatalogs[$catIdKey])) {
+                $batchCatalogs[$catIdKey] = [
+                    'id'         => $catIdKey,
+                    'style_code' => $it['catalog_style_code'] ?? '',
+                    'name'       => $it['catalog_name'] ?? '',
+                    'hierarchy'  => $it['catalog_hierarchy'] ?? '',
+                ];
+            }
+        }
+        if (empty($batchCatalogs) && !empty($batch['program_catalog_name'])) {
+            $batchCatalogs[] = [
+                'id'         => (int)($batch['program_catalog_id'] ?? 0),
+                'style_code' => $batch['program_catalog_code'] ?? '',
+                'name'       => $batch['program_catalog_name'] ?? '',
+                'hierarchy'  => $batch['program_catalog_hierarchy'] ?? '',
+            ];
+        }
+        $batchCatalogs = array_values($batchCatalogs);
 
         $sales = DB::fetchAll(
             "SELECT * FROM cutting_wastage_sales WHERE cutting_id = ? ORDER BY id DESC",
@@ -4491,6 +4541,7 @@ class ProductionController extends Controller {
             'pageTitle'     => 'Cutting Batch: ' . ($batch['batch_no'] ?: $batch['log_no']),
             'currentModule' => 'cutting_wastage',
             'batch'         => $batch,
+            'batchCatalogs' => $batchCatalogs,
             'items'         => $items,
             'sales'         => $sales,
             'selectedCid'   => $cid,
