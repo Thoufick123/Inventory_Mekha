@@ -31,7 +31,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     <i class="bi bi-qr-code"></i>
                 </div>
                 <div>
-                    <h4 class="fw-bold mb-0 text-dark" style="letter-spacing: -0.01em;">POS Billing Terminal</h4>
+                    <h4 class="fw-bold mb-0 text-dark" style="letter-spacing: -0.01em;"><?= !empty($editData) ? 'Edit POS Invoice ' . htmlspecialchars($editData['invoice_no'], ENT_QUOTES, 'UTF-8') : 'POS Billing Terminal' ?></h4>
                     <small class="text-muted">
                         <i class="bi bi-shop me-1 text-primary"></i> <?= htmlspecialchars($concernName) ?> &bull; 
                         <span class="text-dark">Staff:</span> <?= htmlspecialchars($staffName) ?>
@@ -61,10 +61,18 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
     ?>
 
     <!-- Main Terminal Grid (Left: Customer & Coupons, Right: Scanner & Sale Details) -->
-    <form id="pos_billing_form" action="<?= \App\Core\Controller::url('/m/billing/complete') ?>" method="POST" enctype="multipart/form-data">
+    <form id="pos_billing_form" action="<?= \App\Core\Controller::url(!empty($editData) ? '/m/billing/update' : '/m/billing/complete') ?>" method="POST" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
         <input type="hidden" name="cart_items_json" id="cart_items_json" value="[]">
-        <input type="hidden" name="payment_method" id="input_payment_method" value="cash">
+        <input type="hidden" name="payment_method" id="input_payment_method" value="<?= htmlspecialchars($editData['payment_method'] ?? 'cash', ENT_QUOTES, 'UTF-8') ?>">
+        <input type="hidden" name="invoice_id" id="editing_invoice_id" value="<?= (int)($editData['id'] ?? 0) ?>">
+
+        <?php if (!empty($editData)): ?>
+        <div class="alert alert-warning border-warning-subtle mb-3">
+            <strong>Editing <?= htmlspecialchars($editData['invoice_no'], ENT_QUOTES, 'UTF-8') ?>.</strong>
+            Current catalog prices and GST rates will be used. Previously saved item discounts and coupons are not carried forward automatically; review the new total before saving.
+        </div>
+        <?php endif; ?>
 
         <div class="row g-3">
             <!-- ============================================== -->
@@ -95,19 +103,19 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         <div class="col-12">
                             <label class="form-label text-secondary small fw-bold mb-1">BILLING FOR</label>
                             <div class="d-flex gap-2" id="billing_party_buttons" role="group" aria-label="Billing party type">
-                                <button type="button" class="btn btn-primary flex-fill active" data-billing-party="customer">
+                                <button type="button" class="btn <?= !empty($editData) && $editData['billing_party_type'] === 'company' ? 'btn-outline-primary' : 'btn-primary active' ?> flex-fill" data-billing-party="customer">
                                     <i class="bi bi-person me-1"></i> Customer
                                 </button>
-                                <button type="button" class="btn btn-outline-primary flex-fill" data-billing-party="company">
+                                <button type="button" class="btn <?= !empty($editData) && $editData['billing_party_type'] === 'company' ? 'btn-primary active' : 'btn-outline-primary' ?> flex-fill" data-billing-party="company">
                                     <i class="bi bi-buildings me-1"></i> Company / Bulk
                                 </button>
                             </div>
                             <select name="billing_party_type" id="billing_party_type" class="d-none" required aria-hidden="true">
-                                <option value="customer" selected>Customer</option>
-                                <option value="company">Company / Bulk</option>
+                                <option value="customer" <?= empty($editData) || $editData['billing_party_type'] === 'customer' ? 'selected' : '' ?>>Customer</option>
+                                <option value="company" <?= !empty($editData) && $editData['billing_party_type'] === 'company' ? 'selected' : '' ?>>Company / Bulk</option>
                             </select>
                         </div>
-                        <div class="col-12">
+                        <div class="col-12" id="customer_channel_wrap">
                             <label for="pos_customer_channel" class="form-label text-secondary small fw-bold mb-1">CUSTOMER CHANNEL / SOURCE *</label>
                             <div class="input-group flex-nowrap">
                                 <span class="input-group-text bg-light text-primary"><i class="bi bi-diagram-3"></i></span>
@@ -133,7 +141,9 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                         <option value="<?= htmlspecialchars($ch['channel_key']) ?>"
                                                 data-channel-id="<?= (int)($ch['id'] ?? 0) ?>"
                                                 data-order-channel="<?= !empty($ch['is_order_channel']) ? '1' : '0' ?>"
-                                                <?= $isInitSel ? 'selected' : '' ?>>
+                                                <?= !empty($editData)
+                                                    ? ($ch['channel_key'] === $editData['customer_channel'] ? 'selected' : '')
+                                                    : ($isInitSel ? 'selected' : '') ?>>
                                             <?= htmlspecialchars($ch['channel_name']) ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -220,9 +230,9 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <i class="bi bi-receipt text-muted me-1"></i> GST TYPE
                             </label>
                             <select name="gst_type" id="gst_type" class="form-select" style="border-radius: 8px; font-size: 0.88rem;">
-                                <option value="both" selected>Both CGST & SGST</option>
-                                <option value="igst">IGST (Inter-state)</option>
-                                <option value="exempt">None / Exempt (0%)</option>
+                                <option value="both" <?= empty($editData) || $editData['gst_type'] === 'both' ? 'selected' : '' ?>>Both CGST & SGST</option>
+                                <option value="igst" <?= !empty($editData) && $editData['gst_type'] === 'igst' ? 'selected' : '' ?>>IGST (Inter-state)</option>
+                                <option value="exempt" <?= !empty($editData) && $editData['gst_type'] === 'exempt' ? 'selected' : '' ?>>None / Exempt (0%)</option>
                             </select>
                         </div>
                         <div class="col-12 col-sm-6">
@@ -230,8 +240,8 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <i class="bi bi-percent text-muted me-1"></i> GST MODE
                             </label>
                             <select name="gst_price_mode" id="gst_price_mode" class="form-select" style="border-radius: 8px; font-size: 0.88rem;">
-                                <option value="exclude" selected>Exclude GST (Add GST)</option>
-                                <option value="include">Include GST (Extract GST)</option>
+                                <option value="exclude" <?= empty($editData) || $editData['gst_price_mode'] === 'exclude' ? 'selected' : '' ?>>Exclude GST (Add GST)</option>
+                                <option value="include" <?= !empty($editData) && $editData['gst_price_mode'] === 'include' ? 'selected' : '' ?>>Include GST (Extract GST)</option>
                             </select>
                         </div>
                     </div>
@@ -288,11 +298,11 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     <div class="row g-2 align-items-end mb-3">
                         <div class="col-12">
                             <label for="pos_invoice_date" class="form-label text-secondary small fw-bold mb-1">BILL DATE *</label>
-                            <input type="date" name="invoice_date" id="pos_invoice_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                            <input type="date" name="invoice_date" id="pos_invoice_date" class="form-control" value="<?= htmlspecialchars($editData['invoice_date'] ?? date('Y-m-d'), ENT_QUOTES, 'UTF-8') ?>" required>
                         </div>
                         <div class="col-12 d-none" id="direct_bill_wrap">
                             <div class="form-check border rounded-3 bg-light px-3 py-2">
-                                <input type="checkbox" name="is_direct_bill" id="is_direct_bill" value="1" class="form-check-input">
+                                <input type="checkbox" name="is_direct_bill" id="is_direct_bill" value="1" class="form-check-input" <?= !empty($editData['is_direct_bill']) ? 'checked' : '' ?>>
                                 <label for="is_direct_bill" class="form-check-label fw-semibold small">Separate as Direct Bill</label>
                                 <small class="d-block text-muted ms-4">Direct bills appear in their own tab and are excluded from standard POS totals.</small>
                             </div>
@@ -301,25 +311,25 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
 
                     <div class="row row-cols-4 g-2 mb-3">
                         <div class="col">
-                            <button type="button" class="pay-method-btn active text-center p-2 rounded-3 border w-100" data-method="cash" aria-pressed="true">
+                            <button type="button" class="pay-method-btn <?= empty($editData) || $editData['payment_method'] === 'cash' ? 'active' : '' ?> text-center p-2 rounded-3 border w-100" data-method="cash" aria-pressed="<?= empty($editData) || $editData['payment_method'] === 'cash' ? 'true' : 'false' ?>">
                                 <i class="bi bi-cash-stack fs-4 d-block mb-1"></i>
                                 <span class="fw-bold small d-block">Cash</span>
                             </button>
                         </div>
                         <div class="col">
-                            <button type="button" class="pay-method-btn text-center p-2 rounded-3 border w-100" data-method="upi" aria-pressed="false">
+                            <button type="button" class="pay-method-btn <?= !empty($editData) && $editData['payment_method'] === 'upi' ? 'active' : '' ?> text-center p-2 rounded-3 border w-100" data-method="upi" aria-pressed="<?= !empty($editData) && $editData['payment_method'] === 'upi' ? 'true' : 'false' ?>">
                                 <i class="bi bi-qr-code fs-4 d-block mb-1"></i>
                                 <span class="fw-bold small d-block">UPI / QR</span>
                             </button>
                         </div>
                         <div class="col">
-                            <button type="button" class="pay-method-btn text-center p-2 rounded-3 border w-100" data-method="card" aria-pressed="false">
+                            <button type="button" class="pay-method-btn <?= !empty($editData) && $editData['payment_method'] === 'card' ? 'active' : '' ?> text-center p-2 rounded-3 border w-100" data-method="card" aria-pressed="<?= !empty($editData) && $editData['payment_method'] === 'card' ? 'true' : 'false' ?>">
                                 <i class="bi bi-credit-card fs-4 d-block mb-1"></i>
                                 <span class="fw-bold small d-block">Card / POS</span>
                             </button>
                         </div>
                         <div class="col">
-                            <button type="button" class="pay-method-btn text-center p-2 rounded-3 border w-100" data-method="split" aria-pressed="false">
+                            <button type="button" class="pay-method-btn <?= !empty($editData) && $editData['payment_method'] === 'split' ? 'active' : '' ?> text-center p-2 rounded-3 border w-100" data-method="split" aria-pressed="<?= !empty($editData) && $editData['payment_method'] === 'split' ? 'true' : 'false' ?>">
                                 <i class="bi bi-pie-chart fs-4 d-block mb-1"></i>
                                 <span class="fw-bold small d-block">Cash + UPI</span>
                             </button>
@@ -355,7 +365,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
 
                     <!-- Cash sales can be manually classified as Online. -->
                     <div id="online_classification_wrap" class="form-check form-switch pt-1">
-                        <input class="form-check-input" type="checkbox" id="toggle_online" name="is_online" value="1">
+                        <input class="form-check-input" type="checkbox" id="toggle_online" name="is_online" value="1" <?= !empty($editData['is_online']) ? 'checked' : '' ?>>
                         <label class="form-check-label fw-semibold text-dark small" for="toggle_online" style="font-size: 0.82rem;">
                             Show this cash sale in the Online section
                         </label>
@@ -575,16 +585,16 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     <div class="col-12 col-md-4">
                         <div class="payment-detail-card h-100">
                             <label for="pos_shipping_amount" class="form-label small fw-bold text-uppercase text-muted"><i class="bi bi-truck me-1"></i>Shipping (₹)</label>
-                            <input type="number" id="pos_shipping_amount" name="shipping_amount" class="form-control text-end fw-bold font-monospace" min="0" max="9999999999.99" step="0.01" value="0.00">
+                            <input type="number" id="pos_shipping_amount" name="shipping_amount" class="form-control text-end fw-bold font-monospace" min="0" max="9999999999.99" step="0.01" value="<?= number_format((float)($editData['shipping_amount'] ?? 0), 2, '.', '') ?>">
                         </div>
                     </div>
                     <div class="col-12 col-md-4">
                         <div class="payment-detail-card h-100">
                             <label for="pos_payment_status" class="form-label small fw-bold text-uppercase text-muted"><i class="bi bi-check-circle me-1"></i>Payment Status</label>
                             <select id="pos_payment_status" name="payment_status" class="form-select fw-semibold">
-                                <option value="paid" selected>Paid</option>
-                                <option value="partial">Partially Paid / COD</option>
-                                <option value="unpaid">Unpaid / COD</option>
+                                <option value="paid" <?= empty($editData) || $editData['payment_status'] === 'paid' ? 'selected' : '' ?>>Paid</option>
+                                <option value="partial" <?= !empty($editData) && $editData['payment_status'] === 'partial' ? 'selected' : '' ?>>Partially Paid / COD</option>
+                                <option value="unpaid" <?= !empty($editData) && $editData['payment_status'] === 'unpaid' ? 'selected' : '' ?>>Unpaid / COD</option>
                             </select>
                         </div>
                     </div>
@@ -600,7 +610,7 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     <div class="col-12 col-md-6">
                         <div class="payment-detail-card h-100">
                             <label for="advance_paid_amount" class="form-label small fw-bold text-uppercase text-muted"><i class="bi bi-cash-coin me-1"></i>Advance Paid (₹)</label>
-                            <input type="number" id="advance_paid_amount" name="advance_paid" class="form-control text-end fw-bold font-monospace" min="0" max="9999999999.99" step="0.01" value="0.00">
+                            <input type="number" id="advance_paid_amount" name="advance_paid" class="form-control text-end fw-bold font-monospace" min="0" max="9999999999.99" step="0.01" value="<?= number_format((float)($editData['paid_amount'] ?? 0), 2, '.', '') ?>">
                         </div>
                     </div>
                     <div class="col-12 col-md-6">
@@ -634,9 +644,9 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                 </div>
 
                 <!-- Complete Sale Action Button & Version (Image 2 Bottom) -->
-                <?php if (\App\Core\Auth::can('billing', 'create')): ?>
+                <?php if (\App\Core\Auth::can('billing', !empty($editData) ? 'edit' : 'create')): ?>
                 <button type="submit" id="btn_complete_sale" class="btn btn-secondary w-100 py-3 rounded-4 fw-bold fs-6 shadow-sm d-flex align-items-center justify-content-center gap-2 mb-1" style="border: none; transition: all 0.2s; background: #94a3b8; color: #ffffff;">
-                    <i class="bi bi-printer fs-5"></i> Complete Sale & Print Invoice 
+                    <i class="bi <?= !empty($editData) ? 'bi-save' : 'bi-printer' ?> fs-5"></i> <?= !empty($editData) ? 'Save Invoice Changes & Print' : 'Complete Sale & Print Invoice' ?>
                 </button>
                 <div id="checkout_helper_hint" class="text-center small py-1 mb-2" style="font-size: 0.76rem;">
                     <span class="text-muted"><i class="bi bi-info-circle me-1"></i> Scan or select products above to begin billing.</span>
@@ -685,7 +695,10 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                             <?php else: ?>
                                 <?php foreach ($invoices as $inv): ?>
                                     <tr>
-                                        <td><span class="badge bg-dark font-monospace"><?= htmlspecialchars($inv['invoice_no']) ?></span></td>
+                                        <td>
+                                            <span class="badge <?= !empty($inv['voided_at']) ? 'bg-danger' : 'bg-dark' ?> font-monospace"><?= htmlspecialchars($inv['invoice_no']) ?></span>
+                                            <?php if (!empty($inv['voided_at'])): ?><small class="d-block text-danger fw-semibold">VOIDED</small><?php endif; ?>
+                                        </td>
                                         <td class="fw-semibold text-dark"><?= htmlspecialchars($inv['customer_name']) ?></td>
                                         <td class="small text-muted font-monospace"><?= date('d M Y', strtotime($inv['invoice_date'])) ?></td>
                                         <td><span class="badge bg-light text-dark border"><?= (int)$inv['items_count'] ?> items</span></td>
@@ -715,7 +728,10 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
     <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
         <div class="modal-content border-0 shadow-lg p-3 bg-white" style="border-radius: 16px;">
             <div class="modal-header border-0 pb-1">
-                <span class="badge bg-success text-uppercase fw-bold"><i class="bi bi-check-circle me-1"></i> Sale Completed</span>
+                <span class="badge <?= !empty($printInvoice['voided_at']) ? 'bg-danger' : 'bg-success' ?> text-uppercase fw-bold">
+                    <i class="bi <?= !empty($printInvoice['voided_at']) ? 'bi-x-circle' : 'bi-check-circle' ?> me-1"></i>
+                    <?= !empty($printInvoice['voided_at']) ? 'Invoice Voided' : 'Sale Completed' ?>
+                </span>
                 <a href="<?= \App\Core\Controller::url('/m/billing') ?>" class="btn-close" aria-label="Close"></a>
             </div>
 
@@ -729,12 +745,24 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                     <div style="font-size: 0.72rem;"><?= htmlspecialchars($printInvoice['concern_address'] ?: 'Retail Store Outlet') ?></div>
                     <div style="font-size: 0.72rem;">GSTIN: <?= htmlspecialchars($printInvoice['concern_gstin'] ?: '33AAACG1234F1Z8') ?></div>
                     <div style="font-size: 0.72rem;">TAX INVOICE / RETAIL RECEIPT</div>
+                    <?php if (!empty($printInvoice['voided_at'])): ?>
+                        <div class="text-danger fw-bold border border-danger rounded mt-1 px-2 py-1">VOIDED <?= htmlspecialchars(date('d M Y H:i', strtotime($printInvoice['voided_at'])), ENT_QUOTES, 'UTF-8') ?></div>
+                    <?php endif; ?>
                 </div>
 
                 <div class="py-2 border-bottom" style="font-size: 0.76rem;">
-                    <div><strong>Inv No:</strong> <?= htmlspecialchars($printInvoice['invoice_no']) ?></div>
-                    <div><strong>Date:</strong> <?= date('d M Y', strtotime($printInvoice['invoice_date'])) ?></div>
-                    <div><strong>Customer:</strong> <?= htmlspecialchars($printInvoice['customer_name']) ?> (<?= htmlspecialchars($printInvoice['customer_phone'] ?: '-') ?>)</div>
+                    <div class="d-flex justify-content-between thermal-receipt-customer-invoice" style="gap: 8px; align-items: flex-start;">
+                        <div style="flex: 1; min-width: 0; overflow-wrap: anywhere;">
+                            <strong>Customer:</strong>
+                            <div><?= htmlspecialchars($printInvoice['customer_name']) ?></div>
+                            <div><?= htmlspecialchars($printInvoice['customer_phone'] ?: '-') ?></div>
+                        </div>
+                        <div class="text-end" style="flex: 1; min-width: 0; overflow-wrap: anywhere;">
+                            <div><strong>Inv No:</strong></div>
+                            <div><?= htmlspecialchars($printInvoice['invoice_no']) ?></div>
+                            <div><strong>Date:</strong> <?= date('d M Y', strtotime($printInvoice['invoice_date'])) ?></div>
+                        </div>
+                    </div>
                     <?php
                     $paymentStatusLabels = [
                         'paid' => 'PAID',
@@ -742,28 +770,40 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         'unpaid' => 'UNPAID / COD',
                     ];
                     $paymentStatusLabel = $paymentStatusLabels[$printInvoice['payment_status']] ?? 'UNPAID / COD';
+                    $printCouponDiscountAmount = max(0, (float)($printInvoice['coupon_discount_amount'] ?? 0));
+                    $printItemDiscountAmount = max(0, (float)$printInvoice['discount_amount'] - $printCouponDiscountAmount);
+                    $printGstType = 'both';
+                    if (preg_match('/GST Type:\s*(both|igst|exempt)/i', (string)($printInvoice['notes'] ?? ''), $gstTypeMatch)) {
+                        $printGstType = strtolower($gstTypeMatch[1]);
+                    }
+                    $printGstAmount = max(0, (float)$printInvoice['tax_amount']);
+                    $printCgstAmount = $printGstType === 'both' ? round($printGstAmount / 2, 2) : 0;
+                    $printSgstAmount = $printGstType === 'both' ? round($printGstAmount - $printCgstAmount, 2) : 0;
                     ?>
                     <div><strong>Payment:</strong> <?= htmlspecialchars($posPaymentMethodLabel($printInvoice['payment_method']), ENT_QUOTES, 'UTF-8') ?> (<?= htmlspecialchars($paymentStatusLabel, ENT_QUOTES, 'UTF-8') ?>)</div>
-                    <div><strong>Billing For:</strong> <?= stripos((string)($printInvoice['notes'] ?? ''), 'Billing For: company') !== false ? 'Company' : 'Customer' ?></div>
-                    <div><strong>GST Pricing:</strong> <?= stripos((string)($printInvoice['notes'] ?? ''), 'GST Price Mode: include') !== false ? 'GST Included' : 'GST Excluded' ?></div>
                 </div>
 
                 <div class="py-2 border-bottom">
-                    <table class="w-100" style="font-size: 0.75rem;">
+                    <table class="w-100 thermal-receipt-items" style="font-size: 0.75rem; table-layout: fixed;">
+                        <colgroup>
+                            <col style="width: 48%;">
+                            <col style="width: 10%;">
+                            <col style="width: 21%;">
+                            <col style="width: 21%;">
+                        </colgroup>
                         <thead>
                             <tr class="text-muted border-bottom">
                                 <th>Item</th>
                                 <th class="text-center">Qty</th>
-                                <th class="text-end">Base/Unit</th>
-                                <th class="text-end">Taxable</th>
+                                <th class="text-end">MRP<br>Price</th>
+                                <th class="text-end">Bill<br>Amount</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($printItems as $it): ?>
                                 <tr>
-                                    <td>
+                                    <td style="overflow-wrap: anywhere;">
                                         <strong class="d-block"><?= htmlspecialchars($it['item_name']) ?></strong>
-                                        <small class="d-block">Code: <?= htmlspecialchars($it['product_code'] ?: '-') ?></small>
                                         <small>Size: <?= htmlspecialchars($it['size'] ?: '-') ?></small>
                                         <?php if (!empty($it['scanned_code_display'])): ?>
                                             <small class="d-block">Scanned code: <?= htmlspecialchars($it['scanned_code_display']) ?></small>
@@ -771,8 +811,8 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                         <?php if (!empty($it['batch_no'])): ?><small class="d-block">Batch <?= htmlspecialchars($it['batch_no']) ?></small><?php endif; ?>
                                     </td>
                                     <td class="text-center"><?= (int)$it['qty'] ?></td>
-                                    <td class="text-end">₹<?= number_format($it['unit_price'], 2) ?></td>
-                                    <td class="text-end">₹<?= number_format($it['total_price'], 2) ?></td>
+                                    <td class="text-end" style="white-space: nowrap;">₹<?= number_format((float)$it['mrp_price'], 2) ?></td>
+                                    <td class="text-end" style="white-space: nowrap;">₹<?= number_format($it['total_price'], 2) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -788,16 +828,16 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         <span>GST Tax Amount:</span>
                         <span>₹<?= number_format($printInvoice['tax_amount'], 2) ?></span>
                     </div>
-                    <?php if ((float)$printInvoice['discount_amount'] > 0): ?>
+                    <?php if ($printItemDiscountAmount > 0): ?>
                         <div class="d-flex justify-content-between text-danger">
-                            <span>Discount Given:</span>
-                            <span>-₹<?= number_format($printInvoice['discount_amount'], 2) ?></span>
+                            <span>Item Discount (included in subtotal):</span>
+                            <span>₹<?= number_format($printItemDiscountAmount, 2) ?></span>
                         </div>
                     <?php endif; ?>
-                    <?php if ((float)($printInvoice['coupon_discount_amount'] ?? 0) > 0): ?>
+                    <?php if ($printCouponDiscountAmount > 0): ?>
                         <div class="d-flex justify-content-between text-primary fw-semibold">
                             <span>Coupon (<?= htmlspecialchars($printInvoice['applied_coupon_code'] ?? '') ?>):</span>
-                            <span>-₹<?= number_format((float)$printInvoice['coupon_discount_amount'], 2) ?></span>
+                            <span>-₹<?= number_format($printCouponDiscountAmount, 2) ?></span>
                         </div>
                     <?php endif; ?>
                     <?php if ((float)($printInvoice['shipping_amount'] ?? 0) > 0): ?>
@@ -832,36 +872,48 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
             <div class="d-none" id="a4_invoice_print_area">
                 <header class="a4-invoice-header">
                     <div>
-                        <h1><?= htmlspecialchars($printInvoice['concern_name']) ?></h1>
-                        <div><?= nl2br(htmlspecialchars($printInvoice['concern_address'] ?: '')) ?></div>
-                        <div>Phone: <?= htmlspecialchars($printInvoice['concern_phone'] ?: '-') ?></div>
-                        <div>GSTIN: <?= htmlspecialchars($printInvoice['concern_gstin'] ?: '-') ?></div>
+                        <div class="a4-invoice-brand">
+                        <?php if (!empty($printInvoice['concern_logo'])): ?>
+                            <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($printInvoice['concern_logo'])) ?>" alt="<?= htmlspecialchars($printInvoice['concern_name']) ?>">
+                        <?php endif; ?>
+                            <div class="a4-invoice-company-details">
+                                <h1><?= htmlspecialchars($printInvoice['concern_name']) ?></h1>
+                                <div><?= nl2br(htmlspecialchars($printInvoice['concern_address'] ?: '')) ?></div>
+                                <div>Phone: <?= htmlspecialchars($printInvoice['concern_phone'] ?: '-') ?></div>
+                                <div>GSTIN: <?= htmlspecialchars($printInvoice['concern_gstin'] ?: '-') ?></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="a4-invoice-title">
                         <h2>TAX INVOICE</h2>
+                        <?php if (!empty($printInvoice['voided_at'])): ?>
+                            <strong style="color:#b91c1c;border:1px solid #b91c1c;padding:4px 8px;display:inline-block;margin-top:8px;">VOIDED <?= htmlspecialchars(date('d M Y H:i', strtotime($printInvoice['voided_at'])), ENT_QUOTES, 'UTF-8') ?></strong>
+                        <?php endif; ?>
                         <div>Original for recipient</div>
                     </div>
                 </header>
 
-                <section class="a4-invoice-meta">
-                    <div><strong>Invoice No.</strong><span><?= htmlspecialchars($printInvoice['invoice_no']) ?></span></div>
-                    <div><strong>Invoice Date</strong><span><?= date('d M Y', strtotime($printInvoice['invoice_date'])) ?></span></div>
-                    <div><strong>Payment Method</strong><span><?= htmlspecialchars($posPaymentMethodLabel($printInvoice['payment_method']), ENT_QUOTES, 'UTF-8') ?></span></div>
-                    <div><strong>Payment Status</strong><span><?= htmlspecialchars($paymentStatusLabel, ENT_QUOTES, 'UTF-8') ?></span></div>
-                    <div><strong>GST Pricing</strong><span><?= stripos((string)($printInvoice['notes'] ?? ''), 'GST Price Mode: include') !== false ? 'GST Included' : 'GST Excluded' ?></span></div>
-                    <?php if (!empty($printInvoice['is_direct_bill'])): ?>
-                        <div><strong>Bill Type</strong><span>Direct Bill</span></div>
-                    <?php endif; ?>
-                </section>
-
-                <section class="a4-invoice-customer">
-                    <h3>Bill To</h3>
-                    <strong><?= htmlspecialchars($printInvoice['customer_name']) ?></strong>
-                    <div>Phone: <?= htmlspecialchars($printInvoice['customer_phone'] ?: '-') ?></div>
-                    <div>Email: <?= htmlspecialchars($printInvoice['customer_email'] ?: '-') ?></div>
-                    <div>Address: <?= nl2br(htmlspecialchars($printInvoice['customer_address'] ?: '-')) ?></div>
-                    <div>GSTIN: <?= htmlspecialchars($printInvoice['customer_gstin'] ?: '-') ?></div>
-                    <div>Billing For: <?= stripos((string)($printInvoice['notes'] ?? ''), 'Billing For: company') !== false ? 'Company' : 'Customer' ?></div>
+                <section class="a4-invoice-parties">
+                    <section class="a4-invoice-customer">
+                        <h3>Bill To</h3>
+                        <strong><?= htmlspecialchars($printInvoice['customer_name']) ?></strong>
+                        <div>Phone: <?= htmlspecialchars($printInvoice['customer_phone'] ?: '-') ?></div>
+                        <div>Email: <?= htmlspecialchars($printInvoice['customer_email'] ?: '-') ?></div>
+                        <div>Address: <?= nl2br(htmlspecialchars($printInvoice['customer_address'] ?: '-')) ?></div>
+                        <div>GSTIN: <?= htmlspecialchars($printInvoice['customer_gstin'] ?: '-') ?></div>
+                        <div>Billing For: <?= stripos((string)($printInvoice['notes'] ?? ''), 'Billing For: company') !== false ? 'Company' : 'Customer' ?></div>
+                    </section>
+                    <section class="a4-invoice-meta">
+                        <h3>Invoice Details</h3>
+                        <div><strong>Invoice No.</strong><span><?= htmlspecialchars($printInvoice['invoice_no']) ?></span></div>
+                        <div><strong>Invoice Date</strong><span><?= date('d M Y', strtotime($printInvoice['invoice_date'])) ?></span></div>
+                        <div><strong>Payment Method</strong><span><?= htmlspecialchars($posPaymentMethodLabel($printInvoice['payment_method']), ENT_QUOTES, 'UTF-8') ?></span></div>
+                        <div><strong>Payment Status</strong><span><?= htmlspecialchars($paymentStatusLabel, ENT_QUOTES, 'UTF-8') ?></span></div>
+                        <div><strong>GST Pricing</strong><span><?= stripos((string)($printInvoice['notes'] ?? ''), 'GST Price Mode: include') !== false ? 'GST Included' : 'GST Excluded' ?></span></div>
+                        <?php if (!empty($printInvoice['is_direct_bill'])): ?>
+                            <div><strong>Bill Type</strong><span>Direct Bill</span></div>
+                        <?php endif; ?>
+                    </section>
                 </section>
 
                 <table class="a4-invoice-items">
@@ -869,10 +921,9 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                         <tr>
                             <th>#</th>
                             <th>Item Description</th>
-                            <th>Product Code</th>
                             <th>Size</th>
                             <th class="number">Qty</th>
-                            <th class="number">Base / Unit</th>
+                            <th class="number">Unit Price</th>
                             <th class="number">Taxable Amount</th>
                         </tr>
                     </thead>
@@ -882,9 +933,6 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                 <td><?= $index + 1 ?></td>
                                 <td>
                                     <?= htmlspecialchars($it['item_name']) ?>
-                                    <?php if (!empty($it['variant_name']) && $it['variant_name'] !== $it['item_name']): ?>
-                                        <small>Variant: <?= htmlspecialchars($it['variant_name']) ?></small>
-                                    <?php endif; ?>
                                     <?php if (!empty($it['scanned_code_display'])): ?>
                                         <small>Scanned code: <?= htmlspecialchars($it['scanned_code_display']) ?></small>
                                     <?php endif; ?>
@@ -892,7 +940,6 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
                                         <small>Batch <?= htmlspecialchars($it['batch_no']) ?></small>
                                     <?php endif; ?>
                                 </td>
-                                <td><?= htmlspecialchars($it['product_code'] ?: '-') ?></td>
                                 <td><?= htmlspecialchars($it['size'] ?: '-') ?></td>
                                 <td class="number"><?= number_format((float)$it['qty'], 0) ?></td>
                                 <td class="number">₹<?= number_format((float)$it['unit_price'], 2) ?></td>
@@ -904,11 +951,24 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
 
                 <div class="a4-invoice-summary">
                     <div class="a4-invoice-discount">
-                        Discount applied to item prices: ₹<?= number_format((float)$printInvoice['discount_amount'], 2) ?>
+                        <?php if ($printItemDiscountAmount > 0): ?>
+                            Item Discount (included in taxable subtotal): ₹<?= number_format($printItemDiscountAmount, 2) ?>
+                        <?php endif; ?>
                     </div>
                     <table>
                         <tr><th>Taxable Subtotal</th><td>₹<?= number_format((float)$printInvoice['total_amount'], 2) ?></td></tr>
-                        <tr><th>GST</th><td>₹<?= number_format((float)$printInvoice['tax_amount'], 2) ?></td></tr>
+                        <?php if ($printGstType === 'both'): ?>
+                            <tr><th>CGST</th><td>₹<?= number_format($printCgstAmount, 2) ?></td></tr>
+                            <tr><th>SGST</th><td>₹<?= number_format($printSgstAmount, 2) ?></td></tr>
+                        <?php elseif ($printGstType === 'igst'): ?>
+                            <tr><th>IGST</th><td>₹<?= number_format($printGstAmount, 2) ?></td></tr>
+                        <?php else: ?>
+                            <tr><th>GST Exempt</th><td>₹<?= number_format($printGstAmount, 2) ?></td></tr>
+                        <?php endif; ?>
+                        <tr><th>Total GST</th><td>₹<?= number_format($printGstAmount, 2) ?></td></tr>
+                        <?php if ($printCouponDiscountAmount > 0): ?>
+                            <tr><th>Coupon Discount</th><td>-₹<?= number_format($printCouponDiscountAmount, 2) ?></td></tr>
+                        <?php endif; ?>
                         <?php if ((float)($printInvoice['shipping_amount'] ?? 0) > 0): ?>
                             <tr><th>Shipping</th><td>₹<?= number_format((float)$printInvoice['shipping_amount'], 2) ?></td></tr>
                         <?php endif; ?>
@@ -1131,8 +1191,10 @@ $posPaymentMethodLabel = static function ($method) use ($posPaymentMethodLabels)
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const posEditData = <?= json_encode($editData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    const isEditingPosInvoice = Boolean(posEditData);
     let cart = []; // Cart items array
-    let currentPaymentMethod = 'cash';
+    let currentPaymentMethod = posEditData ? posEditData.payment_method : 'cash';
 
     const qrInput = document.getElementById('pos_qr_input');
     const btnAddQr = document.getElementById('btn_add_qr');
@@ -1193,6 +1255,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const directBillWrap = document.getElementById('direct_bill_wrap');
     const directBillCheckbox = document.getElementById('is_direct_bill');
     const customerContactFields = document.getElementById('customer_contact_fields');
+    const posCouponsPanel = document.getElementById('pos_coupons_panel');
     const posScannerCard = document.getElementById('pos_scanner_card');
     const posBillingForm = document.getElementById('pos_billing_form');
 
@@ -1249,15 +1312,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateBillingPartyFields() {
         const isCompany = billingPartyType && billingPartyType.value === 'company';
+        const customerChannelWrap = document.getElementById('customer_channel_wrap');
         billingPartyButtons.querySelectorAll('[data-billing-party]').forEach(button => {
             const isActive = button.dataset.billingParty === billingPartyType.value;
             button.classList.toggle('active', isActive);
             button.classList.toggle('btn-primary', isActive);
             button.classList.toggle('btn-outline-primary', !isActive);
         });
+        customerChannelWrap.classList.toggle('d-none', isCompany);
         companyDetailsWrap.classList.toggle('d-none', !isCompany);
         directBillWrap.classList.toggle('d-none', !isCompany);
         customerContactFields.classList.toggle('d-none', isCompany);
+        posCouponsPanel.classList.toggle('d-none', isCompany);
         posScannerCard.classList.remove('d-none');
 
         updateCompanyDetailsAvailability();
@@ -1268,7 +1334,31 @@ document.addEventListener('DOMContentLoaded', function() {
         clearCustomerBadge();
         hideCustomerDropdown();
 
-        if (!isCompany) {
+        if (isCompany) {
+            const channelSelect = document.getElementById('pos_customer_channel');
+            const directChannel = channelSelect && Array.from(channelSelect.options).find(option => option.value === 'direct');
+            if (channelSelect && directChannel && channelSelect.value !== 'direct') {
+                channelSelect.value = 'direct';
+                channelSelect.dispatchEvent(new Event('change'));
+                document.getElementById('customerChannelDropdownBtn').textContent = directChannel.textContent.trim();
+            }
+            document.getElementById('pos_coupon_select').value = '';
+            document.getElementById('coupon_mode_direct').checked = true;
+            document.getElementById('coupon_mode_product').checked = false;
+            document.getElementById('applied_coupon_id').value = '';
+            document.getElementById('applied_coupon_mode').value = 'DIRECT';
+            const couponFeedback = document.getElementById('pos_coupon_feedback');
+            couponFeedback.classList.add('d-none');
+            couponFeedback.textContent = '';
+            cart.forEach(item => {
+                delete item.use_coupon;
+            });
+            if (typeof window.renderCart === 'function') {
+                window.renderCart();
+            } else {
+                calculateCartTotals();
+            }
+        } else {
             directBillCheckbox.checked = false;
             custMobile.value = '';
             custName.value = '';
@@ -1727,7 +1817,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     if (scannerStatus) {
-                        scannerStatus.textContent = 'Added: ' + v.product_code + ' (+' + qtyToAdd + ')';
+                        scannerStatus.textContent = 'Added: ' + v.name + ' (+' + qtyToAdd + ')';
                         setTimeout(() => { scannerStatus.textContent = 'Ready for next scan...'; }, 2000);
                     }
 
@@ -1876,7 +1966,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td class="text-muted fw-bold">${index + 1}</td>
                     <td>
                         <strong class="text-dark d-block">${escapeHtml(item.name)}${isCouponProduct ? ' <span class="badge bg-success-subtle text-success border border-success-subtle">Coupon product</span>' : ''}</strong>
-                        <small class="text-muted font-monospace">${escapeHtml(item.product_code)} &bull; Size: ${escapeHtml(item.size)}${item.is_complementary ? ' &bull; Complimentary' : ''}${item.batch_no ? ' &bull; Batch: ' + escapeHtml(item.batch_no) : ''}</small>
+                        <small class="text-muted font-monospace">Size: ${escapeHtml(item.size)}${item.is_complementary ? ' &bull; Complimentary' : ''}${item.batch_no ? ' &bull; Batch: ' + escapeHtml(item.batch_no) : ''}</small>
                         ${scannedCodes.length ? `<small class="text-primary d-block font-monospace">Scanned code: ${escapeHtml(scannedCodes.join(', '))}</small>` : ''}
                         <div class="form-check form-check-inline mt-1 coupon-item-toggle ${getSelectedCouponMode() === 'PRODUCT_BUY' && document.getElementById('pos_coupon_select')?.value ? '' : 'd-none'}">
                             <input class="form-check-input item-use-coupon-cb" type="radio" name="coupon_product_line" id="use_coupon_cb_${index}" data-index="${index}" ${item.use_coupon ? 'checked' : ''}>
@@ -2015,6 +2105,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const orderChannelPaymentFields = document.getElementById('order_channel_payment_fields');
 
     function isOrderChannelSelected() {
+        if (isEditingPosInvoice) return true;
         if (!customerChannelSelect) return false;
         const opt = customerChannelSelect.options[customerChannelSelect.selectedIndex];
         return Boolean(opt && opt.dataset && opt.dataset.orderChannel === '1');
@@ -2442,6 +2533,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize Empty State & Customer Channel Visibility
     updateCustomerChannelFields();
+    if (posEditData) {
+        document.getElementById('pos_invoice_date').value = posEditData.invoice_date;
+        billingPartyType.value = posEditData.billing_party_type;
+        if (customerChannelSelect) customerChannelSelect.value = posEditData.customer_channel;
+        updateBillingPartyFields();
+        if (custMobile) custMobile.value = posEditData.customer_mobile;
+        if (custName) custName.value = posEditData.customer_name;
+        if (custAddress) custAddress.value = posEditData.customer_address;
+        if (companyName) companyName.value = posEditData.company_name;
+        if (companyAddress) companyAddress.value = posEditData.company_address;
+        if (companyPhone) companyPhone.value = posEditData.company_phone;
+        if (companyEmail) companyEmail.value = posEditData.company_email;
+        if (companyGstin) companyGstin.value = posEditData.company_gstin;
+        if (directBillCheckbox) directBillCheckbox.checked = posEditData.is_direct_bill;
+        if (gstTypeSelect) gstTypeSelect.value = posEditData.gst_type;
+        if (gstPriceModeSelect) gstPriceModeSelect.value = posEditData.gst_price_mode;
+        if (paymentStatusSelect) paymentStatusSelect.value = posEditData.payment_status;
+        if (shippingAmountInput) shippingAmountInput.value = Number(posEditData.shipping_amount).toFixed(2);
+        if (advancePaidInput) advancePaidInput.value = Number(posEditData.paid_amount).toFixed(2);
+        if (toggleOnline) toggleOnline.checked = posEditData.is_online;
+        const channelOption = customerChannelSelect && customerChannelSelect.options[customerChannelSelect.selectedIndex];
+        const channelButton = document.getElementById('customerChannelDropdownBtn');
+        if (channelOption && channelButton) channelButton.textContent = channelOption.textContent.trim();
+        const paymentButton = document.querySelector('.pay-method-btn[data-method="' + posEditData.payment_method + '"]');
+        if (paymentButton) paymentButton.click();
+        cart = Array.isArray(posEditData.items) ? posEditData.items : [];
+    }
+    updateCustomerChannelFields();
     renderCart();
 
     let customerChannelsData = <?= json_encode(array_values($channelsList), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
@@ -2802,8 +2921,42 @@ function printReceiptArea(format) {
     }
 
     const pageStyles = format === 'a4'
-        ? '@page{size:A4 portrait;margin:10mm} body{font-family:Arial,sans-serif;color:#111;font-size:10pt} #a4_invoice_print_area{display:block!important;width:100%;max-width:190mm;margin:auto;padding:0!important;border:0!important;background:#fff!important;font-family:Arial,sans-serif!important;font-size:10pt!important} .a4-invoice-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #222;padding-bottom:12px;margin-bottom:16px}.a4-invoice-header h1{font-size:20pt;margin:0 0 6px}.a4-invoice-title{text-align:right}.a4-invoice-title h2{font-size:20pt;margin:0 0 4px}.a4-invoice-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px 20px;border:1px solid #bbb;padding:10px 12px;margin-bottom:14px}.a4-invoice-meta>div{display:flex;justify-content:space-between;gap:12px}.a4-invoice-customer{border:1px solid #bbb;padding:10px 12px;margin-bottom:16px}.a4-invoice-customer h3{font-size:11pt;text-transform:uppercase;margin:0 0 7px}.a4-invoice-items{width:100%;border-collapse:collapse;margin-bottom:16px}.a4-invoice-items th,.a4-invoice-items td{border:1px solid #888;padding:7px 6px;vertical-align:top}.a4-invoice-items th{background:#f1f5f9;text-align:left}.a4-invoice-items .number{text-align:right;white-space:nowrap}.a4-invoice-items small{display:block;color:#555}.a4-invoice-summary{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.a4-invoice-summary>table{width:44%;border-collapse:collapse}.a4-invoice-summary th,.a4-invoice-summary td{padding:5px 8px;border-bottom:1px solid #ccc;text-align:right}.a4-invoice-summary th{text-align:left}.a4-invoice-total th,.a4-invoice-total td{font-weight:bold;font-size:12pt;border-top:2px solid #222}.a4-invoice-discount{font-size:9pt;color:#444}.a4-invoice-footer{display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #888;margin-top:45px;padding-top:10px}.a4-invoice-signature{border-top:1px solid #555;min-width:55mm;text-align:center;padding-top:6px}'
-        : '@page{size:80mm auto;margin:3mm} body{font-family:monospace;color:#111} #thermal_receipt_print_area{width:72mm;margin:auto;padding:0!important;border:0!important;background:#fff!important;font-family:monospace!important;font-size:10px!important} #thermal_receipt_print_area table{width:100%;font-size:9px!important} #thermal_receipt_print_area h5{font-size:14px}';
+        ? `@page{size:A4 portrait;margin:10mm}
+            body{font-family:Arial,sans-serif;color:#111;font-size:10pt}
+            #a4_invoice_print_area{display:block!important;width:100%;max-width:190mm;margin:auto;padding:0!important;border:0!important;background:#fff!important;font-family:Arial,sans-serif!important;font-size:10pt!important}
+            .a4-invoice-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #222;padding-bottom:12px;margin-bottom:16px}
+            .a4-invoice-brand{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px}
+            .a4-invoice-brand img{max-height:55px;max-width:110px;object-fit:contain;flex:0 0 auto}
+            .a4-invoice-company-details h1{font-size:20pt;margin:0 0 3px}
+            .a4-invoice-title{text-align:right}
+            .a4-invoice-title h2{font-size:20pt;margin:0 0 4px}
+            .a4-invoice-parties{display:flex;align-items:stretch;gap:12px;margin-bottom:14px}
+            .a4-invoice-parties>.a4-invoice-customer,.a4-invoice-parties>.a4-invoice-meta{flex:1 1 0;min-width:0;margin:0}
+            .a4-invoice-meta,.a4-invoice-customer{border:1px solid #bbb;padding:10px 12px}
+            .a4-invoice-meta h3,.a4-invoice-customer h3{font-size:11pt;text-transform:uppercase;margin:0 0 7px}
+            .a4-invoice-meta>div{display:flex;justify-content:space-between;gap:8px;white-space:nowrap;font-size:9pt}
+            .a4-invoice-meta>div+div{margin-top:5px}
+            .a4-invoice-meta>div span{text-align:right}
+            .a4-invoice-items{width:100%;border-collapse:collapse;margin-bottom:16px}
+            .a4-invoice-items th,.a4-invoice-items td{border:1px solid #888;padding:7px 6px;vertical-align:top}
+            .a4-invoice-items th{background:#f1f5f9;text-align:left}
+            .a4-invoice-items .number{text-align:right;white-space:nowrap}
+            .a4-invoice-items small{display:block;color:#555}
+            .a4-invoice-summary{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+            .a4-invoice-summary>table{width:44%;border-collapse:collapse}
+            .a4-invoice-summary th,.a4-invoice-summary td{padding:5px 8px;border-bottom:1px solid #ccc;text-align:right}
+            .a4-invoice-summary th{text-align:left}
+            .a4-invoice-total th,.a4-invoice-total td{font-weight:bold;font-size:12pt;border-top:2px solid #222}
+            .a4-invoice-discount{font-size:9pt;color:#444}
+            .a4-invoice-footer{display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #888;margin-top:45px;padding-top:10px}
+            .a4-invoice-signature{border-top:1px solid #555;min-width:55mm;text-align:center;padding-top:6px}`
+        : `@page{size:80mm auto;margin:3mm}
+            body{font-family:monospace;color:#111}
+            #thermal_receipt_print_area{width:72mm;margin:auto;padding:0!important;border:0!important;background:#fff!important;font-family:monospace!important;font-size:10px!important}
+            #thermal_receipt_print_area table{width:100%;font-size:9px!important}
+            #thermal_receipt_print_area .thermal-receipt-items th,#thermal_receipt_print_area .thermal-receipt-items td{padding:3px 2px}
+            #thermal_receipt_print_area .thermal-receipt-items th{line-height:1.1}
+            #thermal_receipt_print_area h5{font-size:14px}`;
 
     printWindow.document.open();
     printWindow.document.write('<!doctype html><html><head><title>' + (format === 'a4' ? 'Tax Invoice' : 'POS Receipt') + '</title><style>body{margin:0;padding:0}*{box-sizing:border-box} .text-center{text-align:center}.text-end{text-align:right}.d-flex{display:flex;justify-content:space-between}.fw-bold{font-weight:700}.text-muted{color:#555}.text-danger{color:#b91c1c}.text-success{color:#047857}.border-bottom{border-bottom:1px solid #ccc}.pt-2{padding-top:8px}.py-2{padding-top:8px;padding-bottom:8px}.mb-0{margin-bottom:0}table{border-collapse:collapse}th,td{padding:3px 1px;vertical-align:top}hr{border:0;border-top:1px solid #bbb}' + pageStyles + '</style></head><body>' + printArea.outerHTML + '</body></html>');

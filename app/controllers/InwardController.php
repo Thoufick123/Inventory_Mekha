@@ -11,6 +11,7 @@ use App\Services\DamageService;
 use App\Services\WarehouseService;
 use App\Services\NumberSeries;
 use App\Services\QrService;
+use App\Services\AssetTransferSchema;
 use App\Models\Inward;
 use Exception;
 
@@ -19,10 +20,12 @@ class InwardController extends Controller {
 
     protected function ensureSchema(): void {
         if (self::$schemaEnsured) {
+            AssetTransferSchema::ensure();
             return;
         }
 
         try {
+            AssetTransferSchema::ensure();
             // Ensure production_units exists
             DB::query("
                 CREATE TABLE IF NOT EXISTS `production_units` (
@@ -199,17 +202,17 @@ class InwardController extends Controller {
                    (SELECT cl_dst.id FROM cutting_logs cl_dst WHERE cl_dst.inward_source_outward_id = o.id LIMIT 1) AS received_cutting_id,
                    COALESCE(o.damage_transfer, 0) AS damage_transfer,
                    coalesce(pob.cartons_count, b.total_boxes, 1) AS total_boxes,
-                   coalesce((SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1), cl_src.cutting_name, 'Garments') AS product_name,
+                   coalesce(oat.asset_names, (SELECT v2.name FROM outward_items oi2 JOIN variants v2 ON oi2.variant_id = v2.id WHERE oi2.outward_id = o.id LIMIT 1), cl_src.cutting_name, 'Garments') AS product_name,
                    coalesce(src_con.name, '—') AS source_concern_name,
                    coalesce(src_con.code, '') AS source_concern_code,
                    coalesce(dest_con.name, o.warehouse_name, 'Warehouse') AS dest_warehouse_name,
                    coalesce(dest_con.code, 'WH-01') AS dest_warehouse_code,
-                   coalesce(NULLIF((SELECT sum(oi.qty) FROM outward_items oi WHERE oi.outward_id = o.id), 0), pob.pieces_count, b.batch_qty, cl_src.cut_pieces, 0) AS total_qty,
+                   coalesce(NULLIF((SELECT sum(oi.qty) FROM outward_items oi WHERE oi.outward_id = o.id), 0), pob.pieces_count, b.batch_qty, cl_src.cut_pieces, oat.asset_count, 0) AS total_qty,
                    coalesce((SELECT sum(ii.accepted_qty)
                              FROM inwards inw
                              JOIN inward_items ii ON inw.id = ii.inward_id
                              WHERE inw.outward_id = o.id
-                               AND inw.concern_id = o.destination_concern_id), 0) AS credited_qty,
+                               AND inw.concern_id = o.destination_concern_id), oat.asset_received_count, 0) AS credited_qty,
                    coalesce((SELECT sum(ii.rejected_qty)
                               FROM inwards inw
                               JOIN inward_items ii ON inw.id = ii.inward_id
@@ -219,7 +222,10 @@ class InwardController extends Controller {
                               FROM inwards inw
                               JOIN inward_items ii ON inw.id = ii.inward_id
                               WHERE inw.outward_id = o.id
-                                AND inw.concern_id = o.destination_concern_id), 0) AS received_qty
+                                AND inw.concern_id = o.destination_concern_id), oat.asset_received_count, 0) AS received_qty,
+                   coalesce(oat.asset_count, 0) AS asset_count,
+                   oat.asset_codes AS asset_codes,
+                   coalesce(oat.asset_received_count, 0) AS asset_received_count
             FROM outwards o
             LEFT JOIN (
                 SELECT outward_id,
@@ -229,6 +235,17 @@ class InwardController extends Controller {
                 FROM production_outward_batches
                 GROUP BY outward_id
             ) pob ON o.id = pob.outward_id
+            LEFT JOIN (
+                SELECT oai.outward_id,
+                       COUNT(*) AS asset_count,
+                       GROUP_CONCAT(a.name ORDER BY a.id SEPARATOR ', ') AS asset_names,
+                       GROUP_CONCAT(a.asset_code ORDER BY a.id SEPARATOR ', ') AS asset_codes,
+                       COUNT(iai.id) AS asset_received_count
+                FROM outward_asset_items oai
+                JOIN assets a ON a.id = oai.asset_id
+                LEFT JOIN inward_asset_items iai ON iai.outward_asset_item_id = oai.id
+                GROUP BY oai.outward_id
+            ) oat ON oat.outward_id = o.id
             LEFT JOIN batches b ON pob.batch_id = b.id
             LEFT JOIN production_programs pp ON b.program_id = pp.id
             LEFT JOIN cutting_logs cl_src ON o.cutting_id = cl_src.id
@@ -253,8 +270,25 @@ class InwardController extends Controller {
             $credQty = (float)$batch['credited_qty'];
             $receivedQty = (float)$batch['received_qty'];
             $damagedQty = (float)$batch['damaged_qty'];
+            $batch['asset_transfer'] = (int)$batch['asset_count'] > 0;
 
             $totalDispatchedPcsSum += $dispQty;
+
+            if ($batch['asset_transfer']) {
+                $shortQty = max(0, $dispQty - $receivedQty);
+                $batch['short_qty'] = $shortQty;
+                if ($shortQty > 0) {
+                    $awaitingBatchesCount++;
+                    $pendingPcsSum += $shortQty;
+                    $batch['status_badge'] = 'awaiting';
+                    $batch['status_label'] = 'Awaiting Asset Inward';
+                } else {
+                    $receivedBatchesCount++;
+                    $batch['status_badge'] = 'completed';
+                    $batch['status_label'] = 'Assets Restocked';
+                }
+                continue;
+            }
 
             if (!empty($batch['cutting_id'])) {
                 if (!empty($batch['received_cutting_id'])) {
@@ -327,6 +361,108 @@ class InwardController extends Controller {
             'selectedCid'            => $activeScopeCid,
             'currentConcern'         => $currentConcern,
         ]);
+    }
+
+    public function receiveAssetTransfer(): void {
+        $this->validateCsrf();
+        $this->ensureSchema();
+        $outwardId = (int)($_POST['outward_id'] ?? 0);
+        $authConcernId = Auth::concernId();
+        $postedConcernId = (int)($_POST['destination_concern_id'] ?? 0);
+        $destinationConcernId = Auth::isSuperAdmin()
+            ? ($postedConcernId ?: (int)($authConcernId ?? 0))
+            : (int)($authConcernId ?? 0);
+        if ($outwardId <= 0 || !$destinationConcernId) {
+            $this->flash('error', 'Select a destination concern and a valid outward transfer.');
+            $this->redirect('/m/inward');
+            return;
+        }
+        if (!Auth::isSuperAdmin() && $authConcernId && $postedConcernId > 0 && $postedConcernId !== $authConcernId) {
+            $this->flash('error', 'You can only receive assets into your assigned concern.');
+            $this->redirect('/m/inward');
+            return;
+        }
+
+        try {
+            DB::beginTransaction();
+            $outward = DB::fetch(
+                "SELECT id, concern_id, destination_concern_id, outward_no
+                 FROM outwards
+                 WHERE id = ? AND transfer_type = 'concern'
+                 FOR UPDATE",
+                [$outwardId]
+            );
+            if (!$outward || (int)$outward['destination_concern_id'] !== $destinationConcernId) {
+                throw new Exception('This asset outward is not assigned to the active destination concern.');
+            }
+
+            $items = DB::fetchAll(
+                "SELECT oai.id AS outward_asset_item_id, oai.asset_id, oai.asset_source_concern_id,
+                        a.asset_code, a.concern_id AS current_concern_id, iai.id AS received_item_id
+                 FROM outward_asset_items oai
+                 JOIN assets a ON a.id = oai.asset_id
+                 LEFT JOIN inward_asset_items iai ON iai.outward_asset_item_id = oai.id
+                 WHERE oai.outward_id = ?
+                 ORDER BY oai.id
+                 FOR UPDATE",
+                [$outwardId]
+            );
+            $pendingItems = array_values(array_filter(
+                $items,
+                static fn(array $item): bool => empty($item['received_item_id'])
+            ));
+            if (!$pendingItems) {
+                throw new Exception('This asset transfer has already been received or contains no assets.');
+            }
+
+            foreach ($pendingItems as $item) {
+                $previousConcernId = $item['asset_source_concern_id'] === null ? null : (int)$item['asset_source_concern_id'];
+                $currentConcernId = $item['current_concern_id'] === null ? null : (int)$item['current_concern_id'];
+                if ($currentConcernId !== $previousConcernId) {
+                    throw new Exception("Asset {$item['asset_code']} assignment changed after dispatch; verify the transfer before receiving.");
+                }
+            }
+
+            $inwardNo = 'INW-AST-' . date('Ymd') . '-' . str_pad((string)$outwardId, 5, '0', STR_PAD_LEFT);
+            DB::query(
+                "INSERT INTO inwards
+                    (concern_id, outward_id, from_concern_id, inward_type, inward_no, inward_date,
+                     vehicle_number, status, remarks, created_by)
+                 SELECT ?, id, concern_id, 'transfer', ?, CURDATE(), vehicle_number, 'VERIFIED', ?, ?
+                 FROM outwards WHERE id = ?",
+                [
+                    $destinationConcernId,
+                    $inwardNo,
+                    "Fixed asset inward for outward {$outward['outward_no']}",
+                    Auth::id(),
+                    $outwardId,
+                ]
+            );
+            $inwardId = (int)DB::lastInsertId();
+
+            foreach ($pendingItems as $item) {
+                DB::query(
+                    "INSERT INTO inward_asset_items (concern_id, inward_id, outward_asset_item_id, asset_id)
+                     VALUES (?, ?, ?, ?)",
+                    [$destinationConcernId, $inwardId, (int)$item['outward_asset_item_id'], (int)$item['asset_id']]
+                );
+                DB::query(
+                    "UPDATE assets SET concern_id = ? WHERE id = ?",
+                    [$destinationConcernId, (int)$item['asset_id']]
+                );
+            }
+
+            DB::query("UPDATE outwards SET status = 'received', received_at = NOW() WHERE id = ?", [$outwardId]);
+            DB::commit();
+            $this->flash('success', count($pendingItems) . ' asset(s) received and assigned to this concern.');
+        } catch (\Throwable $e) {
+            if (DB::pdo()->inTransaction()) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Failed to receive asset transfer: ' . $e->getMessage());
+        }
+
+        $this->redirect('/m/inward');
     }
 
     public function scanView(string|int $id): void {
@@ -1204,6 +1340,7 @@ class InwardController extends Controller {
 
     public function delete(): void {
         $this->validateCsrf();
+        AssetTransferSchema::ensure();
         $cid = Auth::concernId();
         $id = (int)($_POST['id'] ?? 0);
         $inward = DB::fetch("SELECT * FROM inwards WHERE id = ?", [$id]);
@@ -1215,6 +1352,11 @@ class InwardController extends Controller {
 
         if ($cid && (int)$inward['concern_id'] !== (int)$cid) {
             $this->flash('error', 'Access Denied: You cannot delete inward consignments of another concern.');
+            $this->redirect('/m/inward');
+            return;
+        }
+        if (DB::fetchValue("SELECT id FROM inward_asset_items WHERE inward_id = ? LIMIT 1", [$id])) {
+            $this->flash('error', 'Asset inward records cannot be deleted because they control fixed-asset concern assignment.');
             $this->redirect('/m/inward');
             return;
         }

@@ -10,6 +10,7 @@ use App\Core\DB;
 use App\Core\Auth;
 use App\Models\Outward;
 use App\Services\StockService;
+use App\Services\AssetTransferSchema;
 use Exception;
 
 class OutwardController extends Controller {
@@ -106,6 +107,7 @@ class OutwardController extends Controller {
     public function __construct() {
         parent::__construct();
         $this->ensureOutwardSchema();
+        AssetTransferSchema::ensure();
     }
 
     /**
@@ -173,7 +175,7 @@ class OutwardController extends Controller {
                        COALESCE(si.billing_company_name, c.name) AS customer_name
                 FROM sales_invoices si
                 JOIN customers c ON c.id = si.customer_id
-                WHERE si.id = ?";
+                WHERE si.id = ? AND si.voided_at IS NULL";
             $invoiceParams = [$posInvoiceId];
             if ($invoiceScopeId) {
                 $invoiceSql .= " AND si.concern_id = ?";
@@ -233,12 +235,19 @@ class OutwardController extends Controller {
                        dest_con.name AS dest_concern_name, dest_con.code AS dest_concern_code,
                        c.name AS customer_name,
                        COALESCE(pob.cartons_count, o.total_boxes, b.total_boxes, 1) AS cartons_count,
-                       COALESCE((SELECT SUM(qty) FROM outward_items oi WHERE oi.outward_id = o.id), pob.pieces_count, b.batch_qty, 490) AS pieces_count,
+                       COALESCE(
+                           NULLIF((SELECT SUM(qty) FROM outward_items oi WHERE oi.outward_id = o.id), 0),
+                           NULLIF(pob.pieces_count, 0),
+                           NULLIF(b.batch_qty, 0),
+                           oat.asset_count,
+                           490
+                       ) AS pieces_count,
                        b.batch_no,
                        b.id AS linked_batch_id,
-                       COALESCE(v.name, p.program_name, 'KIDS - BABY - DRESS') AS product_name,
+                       COALESCE(oat.asset_names, v.name, p.program_name, 'KIDS - BABY - DRESS') AS product_name,
                        v.id AS variant_id,
-                       COALESCE(NULLIF(v.product_code, ''), CAST(v.id AS CHAR)) AS product_code, v.size,
+                       COALESCE(oat.asset_codes, NULLIF(v.product_code, ''), CAST(v.id AS CHAR)) AS product_code, v.size,
+                       COALESCE(oat.asset_count, 0) AS asset_count,
                        p.program_no,
                        pu.name AS production_unit_name, pu.code AS production_unit_code,
                        COALESCE(o.vehicle_number, 'rtt31232') AS display_vehicle,
@@ -253,6 +262,15 @@ class OutwardController extends Controller {
                 LEFT JOIN production_outward_batches pob ON pob.outward_id = o.id
                 LEFT JOIN batches b ON pob.batch_id = b.id
                 LEFT JOIN variants v ON (b.variant_id = v.id OR (SELECT oi.variant_id FROM outward_items oi WHERE oi.outward_id = o.id LIMIT 1) = v.id)
+                LEFT JOIN (
+                    SELECT oai.outward_id,
+                           COUNT(*) AS asset_count,
+                           GROUP_CONCAT(a.name ORDER BY a.id SEPARATOR ', ') AS asset_names,
+                           GROUP_CONCAT(a.asset_code ORDER BY a.id SEPARATOR ', ') AS asset_codes
+                    FROM outward_asset_items oai
+                    JOIN assets a ON a.id = oai.asset_id
+                    GROUP BY oai.outward_id
+                ) oat ON oat.outward_id = o.id
                 LEFT JOIN production_programs p ON b.program_id = p.id
                 LEFT JOIN production_units pu ON o.production_unit_id = pu.id
                 WHERE 1=1
@@ -266,8 +284,10 @@ class OutwardController extends Controller {
         }
 
         if ($search !== '') {
-            $sql .= " AND (o.outward_no LIKE ? OR b.batch_no LIKE ? OR v.name LIKE ? OR o.vehicle_number LIKE ? OR o.warehouse_name LIKE ? OR dest_con.name LIKE ? OR c.name LIKE ?)";
+            $sql .= " AND (o.outward_no LIKE ? OR b.batch_no LIKE ? OR v.name LIKE ? OR oat.asset_names LIKE ? OR oat.asset_codes LIKE ? OR o.vehicle_number LIKE ? OR o.warehouse_name LIKE ? OR dest_con.name LIKE ? OR c.name LIKE ?)";
             $term = "%{$search}%";
+            $params[] = $term;
+            $params[] = $term;
             $params[] = $term;
             $params[] = $term;
             $params[] = $term;
@@ -535,7 +555,7 @@ class OutwardController extends Controller {
                 $posInvoiceForRoute = DB::fetch(
                     "SELECT id, concern_id, notes, billing_company_name
                      FROM sales_invoices
-                     WHERE id = ? LIMIT 1",
+                     WHERE id = ? AND voided_at IS NULL LIMIT 1",
                     [$posInvoiceId]
                 );
                 $isCompanyInvoice = $posInvoiceForRoute && (
@@ -603,7 +623,7 @@ class OutwardController extends Controller {
                 $posInvoice = DB::fetch(
                     "SELECT id, concern_id, invoice_no, customer_id
                      FROM sales_invoices
-                     WHERE id = ? AND concern_id = ?
+                     WHERE id = ? AND concern_id = ? AND voided_at IS NULL
                      LIMIT 1 FOR UPDATE",
                     [$posInvoiceId, $cid]
                 );
@@ -824,7 +844,7 @@ class OutwardController extends Controller {
         // STRICT CONCERN SELECTION: If dispatching to a concern, destination concern is mandatory
         if ($posInvoiceId > 0) {
             $posInvoiceRoute = DB::fetch(
-                "SELECT id, notes, billing_company_name FROM sales_invoices WHERE id = ?",
+                "SELECT id, notes, billing_company_name FROM sales_invoices WHERE id = ? AND voided_at IS NULL",
                 [$posInvoiceId]
             );
             $isCompanyPosInvoice = $posInvoiceRoute && (
@@ -1059,7 +1079,7 @@ class OutwardController extends Controller {
                     $posInvoice = DB::fetch(
                         "SELECT id, concern_id, invoice_no, customer_id
                          FROM sales_invoices
-                         WHERE id = ? AND concern_id = ?
+                         WHERE id = ? AND concern_id = ? AND voided_at IS NULL
                          LIMIT 1 FOR UPDATE",
                         [$posInvoiceId, $cid]
                     );
@@ -1227,6 +1247,86 @@ class OutwardController extends Controller {
         }
 
         $this->redirect('/production/outward');
+    }
+
+    public function storeAssetTransfer(): void {
+        $this->validateCsrf();
+        $assetId = (int)($_POST['asset_id'] ?? 0);
+        $postedSourceId = (int)($_POST['source_concern_id'] ?? 0);
+        $authConcernId = Auth::concernId();
+        $sourceConcernId = $postedSourceId ?: (int)($authConcernId ?? 0);
+        $destinationConcernId = (int)($_POST['destination_concern_id'] ?? 0);
+
+        try {
+            if ($assetId <= 0 || $sourceConcernId <= 0 || $destinationConcernId <= 0) {
+                throw new Exception('Select an asset, source concern, and destination concern.');
+            }
+            if (!Auth::isSuperAdmin() && $authConcernId && $authConcernId !== $sourceConcernId) {
+                throw new Exception('You can only dispatch assets from your assigned concern.');
+            }
+            if ($sourceConcernId === $destinationConcernId) {
+                throw new Exception('The destination concern must be different from the source concern.');
+            }
+
+            DB::beginTransaction();
+            $asset = DB::fetch("SELECT id, asset_code, name, concern_id, status FROM assets WHERE id = ? FOR UPDATE", [$assetId]);
+            if (!$asset || $asset['status'] !== 'active') {
+                throw new Exception('The selected asset was not found or is not active.');
+            }
+            if ($asset['concern_id'] !== null && (int)$asset['concern_id'] !== $sourceConcernId) {
+                throw new Exception('The selected asset is assigned to a different source concern.');
+            }
+            if (!DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$sourceConcernId])) {
+                throw new Exception('The selected source concern does not exist or is inactive.');
+            }
+            if (!DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$destinationConcernId])) {
+                throw new Exception('The selected destination concern does not exist or is inactive.');
+            }
+            if (DB::fetchValue(
+                "SELECT oai.id
+                 FROM outward_asset_items oai
+                 LEFT JOIN inward_asset_items iai ON iai.outward_asset_item_id = oai.id
+                 WHERE oai.asset_id = ? AND iai.id IS NULL
+                 LIMIT 1",
+                [$assetId]
+            )) {
+                throw new Exception('This asset already has an outward transfer awaiting inward receipt.');
+            }
+
+            $outwardNo = self::nextOutwardNo();
+            $vehicleNumber = trim((string)($_POST['vehicle_number'] ?? ''));
+            $notes = trim((string)($_POST['notes'] ?? ''));
+            DB::query(
+                "INSERT INTO outwards
+                    (concern_id, outward_no, transfer_type, destination_concern_id, outward_date,
+                     vehicle_number, total_boxes, notes, gate_pass_no, status, dispatched_at, created_by)
+                 VALUES (?, ?, 'concern', ?, CURDATE(), ?, 1, ?, ?, 'dispatched', NOW(), ?)",
+                [
+                    $sourceConcernId,
+                    $outwardNo,
+                    $destinationConcernId,
+                    $vehicleNumber !== '' ? $vehicleNumber : null,
+                    $notes !== '' ? $notes : "Fixed asset transfer: {$asset['asset_code']}",
+                    'GP-' . date('Ymd') . '-' . substr($outwardNo, 4),
+                    Auth::id(),
+                ]
+            );
+            $outwardId = (int)DB::lastInsertId();
+            DB::query(
+                "INSERT INTO outward_asset_items (concern_id, outward_id, asset_id, asset_source_concern_id)
+                 VALUES (?, ?, ?, ?)",
+                [$sourceConcernId, $outwardId, $assetId, $asset['concern_id']]
+            );
+            DB::commit();
+            $this->flash('success', "Asset {$asset['asset_code']} dispatched to the selected concern.");
+        } catch (\Throwable $e) {
+            if (DB::pdo()->inTransaction()) {
+                DB::rollBack();
+            }
+            $this->flash('error', 'Failed to dispatch asset: ' . $e->getMessage());
+        }
+
+        $this->redirect('/admin/assets');
     }
 
     /**

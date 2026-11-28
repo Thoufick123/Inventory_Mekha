@@ -5,6 +5,10 @@ $overviewView = file_get_contents(__DIR__ . '/../app/views/concern/billing_overv
 $customerView = file_get_contents(__DIR__ . '/../app/views/concern/customers.php');
 $terminalView = file_get_contents(__DIR__ . '/../app/views/concern/billing.php');
 $salesController = file_get_contents(__DIR__ . '/../app/controllers/SalesController.php');
+$numberSeries = file_get_contents(__DIR__ . '/../app/services/NumberSeries.php');
+$invoiceMigration = file_get_contents(__DIR__ . '/../database/migrate_all_tables.php');
+$invoiceSchema = file_get_contents(__DIR__ . '/../database/schema.sql');
+$salesInvoiceSchema = file_get_contents(__DIR__ . '/../app/services/SalesInvoiceSchema.php');
 $completeSaleStart = strpos($salesController, 'public function completePosSale(): void {');
 $completeSaleEnd = strpos($salesController, 'public function storeInvoice(): void {', $completeSaleStart);
 $completeSaleMethod = substr($salesController, $completeSaleStart, $completeSaleEnd - $completeSaleStart);
@@ -20,6 +24,12 @@ $scannerPositionInRightColumn = strpos($terminalView, 'id="pos_scanner_card"', $
 $cartTableSectionStart = strpos($terminalView, '<!-- Billing Cart Table');
 $cartTableSectionEnd = strpos($terminalView, '<!-- Two Summary Cards', $cartTableSectionStart);
 $cartTableSection = substr($terminalView, $cartTableSectionStart, $cartTableSectionEnd - $cartTableSectionStart);
+$a4InvoiceStart = strpos($terminalView, '<div class="d-none" id="a4_invoice_print_area">');
+$a4InvoiceView = $a4InvoiceStart === false ? '' : substr($terminalView, $a4InvoiceStart);
+$thermalReceiptStart = strpos($terminalView, 'id="thermal_receipt_print_area"');
+$thermalReceiptView = $thermalReceiptStart === false || $a4InvoiceStart === false
+    ? ''
+    : substr($terminalView, $thermalReceiptStart, $a4InvoiceStart - $thermalReceiptStart);
 
 $checks = [
     'POS Billing module route opens the bill overview' =>
@@ -80,9 +90,77 @@ $checks = [
         && strpos($terminalView, 'title="Back to POS Bills"') !== false,
     'Completing a bill preserves the printable invoice preview' =>
         strpos($salesController, '"/m/billing/create?print_id={$invoiceId}"') !== false,
+    'Invoice numbering uses concern prefixes and renumbers existing invoices' =>
+        strpos($numberSeries, "SELECT code FROM concerns WHERE id = ?") !== false
+        && strpos($numberSeries, 'sprintf("%s%02d", $prefix, $nextNo)') !== false
+        && strpos($invoiceMigration, 'ORDER BY invoice_date ASC, id ASC') !== false
+        && strpos($invoiceMigration, "VALUES (?, 'INVOICE', ?, ?)") !== false,
+    'POS invoices support full edits and retained void history' =>
+        strpos($routes, "'/m/billing/update'") !== false
+        && strpos($routes, "'/m/billing/void'") !== false
+        && strpos($overviewView, '?edit_id=') !== false
+        && strpos($overviewView, '/m/billing/void') !== false
+        && strpos($salesController, 'restorePosInvoiceStock') !== false
+        && strpos($salesController, 'reconcilePosInvoiceCash') !== false
+        && strpos($salesController, 'releasePosCoupon') !== false
+        && strpos($invoiceSchema, '`voided_at` datetime DEFAULT NULL') !== false
+        && strpos($invoiceMigration, 'Renumbered ') !== false,
+    'Voided invoices are excluded from active billing totals' =>
+        strpos($salesController, "\$scopeSql = ' WHERE voided_at IS NULL'") !== false
+        && strpos($salesController, "\$where = ['si.voided_at IS NULL']") !== false
+        && strpos($salesController, 'si.voided_at IS NOT NULL') !== false,
+    'Sales controller ensures void-history schema before querying invoices' =>
+        strpos($salesController, 'SalesInvoiceSchema::ensure();') !== false
+        && strpos($salesInvoiceSchema, 'ADD COLUMN `voided_at` DATETIME NULL') !== false
+        && strpos($salesInvoiceSchema, 'ADD COLUMN `voided_by` INT NULL') !== false
+        && strpos($salesInvoiceSchema, 'ADD COLUMN `void_reason` VARCHAR(255) NULL') !== false,
+    'POS receipt price columns have fixed widths and clear labels' =>
+        strpos($thermalReceiptView, 'class="w-100 thermal-receipt-items"') !== false
+        && strpos($thermalReceiptView, '<col style="width: 48%;">') !== false
+        && strpos($thermalReceiptView, 'MRP<br>Price') !== false
+        && strpos($thermalReceiptView, 'Bill<br>Amount') !== false
+        && strpos($thermalReceiptView, "\$it['mrp_price']") !== false
+        && strpos($salesController, "COALESCE(NULLIF(v.mrp, 0), sii.unit_price) AS mrp_price") !== false,
+    'A4 invoice places Bill To before invoice details in one row' =>
+        strpos($terminalView, 'class="a4-invoice-parties"') !== false
+        && strpos($terminalView, 'class="a4-invoice-customer"') < strpos($terminalView, 'class="a4-invoice-meta"')
+        && strpos($terminalView, '<h3>Bill To</h3>') !== false
+        && strpos($terminalView, '<h3>Invoice Details</h3>') !== false
+        && strpos($terminalView, '.a4-invoice-parties{display:flex;') !== false,
+    'A4 invoice item price columns use clear labels' =>
+        strpos($terminalView, '<th class="number">Unit Price</th>') !== false
+        && strpos($terminalView, '<th class="number">Taxable Amount</th>') !== false,
+    'A4 invoice includes the concern logo and omits the redundant variant name' =>
+        strpos($a4InvoiceView, "CloudinaryService::url(\$printInvoice['concern_logo'])") !== false
+        && strpos($a4InvoiceView, 'class="a4-invoice-brand"') !== false
+        && strpos($a4InvoiceView, 'class="a4-invoice-company-details"') !== false
+        && strpos($a4InvoiceView, '.a4-invoice-brand{display:flex;align-items:flex-start;gap:10px;') !== false
+        && strpos($a4InvoiceView, '<small>Variant:') === false,
+    'A4 invoice removes product code and details the GST split' =>
+        $a4InvoiceStart !== false
+        && strpos($a4InvoiceView, '<th>Product Code</th>') === false
+        && strpos($a4InvoiceView, '$it[\'product_code\']') === false
+        && strpos($a4InvoiceView, 'CGST') !== false
+        && strpos($a4InvoiceView, 'SGST') !== false
+        && strpos($a4InvoiceView, 'IGST') !== false
+        && strpos($a4InvoiceView, 'Total GST') !== false,
+    'POS receipt puts customer beside right-aligned invoice details and omits production code' =>
+        strpos($thermalReceiptView, 'thermal-receipt-customer-invoice') !== false
+        && strpos($thermalReceiptView, 'class="text-end"') !== false
+        && strpos($thermalReceiptView, '<strong>Inv No:</strong>') !== false
+        && strpos($thermalReceiptView, '<strong>Date:</strong>') !== false
+        && strpos($thermalReceiptView, 'product_code') === false
+        && strpos($thermalReceiptView, 'Billing For:</strong>') === false
+        && strpos($thermalReceiptView, 'GST Pricing:</strong>') === false,
+    'Receipt discount details do not count coupons twice' =>
+        strpos($terminalView, '$printItemDiscountAmount = max(0, (float)$printInvoice[\'discount_amount\'] - $printCouponDiscountAmount)') !== false
+        && strpos($terminalView, 'Discount Given:</span>') === false
+        && strpos($terminalView, 'Item Discount (included in subtotal):') !== false
+        && strpos($terminalView, '<span>Coupon (') !== false
+        && strpos($terminalView, '<tr><th>Coupon Discount</th><td>-₹') !== false,
     'POS audit logging resolves the audit service namespace' =>
         strpos($salesController, 'use App\\Services\\AuditLog;') !== false
-        && strpos($completeSaleMethod, 'AuditLog::log(\'POS_SALE\'') !== false,
+        && strpos($completeSaleMethod, "AuditLog::log(\$existingInvoice ? 'POS_INVOICE_EDIT' : 'POS_SALE'") !== false,
     'POS sale uses a valid session concern instead of a posted or default concern ID' =>
         $completeSaleStart !== false
         && $completeSaleEnd !== false
@@ -107,6 +185,16 @@ $checks = [
         && $paymentMethodPosition > $couponsPanelPosition
         && $rightColumnStart > $paymentMethodPosition
         && $scannerPositionInRightColumn > $rightColumnStart,
+    'Coupons are hidden and cleared for company bills' =>
+        strpos($terminalView, "posCouponsPanel.classList.toggle('d-none', isCompany)") !== false
+        && strpos($terminalView, "document.getElementById('pos_coupon_select').value = '';") !== false
+        && strpos($completeSaleMethod, "Coupons can only be applied to customer bills.") !== false,
+    'Customer channel/source is hidden and ignored for company bills' =>
+        strpos($terminalView, 'id="customer_channel_wrap"') !== false
+        && strpos($terminalView, "customerChannelWrap.classList.toggle('d-none', isCompany)") !== false
+        && strpos($terminalView, "channelSelect.value = 'direct';") !== false
+        && strpos($completeSaleMethod, "\$billingPartyType === 'company'") !== false
+        && strpos($completeSaleMethod, "? 'direct'") !== false,
     'POS cart table fits the panel without horizontal scrolling' =>
         $cartTableSectionStart !== false
         && $cartTableSectionEnd !== false

@@ -202,7 +202,7 @@ class AdminController extends Controller {
                     (SELECT COUNT(*) FROM variants v WHERE v.concern_id = c.id) AS total_variants,
                     (SELECT COALESCE(SUM(s.qty), 0) FROM stocks s WHERE s.concern_id = c.id) AS total_stock_qty,
                     (SELECT COALESCE(SUM(s.qty * v.price), 0) FROM stocks s JOIN variants v ON s.variant_id = v.id WHERE s.concern_id = c.id) AS stock_valuation,
-                    (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id) AS total_sales,
+                    (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id AND si.voided_at IS NULL) AS total_sales,
                     (SELECT COALESCE(SUM(net_amount), 0) FROM purchase_bills pb WHERE pb.concern_id = c.id) AS total_purchases
              FROM concerns c
              WHERE c.status = 'active'
@@ -833,10 +833,17 @@ class AdminController extends Controller {
     }
 
     public function assets(): void {
+        \App\Services\AssetTransferSchema::ensure();
         $cid = !Auth::isSuperAdmin() ? Auth::concernId() : null;
         if ($cid) {
             $assets = DB::fetchAll(
-                "SELECT a.*, c.name AS concern_name 
+                "SELECT a.*, c.name AS concern_name,
+                        EXISTS(
+                            SELECT 1
+                            FROM outward_asset_items oai
+                            LEFT JOIN inward_asset_items iai ON iai.outward_asset_item_id = oai.id
+                            WHERE oai.asset_id = a.id AND iai.id IS NULL
+                        ) AS transfer_pending
                  FROM assets a
                  LEFT JOIN concerns c ON a.concern_id = c.id
                  WHERE a.concern_id = ?
@@ -846,26 +853,82 @@ class AdminController extends Controller {
             $concerns = DB::fetchAll("SELECT id, name FROM concerns WHERE id = ? AND status = 'active'", [$cid]);
         } else {
             $assets = DB::fetchAll(
-                "SELECT a.*, c.name AS concern_name 
+                "SELECT a.*, c.name AS concern_name,
+                        EXISTS(
+                            SELECT 1
+                            FROM outward_asset_items oai
+                            LEFT JOIN inward_asset_items iai ON iai.outward_asset_item_id = oai.id
+                            WHERE oai.asset_id = a.id AND iai.id IS NULL
+                        ) AS transfer_pending
                  FROM assets a
                  LEFT JOIN concerns c ON a.concern_id = c.id
                  ORDER BY a.id DESC"
             );
             $concerns = DB::fetchAll("SELECT id, name FROM concerns WHERE status = 'active'");
         }
+        $assetTransferConcerns = DB::fetchAll("SELECT id, name, code FROM concerns WHERE status = 'active' ORDER BY name ASC");
+        $assetTransferSourceConcerns = $cid ? $concerns : $assetTransferConcerns;
+
+        $assetCategories = ['Machinery', 'IT Equipment', 'Vehicles', 'Furniture', 'Building'];
+        foreach (DB::fetchAll(
+            "SELECT DISTINCT category FROM assets
+             WHERE category IS NOT NULL AND TRIM(category) <> ''
+             ORDER BY category ASC"
+        ) as $categoryRow) {
+            $category = trim((string)$categoryRow['category']);
+            if ($category !== '' && !in_array($category, $assetCategories, true)) {
+                $assetCategories[] = $category;
+            }
+        }
+        natcasesort($assetCategories);
+        $assetCategories = array_values($assetCategories);
+        $nextAssetId = max(1, (int)DB::fetchValue("SELECT COALESCE(MAX(id), 0) + 1 FROM assets"));
 
         $this->render('admin/assets', [
             'pageTitle'     => 'Asset Management',
             'currentModule' => 'admin_assets',
             'assets'        => $assets,
             'concerns'      => $concerns,
+            'assetCategories' => $assetCategories,
+            'assetTransferConcerns' => $assetTransferConcerns,
+            'assetTransferSourceConcerns' => $assetTransferSourceConcerns,
+            'nextAssetId'   => $nextAssetId,
         ]);
+    }
+
+    private function assetCodePrefix(string $category): string {
+        $knownPrefixes = [
+            'MACHINERY' => 'MCH',
+            'IT EQUIPMENT' => 'ITE',
+            'VEHICLES' => 'VEH',
+            'FURNITURE' => 'FUR',
+            'BUILDING' => 'BLD',
+            'BUILDING & FIXTURES' => 'BLD',
+        ];
+        $key = strtoupper(trim($category));
+        if (isset($knownPrefixes[$key])) {
+            return $knownPrefixes[$key];
+        }
+
+        $prefix = preg_replace('/[^A-Z0-9]/', '', $key);
+        return substr($prefix !== '' ? $prefix : 'GEN', 0, 3);
+    }
+
+    private function generatedAssetCode(string $category, int $assetId): string {
+        $prefix = 'AST-' . $this->assetCodePrefix($category) . '-';
+        $sequence = max(1, $assetId);
+        do {
+            $code = $prefix . str_pad((string)$sequence, 3, '0', STR_PAD_LEFT);
+            $existingAsset = DB::fetchValue("SELECT id FROM assets WHERE asset_code = ? LIMIT 1", [$code]);
+            $sequence++;
+        } while ($existingAsset);
+
+        return $code;
     }
 
     public function storeAsset(): void {
         $this->validateCsrf();
 
-        $code      = trim($_POST['asset_code'] ?? '');
         $name      = trim($_POST['name'] ?? '');
         $category  = trim($_POST['category'] ?? '');
         $cost      = (float)($_POST['purchase_cost'] ?? 0);
@@ -878,20 +941,32 @@ class AdminController extends Controller {
         }
         $notes     = trim($_POST['notes'] ?? '');
 
-        if (empty($code) || empty($name)) {
-            $this->flash('error', 'Asset Code and Name are required.');
+        if ($name === '') {
+            $this->flash('error', 'Asset Name is required.');
+            $this->redirect('/admin/assets');
+        }
+        if (strlen($category) > 100) {
+            $this->flash('error', 'Asset category must be 100 characters or fewer.');
             $this->redirect('/admin/assets');
         }
 
         try {
+            DB::beginTransaction();
             DB::query(
                 "INSERT INTO assets (concern_id, asset_code, name, category, purchase_date, purchase_cost, current_value, location, status, notes)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)",
-                [$concernId, $code, $name, $category, $date, $cost, $value, $location, $notes]
+                [$concernId, 'AST-PENDING-' . strtoupper(bin2hex(random_bytes(12))), $name, $category, $date, $cost, $value, $location, $notes]
             );
-
+            $assetId = (int)DB::lastInsertId();
+            if ($assetId <= 0) {
+                throw new \RuntimeException('The asset record could not be created.');
+            }
+            $code = $this->generatedAssetCode($category, $assetId);
+            DB::query("UPDATE assets SET asset_code = ? WHERE id = ?", [$code, $assetId]);
+            DB::commit();
             $this->flash('success', "Asset '{$name}' ({$code}) recorded successfully.");
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
+            DB::rollBack();
             $this->flash('error', 'Failed to save asset: ' . $e->getMessage());
         }
 
@@ -900,8 +975,12 @@ class AdminController extends Controller {
 
     public function updateAsset(): void {
         $this->validateCsrf();
+        \App\Services\AssetTransferSchema::ensure();
         $id = (int)($_POST['id'] ?? 0);
-        $asset = DB::fetch("SELECT * FROM assets WHERE id = ?", [$id]);
+        $isSuperAdmin = Auth::isSuperAdmin();
+        $asset = $isSuperAdmin
+            ? DB::fetch("SELECT * FROM assets WHERE id = ?", [$id])
+            : DB::fetch("SELECT * FROM assets WHERE id = ? AND concern_id = ?", [$id, Auth::concernId()]);
         if (!$asset) {
             $this->flash('error', 'Asset not found.');
             $this->redirect('/admin/assets');
@@ -914,13 +993,35 @@ class AdminController extends Controller {
         $value     = (float)($_POST['current_value'] ?? $asset['current_value']);
         $date      = $_POST['purchase_date'] ?: $asset['purchase_date'];
         $location  = trim($_POST['location'] ?? $asset['location']);
+        $concernId = !empty($_POST['concern_id']) ? (int)$_POST['concern_id'] : null;
+        if (!$isSuperAdmin) {
+            $concernId = Auth::concernId();
+        }
         $status    = trim($_POST['status'] ?? $asset['status']);
         $notes     = trim($_POST['notes'] ?? $asset['notes']);
 
         try {
+            $hasPendingTransfer = DB::fetchValue(
+                "SELECT oai.id
+                 FROM outward_asset_items oai
+                 LEFT JOIN inward_asset_items iai ON iai.outward_asset_item_id = oai.id
+                 WHERE oai.asset_id = ? AND iai.id IS NULL
+                 LIMIT 1",
+                [$id]
+            );
+            $originalConcernId = $asset['concern_id'] === null ? null : (int)$asset['concern_id'];
+            if ($hasPendingTransfer && $concernId !== $originalConcernId) {
+                throw new \RuntimeException('The assigned concern cannot be changed while this asset is awaiting inward receipt.');
+            }
+            if ($concernId !== null && !DB::fetchValue(
+                "SELECT id FROM concerns WHERE id = ? AND status = 'active' LIMIT 1",
+                [$concernId]
+            )) {
+                throw new \RuntimeException('The selected concern is not active or does not exist.');
+            }
             DB::query(
-                "UPDATE assets SET asset_code = ?, name = ?, category = ?, purchase_cost = ?, current_value = ?, purchase_date = ?, location = ?, status = ?, notes = ? WHERE id = ?",
-                [$code, $name, $category, $cost, $value, $date, $location, $status, $notes, $id]
+                "UPDATE assets SET concern_id = ?, asset_code = ?, name = ?, category = ?, purchase_cost = ?, current_value = ?, purchase_date = ?, location = ?, status = ?, notes = ? WHERE id = ?",
+                [$concernId, $code, $name, $category, $cost, $value, $date, $location, $status, $notes, $id]
             );
             $this->flash('success', "Asset '{$name}' updated successfully.");
         } catch (Exception $e) {
@@ -1011,7 +1112,7 @@ class AdminController extends Controller {
                     (SELECT COUNT(*) FROM variants v WHERE v.concern_id = c.id) AS total_variants,
                     (SELECT COALESCE(SUM(s.qty), 0) FROM stocks s WHERE s.concern_id = c.id) AS total_stock_qty,
                     (SELECT COALESCE(SUM(s.qty * v.price), 0) FROM stocks s JOIN variants v ON s.variant_id = v.id WHERE s.concern_id = c.id) AS stock_valuation,
-                    (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id {$salesDateFilter}) AS total_sales,
+                    (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id AND si.voided_at IS NULL {$salesDateFilter}) AS total_sales,
                     (SELECT COALESCE(SUM(net_amount), 0) FROM purchase_bills pb WHERE pb.concern_id = c.id {$purchaseDateFilter}) AS total_purchases
              FROM concerns c
              {$concernWhere}
@@ -1095,7 +1196,7 @@ class AdminController extends Controller {
                     (SELECT COUNT(*) FROM variants v WHERE v.concern_id = c.id) AS total_variants,
                     (SELECT COALESCE(SUM(s.qty), 0) FROM stocks s WHERE s.concern_id = c.id) AS total_stock_qty,
                     (SELECT COALESCE(SUM(s.qty * v.price), 0) FROM stocks s JOIN variants v ON s.variant_id = v.id WHERE s.concern_id = c.id) AS stock_valuation,
-                    (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id {$salesDateFilter}) AS total_sales,
+                    (SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices si WHERE si.concern_id = c.id AND si.voided_at IS NULL {$salesDateFilter}) AS total_sales,
                     (SELECT COALESCE(SUM(net_amount), 0) FROM purchase_bills pb WHERE pb.concern_id = c.id {$purchaseDateFilter}) AS total_purchases
              FROM concerns c
              {$concernWhere}

@@ -14,6 +14,10 @@ $checks = [
         && str_contains($billingView, 'cart[existingIndex].scanned_codes.push(query)'),
     'POS cart displays scanned codes as escaped item details' =>
         str_contains($billingView, 'Scanned code: ${escapeHtml(scannedCodes.join(\', \'))}'),
+    'POS cart and scan confirmation hide the internal product code' =>
+        !str_contains($billingView, '${escapeHtml(item.product_code)} &bull; Size:')
+        && !str_contains($billingView, "'Added: ' + v.product_code")
+        && str_contains($billingView, "'Added: ' + v.name + ' (+' + qtyToAdd + ')'"),
     'Checkout persists scanned codes with each invoice line' =>
         str_contains($salesController, '\'scanned_codes\' => $scannedCodesJson')
         && str_contains($salesController, 'total_price, scanned_codes)')

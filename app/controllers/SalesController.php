@@ -14,9 +14,15 @@ use App\Services\CashService;
 use App\Services\QrService;
 use App\Services\PosBillingCalculator;
 use App\Services\ReturnExchangeSchema;
+use App\Services\SalesInvoiceSchema;
 use Exception;
 
 class SalesController extends Controller {
+    public function __construct() {
+        parent::__construct();
+        SalesInvoiceSchema::ensure();
+    }
+
     // 1. CUSTOMERS & CRM DIRECTORY
     public function customers(): void {
         ModuleGuard::enforce('customers', 'view');
@@ -43,6 +49,7 @@ class SalesController extends Controller {
                         SUBSTRING_INDEX(GROUP_CONCAT(si.invoice_no ORDER BY si.id DESC SEPARATOR '|||'), '|||', 1) AS last_invoice_no
                     FROM sales_invoices si
                     LEFT JOIN sales_invoice_items sii ON sii.sales_invoice_id = si.id
+                    WHERE si.voided_at IS NULL
                     GROUP BY si.customer_id
                 ) inv_stats ON inv_stats.customer_id = c.id";
         $params = [];
@@ -239,7 +246,7 @@ class SalesController extends Controller {
                     (SELECT COUNT(*) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS items_count,
                     (SELECT COALESCE(SUM(sii.qty), 0) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS pcs_count
              FROM sales_invoices si
-             WHERE si.customer_id = ?
+             WHERE si.customer_id = ? AND si.voided_at IS NULL
              ORDER BY si.id DESC",
             [$id]
         );
@@ -282,7 +289,7 @@ class SalesController extends Controller {
         }
 
         // Build SQL with date filter
-        $subWhere = "1=1";
+        $subWhere = "si.voided_at IS NULL";
         $subParams = [];
         if (!empty($range['start_date']) && !empty($range['end_date'])) {
             $subWhere .= " AND si.invoice_date >= ? AND si.invoice_date <= ?";
@@ -618,10 +625,10 @@ class SalesController extends Controller {
             $cid = Auth::superAdminSelectedConcernId();
         }
 
-        $scopeSql = '';
+        $scopeSql = ' WHERE voided_at IS NULL';
         $scopeParams = [];
         if ($cid) {
-            $scopeSql = ' WHERE concern_id = ?';
+            $scopeSql .= ' AND concern_id = ?';
             $scopeParams[] = $cid;
         }
         $summary = DB::fetch(
@@ -664,7 +671,7 @@ class SalesController extends Controller {
 
         $statusInput = $_GET['status'] ?? 'all';
         $status = is_string($statusInput) ? trim($statusInput) : 'all';
-        if (!in_array($status, ['all', 'paid', 'pending'], true)) {
+        if (!in_array($status, ['all', 'paid', 'pending', 'voided'], true)) {
             $status = 'all';
         }
         $channelInput = $_GET['channel'] ?? 'all';
@@ -701,6 +708,7 @@ class SalesController extends Controller {
 
         $where = [];
         $params = [];
+        $where[] = $status === 'voided' ? 'si.voided_at IS NOT NULL' : 'si.voided_at IS NULL';
         if ($cid) {
             $where[] = 'si.concern_id = ?';
             $params[] = $cid;
@@ -781,10 +789,16 @@ class SalesController extends Controller {
         $offset = ($page - 1) * $pageSize;
         $invoices = DB::fetchAll(
             "SELECT si.id, si.invoice_no, si.invoice_date, si.net_amount, si.payment_method, si.payment_status, si.is_direct_bill,
+            si.voided_at,
             si.billing_company_name,
             COALESCE(si.billing_company_name, c.name) AS customer_name,
             COALESCE(si.billing_company_phone, c.phone) AS customer_phone,
-                    (SELECT COUNT(*) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS items_count
+            (SELECT COUNT(*) FROM sales_invoice_items sii WHERE sii.sales_invoice_id = si.id) AS items_count,
+            (
+                EXISTS(SELECT 1 FROM outwards o WHERE o.sales_invoice_id = si.id)
+                OR EXISTS(SELECT 1 FROM production_returns pr WHERE pr.sales_invoice_id = si.id)
+                OR EXISTS(SELECT 1 FROM returns_exchanges re WHERE re.sales_invoice_id = si.id)
+            ) AS mutation_blocked
              FROM sales_invoices si
              JOIN customers c ON c.id = si.customer_id{$whereSql}
              ORDER BY si.id DESC
@@ -830,11 +844,18 @@ class SalesController extends Controller {
 
     // POS billing terminal (Shop module).
     public function billing(): void {
-        ModuleGuard::enforce('billing', 'view');
+        $editInvoiceId = is_scalar($_GET['edit_id'] ?? null) ? (int)$_GET['edit_id'] : 0;
+        ModuleGuard::enforce('billing', $editInvoiceId > 0 ? 'edit' : 'add');
         \App\Services\StockService::consolidateLegacyLocations();
         $cid = Auth::concernId();
         if ($cid && !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
             $cid = null;
+        }
+        if (!$cid && $editInvoiceId > 0 && Auth::isSuperAdmin()) {
+            $cid = (int)DB::fetchValue(
+                "SELECT concern_id FROM sales_invoices WHERE id = ? AND voided_at IS NULL",
+                [$editInvoiceId]
+            ) ?: null;
         }
         $cartItemsRawForCid = json_decode((string)($_POST['cart_items_json'] ?? '[]'), true);
         if (!$cid && Auth::isSuperAdmin() && is_array($cartItemsRawForCid) && !empty($cartItemsRawForCid[0]['id'])) {
@@ -914,6 +935,7 @@ class SalesController extends Controller {
             if ($printInvoice) {
                 $printItems = DB::fetchAll(
                     "SELECT sii.*, v.product_code,
+                            COALESCE(NULLIF(v.mrp, 0), sii.unit_price) AS mrp_price,
                             COALESCE(NULLIF(cat.name, ''), v.name) AS item_name,
                             v.name AS variant_name, v.size, b.batch_no
                      FROM sales_invoice_items sii
@@ -942,6 +964,141 @@ class SalesController extends Controller {
         $customerChannels = $this->ensurePosCustomerChannels((int)($cid ?: 1));
         \App\Services\CouponService::ensureSchema();
         $activeCoupons = $cid ? \App\Services\CouponService::getActiveCouponsForPos((int)$cid) : [];
+        $editInvoice = null;
+        $editData = null;
+        if ($editInvoiceId > 0) {
+            $editInvoice = DB::fetch(
+                "SELECT si.*, c.name AS customer_name, c.phone AS customer_phone,
+                        c.address AS customer_address, c.email AS customer_email, c.gstin AS customer_gstin
+                 FROM sales_invoices si
+                 JOIN customers c ON c.id = si.customer_id
+                 WHERE si.id = ? AND si.concern_id = ? AND si.voided_at IS NULL",
+                [$editInvoiceId, (int)$cid]
+            );
+            if (!$editInvoice) {
+                $this->flash('error', 'Invoice not found or it has already been voided.');
+                $this->redirect('/m/billing');
+                return;
+            }
+            $mutationBlockReason = $this->invoiceMutationBlockReason((int)$cid, $editInvoiceId);
+            if ($mutationBlockReason !== null) {
+                $this->flash('error', $mutationBlockReason);
+                $this->redirect('/m/billing');
+                return;
+            }
+
+            $editItems = DB::fetchAll(
+                "SELECT sii.variant_id AS id, sii.qty, sii.production_batch_id, sii.scanned_codes,
+                        v.concern_id, v.name, v.product_code, v.size, v.price, v.mrp, v.attributes,
+                        (CASE WHEN COALESCE(v.is_complementary, 0) = 1
+                              OR COALESCE(cat.is_complementary, 0) = 1
+                              OR COALESCE(sub.is_complementary, 0) = 1
+                              OR COALESCE(ssc.is_complementary, 0) = 1
+                         THEN 1 ELSE 0 END) AS is_complementary,
+                        COALESCE(catalog.gst_rate, cat.default_gst_rate) AS gst_pct,
+                        COALESCE(catalog.hsn_code, '') AS catalog_hsn,
+                        CASE WHEN UPPER(COALESCE(b.status, '')) = 'APPROVED' THEN b.batch_no ELSE NULL END AS batch_no,
+                        b.batch_qty,
+                        COALESCE((
+                            SELECT SUM(st.qty) FROM stocks st
+                            WHERE st.concern_id = si.concern_id AND st.variant_id = sii.variant_id
+                              AND st.location NOT LIKE '%:DAMAGED%'
+                              AND st.location NOT LIKE '%:QUARANTINE%'
+                              AND st.location NOT LIKE '%:RESERVED%'
+                              AND st.location NOT LIKE '%:IN_TRANSIT%'
+                        ), 0) + (
+                            SELECT COALESCE(SUM(old_item.qty), 0)
+                            FROM sales_invoice_items old_item
+                            WHERE old_item.sales_invoice_id = si.id AND old_item.variant_id = sii.variant_id
+                        ) AS available_qty,
+                        CASE WHEN UPPER(COALESCE(b.status, '')) = 'APPROVED' THEN b.id ELSE NULL END AS active_batch_id,
+                        CASE WHEN UPPER(COALESCE(b.status, '')) = 'APPROVED'
+                             THEN GREATEST(0, b.batch_qty - COALESCE((
+                                 SELECT SUM(other_item.qty)
+                                 FROM sales_invoice_items other_item
+                                 WHERE other_item.production_batch_id = b.id
+                                   AND other_item.sales_invoice_id <> si.id
+                             ), 0))
+                             ELSE 0 END AS batch_remaining_qty
+                 FROM sales_invoices si
+                 JOIN sales_invoice_items sii ON sii.sales_invoice_id = si.id
+                 JOIN variants v ON v.id = sii.variant_id
+                 LEFT JOIN catalogs catalog ON catalog.id = v.catalog_id AND catalog.concern_id = v.concern_id
+                 LEFT JOIN categories cat ON cat.id = COALESCE(v.category_id, catalog.category_id)
+                 LEFT JOIN subcategories sub ON sub.id = COALESCE(v.subcategory_id, catalog.subcategory_id)
+                 LEFT JOIN sub_subcategories ssc ON ssc.id = COALESCE(v.sub_sub_category_id, catalog.sub_sub_category_id)
+                 LEFT JOIN batches b ON b.id = sii.production_batch_id
+                 WHERE si.id = ? AND si.concern_id = ?
+                 ORDER BY sii.id ASC",
+                [$editInvoiceId, (int)$cid]
+            );
+            foreach ($editItems as &$editItem) {
+                $attributes = json_decode((string)($editItem['attributes'] ?? '{}'), true) ?: [];
+                $editItem['hsn_code'] = !empty($attributes['hsn'])
+                    ? $attributes['hsn']
+                    : (string)($editItem['catalog_hsn'] ?? '');
+                if ($editItem['gst_pct'] === null && $editItem['hsn_code'] !== '') {
+                    $masterRate = DB::fetchValue(
+                        "SELECT gst_rate FROM hsn_masters
+                         WHERE is_active = 1 AND code_type = 'HSN' AND hsn_code = ?
+                           AND (concern_id = ? OR concern_id IS NULL)
+                         ORDER BY concern_id DESC LIMIT 1",
+                        [$editItem['hsn_code'], (int)$cid]
+                    );
+                    $editItem['gst_pct'] = $masterRate === null ? null : (float)$masterRate;
+                }
+                $editItem['batch_id'] = $editItem['active_batch_id'] ? (int)$editItem['active_batch_id'] : null;
+                $editItem['available_qty'] = (float)$editItem['available_qty'];
+                $editItem['batch_remaining_qty'] = (float)$editItem['batch_remaining_qty'];
+                $editItem['price'] = (float)$editItem['price'];
+                $editItem['qty'] = (int)$editItem['qty'];
+                $editItem['gst_pct'] = $editItem['gst_pct'] === null ? null : (float)$editItem['gst_pct'];
+                $editItem['is_complementary'] = (int)$editItem['is_complementary'] === 1;
+                $editItem['discount'] = 0;
+                $editItem['scanned_codes'] = json_decode((string)$editItem['scanned_codes'], true) ?: [];
+                unset($editItem['production_batch_id'], $editItem['catalog_hsn'], $editItem['batch_qty'], $editItem['active_batch_id']);
+            }
+            unset($editItem);
+
+            $notes = (string)($editInvoice['notes'] ?? '');
+            $gstType = preg_match('/GST Type: (both|igst|exempt)/i', $notes, $gstTypeMatch) ? strtolower($gstTypeMatch[1]) : 'both';
+            $gstPriceMode = preg_match('/GST Price Mode: (include|exclude)/i', $notes, $priceModeMatch) ? strtolower($priceModeMatch[1]) : 'exclude';
+            $partyType = trim((string)($editInvoice['billing_company_name'] ?? '')) !== ''
+                || stripos($notes, 'Billing For: company') !== false
+                ? 'company'
+                : 'customer';
+            $channelKey = 'direct';
+            foreach ($customerChannels as $channelRow) {
+                if (strcasecmp((string)$channelRow['channel_name'], (string)$editInvoice['customer_channel']) === 0) {
+                    $channelKey = (string)$channelRow['channel_key'];
+                    break;
+                }
+            }
+            $editData = [
+                'id' => $editInvoiceId,
+                'invoice_no' => (string)$editInvoice['invoice_no'],
+                'billing_party_type' => $partyType,
+                'customer_channel' => $channelKey,
+                'invoice_date' => (string)$editInvoice['invoice_date'],
+                'customer_mobile' => (string)($editInvoice['customer_phone'] ?? ''),
+                'customer_name' => (string)($editInvoice['customer_name'] ?? ''),
+                'customer_address' => (string)($editInvoice['customer_address'] ?? ''),
+                'company_name' => (string)($editInvoice['billing_company_name'] ?? ''),
+                'company_address' => (string)($editInvoice['billing_company_address'] ?? ''),
+                'company_phone' => (string)($editInvoice['billing_company_phone'] ?? ''),
+                'company_email' => (string)($editInvoice['billing_company_email'] ?? ''),
+                'company_gstin' => (string)($editInvoice['billing_company_gstin'] ?? ''),
+                'is_direct_bill' => (int)$editInvoice['is_direct_bill'] === 1,
+                'payment_method' => (string)$editInvoice['payment_method'],
+                'payment_status' => (string)$editInvoice['payment_status'],
+                'paid_amount' => (float)$editInvoice['paid_amount'],
+                'shipping_amount' => (float)$editInvoice['shipping_amount'],
+                'gst_type' => $gstType,
+                'gst_price_mode' => $gstPriceMode,
+                'is_online' => stripos($notes, '[Online Channel]') !== false,
+                'items' => $editItems,
+            ];
+        }
         $this->render('concern/billing', [
             'pageTitle'        => 'POS Billing Terminal',
             'currentModule'    => 'billing',
@@ -954,6 +1111,8 @@ class SalesController extends Controller {
             'printItems'       => $printItems,
             'customerChannels' => $customerChannels,
             'activeCoupons'    => $activeCoupons,
+            'editInvoice'      => $editInvoice,
+            'editData'         => $editData,
         ]);
     }
 
@@ -1315,9 +1474,9 @@ class SalesController extends Controller {
         $cid = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
 
         $sql = "SELECT c.id, c.concern_id, c.code, c.name, c.phone, c.email, c.gstin, c.address, c.city,
-                       (SELECT COUNT(*) FROM sales_invoices si WHERE si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone))) AS order_count,
-                       (SELECT COALESCE(SUM(si.net_amount), 0) FROM sales_invoices si WHERE si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone))) AS total_spent,
-                       (SELECT MAX(si.invoice_date) FROM sales_invoices si WHERE si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone))) AS last_order_date
+                       (SELECT COUNT(*) FROM sales_invoices si WHERE si.voided_at IS NULL AND (si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone)))) AS order_count,
+                       (SELECT COALESCE(SUM(si.net_amount), 0) FROM sales_invoices si WHERE si.voided_at IS NULL AND (si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone)))) AS total_spent,
+                       (SELECT MAX(si.invoice_date) FROM sales_invoices si WHERE si.voided_at IS NULL AND (si.customer_id = c.id OR (c.phone != '' AND si.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.phone = c.phone)))) AS last_order_date
                 FROM customers c
                 WHERE (c.phone = ? OR c.phone LIKE ? OR c.name LIKE ?)";
         $params = [$searchQuery, $searchQuery . '%', '%' . $phone . '%'];
@@ -1378,8 +1537,10 @@ class SalesController extends Controller {
                     COALESCE(c.hsn_code, '') AS hsn_code,
                     COALESCE(s.qty, 0) AS available_qty,
                     GREATEST(0, b.batch_qty - COALESCE((
-                        SELECT SUM(sii.qty) FROM sales_invoice_items sii
-                        WHERE sii.production_batch_id = b.id
+                        SELECT SUM(sii.qty)
+                        FROM sales_invoice_items sii
+                        JOIN sales_invoices sold_si ON sold_si.id = sii.sales_invoice_id
+                        WHERE sii.production_batch_id = b.id AND sold_si.voided_at IS NULL
                     ), 0)) AS batch_remaining_qty
              FROM batches b
              JOIN variants v ON v.id = b.variant_id AND v.concern_id = b.concern_id
@@ -1426,7 +1587,11 @@ class SalesController extends Controller {
     }
 
     public function completePosSale(): void {
-        ModuleGuard::enforce('billing', 'add');
+        $editingInvoiceId = is_scalar($_POST['invoice_id'] ?? null) ? (int)$_POST['invoice_id'] : 0;
+        ModuleGuard::enforce('billing', $editingInvoiceId > 0 ? 'edit' : 'add');
+        $terminalPath = $editingInvoiceId > 0
+            ? '/m/billing/create?edit_id=' . $editingInvoiceId
+            : '/m/billing/create';
         $this->validateCsrf();
         \App\Services\StockService::consolidateLegacyLocations();
         $cid = Auth::concernId();
@@ -1445,7 +1610,7 @@ class SalesController extends Controller {
         }
         if (!$cid || !DB::fetchValue("SELECT id FROM concerns WHERE id = ? AND status = 'active'", [$cid])) {
             $this->flash('error', 'No active concern is available for POS billing. Select an active concern before completing a sale.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
 
@@ -1453,7 +1618,9 @@ class SalesController extends Controller {
         $custName    = trim($_POST['customer_name'] ?? '');
         $custAddress = trim($_POST['customer_address'] ?? '');
         $billingPartyType = $_POST['billing_party_type'] ?? 'customer';
-        $customerChannelKey = trim((string)($_POST['customer_channel'] ?? 'direct'));
+        $customerChannelKey = $billingPartyType === 'company'
+            ? 'direct'
+            : trim((string)($_POST['customer_channel'] ?? 'direct'));
         $channelsList = $this->ensurePosCustomerChannels((int)$cid);
         $customerChannelName = 'Direct Customer';
         $isOrderChannel = false;
@@ -1474,23 +1641,23 @@ class SalesController extends Controller {
         $gstType     = $_POST['gst_type'] ?? 'both'; // 'both', 'igst', 'exempt'
         $gstPriceMode = $_POST['gst_price_mode'] ?? 'exclude';
         $payMethod   = $_POST['payment_method'] ?? 'cash';
-        $paymentStatus = $isOrderChannel ? ($_POST['payment_status'] ?? 'paid') : 'paid';
+        $paymentStatus = ($isOrderChannel || $editingInvoiceId > 0) ? ($_POST['payment_status'] ?? 'paid') : 'paid';
         $isOnline    = $payMethod !== 'cash' || !empty($_POST['is_online']) || $isOrderChannel;
-        $shippingRaw = $isOrderChannel ? ($_POST['shipping_amount'] ?? '0') : '0';
+        $shippingRaw = ($isOrderChannel || $editingInvoiceId > 0) ? ($_POST['shipping_amount'] ?? '0') : '0';
 
         if (!is_string($payMethod) || !in_array($payMethod, ['cash', 'bank_transfer', 'upi', 'credit', 'card', 'split'], true)) {
             $this->flash('error', 'Choose a valid payment method.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         if (!is_string($paymentStatus) || !in_array($paymentStatus, ['paid', 'partial', 'unpaid'], true)) {
             $this->flash('error', 'Choose a valid payment status.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         if (!is_scalar($shippingRaw)) {
             $this->flash('error', 'Enter a valid shipping amount.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         $shippingRaw = trim((string)$shippingRaw);
@@ -1499,7 +1666,7 @@ class SalesController extends Controller {
         }
         if (!preg_match('/^\d+(?:\.\d{1,2})?$/D', $shippingRaw) || (float)$shippingRaw > 9999999999.99) {
             $this->flash('error', 'Shipping must be a non-negative amount with up to two decimal places.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         $shippingAmount = (float)$shippingRaw;
@@ -1508,46 +1675,46 @@ class SalesController extends Controller {
             $advanceRaw = $_POST['advance_paid'] ?? '0';
             if (!is_scalar($advanceRaw)) {
                 $this->flash('error', 'Enter a valid advance payment.');
-                $this->redirect('/m/billing/create');
+                $this->redirect($terminalPath);
                 return;
             }
             $advanceRaw = trim((string)$advanceRaw);
             if (!preg_match('/^\d+(?:\.\d{1,2})?$/D', $advanceRaw) || (float)$advanceRaw > 9999999999.99) {
                 $this->flash('error', 'Advance paid must be a non-negative amount with up to two decimal places.');
-                $this->redirect('/m/billing/create');
+                $this->redirect($terminalPath);
                 return;
             }
             $advancePaid = (float)$advanceRaw;
         }
         if (!in_array($gstType, ['both', 'igst', 'exempt'], true)) {
             $this->flash('error', 'Choose a valid GST type.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         if (!in_array($gstPriceMode, ['include', 'exclude'], true)) {
             $this->flash('error', 'Choose whether the item prices include or exclude GST.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         if (!in_array($billingPartyType, ['customer', 'company'], true)) {
             $this->flash('error', 'Choose whether this bill is for a customer or company.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         if ($billingPartyType === 'customer') {
             if (!preg_match('/^[6-9][0-9]{9}$/D', $custMobile)) {
                 $this->flash('error', 'Enter a valid 10-digit customer mobile number.');
-                $this->redirect('/m/billing/create');
+                $this->redirect($terminalPath);
                 return;
             }
             if ($custName === '' || strlen($custName) > 150) {
                 $this->flash('error', 'Enter the customer name.');
-                $this->redirect('/m/billing/create');
+                $this->redirect($terminalPath);
                 return;
             }
             if ($custAddress === '' || strlen($custAddress) > 255) {
                 $this->flash('error', 'Enter the customer address.');
-                $this->redirect('/m/billing/create');
+                $this->redirect($terminalPath);
                 return;
             }
         }
@@ -1555,18 +1722,18 @@ class SalesController extends Controller {
             || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $invoiceDateRaw)
             || !checkdate((int)substr($invoiceDateRaw, 5, 2), (int)substr($invoiceDateRaw, 8, 2), (int)substr($invoiceDateRaw, 0, 4))) {
             $this->flash('error', 'Enter a valid bill date.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         if (!is_scalar($directBillRaw) || !in_array((string)$directBillRaw, ['0', '1'], true)) {
             $this->flash('error', 'Choose a valid bill classification.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         $isDirectBill = (string)$directBillRaw === '1';
         if ($isDirectBill && $billingPartyType !== 'company') {
             $this->flash('error', 'Only company bills can be separated as direct bills.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
             return;
         }
         if ($billingPartyType === 'company') {
@@ -1580,7 +1747,7 @@ class SalesController extends Controller {
             foreach ($companyFields as $label => $value) {
                 if (!is_string($value)) {
                     $this->flash('error', $label . ' must be valid text.');
-                    $this->redirect('/m/billing/create');
+                    $this->redirect($terminalPath);
                     return;
                 }
             }
@@ -1593,12 +1760,12 @@ class SalesController extends Controller {
                 || strlen($companyAddress) > 255 || strlen($companyPhone) > 30
                 || strlen($companyEmail) > 100 || strlen($companyGstin) > 15) {
                 $this->flash('error', 'Check the company name, address, phone, email, and GSTIN lengths.');
-                $this->redirect('/m/billing/create');
+                $this->redirect($terminalPath);
                 return;
             }
             if ($companyEmail !== '' && !filter_var($companyEmail, FILTER_VALIDATE_EMAIL)) {
                 $this->flash('error', 'Enter a valid company email address.');
-                $this->redirect('/m/billing/create');
+                $this->redirect($terminalPath);
                 return;
             }
         }
@@ -1608,12 +1775,36 @@ class SalesController extends Controller {
 
         if (empty($items) || !is_array($items)) {
             $this->flash('error', 'Cannot complete sale: Billing cart is empty.');
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
+            return;
         }
 
         \App\Services\CouponService::ensureSchema();
         DB::beginTransaction();
         try {
+            $existingInvoice = null;
+            if ($editingInvoiceId > 0) {
+                $existingInvoice = DB::fetch(
+                    "SELECT id, invoice_no, applied_coupon_id, invoice_date
+                     FROM sales_invoices
+                     WHERE id = ? AND concern_id = ? AND voided_at IS NULL
+                     LIMIT 1 FOR UPDATE",
+                    [$editingInvoiceId, $cid]
+                );
+                if (!$existingInvoice) {
+                    throw new \RuntimeException('Invoice not found or it has already been voided.');
+                }
+                $mutationBlockReason = $this->invoiceMutationBlockReason($cid, $editingInvoiceId);
+                if ($mutationBlockReason !== null) {
+                    throw new \RuntimeException($mutationBlockReason);
+                }
+                $this->restorePosInvoiceStock($cid, $editingInvoiceId, (string)$existingInvoice['invoice_no']);
+                if (!empty($existingInvoice['applied_coupon_id'])) {
+                    $this->releasePosCoupon((int)$existingInvoice['applied_coupon_id'], $editingInvoiceId);
+                }
+                DB::query("DELETE FROM sales_invoice_items WHERE sales_invoice_id = ?", [$editingInvoiceId]);
+            }
+
             // 1. Resolve or create the invoice customer.
             $customerId = null;
             if ($billingPartyType === 'company') {
@@ -1654,6 +1845,12 @@ class SalesController extends Controller {
                     );
                     if ($existingCust) {
                         $customerId = (int)$existingCust['id'];
+                        if ($editingInvoiceId > 0) {
+                            DB::query(
+                                "UPDATE customers SET name = ?, address = ? WHERE id = ? AND concern_id = ?",
+                                [$custName, $custAddress, $customerId, $cid]
+                            );
+                        }
                     }
                 }
                 if (!$customerId) {
@@ -1818,7 +2015,10 @@ class SalesController extends Controller {
             foreach ($requestedQtyByBatch as $batchId => $requestedQty) {
                 $batchQty = (float)DB::fetchValue("SELECT batch_qty FROM batches WHERE id = ?", [(int)$batchId]);
                 $soldQty = (float)(DB::fetchValue(
-                    "SELECT COALESCE(SUM(qty), 0) FROM sales_invoice_items WHERE production_batch_id = ?",
+                    "SELECT COALESCE(SUM(sii.qty), 0)
+                     FROM sales_invoice_items sii
+                     JOIN sales_invoices sold_si ON sold_si.id = sii.sales_invoice_id
+                     WHERE sii.production_batch_id = ? AND sold_si.voided_at IS NULL",
                     [(int)$batchId]
                 ) ?: 0);
                 $batchAvailableQty = max(0, $batchQty - $soldQty);
@@ -1836,6 +2036,9 @@ class SalesController extends Controller {
             $couponMode = null;
 
             if ($appliedCouponId > 0) {
+                if ($billingPartyType === 'company') {
+                    throw new \RuntimeException('Coupons can only be applied to customer bills.');
+                }
                 $couponRow = DB::fetch(
                     "SELECT * FROM pos_coupons WHERE id = ? AND concern_id = ? LIMIT 1 FOR UPDATE",
                     [$appliedCouponId, $cid]
@@ -1867,31 +2070,48 @@ class SalesController extends Controller {
             $paidAmount = $paymentTotals['paid_amount'];
             $balanceDue = $paymentTotals['balance_due'];
 
-            // 3. Generate Sequential Invoice Number
-            $invoiceNo = NumberSeries::getNext($cid, 'INVOICE');
+            // 3. Keep the existing invoice number when editing.
+            $invoiceNo = $existingInvoice
+                ? (string)$existingInvoice['invoice_no']
+                : NumberSeries::getNext($cid, 'INVOICE');
             $invDate = $invoiceDateRaw;
             $notes = "POS Terminal Sale. Billing For: {$billingPartyType}. Channel: {$customerChannelName}. GST Type: {$gstType}. GST Price Mode: {$gstPriceMode}. Payment Status: {$paymentStatus}" . ($isOnline ? " [Online Channel]" : "");
 
-            DB::query(
-                "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, applied_coupon_id, applied_coupon_code, coupon_discount_amount, coupon_mode, net_amount, shipping_amount, paid_amount, payment_method, payment_status, customer_channel, is_direct_bill, billing_company_name, billing_company_address, billing_company_phone, billing_company_email, billing_company_gstin, notes, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                [
-                    $cid, $invoiceNo, $customerId, $invDate, $taxableSubtotal, $taxTotal, $discountTotal,
-                    $appliedCouponId > 0 ? $appliedCouponId : null,
-                    $appliedCouponCode,
-                    $couponDiscount,
-                    $couponMode,
-                    $netPayable,
-                    $shippingAmount, $paidAmount, $payMethod, $paymentStatus, $customerChannelName, $isDirectBill ? 1 : 0,
-                    $billingPartyType === 'company' ? $companyName : null,
-                    $billingPartyType === 'company' ? $companyAddress : null,
-                    $billingPartyType === 'company' ? $companyPhone : null,
-                    $billingPartyType === 'company' ? $companyEmail : null,
-                    $billingPartyType === 'company' ? $companyGstin : null,
-                    $notes, Auth::id()
-                ]
-            );
-            $invoiceId = (int)DB::lastInsertId();
+            $invoiceValues = [
+                $customerId, $invDate, $taxableSubtotal, $taxTotal, $discountTotal,
+                $appliedCouponId > 0 ? $appliedCouponId : null,
+                $appliedCouponCode,
+                $couponDiscount,
+                $couponMode,
+                $netPayable,
+                $shippingAmount, $paidAmount, $payMethod, $paymentStatus, $customerChannelName, $isDirectBill ? 1 : 0,
+                $billingPartyType === 'company' ? $companyName : null,
+                $billingPartyType === 'company' ? $companyAddress : null,
+                $billingPartyType === 'company' ? $companyPhone : null,
+                $billingPartyType === 'company' ? $companyEmail : null,
+                $billingPartyType === 'company' ? $companyGstin : null,
+                $notes,
+            ];
+            if ($existingInvoice) {
+                DB::query(
+                    "UPDATE sales_invoices
+                     SET customer_id = ?, invoice_date = ?, total_amount = ?, tax_amount = ?, discount_amount = ?,
+                         applied_coupon_id = ?, applied_coupon_code = ?, coupon_discount_amount = ?, coupon_mode = ?,
+                         net_amount = ?, shipping_amount = ?, paid_amount = ?, payment_method = ?, payment_status = ?,
+                         customer_channel = ?, is_direct_bill = ?, billing_company_name = ?, billing_company_address = ?,
+                         billing_company_phone = ?, billing_company_email = ?, billing_company_gstin = ?, notes = ?
+                     WHERE id = ? AND concern_id = ? AND voided_at IS NULL",
+                    array_merge($invoiceValues, [$editingInvoiceId, $cid])
+                );
+                $invoiceId = $editingInvoiceId;
+            } else {
+                DB::query(
+                    "INSERT INTO sales_invoices (concern_id, invoice_no, customer_id, invoice_date, total_amount, tax_amount, discount_amount, applied_coupon_id, applied_coupon_code, coupon_discount_amount, coupon_mode, net_amount, shipping_amount, paid_amount, payment_method, payment_status, customer_channel, is_direct_bill, billing_company_name, billing_company_address, billing_company_phone, billing_company_email, billing_company_gstin, notes, created_by, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                    array_merge([$cid, $invoiceNo], $invoiceValues, [Auth::id()])
+                );
+                $invoiceId = (int)DB::lastInsertId();
+            }
 
             if ($appliedCouponId > 0) {
                 \App\Services\CouponService::redeemCoupon($appliedCouponId, $invoiceId);
@@ -1953,30 +2173,11 @@ class SalesController extends Controller {
                 }
             }
 
-            // 5. Post to Cash Accounts / Cash Flow Ledger
-            if ($paidAmount > 0 && in_array($payMethod, ['cash', 'upi', 'card', 'split'])) {
-                $cashAccount = DB::fetch(
-                    "SELECT id FROM cash_accounts WHERE concern_id = ? AND account_type IN ('cash', 'petty_cash') ORDER BY id ASC LIMIT 1",
-                    [$cid]
-                ) ?: DB::fetch("SELECT id FROM cash_accounts WHERE concern_id = ? ORDER BY id ASC LIMIT 1", [$cid]);
-
-                if ($cashAccount) {
-                    CashService::postTransaction(
-                        $cid,
-                        (int)$cashAccount['id'],
-                        $invDate,
-                        'credit',
-                        $paidAmount,
-                        'Billing',
-                        $invoiceId,
-                        "POS Sale Invoice #{$invoiceNo} [{$payMethod}]",
-                        Auth::id()
-                    );
-                }
-            }
+            // 5. Reconcile this invoice's cash-ledger balance after the edit.
+            $this->reconcilePosInvoiceCash($cid, $invoiceId, $invDate, $invoiceNo, $payMethod, $paidAmount, true);
 
             // 6. Audit Trail
-            AuditLog::log('POS_SALE', 'sales_invoices', $invoiceId, null, [
+            AuditLog::log($existingInvoice ? 'POS_INVOICE_EDIT' : 'POS_SALE', 'sales_invoices', $invoiceId, null, [
                 'invoice_no'  => $invoiceNo,
                 'net_payable' => $netPayable,
                 'shipping_amount' => $shippingAmount,
@@ -1990,17 +2191,246 @@ class SalesController extends Controller {
 
             DB::commit();
 
-            $this->flash('success', "Sale Completed! Invoice #{$invoiceNo} generated for ₹" . number_format($netPayable, 2) . ".");
+            $this->flash(
+                'success',
+                $existingInvoice
+                    ? "Invoice #{$invoiceNo} updated to ₹" . number_format($netPayable, 2) . "."
+                    : "Sale Completed! Invoice #{$invoiceNo} generated for ₹" . number_format($netPayable, 2) . "."
+            );
             $this->redirect("/m/billing/create?print_id={$invoiceId}");
         } catch (\Throwable $e) {
             DB::rollBack();
             $this->flash('error', "POS Transaction failed: " . $e->getMessage());
-            $this->redirect('/m/billing/create');
+            $this->redirect($terminalPath);
         }
     }
 
     public function storeInvoice(): void {
         $this->completePosSale();
+    }
+
+    private function invoiceMutationBlockReason(int $concernId, int $invoiceId): ?string {
+        if (DB::fetchValue("SELECT id FROM outwards WHERE sales_invoice_id = ? AND concern_id = ? LIMIT 1", [$invoiceId, $concernId])) {
+            return 'This invoice is linked to an outward record and cannot be edited or voided.';
+        }
+        if (DB::fetchValue("SELECT id FROM production_returns WHERE sales_invoice_id = ? AND concern_id = ? LIMIT 1", [$invoiceId, $concernId])
+            || DB::fetchValue("SELECT id FROM returns_exchanges WHERE sales_invoice_id = ? AND concern_id = ? LIMIT 1", [$invoiceId, $concernId])) {
+            return 'This invoice has return or exchange activity and cannot be edited or voided.';
+        }
+        return null;
+    }
+
+    private function restorePosInvoiceStock(int $concernId, int $invoiceId, string $invoiceNo): void {
+        $ledgerRows = DB::fetchAll(
+            "SELECT variant_id, location, qty_in, qty_out
+             FROM stock_ledger
+             WHERE concern_id = ? AND ref_id = ? AND ref_module IN ('Billing', 'Billing Edit Reversal')
+             ORDER BY id ASC
+             FOR UPDATE",
+            [$concernId, $invoiceId]
+        );
+        $netByLocation = [];
+        foreach ($ledgerRows as $row) {
+            $key = (int)$row['variant_id'] . "\0" . (string)$row['location'];
+            if (!isset($netByLocation[$key])) {
+                $netByLocation[$key] = [
+                    'variant_id' => (int)$row['variant_id'],
+                    'location' => (string)$row['location'],
+                    'net_out' => 0.0,
+                ];
+            }
+            $netByLocation[$key]['net_out'] += (float)$row['qty_out'] - (float)$row['qty_in'];
+        }
+
+        foreach ($netByLocation as $movement) {
+            if ($movement['net_out'] < -0.00001) {
+                throw new \RuntimeException('Invoice stock ledger has an unexpected positive adjustment; stock cannot be safely reconciled.');
+            }
+            if ($movement['net_out'] <= 0.00001) {
+                continue;
+            }
+            StockService::move(
+                $concernId,
+                $movement['variant_id'],
+                $movement['location'],
+                $movement['net_out'],
+                0.0,
+                'Billing Edit Reversal',
+                $invoiceId,
+                "Restore stock for POS Invoice #{$invoiceNo}",
+                Auth::id()
+            );
+        }
+    }
+
+    private function releasePosCoupon(int $couponId, int $invoiceId): void {
+        $coupon = DB::fetch(
+            "SELECT id, max_uses, used_count, expires_at, status, redeemed_bill_id
+             FROM pos_coupons WHERE id = ? LIMIT 1 FOR UPDATE",
+            [$couponId]
+        );
+        if (!$coupon || (int)$coupon['redeemed_bill_id'] !== $invoiceId) {
+            return;
+        }
+
+        $usedCount = max(0, (int)$coupon['used_count'] - 1);
+        $status = strtoupper((string)$coupon['status']);
+        if (in_array($status, ['INACTIVE', 'CANCELLED'], true)) {
+            $nextStatus = $status;
+        } elseif (!empty($coupon['expires_at']) && (string)$coupon['expires_at'] < date('Y-m-d')) {
+            $nextStatus = 'EXPIRED';
+        } elseif ((int)$coupon['max_uses'] > 0 && $usedCount >= (int)$coupon['max_uses']) {
+            $nextStatus = 'REDEEMED';
+        } else {
+            $nextStatus = 'ACTIVE';
+        }
+
+        DB::query(
+            "UPDATE pos_coupons
+             SET used_count = ?, status = ?, redeemed_bill_id = NULL, redeemed_at = NULL, updated_at = NOW()
+             WHERE id = ?",
+            [$usedCount, $nextStatus, $couponId]
+        );
+    }
+
+    private function reconcilePosInvoiceCash(
+        int $concernId,
+        int $invoiceId,
+        string $invoiceDate,
+        string $invoiceNo,
+        string $paymentMethod,
+        float $paidAmount,
+        bool $postNewPayment
+    ): void {
+        $transactions = DB::fetchAll(
+            "SELECT account_id, type, amount
+             FROM cash_transactions
+             WHERE concern_id = ? AND ref_id = ? AND ref_module IN ('Billing', 'Billing Adjustment')
+             ORDER BY id ASC
+             FOR UPDATE",
+            [$concernId, $invoiceId]
+        );
+        $netByAccount = [];
+        foreach ($transactions as $transaction) {
+            $accountId = (int)$transaction['account_id'];
+            $amount = (float)$transaction['amount'];
+            $signedAmount = strtolower((string)$transaction['type']) === 'credit' ? $amount : -$amount;
+            $netByAccount[$accountId] = ($netByAccount[$accountId] ?? 0.0) + $signedAmount;
+        }
+
+        foreach ($netByAccount as $accountId => $netAmount) {
+            if (abs($netAmount) < 0.005) {
+                continue;
+            }
+            CashService::postTransaction(
+                $concernId,
+                (int)$accountId,
+                $invoiceDate,
+                $netAmount > 0 ? 'debit' : 'credit',
+                abs($netAmount),
+                'Billing Adjustment',
+                $invoiceId,
+                "Reconcile POS Invoice #{$invoiceNo}",
+                Auth::id()
+            );
+        }
+
+        if (!$postNewPayment || $paidAmount <= 0 || !in_array($paymentMethod, ['cash', 'upi', 'card', 'split'], true)) {
+            return;
+        }
+        $cashAccount = DB::fetch(
+            "SELECT id FROM cash_accounts
+             WHERE concern_id = ? AND account_type IN ('cash', 'petty_cash')
+             ORDER BY id ASC LIMIT 1",
+            [$concernId]
+        ) ?: DB::fetch("SELECT id FROM cash_accounts WHERE concern_id = ? ORDER BY id ASC LIMIT 1", [$concernId]);
+
+        if ($cashAccount) {
+            CashService::postTransaction(
+                $concernId,
+                (int)$cashAccount['id'],
+                $invoiceDate,
+                'credit',
+                $paidAmount,
+                'Billing',
+                $invoiceId,
+                "POS Sale Invoice #{$invoiceNo} [{$paymentMethod}]",
+                Auth::id()
+            );
+        }
+    }
+
+    public function voidPosInvoice(): void {
+        ModuleGuard::enforce('billing', 'delete');
+        $this->validateCsrf();
+        $invoiceId = is_scalar($_POST['invoice_id'] ?? null) ? (int)$_POST['invoice_id'] : 0;
+        $reasonInput = $_POST['void_reason'] ?? 'Voided from POS billing overview';
+        $reason = is_string($reasonInput) ? trim($reasonInput) : '';
+        if ($invoiceId <= 0 || $reason === '' || strlen($reason) > 255) {
+            $this->flash('error', 'Choose a valid invoice and enter a void reason of no more than 255 characters.');
+            $this->redirect('/m/billing');
+            return;
+        }
+
+        $concernId = Auth::concernId() ?: Auth::superAdminSelectedConcernId();
+        if (!$concernId && Auth::isSuperAdmin()) {
+            $concernId = (int)DB::fetchValue("SELECT concern_id FROM sales_invoices WHERE id = ?", [$invoiceId]) ?: null;
+        }
+        if (!$concernId) {
+            $this->flash('error', 'Select a concern before voiding an invoice.');
+            $this->redirect('/m/billing');
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            $invoice = DB::fetch(
+                "SELECT id, invoice_no, invoice_date, applied_coupon_id, payment_method, paid_amount, net_amount
+                 FROM sales_invoices
+                 WHERE id = ? AND concern_id = ? AND voided_at IS NULL
+                 LIMIT 1 FOR UPDATE",
+                [$invoiceId, $concernId]
+            );
+            if (!$invoice) {
+                throw new \RuntimeException('Invoice not found or it has already been voided.');
+            }
+            $mutationBlockReason = $this->invoiceMutationBlockReason((int)$concernId, $invoiceId);
+            if ($mutationBlockReason !== null) {
+                throw new \RuntimeException($mutationBlockReason);
+            }
+
+            $this->restorePosInvoiceStock((int)$concernId, $invoiceId, (string)$invoice['invoice_no']);
+            if (!empty($invoice['applied_coupon_id'])) {
+                $this->releasePosCoupon((int)$invoice['applied_coupon_id'], $invoiceId);
+            }
+            $this->reconcilePosInvoiceCash(
+                (int)$concernId,
+                $invoiceId,
+                (string)$invoice['invoice_date'],
+                (string)$invoice['invoice_no'],
+                (string)$invoice['payment_method'],
+                (float)$invoice['paid_amount'],
+                false
+            );
+            DB::query(
+                "UPDATE sales_invoices
+                 SET voided_at = NOW(), voided_by = ?, void_reason = ?
+                 WHERE id = ? AND concern_id = ? AND voided_at IS NULL",
+                [Auth::id(), $reason, $invoiceId, $concernId]
+            );
+            AuditLog::log('POS_INVOICE_VOID', 'sales_invoices', $invoiceId, null, [
+                'invoice_no' => (string)$invoice['invoice_no'],
+                'net_amount' => (float)$invoice['net_amount'],
+                'void_reason' => $reason,
+            ]);
+            DB::commit();
+            $this->flash('success', "Invoice #{$invoice['invoice_no']} was voided. Its record has been retained.");
+            $this->redirect('/m/billing?status=voided');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->flash('error', 'Could not void invoice: ' . $e->getMessage());
+            $this->redirect('/m/billing');
+        }
     }
 
     // 5. OUTWARD
@@ -2029,7 +2459,7 @@ class SalesController extends Controller {
 
         if ($cid) {
             $customers = DB::fetchAll("SELECT id, name FROM customers WHERE concern_id = ? AND status = 'active'", [$cid]);
-            $invoices  = DB::fetchAll("SELECT id, invoice_no FROM sales_invoices WHERE concern_id = ?", [$cid]);
+            $invoices  = DB::fetchAll("SELECT id, invoice_no FROM sales_invoices WHERE concern_id = ? AND voided_at IS NULL", [$cid]);
             $variants  = DB::fetchAll(
                 "SELECT v.id, v.product_code, v.name, v.size, COALESCE(s.qty, 0) AS stock_qty
                  FROM variants v
@@ -2039,7 +2469,7 @@ class SalesController extends Controller {
             );
         } else {
             $customers = DB::fetchAll("SELECT id, name FROM customers WHERE status = 'active'");
-            $invoices  = DB::fetchAll("SELECT id, invoice_no FROM sales_invoices");
+            $invoices  = DB::fetchAll("SELECT id, invoice_no FROM sales_invoices WHERE voided_at IS NULL");
             $variants  = DB::fetchAll(
                 "SELECT v.id, v.product_code, v.name, v.size, COALESCE(s.qty, 0) AS stock_qty
                  FROM variants v
@@ -2396,7 +2826,7 @@ class SalesController extends Controller {
                 FROM customers c
                 JOIN sales_invoices si ON si.customer_id = c.id
                 LEFT JOIN concerns con ON con.id = si.concern_id
-                WHERE (c.phone = ? OR si.invoice_no = ?)";
+                WHERE si.voided_at IS NULL AND (c.phone = ? OR si.invoice_no = ?)";
         $params = [$searchTerm, $searchTerm];
         if ($cid) {
             $sql .= ' AND si.concern_id = ?';
@@ -2436,7 +2866,7 @@ class SalesController extends Controller {
                        si.total_amount, si.tax_amount, si.net_amount, c.name AS customer_name, c.phone AS customer_phone
                 FROM sales_invoices si
                 JOIN customers c ON c.id = si.customer_id
-                WHERE si.id = ?";
+                WHERE si.id = ? AND si.voided_at IS NULL";
         $params = [$invoiceId];
         if ($cid) {
             $sql .= ' AND si.concern_id = ?';
@@ -2603,7 +3033,7 @@ class SalesController extends Controller {
              JOIN sales_invoices si ON si.id = pr.sales_invoice_id
              LEFT JOIN customers c ON c.id = pr.customer_id
              WHERE pr.id = ? AND (pr.concern_id = ? OR ? IS NULL)
-               AND pr.status = 'COMPLETED'
+               AND pr.status = 'COMPLETED' AND si.voided_at IS NULL
              LIMIT 1",
             [$returnId, $cid, $cid]
         );
@@ -2618,7 +3048,7 @@ class SalesController extends Controller {
                     si.total_amount, si.tax_amount, si.net_amount, c.name AS customer_name, c.phone AS customer_phone
              FROM sales_invoices si
              JOIN customers c ON c.id = si.customer_id
-             WHERE si.id = ? AND si.concern_id = ?",
+             WHERE si.id = ? AND si.concern_id = ? AND si.voided_at IS NULL",
             [$invoiceId, $return['concern_id']]
         );
         if (!$invoice) {
@@ -2786,7 +3216,7 @@ class SalesController extends Controller {
             return;
         }
 
-        $invoiceSql = 'SELECT concern_id FROM sales_invoices WHERE id = ?';
+        $invoiceSql = 'SELECT concern_id FROM sales_invoices WHERE id = ? AND voided_at IS NULL';
         $invoiceParams = [$invoiceId];
         if ($cid) {
             $invoiceSql .= ' AND concern_id = ?';
@@ -3393,7 +3823,7 @@ class SalesController extends Controller {
                 JOIN customers c ON si.customer_id = c.id
                 LEFT JOIN concerns con ON si.concern_id = con.id";
         $params = [];
-        $where = [];
+        $where = ['si.voided_at IS NULL'];
         if ($cid) {
             $where[] = "si.concern_id = ?";
             $params[] = $cid;

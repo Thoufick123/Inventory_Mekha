@@ -124,27 +124,7 @@
     include dirname(__DIR__) . '/partials/export_card.php';
     ?>
 
-<<<<<<< HEAD
-    <!-- 2. Search & Filter Bar -->
-=======
-    <!-- 2. View Mode Switcher -->
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <div class="d-flex align-items-center gap-2">
-            <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.75rem;">VIEW MODE:</span>
-            <button type="button" class="btn btn-sm btn-primary px-3 rounded-pill fw-semibold shadow-sm view-mode-btn active" id="btnModeLedger" onclick="switchViewMode('ledger')">
-                <i class="bi bi-list-task me-1"></i> List / Ledger View <span class="badge bg-white text-primary ms-1"><?= count($inwardBatches) ?></span>
-            </button>
-            <button type="button" class="btn btn-sm btn-outline-secondary px-3 rounded-pill fw-semibold view-mode-btn" id="btnModeCards" onclick="switchViewMode('cards')">
-                <i class="bi bi-grid-fill me-1"></i> Batch Cards View <span class="badge bg-secondary ms-1"><?= count($inwardBatches) ?></span>
-            </button>
-        </div>
-        <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-xs">
-            <i class="bi bi-arrow-left me-1"></i> Dashboard
-        </a>
-    </div>
-
-    <!-- 3. Search & Filter Bar -->
->>>>>>> 8d6dd225cebc6743df3e92d8c47cfc3f5e264b60
+    <!-- Search & Filter Bar -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 p-3 bg-white">
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-4">
@@ -191,15 +171,6 @@
             <table class="table table-bordered table-striped table-hover align-middle mb-0 inward-table-format" id="inwardLedgerTable">
                 <thead>
                     <tr>
-<<<<<<< HEAD
-                        <th class="ps-3">OUTWARD NO.</th>
-                        <th>PRODUCT</th>
-                        <th>SOURCE</th>
-                        <th>QUANTITY & BOXES</th>
-                        <th>DISPATCH DATE & VEHICLE</th>
-                        <th>STATUS</th>
-                        <th class="text-end pe-3">ACTIONS</th>
-=======
                         <th>Batch / Outward</th>
                         <th>Program &amp; Product</th>
                         <th>Source &rarr; Destination</th>
@@ -207,7 +178,6 @@
                         <th>Dispatch Date &amp; Vehicle</th>
                         <th class="text-center">Status</th>
                         <th class="text-center">Actions</th>
->>>>>>> 8d6dd225cebc6743df3e92d8c47cfc3f5e264b60
                     </tr>
                 </thead>
                 <tbody>
@@ -227,14 +197,20 @@
                             $sourceConcernName = $ib['source_concern_name'] ?: '—';
                         ?>
                         <tr class="inward-batch-row" 
-                            data-search="<?= htmlspecialchars(strtolower($ib['outward_no'] . ' ' . $productTitle . ' ' . $sourceConcernName . ' ' . ($ib['vehicle_number'] ?? ''))) ?>"
+                            data-search="<?= htmlspecialchars(strtolower($ib['outward_no'] . ' ' . $productTitle . ' ' . ($ib['asset_codes'] ?? '') . ' ' . $sourceConcernName . ' ' . ($ib['vehicle_number'] ?? ''))) ?>"
                             data-source="<?= htmlspecialchars($sourceConcernName) ?>"
                             data-status="<?= htmlspecialchars($ib['status_badge']) ?>">
                             <td class="ps-3">
                                 <div>
-                                    <a href="<?= $scanUrl ?>" class="fw-bold text-decoration-none text-primary font-monospace"><?= htmlspecialchars($ib['outward_no']) ?></a>
+                                    <?php if (!empty($ib['asset_transfer'])): ?>
+                                        <span class="fw-bold text-primary font-monospace"><?= htmlspecialchars($ib['outward_no']) ?></span>
+                                    <?php else: ?>
+                                        <a href="<?= $scanUrl ?>" class="fw-bold text-decoration-none text-primary font-monospace"><?= htmlspecialchars($ib['outward_no']) ?></a>
+                                    <?php endif; ?>
                                     <div>
-                                        <?php if (!empty($ib['cutting_id'])): ?>
+                                        <?php if (!empty($ib['asset_transfer'])): ?>
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.68rem;">FIXED ASSET OUTWARD</span>
+                                        <?php elseif (!empty($ib['cutting_id'])): ?>
                                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem;">CUTTING OUTWARD</span>
                                         <?php elseif (!empty($ib['damage_transfer'])): ?>
                                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.68rem;">DAMAGED STOCK</span>
@@ -249,15 +225,19 @@
                                 <span class="fw-semibold text-dark"><?= htmlspecialchars($sourceConcernName) ?></span>
                             </td>
                             <td class="text-end">
-                                <span class="fw-bold text-success">+<?= number_format($ib['total_qty']) ?> pcs</span>
-                                <span class="text-muted small ms-1">(<?= (int)$ib['total_boxes'] ?>)</span>
+                                <span class="fw-bold text-success">+<?= number_format($ib['total_qty']) ?> <?= !empty($ib['asset_transfer']) ? 'asset(s)' : 'pcs' ?></span>
+                                <?php if (empty($ib['asset_transfer'])): ?>
+                                    <span class="text-muted small ms-1">(<?= (int)$ib['total_boxes'] ?>)</span>
+                                <?php endif; ?>
                             </td>
-                            <td title="<?= htmlspecialchars($dispDateStr) ?>">
+                            <td>
                                 <span class="small text-dark"><?= date('d M Y', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></span>
                                 <span class="text-muted small ms-1"><i class="bi bi-truck"></i> <?= htmlspecialchars($ib['vehicle_number'] ?: '-') ?></span>
                             </td>
                             <td class="text-center">
-                                <?php if ($ib['status_badge'] === 'partial'): ?>
+                                <?php if (!empty($ib['asset_transfer']) && $ib['status_badge'] === 'completed'): ?>
+                                    <span class="badge bg-success text-white border border-success fw-semibold" style="font-size: 0.72rem;">Assets Restocked</span>
+                                <?php elseif ($ib['status_badge'] === 'partial'): ?>
                                     <span class="badge bg-warning text-dark border border-warning fw-semibold" style="font-size: 0.72rem;">
                                         Partial (<?= (int)$ib['short_qty'] ?> Short)
                                     </span>
@@ -273,14 +253,27 @@
                             </td>
                             <td class="text-end pe-3">
                                 <div class="d-flex align-items-center justify-content-end gap-1">
-                                    <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Details"><i class="bi bi-eye"></i></a>
+                                    <?php if (empty($ib['asset_transfer'])): ?>
+                                        <a href="<?= $scanUrl ?>" class="btn btn-sm btn-outline-primary" title="View Details"><i class="bi bi-eye"></i></a>
+                                    <?php endif; ?>
                                     <?php if (\App\Core\Auth::can('inward', 'edit')): ?>
                                     <button type="button" class="btn btn-sm btn-outline-warning" title="Edit Consignment Notes"><i class="bi bi-pencil-square"></i></button>
                                     <?php endif; ?>
                                     <?php if (\App\Core\Auth::can('inward', 'delete')): ?>
                                     <button type="button" class="btn btn-sm btn-outline-danger" title="Delete Consignment"><i class="bi bi-trash"></i></button>
                                     <?php endif; ?>
-                                    <?php if (!empty($ib['cutting_id'])): ?>
+                                    <?php if (!empty($ib['asset_transfer'])): ?>
+                                        <?php if ($ib['status_badge'] !== 'completed' && (\App\Core\Auth::can('inward', 'edit') || \App\Core\Auth::can('inward', 'add'))): ?>
+                                            <form action="<?= \App\Core\Controller::url('/m/inward/receive-assets') ?>" method="POST" class="d-inline">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Auth::csrfToken()) ?>">
+                                                <input type="hidden" name="outward_id" value="<?= (int)$ib['outward_id'] ?>">
+                                                <input type="hidden" name="destination_concern_id" value="<?= (int)$ib['destination_concern_id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-success fw-bold px-3 shadow-sm">
+                                                    <i class="bi bi-box-arrow-in-down me-1"></i> Receive <?= (int)$ib['short_qty'] ?> Asset(s)
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php elseif (!empty($ib['cutting_id'])): ?>
                                         <?php if ($ib['status_badge'] === 'completed'): ?>
                                             <a href="<?= \App\Core\Controller::url('/production/cutting') ?>" class="btn btn-sm btn-success fw-bold px-3 shadow-sm d-flex align-items-center gap-1">
                                                 <i class="bi bi-scissors"></i> View in Cutting

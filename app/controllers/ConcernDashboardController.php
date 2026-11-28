@@ -75,7 +75,7 @@ class ConcernDashboardController extends Controller {
         $cidParams = $cid ? [$cid] : [];
 
         $totalSales = (float)DB::fetchValue(
-            "SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices WHERE 1=1 {$cidWhereSales}",
+            "SELECT COALESCE(SUM(net_amount), 0) FROM sales_invoices WHERE voided_at IS NULL {$cidWhereSales}",
             $cidParams
         );
         $totalPurchases = (float)DB::fetchValue(
@@ -86,7 +86,7 @@ class ConcernDashboardController extends Controller {
         $dailySalesRows = DB::fetchAll(
             "SELECT DATE(invoice_date) AS dt, COALESCE(SUM(net_amount), 0) AS total
              FROM sales_invoices
-             WHERE invoice_date >= ? {$cidWhereSales}
+             WHERE voided_at IS NULL AND invoice_date >= ? {$cidWhereSales}
              GROUP BY DATE(invoice_date)",
             array_merge([$sinceDate], $cidParams)
         );
@@ -128,7 +128,7 @@ class ConcernDashboardController extends Controller {
         $salesByChannel = DB::fetchAll(
             "SELECT {$channelExpr} AS label, COALESCE(SUM(net_amount), 0) AS total, COUNT(*) AS cnt
              FROM sales_invoices
-             WHERE 1=1 {$cidWhereSales}
+             WHERE voided_at IS NULL {$cidWhereSales}
              GROUP BY label
              ORDER BY total DESC",
             $cidParams

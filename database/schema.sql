@@ -832,6 +832,37 @@ CREATE TABLE IF NOT EXISTS `outwards` (
   CONSTRAINT `fk_outw_si` FOREIGN KEY (`sales_invoice_id`) REFERENCES `sales_invoices` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `outward_asset_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `concern_id` int(11) NOT NULL,
+  `outward_id` int(11) NOT NULL,
+  `asset_id` int(11) NOT NULL,
+  `asset_source_concern_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_oai_outward_asset` (`outward_id`,`asset_id`),
+  KEY `idx_oai_asset` (`asset_id`),
+  KEY `idx_oai_concern` (`concern_id`),
+  CONSTRAINT `fk_oai_outward` FOREIGN KEY (`outward_id`) REFERENCES `outwards` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_oai_asset` FOREIGN KEY (`asset_id`) REFERENCES `assets` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `inward_asset_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `concern_id` int(11) NOT NULL,
+  `inward_id` int(11) NOT NULL,
+  `outward_asset_item_id` int(11) NOT NULL,
+  `asset_id` int(11) NOT NULL,
+  `received_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_iai_outward_asset_item` (`outward_asset_item_id`),
+  KEY `idx_iai_asset` (`asset_id`),
+  KEY `idx_iai_concern` (`concern_id`),
+  CONSTRAINT `fk_iai_inward` FOREIGN KEY (`inward_id`) REFERENCES `inwards` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_iai_outward_asset_item` FOREIGN KEY (`outward_asset_item_id`) REFERENCES `outward_asset_items` (`id`),
+  CONSTRAINT `fk_iai_asset` FOREIGN KEY (`asset_id`) REFERENCES `assets` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `pos_coupons` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `concern_id` int(11) NOT NULL,
@@ -1571,10 +1602,14 @@ CREATE TABLE IF NOT EXISTS `sales_invoices` (
   `billing_company_email` varchar(150) DEFAULT NULL,
   `billing_company_gstin` varchar(15) DEFAULT NULL,
   `notes` text DEFAULT NULL,
+  `voided_at` datetime DEFAULT NULL,
+  `voided_by` int(11) DEFAULT NULL,
+  `void_reason` varchar(255) DEFAULT NULL,
   `created_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_si_concern` (`concern_id`),
+  KEY `idx_si_voided_at` (`voided_at`),
   KEY `fk_si_cust` (`customer_id`),
   CONSTRAINT `fk_si_concern` FOREIGN KEY (`concern_id`) REFERENCES `concerns` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_si_cust` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`)

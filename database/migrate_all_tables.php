@@ -243,12 +243,17 @@ $upCols = array_column(DB::fetchAll("SHOW COLUMNS FROM `user_permissions`"), 'Fi
 if (!in_array('concern_id', $upCols)) {
     DB::query("ALTER TABLE `user_permissions` ADD COLUMN `concern_id` INT NULL AFTER `user_id`");
     try { DB::query("ALTER TABLE `user_permissions` DROP INDEX `uk_user_module`"); } catch (\Throwable $e) {}
+
     try { DB::query("ALTER TABLE `user_permissions` ADD UNIQUE KEY `uk_user_concern_module` (`user_id`, `concern_id`, `module_id`)"); } catch (\Throwable $e) {}
     try { DB::query("ALTER TABLE `user_permissions` ADD INDEX `idx_up_concern` (`concern_id`)"); } catch (\Throwable $e) {}
     echo "  + Added `concern_id` and updated unique constraint on `user_permissions`\n";
 } else {
     echo "  . `concern_id` already exists on `user_permissions`\n";
 }
+
+echo "\n10a. Ensuring fixed-asset outward/inward transfer tables...\n";
+\App\Services\AssetTransferSchema::ensure();
+echo "  + Fixed-asset transfer tables are ready\n";
 
 // 11. EXPENSE_CATEGORIES
 echo "\n11. Checking `expense_categories`...\n";
@@ -676,6 +681,83 @@ foreach ($companyInvoiceColumns as $column => $definition) {
     }
 }
 echo "  + POS direct bill and company invoice fields are ready\n";
+
+// 19a. POS INVOICE NUMBERING AND VOID HISTORY
+echo "\n19a. Checking POS invoice numbering and void history...\n";
+if (!in_array('voided_at', $invoiceCols, true)) {
+    DB::query("ALTER TABLE `sales_invoices` ADD COLUMN `voided_at` DATETIME NULL AFTER `notes`");
+    $invoiceCols[] = 'voided_at';
+    echo "  + Added `voided_at` to `sales_invoices`\n";
+}
+if (!in_array('voided_by', $invoiceCols, true)) {
+    DB::query("ALTER TABLE `sales_invoices` ADD COLUMN `voided_by` INT NULL AFTER `voided_at`");
+    $invoiceCols[] = 'voided_by';
+    echo "  + Added `voided_by` to `sales_invoices`\n";
+}
+if (!in_array('void_reason', $invoiceCols, true)) {
+    DB::query("ALTER TABLE `sales_invoices` ADD COLUMN `void_reason` VARCHAR(255) NULL AFTER `voided_by`");
+    $invoiceCols[] = 'void_reason';
+    echo "  + Added `void_reason` to `sales_invoices`\n";
+}
+$invoiceIndexes = array_column(DB::fetchAll("SHOW INDEX FROM `sales_invoices`"), 'Key_name');
+if (!in_array('idx_si_voided_at', $invoiceIndexes, true)) {
+    DB::query("ALTER TABLE `sales_invoices` ADD INDEX `idx_si_voided_at` (`voided_at`)");
+}
+
+$concernsForInvoiceSeries = DB::fetchAll("SELECT id, code FROM concerns ORDER BY id ASC");
+foreach ($concernsForInvoiceSeries as $seriesConcern) {
+    $seriesConcernId = (int)$seriesConcern['id'];
+    $seriesPrefix = rtrim(strtoupper(trim((string)$seriesConcern['code'])), '-');
+    $seriesPrefix = ($seriesPrefix !== '' ? $seriesPrefix : 'INV') . '-';
+    $invoiceRows = DB::fetchAll(
+        "SELECT id, invoice_no FROM sales_invoices WHERE concern_id = ? ORDER BY invoice_date ASC, id ASC",
+        [$seriesConcernId]
+    );
+    $needsRenumbering = false;
+    foreach ($invoiceRows as $invoiceRow) {
+        if (!preg_match('/^' . preg_quote($seriesPrefix, '/') . '\d+$/', (string)$invoiceRow['invoice_no'])) {
+            $needsRenumbering = true;
+            break;
+        }
+    }
+
+    DB::beginTransaction();
+    try {
+        if ($needsRenumbering) {
+            $sequence = 1;
+            foreach ($invoiceRows as $invoiceRow) {
+                DB::query(
+                    "UPDATE sales_invoices SET invoice_no = ? WHERE id = ? AND concern_id = ?",
+                    [$seriesPrefix . sprintf('%02d', $sequence), (int)$invoiceRow['id'], $seriesConcernId]
+                );
+                $sequence++;
+            }
+            echo "  + Renumbered " . count($invoiceRows) . " invoices for concern #{$seriesConcernId}\n";
+        }
+
+        $maxSequence = 0;
+        foreach ($invoiceRows as $invoiceRow) {
+            $number = (string)$invoiceRow['invoice_no'];
+            if (preg_match('/^' . preg_quote($seriesPrefix, '/') . '(\d+)$/', $number, $matches)) {
+                $maxSequence = max($maxSequence, (int)$matches[1]);
+            }
+        }
+        if ($needsRenumbering) {
+            $maxSequence = count($invoiceRows);
+        }
+        DB::query(
+            "INSERT INTO doc_series (concern_id, doc_type, prefix, next_no)
+             VALUES (?, 'INVOICE', ?, ?)
+             ON DUPLICATE KEY UPDATE prefix = VALUES(prefix), next_no = VALUES(next_no)",
+            [$seriesConcernId, $seriesPrefix, $maxSequence + 1]
+        );
+        DB::commit();
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        throw $e;
+    }
+}
+echo "  + POS invoice numbering and void-history fields are ready\n";
 
 // 20. Align nullability and defaults with schema.sql
 echo "\n20. Aligning required column constraints...\n";

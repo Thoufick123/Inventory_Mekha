@@ -147,7 +147,10 @@
                                 <!-- 5. TOTAL PIECES -->
                                 <td>
                                     <span class="fw-bold text-success fs-6">
-                                        <?= (int)$o['pieces_count'] ?> pcs <span class="small text-muted font-normal">(<?= (int)$o['cartons_count'] ?> box)</span>
+                                        <?= (int)$o['pieces_count'] ?> <?= !empty($o['asset_count']) ? 'asset(s)' : 'pcs' ?>
+                                        <?php if (empty($o['asset_count'])): ?>
+                                            <span class="small text-muted font-normal">(<?= (int)$o['cartons_count'] ?> box)</span>
+                                        <?php endif; ?>
                                     </span>
                                 </td>
 

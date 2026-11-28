@@ -355,7 +355,7 @@ class ProductionReturnController extends Controller {
             $invoice = DB::fetch(
                 "SELECT id, concern_id, customer_id, total_amount, tax_amount
                  FROM sales_invoices
-                 WHERE id = ? AND concern_id = ?
+                 WHERE id = ? AND concern_id = ? AND voided_at IS NULL
                  LIMIT 1 FOR UPDATE",
                 [$salesInvoiceId, $concernId]
             );
@@ -786,7 +786,7 @@ class ProductionReturnController extends Controller {
             "SELECT si.*, c.name AS customer_name, c.phone AS customer_phone 
              FROM sales_invoices si
              LEFT JOIN customers c ON si.customer_id = c.id
-             WHERE si.invoice_no = ? AND (si.concern_id = ? OR ? IS NULL)",
+             WHERE si.invoice_no = ? AND si.voided_at IS NULL AND (si.concern_id = ? OR ? IS NULL)",
             [$invoiceNo, $cid, $cid]
         );
 
@@ -881,7 +881,7 @@ class ProductionReturnController extends Controller {
                 $invoice = DB::fetch(
                     "SELECT id, concern_id, customer_id, total_amount, tax_amount
                      FROM sales_invoices
-                     WHERE id = ? AND concern_id = ?
+                     WHERE id = ? AND concern_id = ? AND voided_at IS NULL
                      LIMIT 1 FOR UPDATE",
                     [$salesInvoiceId, $cid]
                 );

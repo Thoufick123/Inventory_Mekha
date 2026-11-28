@@ -211,6 +211,7 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
                             <option value="all" <?= $status === 'all' ? 'selected' : '' ?>>All payment statuses</option>
                             <option value="paid" <?= $status === 'paid' ? 'selected' : '' ?>>Paid Bills</option>
                             <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>Pending Bills</option>
+                            <option value="voided" <?= $status === 'voided' ? 'selected' : '' ?>>Voided Bills</option>
                         </select>
                     </div>
                     <div class="col-12 d-flex justify-content-end">
@@ -244,8 +245,9 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
                     <?php else: ?>
                         <?php foreach ($invoices as $invoice): ?>
                             <?php
+                            $isVoided = !empty($invoice['voided_at']);
                             $paymentStatus = strtolower((string)($invoice['payment_status'] ?? 'unpaid'));
-                            $statusClass = $paymentStatus === 'paid' ? 'success' : ($paymentStatus === 'partial' ? 'warning' : 'secondary');
+                            $statusClass = $isVoided ? 'danger' : ($paymentStatus === 'paid' ? 'success' : ($paymentStatus === 'partial' ? 'warning' : 'secondary'));
                             ?>
                             <tr>
                                 <td class="ps-3 fw-semibold"><?= htmlspecialchars($invoice['invoice_no'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -268,9 +270,9 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
                                 <td class="text-center"><?= number_format((int)$invoice['items_count']) ?></td>
                                 <td class="text-end fw-bold">₹<?= number_format((float)$invoice['net_amount'], 2) ?></td>
                                 <td><span class="badge bg-primary-subtle text-primary text-uppercase"><?= htmlspecialchars($formatPaymentMethod($invoice['payment_method']), ENT_QUOTES, 'UTF-8') ?></span></td>
-                                <td><span class="badge bg-<?= $statusClass ?>-subtle text-<?= $statusClass ?> text-uppercase"><?= htmlspecialchars($paymentStatus, ENT_QUOTES, 'UTF-8') ?></span></td>
+                                <td><span class="badge bg-<?= $statusClass ?>-subtle text-<?= $statusClass ?> text-uppercase"><?= $isVoided ? 'Voided' : htmlspecialchars($paymentStatus, ENT_QUOTES, 'UTF-8') ?></span></td>
                                 <td class="text-end pe-3 text-nowrap">
-                                    <?php if ($isCompanyBill && (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('outward', 'create'))): ?>
+                                    <?php if (!$isVoided && $isCompanyBill && (\App\Core\Auth::isSuperAdmin() || \App\Core\Auth::can('outward', 'create'))): ?>
                                         <a href="<?= htmlspecialchars(\App\Core\Controller::url('/production/outward?pos_invoice_id=' . (int)$invoice['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-sm btn-outline-success me-1" title="Send Company Bill to Outward">
                                             <i class="bi bi-truck"></i><span class="d-none d-lg-inline ms-1">Outward</span>
                                         </a>
@@ -278,6 +280,21 @@ $formatPaymentMethod = static function ($method) use ($paymentMethodLabels): str
                                     <a href="<?= htmlspecialchars(\App\Core\Controller::url('/m/billing/create?print_id=' . (int)$invoice['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-sm btn-outline-primary" title="Open and print bill">
                                         <i class="bi bi-printer"></i><span class="d-none d-lg-inline ms-1">Print</span>
                                     </a>
+                                    <?php if (!$isVoided && empty($invoice['mutation_blocked']) && \App\Core\Auth::can('billing', 'edit')): ?>
+                                        <a href="<?= htmlspecialchars(\App\Core\Controller::url('/m/billing/create?edit_id=' . (int)$invoice['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-sm btn-outline-warning ms-1" title="Edit invoice">
+                                            <i class="bi bi-pencil-square"></i><span class="d-none d-lg-inline ms-1">Edit</span>
+                                        </a>
+                                    <?php endif; ?>
+                                    <?php if (!$isVoided && empty($invoice['mutation_blocked']) && \App\Core\Auth::can('billing', 'delete')): ?>
+                                        <form method="POST" action="<?= htmlspecialchars(\App\Core\Controller::url('/m/billing/void'), ENT_QUOTES, 'UTF-8') ?>" class="d-inline" onsubmit="return confirm('Void this invoice? It will remain in history, and stock, cash, and coupon usage will be reversed.');">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? \App\Core\Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
+                                            <input type="hidden" name="invoice_id" value="<?= (int)$invoice['id'] ?>">
+                                            <input type="hidden" name="void_reason" value="Voided from POS billing overview">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Void invoice">
+                                                <i class="bi bi-x-circle"></i><span class="d-none d-lg-inline ms-1">Void</span>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

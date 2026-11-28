@@ -57,6 +57,7 @@ $router->get('/admin/assets/export', [AdminController::class, 'exportAssets'], '
 $router->post('/admin/assets/store', [AdminController::class, 'storeAsset'], 'admin_assets', 'add');
 $router->post('/admin/assets/update', [AdminController::class, 'updateAsset'], 'admin_assets', 'edit');
 $router->post('/admin/assets/delete', [AdminController::class, 'deleteAsset'], 'admin_assets', 'delete');
+$router->post('/admin/assets/outward', [OutwardController::class, 'storeAssetTransfer'], 'outward', 'add');
 $router->get('/admin/reports', [AdminController::class, 'reports'], 'admin_reports', 'view');
 $router->get('/admin/reports/export', [AdminController::class, 'exportReports'], 'admin_reports', 'view');
 
@@ -144,6 +145,7 @@ $router->get('/production/inward/view/{id}', [InwardController::class, 'scanView
 $router->get('/production/inwards/view/{id}', [InwardController::class, 'scanView'], 'inward', 'view');
 $router->post('/m/inward/credit', [InwardController::class, 'creditStock'], 'inward', 'add');
 $router->post('/warehouse/inward/credit', [InwardController::class, 'creditStock'], 'inward', 'add');
+$router->post('/m/inward/receive-assets', [InwardController::class, 'receiveAssetTransfer'], 'inward', 'add');
 $router->get('/m/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');
 $router->get('/warehouse/inward/pieces/{id}', [InwardController::class, 'piecesJson'], 'inward', 'view');
 $router->get('/m/inward/export', [InwardController::class, 'exportInward'], 'inward', 'export');
@@ -237,12 +239,14 @@ $router->get('/production/batches/label/{id}', [\App\Controllers\BatchController
 $router->get('/production/batches/challan/{id}', [\App\Controllers\BatchController::class, 'challan'], 'outward', 'view');
 $router->get('/production/batches/pieces/{id}', [\App\Controllers\BatchController::class, 'pieces'], 'label_generation', 'view');
 $router->get('/m/billing', [SalesController::class, 'billingOverview'], 'billing', 'view');
-$router->get('/m/billing/create', [SalesController::class, 'billing'], 'billing', 'add');
+$router->get('/m/billing/create', [SalesController::class, 'billing'], 'billing', 'view');
 $router->get('/m/billing/export', [SalesController::class, 'exportBilling'], 'billing', 'export');
 $router->post('/m/billing/store', [SalesController::class, 'storeInvoice'], 'billing', 'add');
 $router->get('/shop/pos', [SalesController::class, 'billingOverview'], 'billing', 'view');
 $router->post('/shop/pos/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
 $router->post('/m/billing/complete', [SalesController::class, 'completePosSale'], 'billing', 'add');
+$router->post('/m/billing/update', [SalesController::class, 'completePosSale'], 'billing', 'edit');
+$router->post('/m/billing/void', [SalesController::class, 'voidPosInvoice'], 'billing', 'delete');
 $router->get('/m/billing/channels', [SalesController::class, 'listCustomerChannels'], 'billing', 'view');
 $router->post('/m/billing/channels/add', [SalesController::class, 'storeCustomerChannel'], 'billing', 'add');
 $router->post('/m/billing/channels/update', [SalesController::class, 'updateCustomerChannel'], 'billing', 'edit');
