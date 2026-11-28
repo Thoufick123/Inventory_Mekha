@@ -90,7 +90,7 @@ class StaffController extends Controller {
                 DB::query('ALTER TABLE `staff` ADD COLUMN `password_hash` VARCHAR(255) NULL AFTER `email`');
             }
 
-            // Self-heal: ensure admin_assets and admin_reports are provisionable and enabled for ALL concerns
+            // Ensure admin_assets and admin_reports definitions exist and are provisionable
             DB::query("INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
                        VALUES ('admin_assets', 'Asset Management', 'bi-building-gear', 3, 'Super Admin', 0)
                        ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Asset Management', group_name = 'Super Admin'");
@@ -98,19 +98,6 @@ class StaffController extends Controller {
                        VALUES ('admin_reports', 'Consolidated Reports', 'bi-bar-chart-line', 4, 'Super Admin', 0)
                        ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Consolidated Reports', group_name = 'Super Admin'");
             DB::query("UPDATE modules SET is_super_admin_only = 0, group_name = 'Super Admin' WHERE code IN ('admin_assets', 'admin_reports')");
-            DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled)
-                       SELECT c.id, m.id, 1
-                       FROM concerns c
-                       CROSS JOIN modules m
-                       WHERE m.code IN ('admin_assets', 'admin_reports')
-                       ON DUPLICATE KEY UPDATE enabled = 1");
-            DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
-                       SELECT r.id, m.id, 1, 1, 1, 1
-                       FROM roles r
-                       CROSS JOIN modules m
-                       WHERE m.code IN ('admin_assets', 'admin_reports')
-                         AND (r.name LIKE '%Administrator%' OR r.name LIKE '%Admin%')
-                       ON DUPLICATE KEY UPDATE can_view = 1, can_add = 1, can_edit = 1, can_delete = 1");
 
             // Purge obsolete modules
             $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];

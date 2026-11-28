@@ -140,21 +140,8 @@ class AdminController extends Controller {
                            SELECT id, ?, 1, 1, 1, 1 FROM roles", [$dashModId]);
             }
 
-            // Self-heal: ensure admin_assets and admin_reports are provisionable and enabled for ALL concerns
+            // Ensure admin_assets and admin_reports can be provisioned if selected
             DB::query("UPDATE modules SET is_super_admin_only = 0 WHERE code IN ('admin_assets', 'admin_reports')");
-            DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled)
-                       SELECT c.id, m.id, 1
-                       FROM concerns c
-                       CROSS JOIN modules m
-                       WHERE m.code IN ('admin_assets', 'admin_reports')
-                       ON DUPLICATE KEY UPDATE enabled = 1");
-            DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
-                       SELECT r.id, m.id, 1, 1, 1, 1
-                       FROM roles r
-                       CROSS JOIN modules m
-                       WHERE (r.name LIKE '%Administrator%' OR r.name LIKE '%Admin%')
-                         AND m.code IN ('admin_assets', 'admin_reports')
-                       ON DUPLICATE KEY UPDATE can_view = 1, can_add = 1, can_edit = 1, can_delete = 1");
 
             // Purge obsolete modules
             $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
@@ -378,9 +365,9 @@ class AdminController extends Controller {
                 }
                 $pickedModuleIds[] = (int)$moduleId;
             }
-            $autoMods = DB::fetchAll("SELECT id FROM modules WHERE code IN ('concern_dashboard', 'admin_assets', 'admin_reports')");
-            foreach ($autoMods as $am) {
-                $pickedModuleIds[] = (int)$am['id'];
+            $dashMod = DB::fetch("SELECT id FROM modules WHERE code = 'concern_dashboard'");
+            if ($dashMod) {
+                $pickedModuleIds[] = (int)$dashMod['id'];
             }
             $pickedModuleIds = array_values(array_unique($pickedModuleIds));
         }
@@ -729,6 +716,13 @@ class AdminController extends Controller {
                     $upsertCm->execute([$id, $m['id'], $enabled]);
                 }
 
+                $disabledIds = array_values(array_diff(array_map('intval', array_column($allConcernModules, 'id')), $pickedModuleIds));
+                if (!empty($disabledIds)) {
+                    $inPlaceholders = implode(',', array_fill(0, count($disabledIds), '?'));
+                    DB::query("DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE concern_id = ?) AND module_id IN ($inPlaceholders)", array_merge([$id], $disabledIds));
+                    DB::query("DELETE FROM user_permissions WHERE concern_id = ? AND module_id IN ($inPlaceholders)", array_merge([$id], $disabledIds));
+                }
+
                 $role = DB::fetch("SELECT id FROM roles WHERE concern_id = ? ORDER BY id ASC LIMIT 1", [$id]);
                 if ($role) {
                     $roleId = (int)$role['id'];
@@ -736,6 +730,16 @@ class AdminController extends Controller {
                     foreach ($pickedModuleIds as $modId) {
                         $insertRp->execute([$roleId, $modId]);
                     }
+                }
+
+                if (!empty($_SESSION['concern']['id']) && (int)$_SESSION['concern']['id'] === $id) {
+                    $activeMods = DB::fetchAll(
+                        "SELECT m.code FROM concern_modules cm 
+                         JOIN modules m ON cm.module_id = m.id 
+                         WHERE cm.concern_id = ? AND cm.enabled = 1",
+                        [$id]
+                    );
+                    $_SESSION['enabled_modules'] = array_column($activeMods, 'code');
                 }
             }
 
