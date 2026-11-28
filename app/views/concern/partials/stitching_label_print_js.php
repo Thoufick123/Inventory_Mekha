@@ -1,27 +1,29 @@
 <!-- Choose Label Counts Modal (Stitching) -->
 <div class="modal fade" id="modalStitchingLabelCounts" tabindex="-1" aria-labelledby="modalStitchingLabelCountsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
             <div class="modal-header border-bottom bg-white px-4 py-3">
                 <h5 class="modal-title fw-bold text-dark" id="modalStitchingLabelCountsLabel">Choose label counts</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-4">
-                <div class="border rounded-3 overflow-hidden">
-                    <table class="table align-middle mb-0">
-                        <thead class="table-light text-uppercase small text-secondary">
+            <div class="modal-body p-3">
+                <div class="table-responsive border rounded-3">
+                    <table class="table table-bordered table-striped table-hover table-sm align-middle mb-0" style="font-size: 0.84rem;">
+                        <thead class="text-uppercase small text-secondary" style="background-color: #f1f5f9; font-size: 0.72rem;">
                             <tr>
-                                <th class="ps-3 py-2 fw-semibold">Selected Line</th>
-                                <th class="text-end pe-3 py-2 fw-semibold" style="width: 140px;">Copies</th>
+                                <th class="text-center py-2" style="width: 45px;">#</th>
+                                <th class="py-2">Selected Line</th>
+                                <th class="text-center py-2" style="width: 120px;">Stitched Qty</th>
+                                <th class="text-center py-2" style="width: 120px;">Copies</th>
                             </tr>
                         </thead>
                         <tbody id="stitchingLabelCountsBody"></tbody>
                     </table>
                 </div>
             </div>
-            <div class="modal-footer border-0 bg-white px-4 pb-4 pt-0 gap-2">
-                <button type="button" class="btn btn-outline-secondary px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary px-3 fw-semibold" id="btnConfirmStitchingLabels">
+            <div class="modal-footer border-top bg-light px-4 py-2.5 gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary px-3 fw-semibold" id="btnConfirmStitchingLabels">
                     <i class="bi bi-printer-fill me-1"></i> Generate labels
                 </button>
             </div>
@@ -73,21 +75,20 @@
         const tbody = document.getElementById('stitchingLabelCountsBody');
         if (!tbody) return;
 
-        tbody.innerHTML = (config.rows || []).map(function(row) {
+        tbody.innerHTML = (config.rows || []).map(function(row, idx) {
             const qtyVal = Math.max(1, parseInt(row.qty, 10) || 1);
             return `
                 <tr>
-                    <td class="ps-3 py-3">
-                        <div class="fw-bold text-dark">${escapeHtml(row.name)}</div>
-                        <div class="text-muted small">${escapeHtml(row.subtitle)}</div>
-                    </td>
-                    <td class="text-end pe-3 py-3">
+                    <td class="text-center text-muted small fw-semibold">${idx + 1}</td>
+                    <td class="fw-semibold text-dark text-nowrap">${escapeHtml(row.name)}</td>
+                    <td class="text-center text-dark small text-nowrap font-monospace">${escapeHtml(row.subtitle)}</td>
+                    <td class="text-center">
                         <input type="number"
                                min="${config.mode === 'batch' ? 0 : 1}"
                                max="2000"
                                step="1"
-                               class="form-control text-center fw-semibold stitching-label-copy-input ms-auto"
-                               style="width: 110px;"
+                               class="form-control form-control-sm text-center fw-semibold stitching-label-copy-input mx-auto"
+                               style="width: 90px;"
                                data-item-id="${escapeHtml(row.itemId)}"
                                value="${qtyVal}">
                     </td>
@@ -149,14 +150,15 @@
     window.openStitchingVariantLabelModal = function(itemId, name, subtitle, defaultQty) {
         const id = parseInt(itemId, 10) || 0;
         if (id <= 0) return;
+        const q = Math.max(1, parseInt(defaultQty, 10) || 1);
         openCountModal({
             mode: 'variant',
             itemId: id,
             rows: [{
                 itemId: id,
                 name: name || 'Variant',
-                subtitle: subtitle || ('print count / stitched qty ' + (parseInt(defaultQty, 10) || 1)),
-                qty: Math.max(1, parseInt(defaultQty, 10) || 1)
+                subtitle: q + ' pcs',
+                qty: q
             }]
         });
     };
@@ -169,7 +171,7 @@
             return {
                 itemId: it.id,
                 name: it.name || 'Variant',
-                subtitle: (it.product_code ? ('Product Code: ' + it.product_code + ' • ') : '') + 'stitched qty ' + q,
+                subtitle: q + ' pcs',
                 qty: q
             };
         });

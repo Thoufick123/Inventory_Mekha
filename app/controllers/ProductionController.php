@@ -6612,19 +6612,41 @@ class ProductionController extends Controller {
         if (!$batch) {
             $this->flash('error', 'Stitching Batch not found.');
             $this->redirect('/production/stitching');
+            return;
+        }
+
+        $linkedQc = DB::fetch(
+            "SELECT id, qc_no FROM qc_inspections WHERE stitching_batch_id = ? AND UPPER(COALESCE(status, '')) != 'CANCELLED' LIMIT 1",
+            [$id]
+        );
+        if ($linkedQc) {
+            $batchLabel = $batch['batch_no'] ?: ($batch['log_no'] ?: ('#' . $id));
+            $this->flash('error', "Cannot delete Stitching Batch '{$batchLabel}': linked QC inspection ({$linkedQc['qc_no']}) exists. Delete the QC inspection first.");
+            $this->redirect('/production/stitching');
+            return;
         }
 
         DB::beginTransaction();
         try {
-            // Revert stock inward transactions for this batch
-            $items = DB::fetchAll("SELECT * FROM stitching_items WHERE stitching_id = ?", [$id]);
-            foreach ($items as $it) {
-                if ($it['variant_id'] && $it['stitching_qty'] > 0) {
+            // Only reverse stock that was actually credited by this stitching batch in stock_ledger
+            $creditedRows = DB::fetchAll(
+                "SELECT variant_id, location, COALESCE(SUM(qty_in - qty_out), 0) AS net_qty
+                 FROM stock_ledger
+                 WHERE concern_id = ? AND ref_id = ? AND ref_module IN ('Stitching', 'Stitching Output', 'Stitching Inward')
+                 GROUP BY variant_id, location
+                 HAVING net_qty > 0",
+                [(int)$batch['concern_id'], $id]
+            );
+            foreach ($creditedRows as $cr) {
+                $vId = (int)($cr['variant_id'] ?? 0);
+                $revQty = (float)($cr['net_qty'] ?? 0);
+                $loc = $cr['location'] ?: 'Main Store';
+                if ($vId > 0 && $revQty > 0) {
                     StockService::move(
-                        $batch['concern_id'],
-                        $it['variant_id'],
-                        'Main Store',
-                        -$it['stitching_qty'],
+                        (int)$batch['concern_id'],
+                        $vId,
+                        $loc,
+                        -$revQty,
                         0.00,
                         'Stitching Reversal',
                         $id,
@@ -6640,7 +6662,7 @@ class ProductionController extends Controller {
             DB::query("DELETE FROM stitching_logs WHERE id = ?", [$id]);
 
             DB::commit();
-            $this->flash('success', "Stitching Batch '{$batch['batch_no']}' deleted and warehouse stocks adjusted.");
+            $this->flash('success', "Stitching Batch '{$batch['batch_no']}' deleted successfully.");
         } catch (Exception $e) {
             DB::rollBack();
             $this->flash('error', 'Failed to delete Stitching Batch: ' . $e->getMessage());
