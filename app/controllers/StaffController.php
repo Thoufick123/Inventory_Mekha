@@ -90,7 +90,7 @@ class StaffController extends Controller {
                 DB::query('ALTER TABLE `staff` ADD COLUMN `password_hash` VARCHAR(255) NULL AFTER `email`');
             }
 
-            // Self-heal: ensure admin_assets and admin_reports are provisionable and enabled for ALL concerns
+            // Ensure admin_assets and admin_reports definitions exist and are provisionable
             DB::query("INSERT INTO modules (code, name, icon, sort_order, group_name, is_super_admin_only)
                        VALUES ('admin_assets', 'Asset Management', 'bi-building-gear', 3, 'Super Admin', 0)
                        ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Asset Management', group_name = 'Super Admin'");
@@ -98,19 +98,6 @@ class StaffController extends Controller {
                        VALUES ('admin_reports', 'Consolidated Reports', 'bi-bar-chart-line', 4, 'Super Admin', 0)
                        ON DUPLICATE KEY UPDATE is_super_admin_only = 0, name = 'Consolidated Reports', group_name = 'Super Admin'");
             DB::query("UPDATE modules SET is_super_admin_only = 0, group_name = 'Super Admin' WHERE code IN ('admin_assets', 'admin_reports')");
-            DB::query("INSERT INTO concern_modules (concern_id, module_id, enabled)
-                       SELECT c.id, m.id, 1
-                       FROM concerns c
-                       CROSS JOIN modules m
-                       WHERE m.code IN ('admin_assets', 'admin_reports')
-                       ON DUPLICATE KEY UPDATE enabled = 1");
-            DB::query("INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
-                       SELECT r.id, m.id, 1, 1, 1, 1
-                       FROM roles r
-                       CROSS JOIN modules m
-                       WHERE m.code IN ('admin_assets', 'admin_reports')
-                         AND (r.name LIKE '%Administrator%' OR r.name LIKE '%Admin%')
-                       ON DUPLICATE KEY UPDATE can_view = 1, can_add = 1, can_edit = 1, can_delete = 1");
 
             // Purge obsolete modules
             $obsoleteCodes = ['label_generation', 'batch', 'dispatch', 'suppliers', 'purchase_damage', 'catalog_mapping', 'staff_create', 'staff_roles'];
@@ -1110,7 +1097,7 @@ class StaffController extends Controller {
                     LEFT JOIN concerns c ON r.concern_id = c.id
                     LEFT JOIN users u ON u.role_id = r.id
                     LEFT JOIN staff s ON s.user_id = u.id
-                    WHERE 1=1";
+                    WHERE r.name NOT IN ('Super Admin', 'Concern Administrator')";
         $roleParams = [];
         if ($concernFilter) {
             $roleSql .= " AND (r.concern_id = ? OR r.concern_id IS NULL)";
@@ -1198,12 +1185,25 @@ class StaffController extends Controller {
             }
         }
 
+        // All roles permissions map for instant view and modal editing
+        $allRolePerms = [];
+        $rpAllRows = DB::fetchAll("SELECT role_id, module_id, can_view, can_add, can_edit, can_delete FROM role_permissions");
+        foreach ($rpAllRows as $rp) {
+            $allRolePerms[(int)$rp['role_id']][(int)$rp['module_id']] = [
+                'view'   => (int)$rp['can_view'],
+                'add'    => (int)$rp['can_add'],
+                'edit'   => (int)$rp['can_edit'],
+                'delete' => (int)$rp['can_delete'],
+            ];
+        }
+
         $this->render('concern/staff_roles', [
             'pageTitle'            => 'Staff Role & Access Assignment',
             'currentModule'        => 'staff',
             'currentSubModule'     => 'roles',
             'allConcerns'          => $allConcerns,
             'allRoles'             => $allRoles,
+            'allRolePerms'         => $allRolePerms,
             'assignedRolesCount'   => $assignedRolesCount,
             'unassignedRolesCount' => $unassignedRolesCount,
             'staffWithRolesCount'  => $staffWithRolesCount,
@@ -1756,6 +1756,80 @@ class StaffController extends Controller {
         }
     }
 
+    public function updateRole(): void {
+        ModuleGuard::enforce('staff', 'edit');
+        $this->validateCsrf();
+
+        $roleId = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $concernId = isset($_POST['concern_id']) && $_POST['concern_id'] !== '' ? (int)$_POST['concern_id'] : null;
+        if ($concernId === 0) {
+            $concernId = null;
+        }
+        $perms = (array)($_POST['perms'] ?? []);
+
+        if ($roleId <= 1) {
+            $this->flash('error', 'The primary Master Super Admin role cannot be modified.');
+            $this->redirect('/m/staff/roles');
+        }
+
+        if (!$name) {
+            $this->flash('error', 'Role name cannot be empty.');
+            $this->redirect('/m/staff/roles');
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::query(
+                "UPDATE roles SET name = ?, description = ?, concern_id = ? WHERE id = ?",
+                [$name, $description, $concernId, $roleId]
+            );
+
+            // Update role permissions
+            $modules = DB::fetchAll("SELECT id FROM modules WHERE is_super_admin_only = 0 AND code != 'cash'");
+            $stmt = DB::pdo()->prepare(
+                "INSERT INTO role_permissions (role_id, module_id, can_view, can_add, can_edit, can_delete)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_add = VALUES(can_add), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)"
+            );
+
+            foreach ($modules as $m) {
+                $mid = (int)$m['id'];
+                $canView = !empty($perms[$mid]['view']) ? 1 : 0;
+                $canAdd = !empty($perms[$mid]['add']) ? 1 : 0;
+                $canEdit = !empty($perms[$mid]['edit']) ? 1 : 0;
+                $canDelete = !empty($perms[$mid]['delete']) ? 1 : 0;
+                $stmt->execute([$roleId, $mid, $canView, $canAdd, $canEdit, $canDelete]);
+            }
+
+            AuditLog::record(
+                $concernId,
+                'roles',
+                $roleId,
+                'ROLE_UPDATE',
+                null,
+                ['name' => $name, 'concern_id' => $concernId],
+                "Updated role {$name} (ID: {$roleId})"
+            );
+
+            DB::commit();
+
+            // If the current logged-in user has this role, refresh session permissions
+            if ((int)($_SESSION['user']['role_id'] ?? 0) === $roleId) {
+                Auth::loadPermissions((int)Auth::id(), $roleId);
+            }
+
+            $this->flash('success', "Role '{$name}' updated successfully.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            error_log('StaffController updateRole error: ' . $e->getMessage());
+            $this->flash('error', 'Failed to update role: ' . $e->getMessage());
+        }
+
+        $this->redirect('/m/staff/roles');
+    }
+
     public function deleteRole(): void {
         ModuleGuard::enforce('staff', 'delete');
         $this->validateCsrf();
@@ -1772,15 +1846,23 @@ class StaffController extends Controller {
             $this->redirect('/m/staff/roles');
         }
 
-        // Check if any user or staff has this role
-        $assignedUsers = (int)DB::fetchValue("SELECT COUNT(*) FROM users WHERE role_id = ?", [$roleId]);
-        if ($assignedUsers > 0) {
-            $this->flash('error', "Cannot delete role '{$role['name']}' because it is assigned to {$assignedUsers} user(s). Reassign them first.");
-            $this->redirect('/m/staff/roles');
-        }
-
         DB::beginTransaction();
         try {
+            // If users are assigned to this role, reassign them to an available fallback role to satisfy foreign keys
+            $assignedUsers = (int)DB::fetchValue("SELECT COUNT(*) FROM users WHERE role_id = ?", [$roleId]);
+            if ($assignedUsers > 0) {
+                $fallbackRoleId = (int)DB::fetchValue(
+                    "SELECT id FROM roles WHERE id != ? AND (concern_id = ? OR concern_id IS NULL) AND id != 1 ORDER BY id ASC LIMIT 1",
+                    [$roleId, $role['concern_id']]
+                );
+                if (!$fallbackRoleId) {
+                    $fallbackRoleId = (int)DB::fetchValue("SELECT id FROM roles WHERE id != ? AND id != 1 ORDER BY id ASC LIMIT 1", [$roleId]);
+                }
+                if ($fallbackRoleId) {
+                    DB::query("UPDATE users SET role_id = ? WHERE role_id = ?", [$fallbackRoleId, $roleId]);
+                }
+            }
+
             DB::query("DELETE FROM role_permissions WHERE role_id = ?", [$roleId]);
             DB::query("DELETE FROM roles WHERE id = ?", [$roleId]);
             DB::commit();

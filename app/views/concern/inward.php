@@ -1,6 +1,32 @@
 <?php
 // app/views/concern/inward.php - Production Inward (GRN) Management
 ?>
+<style>
+.inward-table-format {
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.inward-table-format thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1 !important;
+    white-space: nowrap;
+}
+.inward-table-format tbody td {
+    padding: 0.55rem 0.75rem;
+    border-color: #e2e8f0 !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.inward-table-format tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
 <div class="container-fluid px-0">
     <!-- Breadcrumbs & Header -->
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -32,7 +58,7 @@
     </div>
 
     <!-- 1. Top 3 KPI Summary Cards -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-3">
         <!-- Awaiting GRN -->
         <div class="col-12 col-md-4">
             <div class="card border-0 shadow-sm rounded-3 h-100 p-3" style="border-left: 4px solid #ef4444 !important; background: #fff;">
@@ -98,7 +124,27 @@
     include dirname(__DIR__) . '/partials/export_card.php';
     ?>
 
+<<<<<<< HEAD
     <!-- 2. Search & Filter Bar -->
+=======
+    <!-- 2. View Mode Switcher -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.75rem;">VIEW MODE:</span>
+            <button type="button" class="btn btn-sm btn-primary px-3 rounded-pill fw-semibold shadow-sm view-mode-btn active" id="btnModeLedger" onclick="switchViewMode('ledger')">
+                <i class="bi bi-list-task me-1"></i> List / Ledger View <span class="badge bg-white text-primary ms-1"><?= count($inwardBatches) ?></span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary px-3 rounded-pill fw-semibold view-mode-btn" id="btnModeCards" onclick="switchViewMode('cards')">
+                <i class="bi bi-grid-fill me-1"></i> Batch Cards View <span class="badge bg-secondary ms-1"><?= count($inwardBatches) ?></span>
+            </button>
+        </div>
+        <a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-xs">
+            <i class="bi bi-arrow-left me-1"></i> Dashboard
+        </a>
+    </div>
+
+    <!-- 3. Search & Filter Bar -->
+>>>>>>> 8d6dd225cebc6743df3e92d8c47cfc3f5e264b60
     <div class="card border-0 shadow-sm rounded-3 mb-4 p-3 bg-white">
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-4">
@@ -142,9 +188,10 @@
             <span class="badge bg-light text-dark border font-monospace" id="dispatchesCounter">Showing <?= count($inwardBatches) ?> Dispatches</span>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="inwardLedgerTable">
-                <thead class="table-light small text-uppercase fw-semibold" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+            <table class="table table-bordered table-striped table-hover align-middle mb-0 inward-table-format" id="inwardLedgerTable">
+                <thead>
                     <tr>
+<<<<<<< HEAD
                         <th class="ps-3">OUTWARD NO.</th>
                         <th>PRODUCT</th>
                         <th>SOURCE</th>
@@ -152,6 +199,15 @@
                         <th>DISPATCH DATE & VEHICLE</th>
                         <th>STATUS</th>
                         <th class="text-end pe-3">ACTIONS</th>
+=======
+                        <th>Batch / Outward</th>
+                        <th>Program &amp; Product</th>
+                        <th>Source &rarr; Destination</th>
+                        <th class="text-end">Qty (Boxes)</th>
+                        <th>Dispatch Date &amp; Vehicle</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Actions</th>
+>>>>>>> 8d6dd225cebc6743df3e92d8c47cfc3f5e264b60
                     </tr>
                 </thead>
                 <tbody>
@@ -192,26 +248,26 @@
                             <td>
                                 <span class="fw-semibold text-dark"><?= htmlspecialchars($sourceConcernName) ?></span>
                             </td>
-                            <td>
-                                <div class="fs-6 fw-bold text-success">+<?= number_format($ib['total_qty']) ?> pcs</div>
-                                <small class="text-muted"><?= (int)$ib['total_boxes'] ?> Cartons</small>
+                            <td class="text-end">
+                                <span class="fw-bold text-success">+<?= number_format($ib['total_qty']) ?> pcs</span>
+                                <span class="text-muted small ms-1">(<?= (int)$ib['total_boxes'] ?>)</span>
                             </td>
-                            <td>
-                                <div class="small text-dark fw-medium"><?= date('d M Y, h:i A', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></div>
-                                <small class="text-muted"><i class="bi bi-truck me-1"></i><?= htmlspecialchars($ib['vehicle_number'] ?: 'rtt31232') ?></small>
+                            <td title="<?= htmlspecialchars($dispDateStr) ?>">
+                                <span class="small text-dark"><?= date('d M Y', strtotime($ib['created_at'] ?: $ib['outward_date'])) ?></span>
+                                <span class="text-muted small ms-1"><i class="bi bi-truck"></i> <?= htmlspecialchars($ib['vehicle_number'] ?: '-') ?></span>
                             </td>
-                            <td>
+                            <td class="text-center">
                                 <?php if ($ib['status_badge'] === 'partial'): ?>
-                                    <span class="badge bg-warning text-dark border border-warning px-2.5 py-1.5 fw-semibold" style="font-size: 0.75rem;">
-                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Partial (<?= (int)$ib['short_qty'] ?> Short)
+                                    <span class="badge bg-warning text-dark border border-warning fw-semibold" style="font-size: 0.72rem;">
+                                        Partial (<?= (int)$ib['short_qty'] ?> Short)
                                     </span>
                                 <?php elseif ($ib['status_badge'] === 'awaiting'): ?>
-                                    <span class="badge bg-info text-dark border border-info px-2.5 py-1.5 fw-semibold" style="font-size: 0.75rem;">
-                                        <i class="bi bi-hourglass-split me-1"></i> Awaiting Scan (<?= (int)$ib['short_qty'] ?> Pending)
+                                    <span class="badge bg-info text-dark border border-info fw-semibold" style="font-size: 0.72rem;">
+                                        Awaiting (<?= (int)$ib['short_qty'] ?>)
                                     </span>
                                 <?php else: ?>
-                                    <span class="badge bg-success text-white border border-success px-2.5 py-1.5 fw-semibold" style="font-size: 0.75rem;">
-                                        <i class="bi bi-check-circle-fill me-1"></i> Received & Credited
+                                    <span class="badge bg-success text-white border border-success fw-semibold" style="font-size: 0.72rem;">
+                                        Credited
                                     </span>
                                 <?php endif; ?>
                             </td>

@@ -474,6 +474,7 @@ $router->get('/m/staff/create', [StaffController::class, 'create'], 'staff', 'ad
 $router->get('/m/staff/roles', [StaffController::class, 'roles'], 'staff', 'view');
 $router->get('/m/staff/roles/create', [StaffController::class, 'createRoleView'], 'staff', 'add');
 $router->post('/m/staff/roles/store', [StaffController::class, 'storeRole'], 'staff', 'add');
+$router->post('/m/staff/roles/update', [StaffController::class, 'updateRole'], 'staff', 'edit');
 $router->post('/m/staff/roles/delete', [StaffController::class, 'deleteRole'], 'staff', 'delete');
 $router->post('/m/staff/assign-role', [StaffController::class, 'assignRole'], 'staff', 'edit');
 $router->post('/m/staff/save-role-permissions', [StaffController::class, 'saveRolePermissions'], 'staff', 'edit');
