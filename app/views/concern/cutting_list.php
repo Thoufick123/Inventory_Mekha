@@ -33,26 +33,44 @@
 </style>
 <div class="container-fluid px-4 py-3">
 
-    <!-- BREADCRUMBS -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb mb-0 small">
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/dashboard') ?>" class="text-decoration-none text-muted">Home</a></li>
-            <li class="breadcrumb-item"><a href="<?= \App\Core\Controller::url('/production/catalog') ?>" class="text-decoration-none text-muted">Production</a></li>
-            <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page">Fabric Cutting & Wastage</li>
-        </ol>
-    </nav>
+    <?php
+    $eligibleOutwardBatches = array_values(array_filter(
+        $batches ?? [],
+        static fn($b) => empty($b['outward_id']) && empty($b['inward_source_outward_id'])
+    ));
+    $outwardedBatches = array_values(array_filter(
+        $batches ?? [],
+        static fn($b) => !empty($b['outward_id'])
+    ));
+    ?>
 
-    <!-- HEADER & ACTIONS BAR -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
-                <i class="bi bi-scissors text-primary"></i> Fabric Cutting & Wastage Tracking
-            </h4>
-            <p class="text-secondary small mb-0">
-                Manage production cutting lots, dynamic variant breakdowns, fabric wastage cost analytics, and scrap sales.
-            </p>
-        </div>
-        <div class="d-flex align-items-center gap-2">
+    <!-- TOP BAR: TABS & ACTIONS -->
+    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4 border-bottom pb-3">
+        <ul class="nav nav-pills gap-2 mb-0">
+            <li class="nav-item">
+                <a class="nav-link <?= ($activeTab !== 'wastage' && $activeTab !== 'outward') ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
+                   href="<?= \App\Core\Controller::url('/production/cutting?tab=batches') ?>">
+                    <i class="bi bi-collection"></i> Cutting Batches
+                    <span class="badge bg-light text-dark border ms-1"><?= count($batches) ?></span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?= $activeTab === 'wastage' ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
+                   href="<?= \App\Core\Controller::url('/production/cutting?tab=wastage') ?>">
+                    <i class="bi bi-cash-stack"></i> Wastage Selling & Scrap Sales
+                    <span class="badge bg-light text-dark border ms-1"><?= count($scrapSales) ?></span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?= $activeTab === 'outward' ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
+                   href="<?= \App\Core\Controller::url('/production/cutting?tab=outward') ?>">
+                    <i class="bi bi-send"></i> Cutting Outward
+                    <span class="badge bg-light text-dark border ms-1"><?= count($outwardedBatches) ?></span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <?php if (\App\Core\Auth::can('cutting_wastage', 'edit') || \App\Core\Auth::can('cutting_wastage', 'add')): ?>
             <a href="<?= \App\Core\Controller::url('/production/cutting?tab=outward') ?>"
                class="btn btn-success shadow-sm d-inline-flex align-items-center gap-1.5 fw-semibold">
@@ -71,42 +89,6 @@
             <?php endif; ?>
         </div>
     </div>
-
-    <?php
-    $eligibleOutwardBatches = array_values(array_filter(
-        $batches ?? [],
-        static fn($b) => empty($b['outward_id']) && empty($b['inward_source_outward_id'])
-    ));
-    $outwardedBatches = array_values(array_filter(
-        $batches ?? [],
-        static fn($b) => !empty($b['outward_id'])
-    ));
-    ?>
-
-    <!-- TABS -->
-    <ul class="nav nav-pills mb-4 gap-2 border-bottom pb-2">
-        <li class="nav-item">
-            <a class="nav-link <?= ($activeTab !== 'wastage' && $activeTab !== 'outward') ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
-               href="<?= \App\Core\Controller::url('/production/cutting?tab=batches') ?>">
-                <i class="bi bi-collection"></i> Cutting Batches
-                <span class="badge bg-light text-dark border ms-1"><?= count($batches) ?></span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link <?= $activeTab === 'wastage' ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
-               href="<?= \App\Core\Controller::url('/production/cutting?tab=wastage') ?>">
-                <i class="bi bi-cash-stack"></i> Wastage Selling & Scrap Sales
-                <span class="badge bg-light text-dark border ms-1"><?= count($scrapSales) ?></span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link <?= $activeTab === 'outward' ? 'active' : '' ?> fw-semibold d-inline-flex align-items-center gap-2" 
-               href="<?= \App\Core\Controller::url('/production/cutting?tab=outward') ?>">
-                <i class="bi bi-send"></i> Cutting Outward
-                <span class="badge bg-light text-dark border ms-1"><?= count($outwardedBatches) ?></span>
-            </a>
-        </li>
-    </ul>
 
     <!-- Export Toolbar Card -->
     <?php
