@@ -321,6 +321,35 @@
     </div>
 </div>
 
+<!-- Modal: Confirm Pass All Pending Pieces -->
+<div class="modal fade" id="modalPassAllConfirm" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-success text-white py-3">
+                <h6 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <i class="bi bi-check2-all"></i> Confirm Pass All
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="rounded-circle bg-success-subtle text-success d-inline-flex align-items-center justify-content-center mb-3" style="width: 52px; height: 52px;">
+                    <i class="bi bi-check-circle-fill fs-3"></i>
+                </div>
+                <h6 class="fw-bold text-dark mb-1">Mark all pending pieces as PASSED?</h6>
+                <p class="text-muted small mb-0">
+                    <strong id="passAllPendingCountText">0</strong> pending piece(s) will be marked as <strong>PASSED</strong>.
+                </p>
+            </div>
+            <div class="modal-footer bg-light border-top px-4 py-2.5 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-success px-3 fw-semibold" id="btnConfirmPassAll" onclick="executePassAllPieces()">
+                    <i class="bi bi-check2-all me-1"></i> Yes, Pass All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JAVASCRIPT LOGIC -->
 <script>
 let currentFilter = 'all';
@@ -554,7 +583,22 @@ function submitReworkModal() {
 }
 
 function passAllPieces() {
-    if (!confirm('Mark all pending pieces as PASSED?')) return;
+    const pendingEl = document.getElementById('cntPending');
+    const pendingCountText = document.getElementById('passAllPendingCountText');
+    if (pendingCountText && pendingEl) {
+        pendingCountText.textContent = pendingEl.textContent.trim();
+    }
+    const modalEl = document.getElementById('modalPassAllConfirm');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+}
+
+function executePassAllPieces() {
+    const modalEl = document.getElementById('modalPassAllConfirm');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    }
 
     const formData = new FormData();
     formData.append('csrf_token', '<?= htmlspecialchars($csrfToken) ?>');
