@@ -250,11 +250,16 @@
 
     <!-- SIDEBAR -->
     <nav id="sidebar">
+        <?php $brandConcern = \App\Core\Auth::concern(); ?>
         <div class="brand-header d-flex align-items-center justify-content-between">
             <a href="<?= \App\Core\Controller::url('/') ?>" class="text-white text-decoration-none d-flex align-items-center gap-2">
-                <i class="bi bi-box-seam-fill text-primary fs-4"></i>
+                <?php if (!empty($brandConcern['logo'])): ?>
+                    <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($brandConcern['logo'])) ?>" alt="<?= htmlspecialchars($brandConcern['name'] ?? 'Concern Logo') ?>" style="width: 34px; height: 34px; object-fit: contain; border-radius: 6px; background: #ffffff; padding: 2px;">
+                <?php else: ?>
+                    <i class="bi bi-box-seam-fill text-primary fs-4"></i>
+                <?php endif; ?>
                 <div>
-                    <div class="fw-bold tracking-tight lh-1 text-white">GRM Inventory</div>
+                    <div class="fw-bold tracking-tight lh-1 text-white"><?= htmlspecialchars(!empty($brandConcern['name']) ? $brandConcern['name'] : 'GRM Inventory') ?></div>
                     <small class="text-secondary" style="font-size: 0.68rem; letter-spacing: 0.05em;">MULTI-CONCERN ERP</small>
                 </div>
             </a>

@@ -45,8 +45,15 @@
                                 <span class="badge bg-dark font-monospace fs-6"><?= htmlspecialchars($c['code']) ?></span>
                             </td>
                             <td>
-                                <div class="fw-bold text-dark fs-6"><?= htmlspecialchars($c['name']) ?></div>
-                                <div class="text-muted small"><?= htmlspecialchars($c['address'] ?: 'No address specified') ?></div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <?php if (!empty($c['logo'])): ?>
+                                        <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($c['logo'])) ?>" alt="<?= htmlspecialchars($c['name']) ?>" class="rounded border bg-white p-1" style="width: 36px; height: 36px; object-fit: contain;">
+                                    <?php endif; ?>
+                                    <div>
+                                        <div class="fw-bold text-dark fs-6"><?= htmlspecialchars($c['name']) ?></div>
+                                        <div class="text-muted small"><?= htmlspecialchars($c['address'] ?: 'No address specified') ?></div>
+                                    </div>
+                                </div>
                             </td>
                             <td>
                                 <div><i class="bi bi-telephone text-muted me-1"></i> <?= htmlspecialchars($c['phone'] ?: '-') ?></div>
@@ -153,7 +160,7 @@
 <!-- CREATE CONCERN GUIDED MODAL -->
 <div class="modal fade" id="modalCreateConcern" tabindex="-1">
     <div class="modal-dialog modal-xl">
-        <form action="<?= \App\Core\Controller::url('/admin/concerns/store') ?>" method="POST" class="modal-content" autocomplete="off">
+        <form action="<?= \App\Core\Controller::url('/admin/concerns/store') ?>" method="POST" enctype="multipart/form-data" class="modal-content" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
 
             <div class="modal-header bg-dark text-white">
@@ -198,6 +205,15 @@
                             <label class="form-label small fw-semibold">Registered Address *</label>
                             <textarea name="address" id="newConcernAddress" class="form-control" rows="2" maxlength="1000" minlength="5" placeholder="Complete registered business address" autocomplete="off" required></textarea>
                             <div class="invalid-feedback" id="newConcernAddressFeedback">Registered physical address is required (minimum 5 characters).</div>
+                        </div>
+
+                        <div class="mb-0">
+                            <label class="form-label small fw-semibold">Concern Logo <span class="text-muted fw-normal">(Optional)</span></label>
+                            <input type="file" name="logo" id="newConcernLogo" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,image/svg+xml" onchange="previewConcernLogoInput(this, 'newConcernLogoPreview')">
+                            <div class="d-flex align-items-center gap-2 mt-2">
+                                <img id="newConcernLogoPreview" src="" alt="Logo preview" class="d-none rounded border bg-light p-1" style="width: 48px; height: 48px; object-fit: contain;">
+                                <div class="form-text mt-0">PNG, JPG, WEBP, or SVG. Stored in Cloudinary and shown on invoices &amp; logo.</div>
+                            </div>
                         </div>
                     </div>
 
@@ -271,7 +287,7 @@
 <!-- EDIT CONCERN MODAL -->
 <div class="modal fade" id="modalEditConcern" tabindex="-1">
     <div class="modal-dialog modal-xl">
-        <form action="<?= \App\Core\Controller::url('/admin/concerns/update') ?>" method="POST" class="modal-content" id="editConcernForm" autocomplete="off">
+        <form action="<?= \App\Core\Controller::url('/admin/concerns/update') ?>" method="POST" enctype="multipart/form-data" class="modal-content" id="editConcernForm" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
             <input type="hidden" name="id" id="edit_concern_id" value="">
             <input type="hidden" name="modules_present" value="1">
@@ -325,6 +341,15 @@
                             <label class="form-label small fw-semibold">Registered Physical Address *</label>
                             <textarea name="address" id="edit_concern_address" class="form-control" rows="3" maxlength="1000" minlength="5" autocomplete="off" placeholder="Complete registered address" required></textarea>
                             <div class="invalid-feedback" id="editConcernAddressFeedback">Registered physical address is required (minimum 5 characters).</div>
+                        </div>
+
+                        <div class="mb-0">
+                            <label class="form-label small fw-semibold">Concern Logo <span class="text-muted fw-normal">(Optional)</span></label>
+                            <input type="file" name="logo" id="edit_concern_logo" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,image/svg+xml" onchange="previewConcernLogoInput(this, 'editConcernLogoPreview')">
+                            <div class="d-flex align-items-center gap-2 mt-2">
+                                <img id="editConcernLogoPreview" src="" alt="Concern logo" class="d-none rounded border bg-light p-1" style="width: 48px; height: 48px; object-fit: contain;">
+                                <div class="form-text mt-0">Upload a new logo to replace the current one (stored in Cloudinary).</div>
+                            </div>
                         </div>
                     </div>
 
@@ -831,6 +856,20 @@ function openViewConcernModal(con) {
     modal.show();
 }
 
+function previewConcernLogoInput(input, previewId) {
+    const preview = document.getElementById(previewId);
+    if (!preview) return;
+    const file = input?.files && input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target?.result || '';
+            preview.classList.remove('d-none');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
 function openEditConcernModal(con) {
     if (!con) return;
     document.getElementById('edit_concern_id').value = con.id || '';
@@ -840,6 +879,22 @@ function openEditConcernModal(con) {
     document.getElementById('edit_concern_gstin').value = con.gstin || '';
     document.getElementById('edit_concern_address').value = con.address || '';
     document.getElementById('edit_concern_status').value = con.status || 'active';
+
+    const editLogoInput = document.getElementById('edit_concern_logo');
+    if (editLogoInput) editLogoInput.value = '';
+    const editLogoPreview = document.getElementById('editConcernLogoPreview');
+    if (editLogoPreview) {
+        const rawLogo = (con.logo || '').trim();
+        if (rawLogo) {
+            editLogoPreview.src = /^https?:\/\//i.test(rawLogo)
+                ? rawLogo
+                : '<?= rtrim(\App\Core\Controller::url('/'), '/') ?>/' + rawLogo.replace(/^\/+/, '');
+            editLogoPreview.classList.remove('d-none');
+        } else {
+            editLogoPreview.src = '';
+            editLogoPreview.classList.add('d-none');
+        }
+    }
 
     const editNameEl = document.getElementById('edit_concern_name');
     const editNameFb = document.getElementById('editConcernNameFeedback');

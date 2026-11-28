@@ -585,12 +585,18 @@ class PurchaseController extends Controller
         $productAttributes = [];
         if ($isProductAddingEdit) {
             $categoryScope = $cid
-                ? " WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'"
-                : " WHERE status = 'active'";
+                ? " WHERE cat.concern_id = ? AND cat.status = 'active'"
+                : " WHERE cat.status = 'active'";
+            $subScope = $cid
+                ? " WHERE sub.concern_id = ? AND sub.status = 'active'"
+                : " WHERE sub.status = 'active'";
+            $subSubScope = $cid
+                ? " WHERE ssub.concern_id = ? AND ssub.status = 'active'"
+                : " WHERE ssub.status = 'active'";
             $categoryParams = $cid ? [$cid] : [];
-            $categories = DB::fetchAll("SELECT id, concern_id, name, default_hsn, default_gst_rate FROM categories{$categoryScope} ORDER BY name ASC", $categoryParams);
-            $subcategories = DB::fetchAll("SELECT id, concern_id, category_id, name FROM subcategories{$categoryScope} ORDER BY name ASC", $categoryParams);
-            $subSubcategories = DB::fetchAll("SELECT id, concern_id, subcategory_id, name FROM sub_subcategories{$categoryScope} ORDER BY name ASC", $categoryParams);
+            $categories = DB::fetchAll("SELECT cat.id, cat.concern_id, cat.name, cat.default_hsn, cat.default_gst_rate, con.name AS concern_name, con.code AS concern_code FROM categories cat LEFT JOIN concerns con ON con.id = cat.concern_id{$categoryScope} ORDER BY cat.name ASC", $categoryParams);
+            $subcategories = DB::fetchAll("SELECT sub.id, sub.concern_id, sub.category_id, sub.name, con.name AS concern_name, con.code AS concern_code FROM subcategories sub LEFT JOIN concerns con ON con.id = sub.concern_id{$subScope} ORDER BY sub.name ASC", $categoryParams);
+            $subSubcategories = DB::fetchAll("SELECT ssub.id, ssub.concern_id, ssub.subcategory_id, ssub.name, con.name AS concern_name, con.code AS concern_code FROM sub_subcategories ssub LEFT JOIN concerns con ON con.id = ssub.concern_id{$subSubScope} ORDER BY ssub.name ASC", $categoryParams);
             $productAttributes = DB::fetchAll(
                 $cid
                     ? 'SELECT concern_id, category_id, subcategory_id, sub_sub_category_id, attribute_type, attribute_value FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type, sort_order'
@@ -677,21 +683,12 @@ class PurchaseController extends Controller
                     'gst_rate' => $rate,
                     'rate_note' => $rateNote,
                 ];
-            } elseif ($existing['concern_id'] === null) {
-                $saved = $existing;
             } else {
-                DB::query(
-                    'UPDATE hsn_masters SET description = ?, category = ?, gst_rate = ?, rate_note = ?, is_active = 1 WHERE id = ?',
-                    [$desc, $category, $rate, $rateNote, $existing['id']]
-                );
-                $saved = [
-                    'code_type' => $codeType,
-                    'hsn_code' => $code,
-                    'description' => $desc,
-                    'category' => $category,
-                    'gst_rate' => $rate,
-                    'rate_note' => $rateNote,
-                ];
+                echo json_encode([
+                    'success' => false,
+                    'message' => "Duplicate Error: HSN code '{$code}' already exists for this scope."
+                ]);
+                exit;
             }
 
             echo json_encode([
@@ -753,7 +750,7 @@ class PurchaseController extends Controller
 
         $sql = 'SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company, s.phone AS supplier_phone,
                        s.gstin AS supplier_gstin, s.district AS supplier_district, s.state AS supplier_state,
-                       con.name AS concern_name, con.code AS concern_code
+                       con.name AS concern_name, con.code AS concern_code, con.logo AS concern_logo
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
                 LEFT JOIN concerns con ON pb.concern_id = con.id
@@ -806,7 +803,7 @@ class PurchaseController extends Controller
 
         $sql = 'SELECT pb.*, s.name AS supplier_name, s.company_name AS supplier_company, s.phone AS supplier_phone,
                        s.gstin AS supplier_gstin, s.district AS supplier_district, s.state AS supplier_state,
-                       con.name AS concern_name, con.code AS concern_code
+                       con.name AS concern_name, con.code AS concern_code, con.logo AS concern_logo
                 FROM purchase_bills pb
                 JOIN suppliers s ON pb.supplier_id = s.id
                 LEFT JOIN concerns con ON pb.concern_id = con.id

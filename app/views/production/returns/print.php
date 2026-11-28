@@ -27,10 +27,15 @@
     </div>
 
     <div class="header">
-        <div>
-            <h1 class="title"><?= htmlspecialchars($return['concern_name'] ?? 'GRM Inventory') ?></h1>
-            <div style="font-size: 11px; color: #64748b;"><?= htmlspecialchars($return['concern_gstin'] ? 'GSTIN: ' . $return['concern_gstin'] : '') ?></div>
-            <div style="font-size: 12px; margin-top: 4px;">Customer: <strong><?= htmlspecialchars($return['customer_name'] ?: 'Retail Walk-in') ?></strong> (<?= htmlspecialchars($return['customer_phone'] ?: '-') ?>)</div>
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <?php if (!empty($return['concern_logo'])): ?>
+                <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($return['concern_logo'])) ?>" alt="<?= htmlspecialchars($return['concern_name'] ?? 'Logo') ?>" style="max-height: 48px; max-width: 130px; object-fit: contain;">
+            <?php endif; ?>
+            <div>
+                <h1 class="title"><?= htmlspecialchars($return['concern_name'] ?? 'GRM Inventory') ?></h1>
+                <div style="font-size: 11px; color: #64748b;"><?= htmlspecialchars($return['concern_gstin'] ? 'GSTIN: ' . $return['concern_gstin'] : '') ?></div>
+                <div style="font-size: 12px; margin-top: 4px;">Customer: <strong><?= htmlspecialchars($return['customer_name'] ?: 'Retail Walk-in') ?></strong> (<?= htmlspecialchars($return['customer_phone'] ?: '-') ?>)</div>
+            </div>
         </div>
         <div style="text-align: right;">
             <div style="font-size: 16px; font-weight: bold; font-family: monospace;"><?= htmlspecialchars($return['return_no']) ?></div>

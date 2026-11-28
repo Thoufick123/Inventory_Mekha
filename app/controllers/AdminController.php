@@ -388,6 +388,23 @@ class AdminController extends Controller {
             $errors[] = 'Select at least one module for the concern.';
         }
 
+        $logoUrl = null;
+        if (isset($_FILES['logo']) && ($_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            if (($_FILES['logo']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+                $errors[] = 'Failed to upload concern logo image.';
+            } else {
+                $logoExt = strtolower(pathinfo((string)($_FILES['logo']['name'] ?? ''), PATHINFO_EXTENSION));
+                if (!in_array($logoExt, ['jpg', 'jpeg', 'png', 'webp', 'svg'], true)) {
+                    $errors[] = 'Concern logo must be a JPG, PNG, WEBP, or SVG image.';
+                } else {
+                    $logoUrl = \App\Services\CloudinaryService::saveUploadedFile($_FILES['logo'], 'concerns', ['jpg', 'jpeg', 'png', 'webp', 'svg']);
+                    if (!$logoUrl) {
+                        $errors[] = 'Unable to store concern logo image.';
+                    }
+                }
+            }
+        }
+
         if ($errors) {
             $this->flash('error', implode(' ', array_unique($errors)));
             $this->redirect('/admin/concerns');
@@ -400,7 +417,7 @@ class AdminController extends Controller {
 
             // 1. Create Concern
             DB::query(
-                "INSERT INTO concerns (code, name, address, gstin, phone, email, status) VALUES (?, ?, ?, ?, ?, ?, 'active')",
+                "INSERT INTO concerns (code, name, address, gstin, phone, email, logo, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')",
                 [
                     $code,
                     $name,
@@ -408,6 +425,7 @@ class AdminController extends Controller {
                     $gstin !== '' ? $gstin : null,
                     $phone !== '' ? $phone : null,
                     $email !== '' ? $email : null,
+                    $logoUrl,
                 ]
             );
             $concernId = (int)DB::lastInsertId();
@@ -657,10 +675,32 @@ class AdminController extends Controller {
             return;
         }
 
+        $logoUrl = $concern['logo'] ?? null;
+        if (isset($_FILES['logo']) && ($_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            if (($_FILES['logo']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+                $this->flash('error', 'Failed to upload concern logo image.');
+                $this->redirect('/admin/concerns');
+                return;
+            }
+            $logoExt = strtolower(pathinfo((string)($_FILES['logo']['name'] ?? ''), PATHINFO_EXTENSION));
+            if (!in_array($logoExt, ['jpg', 'jpeg', 'png', 'webp', 'svg'], true)) {
+                $this->flash('error', 'Concern logo must be a JPG, PNG, WEBP, or SVG image.');
+                $this->redirect('/admin/concerns');
+                return;
+            }
+            $uploadedLogo = \App\Services\CloudinaryService::saveUploadedFile($_FILES['logo'], 'concerns', ['jpg', 'jpeg', 'png', 'webp', 'svg']);
+            if (!$uploadedLogo) {
+                $this->flash('error', 'Unable to store concern logo image.');
+                $this->redirect('/admin/concerns');
+                return;
+            }
+            $logoUrl = $uploadedLogo;
+        }
+
         DB::beginTransaction();
         try {
             DB::query(
-                "UPDATE concerns SET name = ?, code = ?, gstin = ?, phone = ?, email = ?, address = ?, status = ? WHERE id = ?",
+                "UPDATE concerns SET name = ?, code = ?, gstin = ?, phone = ?, email = ?, address = ?, logo = ?, status = ? WHERE id = ?",
                 [
                     $name,
                     $code,
@@ -668,10 +708,16 @@ class AdminController extends Controller {
                     $phone !== '' ? $phone : null,
                     $email !== '' ? $email : null,
                     $address !== '' ? $address : null,
+                    $logoUrl,
                     $status,
                     $id
                 ]
             );
+            if (!empty($_SESSION['concern']['id']) && (int)$_SESSION['concern']['id'] === $id) {
+                $_SESSION['concern']['logo'] = $logoUrl;
+                $_SESSION['concern']['name'] = $name;
+                $_SESSION['concern']['code'] = $code;
+            }
 
             if ($hasModulePicker) {
                 $upsertCm = DB::pdo()->prepare(

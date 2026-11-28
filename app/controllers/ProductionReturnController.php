@@ -1293,7 +1293,7 @@ class ProductionReturnController extends Controller {
 
         $return = DB::fetch(
             "SELECT pr.*, c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address,
-                    si.invoice_no, con.name AS concern_name, con.code AS concern_code, con.gstin, con.phone AS concern_phone,
+                    si.invoice_no, con.name AS concern_name, con.code AS concern_code, con.gstin, con.phone AS concern_phone, con.logo AS concern_logo,
                     u.name AS user_name
              FROM production_returns pr
              LEFT JOIN customers c ON pr.customer_id = c.id

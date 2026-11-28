@@ -897,7 +897,7 @@ class SalesController extends Controller {
                         COALESCE(si.billing_company_email, c.email) AS customer_email,
                         COALESCE(si.billing_company_gstin, c.gstin) AS customer_gstin,
                         COALESCE(si.billing_company_address, c.address) AS customer_address,
-                        con.name AS concern_name, con.gstin AS concern_gstin, con.address AS concern_address, con.phone AS concern_phone
+                        con.name AS concern_name, con.gstin AS concern_gstin, con.address AS concern_address, con.phone AS concern_phone, con.logo AS concern_logo
                  FROM sales_invoices si
                  JOIN customers c ON si.customer_id = c.id
                  LEFT JOIN concerns con ON si.concern_id = con.id

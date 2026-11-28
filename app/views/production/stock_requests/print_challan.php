@@ -24,15 +24,20 @@
     </div>
 
     <div class="header">
-        <div>
-            <h1 class="title"><?= htmlspecialchars($request['concern_name'] ?? 'GRM Inventory') ?></h1>
-            <div style="font-size: 11px; color: #64748b;"><?= htmlspecialchars($request['concern_gstin'] ? 'GSTIN: ' . $request['concern_gstin'] : '') ?></div>
-            <div style="font-size: 12px; margin-top: 6px;">
-                <strong>DISPATCH DELIVERY CHALLAN</strong>
-            </div>
-            <div style="font-size: 12px; color: #475569; margin-top: 4px;">
-                From: <strong><?= htmlspecialchars($request['from_location_type']) ?> #<?= (int)$request['from_location_id'] ?></strong> &rarr;
-                To: <strong><?= htmlspecialchars($request['to_location_type']) ?> #<?= (int)$request['to_location_id'] ?></strong>
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <?php if (!empty($request['concern_logo'])): ?>
+                <img src="<?= htmlspecialchars(\App\Services\CloudinaryService::url($request['concern_logo'])) ?>" alt="<?= htmlspecialchars($request['concern_name'] ?? 'Logo') ?>" style="max-height: 48px; max-width: 130px; object-fit: contain;">
+            <?php endif; ?>
+            <div>
+                <h1 class="title"><?= htmlspecialchars($request['concern_name'] ?? 'GRM Inventory') ?></h1>
+                <div style="font-size: 11px; color: #64748b;"><?= htmlspecialchars($request['concern_gstin'] ? 'GSTIN: ' . $request['concern_gstin'] : '') ?></div>
+                <div style="font-size: 12px; margin-top: 6px;">
+                    <strong>DISPATCH DELIVERY CHALLAN</strong>
+                </div>
+                <div style="font-size: 12px; color: #475569; margin-top: 4px;">
+                    From: <strong><?= htmlspecialchars($request['from_location_type']) ?> #<?= (int)$request['from_location_id'] ?></strong> &rarr;
+                    To: <strong><?= htmlspecialchars($request['to_location_type']) ?> #<?= (int)$request['to_location_id'] ?></strong>
+                </div>
             </div>
         </div>
         <div style="text-align: right;">

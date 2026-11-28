@@ -241,16 +241,22 @@ class ProductAddingController extends Controller
             : [];
         $targetCid = $cid ?: 1;
         $categoryScope = $cid
-            ? " WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL) AND status = 'active'"
-            : " WHERE status = 'active'";
+            ? " WHERE cat.concern_id = ? AND cat.status = 'active'"
+            : " WHERE cat.status = 'active'";
+        $subScope = $cid
+            ? " WHERE sub.concern_id = ? AND sub.status = 'active'"
+            : " WHERE sub.status = 'active'";
+        $subSubScope = $cid
+            ? " WHERE ssub.concern_id = ? AND ssub.status = 'active'"
+            : " WHERE ssub.status = 'active'";
         $categoryParams = $cid ? [$cid] : [];
-        $categories = DB::fetchAll("SELECT id, concern_id, name, default_hsn, default_gst_rate FROM categories{$categoryScope} ORDER BY name ASC", $categoryParams);
+        $categories = DB::fetchAll("SELECT cat.id, cat.concern_id, cat.name, cat.default_hsn, cat.default_gst_rate, con.name AS concern_name, con.code AS concern_code FROM categories cat LEFT JOIN concerns con ON con.id = cat.concern_id{$categoryScope} ORDER BY cat.name ASC", $categoryParams);
         $subcategories = DB::fetchAll(
-            "SELECT id, concern_id, category_id, name FROM subcategories{$categoryScope} ORDER BY name ASC",
+            "SELECT sub.id, sub.concern_id, sub.category_id, sub.name, con.name AS concern_name, con.code AS concern_code FROM subcategories sub LEFT JOIN concerns con ON con.id = sub.concern_id{$subScope} ORDER BY sub.name ASC",
             $categoryParams
         );
         $subSubcategories = DB::fetchAll(
-            "SELECT id, concern_id, subcategory_id, name FROM sub_subcategories{$categoryScope} ORDER BY name ASC",
+            "SELECT ssub.id, ssub.concern_id, ssub.subcategory_id, ssub.name, con.name AS concern_name, con.code AS concern_code FROM sub_subcategories ssub LEFT JOIN concerns con ON con.id = ssub.concern_id{$subSubScope} ORDER BY ssub.name ASC",
             $categoryParams
         );
         $productAttributes = DB::fetchAll(
@@ -362,14 +368,45 @@ class ProductAddingController extends Controller
 
         // Fetch 3-Tier Hierarchy, Attributes & HSN Master for Product Adding
         if ($cid) {
-            $categories = DB::fetchAll('SELECT * FROM categories WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY name ASC', [$cid]);
-            $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id WHERE s.concern_id = ? OR s.concern_id = 1 OR s.concern_id IS NULL ORDER BY s.name ASC', [$cid]);
-            $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id WHERE ss.concern_id = ? OR ss.concern_id = 1 OR ss.concern_id IS NULL ORDER BY ss.name ASC', [$cid]);
+            $categories = DB::fetchAll('SELECT * FROM categories WHERE concern_id = ? ORDER BY name ASC', [$cid]);
+            $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id WHERE s.concern_id = ? ORDER BY s.name ASC', [$cid]);
+            $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id WHERE ss.concern_id = ? ORDER BY ss.name ASC', [$cid]);
             $attributes = DB::fetchAll('SELECT * FROM product_attributes WHERE concern_id = ? OR concern_id = 1 OR concern_id IS NULL ORDER BY attribute_type ASC, sort_order ASC', [$cid]);
         } else {
-            $categories = DB::fetchAll('SELECT * FROM categories ORDER BY name ASC');
-            $subcategories = DB::fetchAll('SELECT s.*, c.name AS category_name FROM subcategories s JOIN categories c ON s.category_id = c.id ORDER BY s.name ASC');
-            $subSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id ORDER BY ss.name ASC');
+            $rawCategories = DB::fetchAll('SELECT c.*, con.name AS concern_name, con.code AS concern_code FROM categories c LEFT JOIN concerns con ON con.id = c.concern_id ORDER BY c.name ASC, con.id ASC');
+            $rawSubcategories = DB::fetchAll('SELECT s.*, c.name AS category_name, con.name AS concern_name, con.code AS concern_code FROM subcategories s JOIN categories c ON s.category_id = c.id LEFT JOIN concerns con ON con.id = s.concern_id ORDER BY s.name ASC, con.id ASC');
+            $rawSubSubcategories = DB::fetchAll('SELECT ss.*, s.name AS subcategory_name, c.name AS category_name, con.name AS concern_name, con.code AS concern_code FROM sub_subcategories ss LEFT JOIN subcategories s ON ss.subcategory_id = s.id LEFT JOIN categories c ON s.category_id = c.id LEFT JOIN concerns con ON con.id = ss.concern_id ORDER BY ss.name ASC, con.id ASC');
+
+            $categories = [];
+            $seenCat = [];
+            foreach ($rawCategories as $row) {
+                $key = strtolower(trim((string) ($row['name'] ?? '')));
+                if (!isset($seenCat[$key])) {
+                    $seenCat[$key] = true;
+                    $categories[] = $row;
+                }
+            }
+
+            $subcategories = [];
+            $seenSub = [];
+            foreach ($rawSubcategories as $row) {
+                $key = strtolower(trim((string) ($row['category_name'] ?? ''))) . '|' . strtolower(trim((string) ($row['name'] ?? '')));
+                if (!isset($seenSub[$key])) {
+                    $seenSub[$key] = true;
+                    $subcategories[] = $row;
+                }
+            }
+
+            $subSubcategories = [];
+            $seenSubSub = [];
+            foreach ($rawSubSubcategories as $row) {
+                $key = strtolower(trim((string) ($row['category_name'] ?? ''))) . '|' . strtolower(trim((string) ($row['subcategory_name'] ?? ''))) . '|' . strtolower(trim((string) ($row['name'] ?? '')));
+                if (!isset($seenSubSub[$key])) {
+                    $seenSubSub[$key] = true;
+                    $subSubcategories[] = $row;
+                }
+            }
+
             $attributes = DB::fetchAll('SELECT * FROM product_attributes ORDER BY attribute_type ASC, sort_order ASC');
         }
 
@@ -475,15 +512,32 @@ class ProductAddingController extends Controller
         if ($name === '' || mb_strlen($name) > 100) {
             $respond(false, ['message' => 'Enter a category name of 1 to 100 characters.'], 422);
         }
+        if (mb_strlen($code) > 10) {
+            $respond(false, ['message' => 'Short code must be 10 characters or fewer.'], 422);
+        }
         if ($code === '') {
             $code = strtoupper(substr(preg_replace('/[^A-Z0-9]/i', '', $name) ?: 'NEW', 0, 10));
         }
 
+        $defaultHsn = null;
+        $defaultGstRate = null;
+
         try {
             if ($tier === 'category') {
+                $defaultHsn = trim((string) ($_POST['default_hsn'] ?? ''));
+                $gstInput = trim((string) ($_POST['default_gst_rate'] ?? ''));
+                $defaultGstRate = $gstInput === '' ? null : (is_numeric($gstInput) ? (float) $gstInput : -1.0);
+                if (($defaultHsn !== '' && !preg_match('/^\d{4}(?:\d{2}){0,2}$/', $defaultHsn))
+                    || ($defaultGstRate !== null && (!is_finite($defaultGstRate) || $defaultGstRate < 0 || $defaultGstRate > 100))) {
+                    $respond(false, ['message' => 'Enter a valid HSN code and GST rate, or leave these optional defaults blank.'], 422);
+                }
+                if ($defaultHsn === '') {
+                    $defaultHsn = null;
+                }
+
                 $duplicate = DB::fetch(
                     "SELECT id, name FROM categories
-                     WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                     WHERE concern_id = ?
                        AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'
                      LIMIT 1",
                     [$concernId, $name]
@@ -493,7 +547,7 @@ class ProductAddingController extends Controller
                 }
                 $dupCode = DB::fetch(
                     "SELECT id FROM categories
-                     WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                     WHERE concern_id = ?
                        AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'
                      LIMIT 1",
                     [$concernId, $code]
@@ -504,8 +558,8 @@ class ProductAddingController extends Controller
 
                 DB::query(
                     "INSERT INTO categories (concern_id, name, code, default_hsn, default_gst_rate, status, created_at)
-                     VALUES (?, ?, ?, NULL, NULL, 'active', NOW())",
-                    [$concernId, $name, $code]
+                     VALUES (?, ?, ?, ?, ?, 'active', NOW())",
+                    [$concernId, $name, $code, $defaultHsn, $defaultGstRate]
                 );
                 $parentId = null;
                 $id = (int) DB::lastInsertId();
@@ -515,7 +569,7 @@ class ProductAddingController extends Controller
                 $parent = DB::fetch(
                     "SELECT id FROM categories
                      WHERE id = ? AND status = 'active'
-                       AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                       AND concern_id = ?",
                     [$parentId, $concernId]
                 );
                 if (!$parent) {
@@ -523,7 +577,7 @@ class ProductAddingController extends Controller
                 }
                 $duplicate = DB::fetch(
                     "SELECT id FROM subcategories
-                     WHERE category_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                     WHERE category_id = ? AND concern_id = ?
                        AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'
                      LIMIT 1",
                     [$parentId, $concernId, $name]
@@ -533,7 +587,7 @@ class ProductAddingController extends Controller
                 }
                 $dupCode = DB::fetch(
                     "SELECT id FROM subcategories
-                     WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                     WHERE concern_id = ?
                        AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'
                      LIMIT 1",
                     [$concernId, $code]
@@ -555,7 +609,7 @@ class ProductAddingController extends Controller
                 $parent = DB::fetch(
                     "SELECT id FROM subcategories
                      WHERE id = ? AND category_id = ? AND status = 'active'
-                       AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)",
+                       AND concern_id = ?",
                     [$parentId, $categoryId, $concernId]
                 );
                 if (!$parent) {
@@ -563,7 +617,7 @@ class ProductAddingController extends Controller
                 }
                 $duplicate = DB::fetch(
                     "SELECT id FROM sub_subcategories
-                     WHERE subcategory_id = ? AND (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                     WHERE subcategory_id = ? AND concern_id = ?
                        AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND status != 'deleted'
                      LIMIT 1",
                     [$parentId, $concernId, $name]
@@ -573,7 +627,7 @@ class ProductAddingController extends Controller
                 }
                 $dupCode = DB::fetch(
                     "SELECT id FROM sub_subcategories
-                     WHERE (concern_id = ? OR concern_id = 1 OR concern_id IS NULL)
+                     WHERE concern_id = ?
                        AND LOWER(TRIM(code)) = LOWER(TRIM(?)) AND status != 'deleted'
                      LIMIT 1",
                     [$concernId, $code]
@@ -599,6 +653,8 @@ class ProductAddingController extends Controller
                 'concern_id' => $concernId,
                 'parent_id' => $parentId,
                 'category_id' => $tier === 'category' ? $id : ($categoryId ?? $parentId),
+                'default_hsn' => $defaultHsn,
+                'default_gst_rate' => $defaultGstRate,
             ]);
         } catch (\Throwable $e) {
             error_log('Product Adding hierarchy quick-add failed: ' . $e->getMessage());
@@ -771,13 +827,13 @@ class ProductAddingController extends Controller
 
         DB::beginTransaction();
         try {
-            $cat = DB::fetch('SELECT * FROM categories WHERE id = ? AND (concern_id = ? OR concern_id = 1)', [$categoryId, $cid]);
+            $cat = DB::fetch('SELECT * FROM categories WHERE id = ? AND concern_id = ?', [$categoryId, $cid]);
             if (!$cat) {
                 throw new Exception('The selected category is not valid for this concern.');
             }
 
-            $sub = $subcategoryId ? DB::fetch('SELECT * FROM subcategories WHERE id = ? AND (concern_id = ? OR concern_id = 1)', [$subcategoryId, $cid]) : null;
-            $subSub = $subSubcategoryId ? DB::fetch('SELECT * FROM sub_subcategories WHERE id = ? AND (concern_id = ? OR concern_id = 1)', [$subSubcategoryId, $cid]) : null;
+            $sub = $subcategoryId ? DB::fetch('SELECT * FROM subcategories WHERE id = ? AND concern_id = ?', [$subcategoryId, $cid]) : null;
+            $subSub = $subSubcategoryId ? DB::fetch('SELECT * FROM sub_subcategories WHERE id = ? AND concern_id = ?', [$subSubcategoryId, $cid]) : null;
 
             $mainCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($cat['code'] ?? $cat['name'])) ?: 'XX');
             $subCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($sub['code'] ?? $sub['name'] ?? '')) ?: 'XX');
